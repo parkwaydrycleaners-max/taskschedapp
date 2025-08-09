@@ -2680,8 +2680,11 @@
                             const workDate = this.formatDateForPrint(this.currentTagData.dateKey);
                             const dueDate = this.formatDateForPrint(this.currentTagData.task.dateDue);
                             
-                            // Create thermal printer URL
-                            const printUrl = `tagprint://ordernum=${encodeURIComponent(this.currentTagData.task.orderNumber)}&person=${encodeURIComponent(this.currentTagData.person)}&workdate=${encodeURIComponent(workDate)}&duedate=${encodeURIComponent(dueDate)}&custom=${encodeURIComponent(customInfo)}&tagnum=${tagNumber}`;
+                            // Create thermal printer URL with properly normalized date format
+                            const normalizedWorkDate = this.normalizeDate(this.currentTagData.dateKey);
+                            const normalizedDueDate = this.normalizeDate(this.currentTagData.task.dateDue);
+                            
+                            const printUrl = `tagprint://ordernum=${encodeURIComponent(this.currentTagData.task.orderNumber)}&person=${encodeURIComponent(this.currentTagData.person)}&workdate=${encodeURIComponent(normalizedWorkDate)}&duedate=${encodeURIComponent(normalizedDueDate)}&custom=${encodeURIComponent(customInfo)}&tagnum=${tagNumber}`;
                             
                             // Create hidden link and trigger it
                             const link = document.createElement('a');
@@ -6246,24 +6249,54 @@
             async loadCapacityOverridesFromAirtable() {
                 try {
                     const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
-                    const response = await this.makeAirtableRequest(tableName);
+                    
+                    // Load ALL capacity override records with pagination
+                    let allRecords = [];
+                    let offset = null;
+                    
+                    do {
+                        const url = offset ? `${tableName}?offset=${offset}` : tableName;
+                        const response = await this.makeAirtableRequest(url);
+                        allRecords = allRecords.concat(response.records);
+                        offset = response.offset;
+                        console.log(`📄 Loaded ${response.records.length} capacity override records (total: ${allRecords.length})`);
+                    } while (offset);
+                    
+                    console.log(`📊 Total capacity override records loaded: ${allRecords.length}`);
                     
                     if (!this.peopleSpecificCapacity) {
                         this.peopleSpecificCapacity = {};
                     }
 
-                    response.records.forEach(record => {
+                    // Clear existing overrides before loading fresh data
+                    this.peopleSpecificCapacity = {};
+
+                    allRecords.forEach(record => {
                         const fields = record.fields;
                         if (fields.Person && fields.Date && fields.Capacity !== undefined) {
                             if (!this.peopleSpecificCapacity[fields.Person]) {
                                 this.peopleSpecificCapacity[fields.Person] = {};
                             }
-                            this.peopleSpecificCapacity[fields.Person][fields.Date] = fields.Capacity;
+                            
+                            // Ensure date format consistency using normalizeDate
+                            const dateKey = this.normalizeDate(fields.Date);
+                            this.peopleSpecificCapacity[fields.Person][dateKey] = fields.Capacity;
+                            
+                            console.log(`✅ Loaded capacity override: ${fields.Person} on ${dateKey} = ${fields.Capacity} slots`);
                         }
                     });
 
+                    console.log('📋 Final peopleSpecificCapacity state:', this.peopleSpecificCapacity);
                     await this.saveCapacityOverridesToLocal();
+                    
+                    // Force whiteboard re-render to show updated capacities
+                    if (allRecords.length > 0) {
+                        console.log('🎨 Re-rendering whiteboard to show capacity overrides...');
+                        this.renderWhiteboard();
+                    }
+                    
                 } catch (error) {
+                    console.warn('⚠️ Could not load capacity overrides from Airtable:', error);
                     if (error.message.includes('NOT_FOUND') || error.message.includes('Table not found')) {
                         this.showCapacityOverridesSetupInfo();
                     }
