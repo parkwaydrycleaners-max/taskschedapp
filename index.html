@@ -307,7 +307,7 @@
                     <!-- Description -->
                     <div>
                         <label class="block text-sm font-medium mb-2">Description:</label>
-                        <textarea id="descriptionInput" placeholder="Type Quantity, Item , Alteration, and RUSH if rush" rows="4" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+                        <textarea id="descriptionInput" placeholder="Type Quantity, Item Name/s, Alteration, Rush if RUSH" rows="4" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
                         
                         <!-- Common Words -->
                         <div class="mt-2">
@@ -3395,7 +3395,7 @@
                 });
                 
                 if (allDescriptions.length === 0) {
-                    return ['hem', 'pants', 'dress', 'rush', 'take-in', 'sleeve', 'length'];
+                    return ['hem', 'pants', 'dress', 'rush', 'takein', 'sleeve', 'length'];
                 }
                 
                 const wordCount = {};
@@ -4629,141 +4629,144 @@
                 this.createConfirmationModal('👤 Remove Person', message, () => this.deactivatePerson(person), 'Remove', 'bg-orange-500 hover:bg-orange-600');
             }
             
-showCapacityModal(person) {
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    
-    let currentCapacity = this.peopleCapacity[person];
-    if (!currentCapacity || typeof currentCapacity !== 'object') {
-        currentCapacity = {};
-        this.DAYS_OF_WEEK.forEach(day => {
-            currentCapacity[day] = 16;
-        });
-    }
-    
-    const capacityInputs = this.DAYS_OF_WEEK.map(day => {
-        const value = currentCapacity[day] || 16;
-        return `
-            <div>
-                <label class="block text-sm font-medium mb-1">${day}:</label>
-                <input type="number" id="capacity${day}" min="0" max="32" value="${value}" 
-                       class="w-full p-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
-            </div>
-        `;
-    }).join('');
-    
-    modal.innerHTML = `
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full mx-4 fade-in">
-            <h3 class="text-lg font-semibold mb-4">⏰ Edit Capacity for ${person}</h3>
-            
-            <div class="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 mb-4">
-                <p class="text-sm text-yellow-800 dark:text-yellow-200">
-                    <strong>Note:</strong> Changes to weekly capacity will only affect future dates. 
-                    Historical capacity for past dates will be preserved automatically.
-                </p>
-            </div>
-            
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium mb-3">Daily Capacity (15-min slots):</label>
-                    <div class="grid grid-cols-2 gap-3">
-                        ${capacityInputs}
-                    </div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Each slot = 15 minutes. 32 slots = 8 hours max.</p>
-                </div>
+            showCapacityModal(person) {
+                const modal = document.createElement('div');
+                modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
                 
-                <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                    <label class="block text-sm font-medium mb-2">Quick Presets:</label>
-                    <div class="flex flex-wrap gap-2">
-                        <button type="button" class="preset-full-time px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">Full Time (Mon-Fri, 8h)</button>
-                        <button type="button" class="preset-part-time px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Part Time (Mon-Fri, 4h)</button>
-                        <button type="button" class="preset-weekends px-3 py-1 text-sm bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors">Weekends Only</button>
-                        <button type="button" class="preset-clear px-3 py-1 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">Clear All</button>
+                let currentCapacity = this.peopleCapacity[person];
+                if (!currentCapacity || typeof currentCapacity !== 'object') {
+                    currentCapacity = {};
+                    this.DAYS_OF_WEEK.forEach(day => {
+                        currentCapacity[day] = 16;
+                    });
+                }
+                
+                const capacityInputs = this.DAYS_OF_WEEK.map(day => {
+                    const value = currentCapacity[day] || 16;
+                    return `
+                        <div>
+                            <label class="block text-sm font-medium mb-1">${day}:</label>
+                            <input type="number" id="capacity${day}" min="0" max="32" value="${value}" 
+                                   class="w-full p-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                    `;
+                }).join('');
+                
+                modal.innerHTML = `
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full mx-4 fade-in">
+                        <h3 class="text-lg font-semibold mb-4">⏰ Edit Capacity for ${person}</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-3">Daily Capacity (15-min slots):</label>
+                                <div class="grid grid-cols-2 gap-3">
+                                    ${capacityInputs}
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Each slot = 15 minutes. 32 slots = 8 hours max.</p>
+                            </div>
+                            
+                            <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                                <label class="block text-sm font-medium mb-2">Quick Presets:</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" class="preset-full-time px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">Full Time (Mon-Fri, 8h)</button>
+                                    <button type="button" class="preset-part-time px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Part Time (Mon-Fri, 4h)</button>
+                                    <button type="button" class="preset-weekends px-3 py-1 text-sm bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors">Weekends Only</button>
+                                    <button type="button" class="preset-clear px-3 py-1 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">Clear All</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-3 mt-6">
+                            <button class="cancel-capacity px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
+                            <button class="save-capacity px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Save</button>
+                        </div>
                     </div>
-                </div>
-            </div>
-            <div class="flex justify-end space-x-3 mt-6">
-                <button class="cancel-capacity px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
-                <button class="save-capacity px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Save</button>
-            </div>
-        </div>
-    `;
+                `;
 
-    document.body.appendChild(modal);
+                document.body.appendChild(modal);
 
-    const cancelButton = modal.querySelector('.cancel-capacity');
-    const saveButton = modal.querySelector('.save-capacity');
-    
-    modal.querySelector('.preset-full-time').addEventListener('click', () => {
-        this.DAYS_OF_WEEK.forEach(day => {
-            const input = modal.querySelector(`#capacity${day}`);
-            if (input) {
-                input.value = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day) ? '32' : '0';
-            }
-        });
-    });
-    
-    modal.querySelector('.preset-part-time').addEventListener('click', () => {
-        this.DAYS_OF_WEEK.forEach(day => {
-            const input = modal.querySelector(`#capacity${day}`);
-            if (input) {
-                input.value = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day) ? '16' : '0';
-            }
-        });
-    });
-    
-    modal.querySelector('.preset-weekends').addEventListener('click', () => {
-        this.DAYS_OF_WEEK.forEach(day => {
-            const input = modal.querySelector(`#capacity${day}`);
-            if (input) {
-                input.value = ['Saturday', 'Sunday'].includes(day) ? '32' : '0';
-            }
-        });
-    });
-    
-    modal.querySelector('.preset-clear').addEventListener('click', () => {
-        this.DAYS_OF_WEEK.forEach(day => {
-            const input = modal.querySelector(`#capacity${day}`);
-            if (input) {
-                input.value = '0';
-            }
-        });
-    });
-    
-    cancelButton.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.closeModal(modal);
-    });
+                const cancelButton = modal.querySelector('.cancel-capacity');
+                const saveButton = modal.querySelector('.save-capacity');
+                
+                modal.querySelector('.preset-full-time').addEventListener('click', () => {
+                    this.DAYS_OF_WEEK.forEach(day => {
+                        const input = modal.querySelector(`#capacity${day}`);
+                        if (input) {
+                            input.value = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day) ? '32' : '0';
+                        }
+                    });
+                });
+                
+                modal.querySelector('.preset-part-time').addEventListener('click', () => {
+                    this.DAYS_OF_WEEK.forEach(day => {
+                        const input = modal.querySelector(`#capacity${day}`);
+                        if (input) {
+                            input.value = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day) ? '16' : '0';
+                        }
+                    });
+                });
+                
+                modal.querySelector('.preset-weekends').addEventListener('click', () => {
+                    this.DAYS_OF_WEEK.forEach(day => {
+                        const input = modal.querySelector(`#capacity${day}`);
+                        if (input) {
+                            input.value = ['Saturday', 'Sunday'].includes(day) ? '32' : '0';
+                        }
+                    });
+                });
+                
+                modal.querySelector('.preset-clear').addEventListener('click', () => {
+                    this.DAYS_OF_WEEK.forEach(day => {
+                        const input = modal.querySelector(`#capacity${day}`);
+                        if (input) {
+                            input.value = '0';
+                        }
+                    });
+                });
+                
+                cancelButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.closeModal(modal);
+                });
 
-    saveButton.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const weeklyCapacity = {};
-        this.DAYS_OF_WEEK.forEach(day => {
-            const input = modal.querySelector(`#capacity${day}`);
-            const capacity = parseInt(input.value) || 0;
-            weeklyCapacity[day] = Math.max(0, Math.min(capacity, 32));
-        });
-        
-        this.showLoading('Updating capacity...');
-        
-        try {
-            await this.updatePersonWeeklyCapacity(person, weeklyCapacity);
-            this.showToast('Capacity updated and historical data preserved!', 'success');
-        } catch (error) {
-            this.showToast(`Failed to update capacity: ${error.message}`, 'error');
-        } finally {
-            this.hideLoading();
-        }
-        
-        this.closeModal(modal);
-        
-        this.renderWhiteboard();
-        this.updateCurrentPeopleList();
-    });
-}
+                saveButton.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const weeklyCapacity = {};
+                    this.DAYS_OF_WEEK.forEach(day => {
+                        const input = modal.querySelector(`#capacity${day}`);
+                        const capacity = parseInt(input.value) || 0;
+                        weeklyCapacity[day] = Math.max(0, Math.min(capacity, 32));
+                    });
+                    
+                    this.peopleCapacity[person] = weeklyCapacity;
+                    
+                    try {
+                        await this.savePeopleCapacityToLocal();
+                    } catch (error) {
+                        console.warn('Could not save to local storage:', error);
+                    }
+                    
+                    if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
+                        this.showLoading('Updating capacity...');
+                        try {
+                            await this.updatePersonWeeklyCapacity(person, weeklyCapacity);
+                            this.showToast('Capacity updated and synced!', 'success');
+                        } catch (error) {
+                            this.showToast(`Capacity updated locally. Sync failed: ${error.message}`, 'warning');
+                        } finally {
+                            this.hideLoading();
+                        }
+                    } else {
+                        this.showToast('Capacity updated successfully!', 'success');
+                    }
+                    
+                    this.closeModal(modal);
+                    
+                    this.renderWhiteboard();
+                    this.updateCurrentPeopleList();
+                });
+            }
             
             showTaskDetails(task) {
                 let currentPerson = null;
@@ -6243,102 +6246,65 @@ showCapacityModal(person) {
                 });
             }
             
-async loadCapacityOverridesFromAirtable() {
-    try {
-        const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
-        
-        // Load ALL capacity override records with pagination
-        let allRecords = [];
-        let offset = null;
-        
-        do {
-            const url = offset ? `${tableName}?offset=${offset}` : tableName;
-            const response = await this.makeAirtableRequest(url);
-            allRecords = allRecords.concat(response.records);
-            offset = response.offset;
-            console.log(`📄 Loaded ${response.records.length} capacity override records (total: ${allRecords.length})`);
-        } while (offset);
-        
-        console.log(`📊 Total capacity override records loaded: ${allRecords.length}`);
-        
-        if (!this.peopleSpecificCapacity) {
-            this.peopleSpecificCapacity = {};
-        }
+            async loadCapacityOverridesFromAirtable() {
+                try {
+                    const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
+                    
+                    // Load ALL capacity override records with pagination
+                    let allRecords = [];
+                    let offset = null;
+                    
+                    do {
+                        const url = offset ? `${tableName}?offset=${offset}` : tableName;
+                        const response = await this.makeAirtableRequest(url);
+                        allRecords = allRecords.concat(response.records);
+                        offset = response.offset;
+                        console.log(`📄 Loaded ${response.records.length} capacity override records (total: ${allRecords.length})`);
+                    } while (offset);
+                    
+                    console.log(`📊 Total capacity override records loaded: ${allRecords.length}`);
+                    
+                    if (!this.peopleSpecificCapacity) {
+                        this.peopleSpecificCapacity = {};
+                    }
 
-        // Clear existing overrides before loading fresh data
-        this.peopleSpecificCapacity = {};
-        
-        // Track different types of records for debugging
-        const defaultCapacityRecords = [];
-        const historicalCapacityRecords = [];
-        const customCapacityRecords = [];
+                    // Clear existing overrides before loading fresh data
+                    this.peopleSpecificCapacity = {};
 
-        allRecords.forEach(record => {
-            const fields = record.fields;
-            if (fields.Person && fields.Date && fields.Capacity !== undefined) {
-                // Process all records
-                if (!this.peopleSpecificCapacity[fields.Person]) {
-                    this.peopleSpecificCapacity[fields.Person] = {};
-                }
-                
-                // Ensure date format consistency using normalizeDate
-                const dateKey = this.normalizeDate(fields.Date);
-                
-                // Store the capacity value
-                this.peopleSpecificCapacity[fields.Person][dateKey] = fields.Capacity;
-                
-                // Track record type for debugging
-                if (fields.IsDefault === true) {
-                    defaultCapacityRecords.push({
-                        person: fields.Person,
-                        date: dateKey,
-                        capacity: fields.Capacity
+                    allRecords.forEach(record => {
+                        const fields = record.fields;
+                        if (fields.Person && fields.Date && fields.Capacity !== undefined) {
+                            if (!this.peopleSpecificCapacity[fields.Person]) {
+                                this.peopleSpecificCapacity[fields.Person] = {};
+                            }
+                            
+                            // Ensure date format consistency using normalizeDate
+                            const dateKey = this.normalizeDate(fields.Date);
+                            this.peopleSpecificCapacity[fields.Person][dateKey] = fields.Capacity;
+                            
+                            console.log(`✅ Loaded capacity override: ${fields.Person} on ${dateKey} = ${fields.Capacity} slots`);
+                        }
                     });
-                    console.log(`ℹ️ Loaded default capacity override: ${fields.Person} on ${dateKey} = ${fields.Capacity} slots`);
-                } else if (fields.IsHistorical === true) {
-                    historicalCapacityRecords.push({
-                        person: fields.Person,
-                        date: dateKey,
-                        capacity: fields.Capacity
-                    });
-                    console.log(`🔒 Loaded historical capacity override: ${fields.Person} on ${dateKey} = ${fields.Capacity} slots`);
-                } else {
-                    customCapacityRecords.push({
-                        person: fields.Person,
-                        date: dateKey,
-                        capacity: fields.Capacity
-                    });
-                    console.log(`✅ Loaded custom capacity override: ${fields.Person} on ${dateKey} = ${fields.Capacity} slots`);
+
+                    console.log('📋 Final peopleSpecificCapacity state:', this.peopleSpecificCapacity);
+                    await this.saveCapacityOverridesToLocal();
+                    
+                    // Force whiteboard re-render to show updated capacities
+                    if (allRecords.length > 0) {
+                        console.log('🎨 Re-rendering whiteboard to show capacity overrides...');
+                        this.renderWhiteboard();
+                    }
+                    
+                } catch (error) {
+                    console.warn('⚠️ Could not load capacity overrides from Airtable:', error);
+                    if (error.message.includes('NOT_FOUND') || error.message.includes('Table not found')) {
+                        this.showCapacityOverridesSetupInfo();
+                    }
+                    if (!this.peopleSpecificCapacity) {
+                        this.peopleSpecificCapacity = {};
+                    }
                 }
             }
-        });
-
-        console.log('📋 Final peopleSpecificCapacity state:', this.peopleSpecificCapacity);
-        console.log('📊 Override statistics:', {
-            default: defaultCapacityRecords.length,
-            historical: historicalCapacityRecords.length,
-            custom: customCapacityRecords.length,
-            total: allRecords.length
-        });
-        
-        await this.saveCapacityOverridesToLocal();
-        
-        // Force whiteboard re-render to show updated capacities
-        if (allRecords.length > 0) {
-            console.log('🎨 Re-rendering whiteboard to show capacity overrides...');
-            this.renderWhiteboard();
-        }
-        
-    } catch (error) {
-        console.warn('⚠️ Could not load capacity overrides from Airtable:', error);
-        if (error.message.includes('NOT_FOUND') || error.message.includes('Table not found')) {
-            this.showCapacityOverridesSetupInfo();
-        }
-        if (!this.peopleSpecificCapacity) {
-            this.peopleSpecificCapacity = {};
-        }
-    }
-}
 
             showCapacityOverridesSetupInfo() {
                 if (this.hasShownCapacitySetupInfo) return;
@@ -6420,128 +6386,29 @@ async loadCapacityOverridesFromAirtable() {
                 }
             }
             
-async updatePersonWeeklyCapacity(name, weeklyCapacity) {
-    // Store the old capacity values before updating
-    const oldCapacity = this.peopleCapacity[name] ? {...this.peopleCapacity[name]} : null;
-    
-    // Update the weekly capacity in local state
-    this.peopleCapacity[name] = weeklyCapacity;
-    
-    // Create capacity overrides for past dates to preserve their historical values
-    if (oldCapacity) {
-        await this.preservePastCapacity(name, oldCapacity, weeklyCapacity);
-    }
-    
-    // Update Airtable if connected
-    if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
-        const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
-        
-        const response = await this.makeAirtableRequest(`${tableName}?filterByFormula={Name}='${name}'`);
-        
-        if (response.records.length > 0) {
-            const recordId = response.records[0].id;
-            
-            const fields = {};
-            this.DAYS_OF_WEEK.forEach(day => {
-                fields[`Capacity${day}`] = weeklyCapacity[day];
-            });
-            
-            const data = {
-                records: [{
-                    id: recordId,
-                    fields: fields
-                }]
-            };
+            async updatePersonWeeklyCapacity(name, weeklyCapacity) {
+                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
+                
+                const response = await this.makeAirtableRequest(`${tableName}?filterByFormula={Name}='${name}'`);
+                
+                if (response.records.length > 0) {
+                    const recordId = response.records[0].id;
+                    
+                    const fields = {};
+                    this.DAYS_OF_WEEK.forEach(day => {
+                        fields[`Capacity${day}`] = weeklyCapacity[day];
+                    });
+                    
+                    const data = {
+                        records: [{
+                            id: recordId,
+                            fields: fields
+                        }]
+                    };
 
-            await this.makeAirtableRequest(tableName, 'PATCH', data);
-        }
-    }
-}
-
-async preservePastCapacity(person, oldCapacity, newCapacity) {
-    console.log(`🔒 Preserving past capacity for ${person}`, { oldCapacity, newCapacity });
-    
-    // Get today's date as the cutoff point
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Look back up to 90 days to preserve past capacity
-    const daysToPreserve = 90;
-    const overridesToCreate = [];
-    
-    // Check each day in the past where capacity would change
-    for (let i = 1; i <= daysToPreserve; i++) {
-        const pastDate = new Date(today);
-        pastDate.setDate(today.getDate() - i);
-        
-        const dateKey = this.dateToLocalDateString(pastDate);
-        const dayOfWeek = this.DAYS_OF_WEEK[pastDate.getDay()];
-        
-        // Skip if there's already a specific override for this date
-        if (this.peopleSpecificCapacity[person]?.[dateKey] !== undefined) {
-            console.log(`⏭️ Skipping ${dateKey} - already has specific override: ${this.peopleSpecificCapacity[person][dateKey]}`);
-            continue;
-        }
-        
-        // Check if capacity would change for this day of week
-        const oldDayCapacity = oldCapacity[dayOfWeek] || 0;
-        const newDayCapacity = newCapacity[dayOfWeek] || 0;
-        
-        if (oldDayCapacity !== newDayCapacity) {
-            console.log(`📅 Need to preserve ${dayOfWeek} capacity for ${dateKey}: ${oldDayCapacity} (would change to ${newDayCapacity})`);
-            
-            // Add to list of overrides to create
-            overridesToCreate.push({
-                person,
-                date: dateKey,
-                capacity: oldDayCapacity
-            });
-            
-            // Update local state immediately
-            if (!this.peopleSpecificCapacity[person]) {
-                this.peopleSpecificCapacity[person] = {};
-            }
-            this.peopleSpecificCapacity[person][dateKey] = oldDayCapacity;
-        }
-    }
-    
-    // Create capacity overrides in Airtable if connected
-    if (overridesToCreate.length > 0 && this.airtableConfig.apiKey && this.airtableConfig.baseId) {
-        console.log(`🔄 Creating ${overridesToCreate.length} capacity overrides to preserve past capacity`);
-        
-        // Process in batches of 10 to avoid Airtable limits
-        const batchSize = 10;
-        for (let i = 0; i < overridesToCreate.length; i += batchSize) {
-            const batch = overridesToCreate.slice(i, i + batchSize);
-            
-            const records = batch.map(override => ({
-                fields: {
-                    Person: override.person,
-                    Date: override.date,
-                    Capacity: override.capacity,
-                    IsHistorical: true  // Flag to indicate this is a historical preservation
+                    await this.makeAirtableRequest(tableName, 'PATCH', data);
                 }
-            }));
-            
-            try {
-                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
-                await this.makeAirtableRequest(tableName, 'POST', { records });
-                console.log(`✅ Created batch of ${batch.length} historical capacity overrides`);
-            } catch (error) {
-                console.error('❌ Failed to create historical capacity overrides:', error);
             }
-            
-            // Small delay between batches
-            if (i + batchSize < overridesToCreate.length) {
-                await new Promise(resolve => setTimeout(resolve, 300));
-            }
-        }
-    }
-    
-    // Save to local storage
-    await this.saveCapacityOverridesToLocal();
-}
-
             
             async createTaskInAirtable(task, person, date) {
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
@@ -6867,5 +6734,3 @@ async preservePastCapacity(person, oldCapacity, newCapacity) {
     </script>
 </body>
 </html>
-
-
