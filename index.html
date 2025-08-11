@@ -307,7 +307,7 @@
                     <!-- Description -->
                     <div>
                         <label class="block text-sm font-medium mb-2">Description:</label>
-                        <textarea id="descriptionInput" placeholder="Type Quantity, Item Name/s, Alteration, Rush if RUSH" rows="4" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+                        <textarea id="descriptionInput" placeholder="Enter Quantity, Item Name/s, Alteration" rows="4" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
                         
                         <!-- Common Words -->
                         <div class="mt-2">
@@ -521,17 +521,6 @@
             
             <!-- People Management Tab -->
             <div id="peopleTabContent" class="space-y-6 hidden">
-<!-- Add this inside the #peopleTabContent div -->
-<div class="flex justify-end mb-4">
-    <button id="forceRefreshDataBtn" class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors flex items-center space-x-2">
-        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: none;">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 9a9 9 0 0114.13-5.13M20 15a9 9 0 01-14.13 5.13"/>
-        </svg>
-        <span>Force Refresh All Data</span>
-    </button>
-</div>
-
                 <!-- Add New Person Section -->
                 <div>
                     <h3 class="text-lg font-semibold mb-4">👥 Add New Person</h3>
@@ -1211,43 +1200,6 @@
                     statusDiv.textContent = message;
                 }
             }
-// Force refresh Data
-async forceRefreshData() {
-    if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
-        this.showToast('Please connect to Airtable first', 'error');
-        return;
-    }
-
-    const btn = document.getElementById('forceRefreshDataBtn');
-    const spinner = btn.querySelector('svg');
-    const btnText = btn.querySelector('span');
-
-    btn.disabled = true;
-    spinner.style.display = 'inline-block';
-    btnText.textContent = 'Refreshing...';
-
-    this.showLoading('Force refreshing all data from Airtable...');
-    
-    try {
-        // This function now contains the corrected logic from Step 1
-        await this.loadAllDataFromAirtable();
-        
-        // Re-render the UI with the fresh data
-        this.renderWhiteboard();
-        this.updateCurrentPeopleList(); // Also refresh the list in the settings modal
-        
-        this.showToast('All data has been refreshed from Airtable!', 'success');
-    } catch (error) {
-        this.showToast(`Data refresh failed: ${error.message}`, 'error');
-    } finally {
-        this.hideLoading();
-        btn.disabled = false;
-        spinner.style.display = 'none';
-        btnText.textContent = 'Force Refresh All Data';
-    }
-}
-
-
             
             async performAutoRefresh() {
                 if (this.autoRefreshSettings.isRefreshing) {
@@ -2396,8 +2348,6 @@ async forceRefreshData() {
             }
             
             attachSettingsListeners() {
-		document.getElementById('forceRefreshDataBtn').addEventListener('click', () => 
-this.forceRefreshData());
                 document.getElementById('databaseTab').addEventListener('click', () => this.switchSettingsTab('database'));
                 document.getElementById('peopleTab').addEventListener('click', () => this.switchSettingsTab('people'));
                 document.getElementById('editTextTab').addEventListener('click', () => this.switchSettingsTab('editText'));
@@ -3445,7 +3395,7 @@ this.forceRefreshData());
                 });
                 
                 if (allDescriptions.length === 0) {
-                    return ['hem', 'pants', 'dress', 'rush', 'takein', 'sleeve', 'length'];
+                    return ['printing', 'binding', 'cutting', 'laminating', 'folding', 'stapling', 'assembly'];
                 }
                 
                 const wordCount = {};
@@ -6162,47 +6112,38 @@ this.forceRefreshData());
                 }
             }
             
-async loadPeopleFromAirtable() {
-    const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
-    const response = await this.makeAirtableRequest(tableName);
+            async loadPeopleFromAirtable() {
+                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
+                const response = await this.makeAirtableRequest(tableName);
+                
+                this.people = [];
+                if (!this.peopleCapacity) {
+                    this.peopleCapacity = {};
+                }
 
-    const activePeople = [];
-    const newPeopleCapacity = {};
-
-    response.records.forEach(record => {
-        const fields = record.fields;
-
-        // Skip special records (like __TEXT_CONTENT__)
-        if (!fields.Name || fields.Name.startsWith('__')) {
-            return;
-        }
-
-        const isActive = fields.Active !== false;
-
-        if (isActive) {
-            activePeople.push(fields.Name);
-            
-            const weeklyCapacity = {};
-            this.DAYS_OF_WEEK.forEach(day => {
-                // Default to 16 slots (4 hours) if not specified in Airtable
-                weeklyCapacity[day] = fields[`Capacity${day}`] !== undefined ? fields[`Capacity${day}`] : 16;
-            });
-            
-            // This is the key change: Always update with the latest data from Airtable
-            newPeopleCapacity[fields.Name] = weeklyCapacity;
-        }
-    });
-
-    // Atomically update the main state objects
-    this.people = activePeople;
-    this.peopleCapacity = newPeopleCapacity;
-
-    // Save the freshly loaded capacity to local storage for offline use
-    await this.savePeopleCapacityToLocal();
-    console.log('✅ People and their weekly capacities have been loaded and updated from Airtable.');
-}
-
-
+                response.records.forEach(record => {
+                    const fields = record.fields;
+                    
+                    if (!fields.Name || fields.Name.startsWith('__')) {
+                        return;
+                    }
+                    
+                    const isActive = fields.Active !== false;
+                    
+                    if (isActive) {
+                        this.people.push(fields.Name);
+                        
+                        const weeklyCapacity = {};
+                        this.DAYS_OF_WEEK.forEach(day => {
+                            weeklyCapacity[day] = fields[`Capacity${day}`] || 16;
+                        });
+                        
+                        if (!this.peopleCapacity[fields.Name]) {
+                            this.peopleCapacity[fields.Name] = weeklyCapacity;
+                        }
+                    }
+                });
+            }
             
             async loadTasksFromAirtable() {
                 console.log('🔄 Loading tasks from Airtable...');
@@ -6445,9 +6386,120 @@ async loadPeopleFromAirtable() {
                 }
             }
             
-            async updatePersonWeeklyCapacity(name, weeklyCapacity) {
-                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
+            async preserveHistoricalCapacity(personName) {
+                console.log(`🔒 Starting historical capacity preservation for ${personName}...`);
                 
+                if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
+                    console.log('⚠️ Airtable not connected - skipping historical preservation');
+                    return;
+                }
+                
+                try {
+                    // Step 1: Get all existing tasks for this person
+                    const tasksTableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
+                    const personFilter = `{Person}='${personName}'`;
+                    const response = await this.makeAirtableRequest(`${tasksTableName}?filterByFormula=${encodeURIComponent(personFilter)}`);
+                    
+                    if (response.records.length === 0) {
+                        console.log(`ℹ️ No existing tasks found for ${personName} - no historical preservation needed`);
+                        return;
+                    }
+                    
+                    // Step 2: Get unique past dates (exclude today and future)
+                    const today = new Date();
+                    const todayStr = this.dateToLocalDateString(today);
+                    
+                    const pastDates = new Set();
+                    response.records.forEach(record => {
+                        const taskDate = record.fields.Date;
+                        if (taskDate && taskDate < todayStr) {
+                            pastDates.add(taskDate);
+                        }
+                    });
+                    
+                    if (pastDates.size === 0) {
+                        console.log(`ℹ️ No past dates found for ${personName} - no historical preservation needed`);
+                        return;
+                    }
+                    
+                    console.log(`📅 Found ${pastDates.size} past dates to preserve for ${personName}:`, Array.from(pastDates).sort());
+                    
+                    // Step 3: For each past date, check if there's already a capacity override
+                    const overridesTableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
+                    let existingOverrides = new Set();
+                    
+                    try {
+                        const overridesResponse = await this.makeAirtableRequest(`${overridesTableName}?filterByFormula=${encodeURIComponent(`{Person}='${personName}'`)}`);
+                        overridesResponse.records.forEach(record => {
+                            if (record.fields.Date) {
+                                existingOverrides.add(record.fields.Date);
+                            }
+                        });
+                        console.log(`📋 Found ${existingOverrides.size} existing capacity overrides for ${personName}`);
+                    } catch (error) {
+                        console.warn('⚠️ Could not load existing capacity overrides (table may not exist):', error.message);
+                    }
+                    
+                    // Step 4: Create capacity overrides for past dates that don't already have them
+                    let preservedCount = 0;
+                    const overridesToCreate = [];
+                    
+                    for (const dateStr of pastDates) {
+                        if (!existingOverrides.has(dateStr)) {
+                            const date = this.parseDateString(dateStr);
+                            const currentCapacity = this.getPersonCapacityForDate(personName, date);
+                            
+                            overridesToCreate.push({
+                                fields: {
+                                    Person: personName,
+                                    Date: dateStr,
+                                    Capacity: currentCapacity
+                                }
+                            });
+                            
+                            console.log(`🔒 Preserving capacity for ${personName} on ${dateStr}: ${currentCapacity} slots`);
+                            preservedCount++;
+                        } else {
+                            console.log(`✅ Capacity already preserved for ${personName} on ${dateStr}`);
+                        }
+                    }
+                    
+                    // Step 5: Batch create the capacity overrides
+                    if (overridesToCreate.length > 0) {
+                        // Airtable API allows max 10 records per request
+                        const batchSize = 10;
+                        for (let i = 0; i < overridesToCreate.length; i += batchSize) {
+                            const batch = overridesToCreate.slice(i, i + batchSize);
+                            const batchData = { records: batch };
+                            
+                            try {
+                                await this.makeAirtableRequest(overridesTableName, 'POST', batchData);
+                                console.log(`✅ Created batch of ${batch.length} capacity overrides`);
+                            } catch (error) {
+                                console.error(`❌ Failed to create capacity override batch:`, error);
+                                throw error;
+                            }
+                        }
+                        
+                        console.log(`🎯 Successfully preserved historical capacity for ${preservedCount} dates`);
+                    } else {
+                        console.log(`ℹ️ All historical dates already have capacity overrides - no preservation needed`);
+                    }
+                    
+                } catch (error) {
+                    console.error(`❌ Failed to preserve historical capacity for ${personName}:`, error);
+                    throw new Error(`Could not preserve historical data: ${error.message}`);
+                }
+            }
+
+            async updatePersonWeeklyCapacity(name, weeklyCapacity) {
+                console.log(`🔄 Starting weekly capacity update for ${name}...`);
+                
+                // STEP 1: Preserve historical capacity before making any changes
+                await this.preserveHistoricalCapacity(name);
+                
+                // STEP 2: Update the weekly capacity in Airtable
+                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
                 const response = await this.makeAirtableRequest(`${tableName}?filterByFormula={Name}='${name}'`);
                 
                 if (response.records.length > 0) {
@@ -6466,6 +6518,9 @@ async loadPeopleFromAirtable() {
                     };
 
                     await this.makeAirtableRequest(tableName, 'PATCH', data);
+                    console.log(`✅ Weekly capacity updated in Airtable for ${name}`);
+                } else {
+                    throw new Error(`Person ${name} not found in Airtable`);
                 }
             }
             
