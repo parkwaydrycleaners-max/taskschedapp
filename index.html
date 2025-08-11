@@ -4739,30 +4739,42 @@
                         weeklyCapacity[day] = Math.max(0, Math.min(capacity, 32));
                     });
                     
-                    this.peopleCapacity[person] = weeklyCapacity;
-                    
-                    try {
-                        await this.savePeopleCapacityToLocal();
-                    } catch (error) {
-                        console.warn('Could not save to local storage:', error);
-                    }
-                    
+                    // 🚨 CRITICAL FIX: ALWAYS preserve historical capacity BEFORE making ANY changes
                     if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
-                        this.showLoading('Updating capacity...');
+                        this.showLoading('Preserving historical data and updating capacity...');
                         try {
-                            await this.updatePersonWeeklyCapacity(person, weeklyCapacity);
-                            this.showToast('Capacity updated and synced!', 'success');
+                            // Step 1: Preserve historical capacity FIRST
+                            console.log(`🔒 FORCING historical preservation for ${person} before weekly capacity update`);
+                            await this.preserveHistoricalCapacity(person);
+                            
+                            // Step 2: Update weekly capacity in Airtable
+                            await this.updatePersonWeeklyCapacityInAirtable(person, weeklyCapacity);
+                            
+                            // Step 3: Update local state only AFTER successful Airtable update
+                            this.peopleCapacity[person] = weeklyCapacity;
+                            await this.savePeopleCapacityToLocal();
+                            
+                            this.showToast('✅ Capacity updated with historical data preserved!', 'success');
                         } catch (error) {
-                            this.showToast(`Capacity updated locally. Sync failed: ${error.message}`, 'warning');
+                            console.error('❌ Failed to update capacity with preservation:', error);
+                            this.showToast(`❌ Failed to update capacity: ${error.message}`, 'error');
+                            return; // Don't close modal on error
                         } finally {
                             this.hideLoading();
                         }
                     } else {
-                        this.showToast('Capacity updated successfully!', 'success');
+                        // No Airtable connection - just update locally
+                        this.peopleCapacity[person] = weeklyCapacity;
+                        try {
+                            await this.savePeopleCapacityToLocal();
+                            this.showToast('Capacity updated locally! Connect to Airtable to preserve historical data.', 'info');
+                        } catch (error) {
+                            console.warn('Could not save to local storage:', error);
+                            this.showToast('Capacity updated successfully!', 'success');
+                        }
                     }
                     
                     this.closeModal(modal);
-                    
                     this.renderWhiteboard();
                     this.updateCurrentPeopleList();
                 });
