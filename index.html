@@ -2800,6 +2800,22 @@
                 }
             }
             
+            normalizeDate(dateInput) {
+                // Normalize any date input to YYYY-MM-DD format for consistent storage
+                if (!dateInput) return '';
+                
+                // If it's already a string in YYYY-MM-DD format, return as-is
+                if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+                    return dateInput;
+                }
+                
+                // Parse the date and convert to YYYY-MM-DD format
+                const date = this.parseDateString(dateInput);
+                if (!date) return '';
+                
+                return this.dateToLocalDateString(date);
+            }
+            
             attachOrderModalListeners() {
                 document.getElementById('saveOrder').addEventListener('click', () => this.saveOrder());
 
@@ -6511,6 +6527,12 @@
                 await this.preserveHistoricalCapacity(name);
                 
                 // STEP 2: Update the weekly capacity in Airtable
+                await this.updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity);
+            }
+            
+            async updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity) {
+                console.log(`📝 Updating weekly capacity in Airtable for ${name}...`);
+                
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
                 const response = await this.makeAirtableRequest(`${tableName}?filterByFormula={Name}='${name}'`);
                 
