@@ -307,7 +307,7 @@
                     <!-- Description -->
                     <div>
                         <label class="block text-sm font-medium mb-2">Description:</label>
-                        <textarea id="descriptionInput" placeholder="Enter Quantity, Item Name/s, Alteration" rows="4" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+                        <textarea id="descriptionInput" placeholder="Type: Quantity, Item Name/s, Alteration, and if Rush." rows="4" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
                         
                         <!-- Common Words -->
                         <div class="mt-2">
@@ -930,9 +930,9 @@
                 
                 // Data loading settings
                 this.dataLoadSettings = {
-                    weeksBack: 2,        // How many weeks back to load
-                    weeksForward: 4,     // How many weeks forward to load
-                    currentLoadedRange: null  // Track what's currently loaded
+                    weeksBack: 2,
+                    weeksForward: 4,
+                    currentLoadedRange: null
                 };
                 
                 // Constants
@@ -941,26 +941,12 @@
                 // Performance tracking
                 this.cachedCommonWords = null;
                 this.lastCommonWordsUpdate = 0;
-                this.errorLog = [];
-                this.connectionStatus = 'online';
-                this.appState = 'initializing';
                 
                 // Initialize
                 this.init();
             }
             
-            // Error logging
-            logError(type, error, context = {}) {
-                const errorEntry = {
-                    timestamp: new Date().toISOString(),
-                    type,
-                    message: error?.message || error,
-                    context
-                };
-                
-                this.errorLog.push(errorEntry);
-                if (this.errorLog.length > 50) this.errorLog = this.errorLog.slice(-50);
-            }
+
             
             // User-friendly error messages
             getFriendlyErrorMessage(errorMessage) {
@@ -3431,7 +3417,7 @@
                     .slice(0, 8)
                     .map(([word]) => word);
                 
-                const defaultWords = ['printing', 'binding', 'cutting', 'laminating', 'folding', 'stapling', 'assembly'];
+                const defaultWords = ['hem', 'pants', 'dress', 'rush', 'take-in', 'sleeve', 'taper'];
                 while (sortedWords.length < 8) {
                     const nextDefault = defaultWords[sortedWords.length];
                     if (nextDefault && !sortedWords.includes(nextDefault)) {
