@@ -2518,6 +2518,9 @@
                 document.getElementById('tagQuantityInput').value = this.currentTagData.quantity;
                 this.updateTagTable(this.currentTagData.quantity);
                 this.updateTagPreview();
+                
+                // Check for DirectPrint extension availability
+                this.checkDirectPrintStatus();
             }
             
             showTagPrintingModalFromOrder(tempTaskData, person, dateKey) {
@@ -2540,6 +2543,93 @@
                 document.getElementById('tagQuantityInput').value = this.currentTagData.quantity;
                 this.updateTagTable(this.currentTagData.quantity);
                 this.updateTagPreview();
+                
+                // Check for DirectPrint extension availability
+                this.checkDirectPrintStatus();
+            }
+            
+            checkDirectPrintStatus() {
+                // Wait for DirectPrint API to load if it's being injected
+                setTimeout(() => {
+                    const tagPrintingModal = document.getElementById('tagPrintingModal');
+                    
+                    // Only show status if modal exists and is visible
+                    if (!tagPrintingModal || tagPrintingModal.classList.contains('hidden')) {
+                        return;
+                    }
+                    
+                    // Create status div if it doesn't exist
+                    let statusDiv = document.getElementById('directPrintStatus');
+                    if (!statusDiv) {
+                        statusDiv = document.createElement('div');
+                        statusDiv.id = 'directPrintStatus';
+                        
+                        // Insert after the close button header
+                        const modal = tagPrintingModal.querySelector('.bg-white, .bg-gray-800');
+                        const headerSection = modal.children[0];
+                        headerSection.insertAdjacentElement('afterend', statusDiv);
+                    }
+                    
+                    if (window.DirectPrint && window.DirectPrint.isAvailable) {
+                        statusDiv.innerHTML = `
+                            <div class="bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded-lg p-3 mb-4">
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                    <span class="text-green-700 dark:text-green-300 font-medium">🖨️ DirectPrint Extension Active</span>
+                                </div>
+                                <p class="text-sm text-green-600 dark:text-green-400 mt-1">Tags will print directly to your thermal printer without browser dialogs.</p>
+                            </div>
+                        `;
+                    } else {
+                        statusDiv.innerHTML = `
+                            <div class="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 mb-4">
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-yellow-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.996-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                                    </svg>
+                                    <span class="text-yellow-700 dark:text-yellow-300 font-medium">⚠️ DirectPrint Extension Not Available</span>
+                                </div>
+                                <p class="text-sm text-yellow-600 dark:text-yellow-400 mt-1">Install the Chrome extension for direct printing. Tags will use browser print dialog as fallback.</p>
+                            </div>
+                        `;
+                    }
+                }, 100);
+            }
+            
+            showExtensionHelp() {
+                const helpModal = this.createModal('🔧 Install DirectPrint Extension', `
+                    <div class="space-y-4 text-sm">
+                        <div class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+                            <h4 class="font-semibold text-blue-800 dark:text-blue-200 mb-3">📋 Installation Steps</h4>
+                            <ol class="list-decimal list-inside space-y-2 text-blue-700 dark:text-blue-300">
+                                <li>Load the extension files into Chrome Developer Mode</li>
+                                <li>Open Chrome and go to <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">chrome://extensions/</code></li>
+                                <li>Enable "Developer mode" in the top-right corner</li>
+                                <li>Click "Load unpacked" and select the extension folder</li>
+                                <li>The DirectPrint extension should now appear in your extensions list</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+                            <h4 class="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">⚡ Extension Features</h4>
+                            <ul class="list-disc list-inside space-y-1 text-yellow-700 dark:text-yellow-300">
+                                <li>Direct printing to thermal/label printers</li>
+                                <li>Bypasses browser print dialogs</li>
+                                <li>Automatic printer detection</li>
+                                <li>Custom paper sizes for labels</li>
+                                <li>Test printing functionality</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="text-center pt-4 border-t border-gray-200 dark:border-gray-600">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                Once installed, refresh this page and the extension will be automatically detected.
+                            </p>
+                        </div>
+                    </div>
+                `, { maxWidth: 'max-w-lg' });
             }
             
             updateTagTable(quantity) {
@@ -2626,77 +2716,110 @@
                 this.updateTagPreview();
             }
             
-            printAllTags() {
+            async printAllTags() {
                 if (!this.currentTagData) return;
                 
                 const tagInputs = document.querySelectorAll('.tag-custom-info');
-                let successCount = 0;
-                let fallbackToPrintDialog = false;
                 
-                // Check if thermal printer is available (try protocol handler first)
-                const testThermalPrinter = () => {
+                // Try direct printing first (if extension is available)
+                if (window.DirectPrint && window.DirectPrint.isAvailable) {
                     try {
-                        // Create a test link to check if protocol is registered
-                        const testUrl = `tagprint://test=true`;
-                        const link = document.createElement('a');
-                        link.href = testUrl;
-                        link.style.display = 'none';
-                        document.body.appendChild(link);
-                        
-                        // Try to trigger the protocol
-                        link.click();
-                        document.body.removeChild(link);
-                        
-                        return true; // Assume it worked if no error
+                        await this.printTagsDirectly(tagInputs);
+                        return; // Success - exit early
                     } catch (error) {
-                        console.log('Thermal printer protocol not available:', error);
-                        return false;
-                    }
-                };
-                
-                // Try thermal printer first
-                const thermalAvailable = testThermalPrinter();
-                
-                if (thermalAvailable) {
-                    // Print to thermal printer using protocol handler
-                    tagInputs.forEach((input, index) => {
-                        try {
-                            const tagNumber = index + 1;
-                            const customInfo = input.value || '';
-                            const workDate = this.formatDateForPrint(this.currentTagData.dateKey);
-                            const dueDate = this.formatDateForPrint(this.currentTagData.task.dateDue);
-                            
-                            // Create thermal printer URL with properly normalized date format
-                            const normalizedWorkDate = this.normalizeDate(this.currentTagData.dateKey);
-                            const normalizedDueDate = this.normalizeDate(this.currentTagData.task.dateDue);
-                            
-                            const printUrl = `tagprint://ordernum=${encodeURIComponent(this.currentTagData.task.orderNumber)}&person=${encodeURIComponent(this.currentTagData.person)}&workdate=${encodeURIComponent(normalizedWorkDate)}&duedate=${encodeURIComponent(normalizedDueDate)}&custom=${encodeURIComponent(customInfo)}&tagnum=${tagNumber}`;
-                            
-                            // Create hidden link and trigger it
-                            const link = document.createElement('a');
-                            link.href = printUrl;
-                            link.style.display = 'none';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            
-                            successCount++;
-                        } catch (error) {
-                            console.error('Error printing tag to thermal printer:', error);
-                            fallbackToPrintDialog = true;
-                        }
-                    });
-                    
-                    if (successCount > 0 && !fallbackToPrintDialog) {
-                        // Close the modal and show success for thermal printing
-                        document.getElementById('tagPrintingModal').classList.add('hidden');
-                        this.showToast(`${successCount} tags sent to thermal printer`, 'success');
-                        return;
+                        console.warn('Direct print failed, falling back to browser dialog:', error);
+                        this.showToast('Direct print failed, using browser dialog', 'warning');
                     }
                 }
                 
-                // Fallback to browser print dialog if thermal printer failed or not available
+                // Fallback to browser print dialog
                 this.printTagsWithBrowserDialog(tagInputs);
+            }
+            
+            async printTagsDirectly(tagInputs) {
+                // Generate HTML for all tags
+                let allTagsHTML = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <style>
+                            body { 
+                                margin: 0; 
+                                padding: 0; 
+                                font-family: Arial, sans-serif; 
+                            }
+                            .tag { 
+                                border: 2px solid #333; 
+                                padding: 8px; 
+                                margin-bottom: 10px; 
+                                page-break-inside: avoid;
+                                min-height: 80px;
+                                font-size: 11px;
+                                line-height: 1.3;
+                            }
+                            .tag-header { 
+                                font-size: 13px; 
+                                font-weight: bold; 
+                                margin-bottom: 6px; 
+                            }
+                            .tag-info { 
+                                font-size: 10px; 
+                                margin-bottom: 4px; 
+                            }
+                            .tag-custom { 
+                                font-size: 11px; 
+                                font-weight: bold; 
+                                color: #000; 
+                                margin: 6px 0; 
+                            }
+                            @media print {
+                                .tag { page-break-after: always; }
+                                .tag:last-child { page-break-after: auto; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                `;
+                
+                tagInputs.forEach((input, index) => {
+                    const tagNumber = index + 1;
+                    const customInfo = input.value || '';
+                    const workDate = this.parseDateString(this.currentTagData.dateKey);
+                    const dayName = this.DAYS_OF_WEEK[workDate.getDay()];
+                    
+                    allTagsHTML += `
+                        <div class="tag">
+                            <div class="tag-header">Tag ${tagNumber} - Order #${this.currentTagData.task.orderNumber}</div>
+                            <div class="tag-info">
+                                <strong>Person:</strong> ${this.currentTagData.person} | 
+                                <strong>Day:</strong> ${dayName}
+                            </div>
+                            <div class="tag-info">
+                                <strong>Work:</strong> ${this.formatDateForDisplay(this.currentTagData.dateKey)} | 
+                                <strong>Due:</strong> ${this.formatDateForDisplay(this.currentTagData.task.dateDue)}
+                            </div>
+                            ${customInfo ? `<div class="tag-custom">${customInfo}</div>` : ''}
+                        </div>
+                    `;
+                });
+                
+                allTagsHTML += `</body></html>`;
+                
+                // Send to direct printer
+                const result = await window.DirectPrint.print({
+                    title: `Tags - Order #${this.currentTagData.task.orderNumber}`,
+                    html: allTagsHTML,
+                    copies: 1,
+                    width: 50800,  // 2 inches
+                    height: 25400  // 1 inch per tag
+                });
+                
+                if (result.success) {
+                    document.getElementById('tagPrintingModal').classList.add('hidden');
+                    this.showToast(`✅ ${result.message}`, 'success');
+                } else {
+                    throw new Error(result.error || 'Direct print failed');
+                }
             }
             
             printTagsWithBrowserDialog(tagInputs) {
@@ -2761,11 +2884,34 @@
                 printWindow.document.write(printContent);
                 printWindow.document.close();
                 
-                // Auto-print after a short delay
+                // Auto-print after a short delay with dialog bypass attempt
                 setTimeout(() => {
-                    printWindow.print();
-                    printWindow.close();
-                }, 500);
+                    if (printWindow && !printWindow.closed) {
+                        printWindow.focus();
+                        printWindow.print();
+                        
+                        // Attempt to auto-confirm print dialog (limited browser support)
+                        setTimeout(() => {
+                            try {
+                                // Try to simulate Enter key press on print dialog
+                                const event = new KeyboardEvent('keydown', {
+                                    key: 'Enter',
+                                    code: 'Enter',
+                                    keyCode: 13,
+                                    which: 13,
+                                    bubbles: true
+                                });
+                                printWindow.document.dispatchEvent(event);
+                                document.dispatchEvent(event);
+                            } catch (e) {
+                                // Silently fail if not supported
+                                console.log('Auto-confirm not supported in this browser');
+                            }
+                            
+                            setTimeout(() => printWindow.close(), 1000);
+                        }, 200);
+                    }
+                }, 800);
                 
                 // Close the modal
                 document.getElementById('tagPrintingModal').classList.add('hidden');
