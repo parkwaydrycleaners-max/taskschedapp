@@ -6996,9 +6996,6 @@
                     return '';
                 }
             }
-
-
-
             async loadAndDisplayCustomText() {
                 const content = await this.getEditTextContent();
                 const display = document.getElementById('customTextDisplay');
@@ -7013,78 +7010,9 @@
                 }
             }
         }
-// Example: Print multiple tags with auto-cut
-async function printMultipleTags() {
-  if (window.DirectPrint && window.DirectPrint.isAvailable) {
-    
-    // Method 1: Use pre-built layouts
-    const tags = window.DirectPrint.layouts.standardTags({
-      orderNumber: 'ORD-12345',
-      customer: 'ABC Company',
-      priority: 'HIGH',
-      dueDate: '2024-01-15',
-      notes: 'Handle with care'
-    }, 5); // Create 5 identical tags
-    
-    const result = await window.DirectPrint.printThermalTags({
-      tags: tags,
-      template: 'standard-3inch',
-      autoCut: true, // Cut between each tag
-      labelWidth: 76200, // 3 inches in microns
-      labelHeight: 38100  // 1.5 inches in microns
-    });
-    
-    if (result.success) {
-      console.log('✅ Printed:', result.message);
-    }
-  }
-}
-
-// Method 2: Custom tag data
-async function printCustomTags() {
-  const customTags = [
-    {
-      title: 'URGENT ORDER',
-      orderNumber: 'ORD-12345',
-      customer: 'ABC Company',
-      priority: 'HIGH',
-      dueDate: '2024-01-15'
-    },
-    {
-      title: 'STANDARD ORDER', 
-      orderNumber: 'ORD-12346',
-      customer: 'XYZ Corp',
-      priority: 'MEDIUM',
-      dueDate: '2024-01-20'
-    }
-  ];
-  
-  const result = await window.DirectPrint.printThermalTags({
-    tags: customTags,
-    template: 'barcode-3inch',
-    autoCut: true
-  });
-  
-  console.log('Print result:', result);
-}
-
-// Method 3: Shipping labels
-async function printShippingLabels() {
-  const shippingTags = window.DirectPrint.layouts.shippingLabels({
-    customer: 'John Doe',
-    orderNumber: 'SHIP-789',
-    fromAddress: 'Your Company<br>123 Business St<br>City, ST 12345',
-    toAddress: 'John Doe<br>456 Customer Ave<br>Town, ST 67890'
-  }, 2); // 2 shipping labels
-  
-  await window.DirectPrint.printThermalTags({
-    tags: shippingTags,
-    template: 'shipping-3inch',
-    autoCut: true
-  });
-}
         // Initialize the application
         const app = new TaskSchedulerApp();
     </script>
 </body>
 </html>
+
