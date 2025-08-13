@@ -44,6 +44,26 @@
         }
     </script>
     <style>
+.cut-command {
+    font-family: monospace;
+    font-size: 0;
+    line-height: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+@media print {
+    .tag { 
+        page-break-after: always; 
+        page-break-inside: avoid;
+    }
+    .tag:last-child { 
+        page-break-after: auto; 
+    }
+    .cut-command::after {
+        content: "\001B\0069";  /* ESC i in CSS */
+    }
+}
         .time-slot {
             height: 32px;
             border-bottom: 1px solid #e5e7eb;
@@ -105,6 +125,26 @@
             transform: scale(1.02) !important;
             z-index: 50 !important;
         }
+.cut-command {
+    font-family: monospace;
+    font-size: 0;
+    line-height: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+@media print {
+    .tag { 
+        page-break-after: always; 
+        page-break-inside: avoid;
+    }
+    .tag:last-child { 
+        page-break-after: auto; 
+    }
+    .cut-command::after {
+        content: "\001B\0069";  /* ESC i in CSS */
+    }
+}
     </style>
 </head>
 <body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
@@ -872,6 +912,7 @@
     </div>
 
     <script>
+
         // Dark mode detection
         if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
             document.documentElement.classList.add('dark');
@@ -2748,30 +2789,31 @@
                                 padding: 0; 
                                 font-family: Arial, sans-serif; 
                             }
-                            .tag { 
-                                border: 2px solid #333; 
-                                padding: 8px; 
-                                margin-bottom: 10px; 
-                                page-break-inside: avoid;
-                                min-height: 80px;
-                                font-size: 11px;
-                                line-height: 1.3;
-                            }
-                            .tag-header { 
-                                font-size: 13px; 
-                                font-weight: bold; 
-                                margin-bottom: 6px; 
-                            }
-                            .tag-info { 
-                                font-size: 10px; 
-                                margin-bottom: 4px; 
-                            }
-                            .tag-custom { 
-                                font-size: 11px; 
-                                font-weight: bold; 
-                                color: #000; 
-                                margin: 6px 0; 
-                            }
+
+.tag { 
+    border: 2px solid #333; 
+    padding: 12px; 
+    margin-bottom: 10px; 
+    page-break-inside: avoid;
+    min-height: 100px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+.tag-header { 
+    font-size: 16px; 
+    font-weight: bold; 
+    margin-bottom: 8px; 
+}
+.tag-info { 
+    font-size: 14px; 
+    margin-bottom: 6px; 
+}
+.tag-custom { 
+    font-size: 14px; 
+    font-weight: bold; 
+    color: #000; 
+    margin: 8px 0; 
+}
                             @media print {
                                 .tag { page-break-after: always; }
                                 .tag:last-child { page-break-after: auto; }
@@ -2781,39 +2823,56 @@
                     <body>
                 `;
                 
-                tagInputs.forEach((input, index) => {
-                    const tagNumber = index + 1;
-                    const customInfo = input.value || '';
-                    const workDate = this.parseDateString(this.currentTagData.dateKey);
-                    const dayName = this.DAYS_OF_WEEK[workDate.getDay()];
-                    
-                    allTagsHTML += `
-                        <div class="tag">
-                            <div class="tag-header">Tag ${tagNumber} - Order #${this.currentTagData.task.orderNumber}</div>
-                            <div class="tag-info">
-                                <strong>Person:</strong> ${this.currentTagData.person} | 
-                                <strong>Day:</strong> ${dayName}
-                            </div>
-                            <div class="tag-info">
-                                <strong>Work:</strong> ${this.formatDateForDisplay(this.currentTagData.dateKey)} | 
-                                <strong>Due:</strong> ${this.formatDateForDisplay(this.currentTagData.task.dateDue)}
-                            </div>
-                            ${customInfo ? `<div class="tag-custom">${customInfo}</div>` : ''}
-                        </div>
-                    `;
-                });
+tagInputs.forEach((input, index) => {
+    const tagNumber = index + 1;
+    const customInfo = input.value || '';
+    const workDate = this.parseDateString(this.currentTagData.dateKey);
+    const dayName = this.DAYS_OF_WEEK[workDate.getDay()];
+    
+allTagsHTML += `
+    <div class="tag">
+        <div class="tag-header">Tag ${tagNumber} - Order ${this.currentTagData.task.orderNumber}</div>
+        <div class="tag-info"><strong>Person:</strong> ${this.currentTagData.person}</div>
+        <div class="tag-info"><strong>Work Day:</strong> ${dayName.substring(0, 3)}</div>
+        <div class="tag-info"><strong>Work Date:</strong> ${this.formatDateForDisplay(this.currentTagData.dateKey)}</div>
+        ${customInfo ? `<div class="tag-custom"><strong>Alteration:</strong> ${customInfo}</div>` : ''}
+        <div class="tag-spacer">&nbsp;</div>
+    </div>
+`;
+
+// Add cut command and spacing between tags
+if (index < tagInputs.length - 1) {
+    allTagsHTML += `
+        <div class="page-break" style="page-break-after: always; height: 20px; border-bottom: 2px dashed #ccc; margin: 10px 0;"></div>
+        <div class="cut-instruction">--- CUT HERE ---</div>
+    `;
+}
+    
+    // Add Epson TM-U220 cut command after each tag
+    if (index < tagInputs.length - 1) {
+        allTagsHTML += `
+            <div class="cut-command" style="display: none;">${String.fromCharCode(27)}i</div>
+            <div style="page-break-after: always; height: 0;"></div>
+        `;
+    }
+});
                 
                 allTagsHTML += `</body></html>`;
                 
                 // Send to direct printer
-                const result = await window.DirectPrint.print({
-                    title: `Tags - Order #${this.currentTagData.task.orderNumber}`,
-                    html: allTagsHTML,
-                    copies: 1,
-                    width: 50800,  // 2 inches
-                    height: 25400  // 1 inch per tag
-                });
-                
+const result = await window.DirectPrint.print({
+    title: `Tags - Order ${this.currentTagData.task.orderNumber}`,
+    html: allTagsHTML,
+    copies: 1,
+    width: 50800,  // 2 inches
+    height: 25400,  // 1 inch per tag
+    rawCommands: true,  // Enable raw ESC/POS commands
+    cutBetweenPages: true,  // Cut between each tag
+    escPosCommands: {
+        cut: '\x1B\x69',  // ESC i (partial cut for Epson TM-U220)
+        cutAfterEach: true
+    }
+});
                 if (result.success) {
                     document.getElementById('tagPrintingModal').classList.add('hidden');
                     this.showToast(`✅ ${result.message}`, 'success');
@@ -2833,16 +2892,16 @@
                         <title>Print Tags - Order #${this.currentTagData.task.orderNumber}</title>
                         <style>
                             body { font-family: Arial, sans-serif; margin: 20px; }
-                            .tag { 
-                                border: 2px solid #333; 
-                                padding: 15px; 
-                                margin-bottom: 20px; 
-                                page-break-inside: avoid;
-                                min-height: 120px;
-                            }
-                            .tag-header { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
-                            .tag-info { font-size: 12px; margin-bottom: 8px; }
-                            .tag-custom { font-size: 14px; font-weight: bold; color: #0066cc; margin: 10px 0; }
+.tag { 
+    border: 2px solid #333; 
+    padding: 15px; 
+    margin-bottom: 20px; 
+    page-break-inside: avoid;
+    min-height: 120px;
+}
+.tag-header { font-size: 20px; font-weight: bold; margin-bottom: 10px; }
+.tag-info { font-size: 16px; margin-bottom: 8px; }
+.tag-custom { font-size: 16px; font-weight: bold; color: #0066cc; margin: 10px 0; }
                             .tag-description { font-size: 11px; color: #666; margin-top: 10px; }
                             @media print {
                                 .tag { page-break-after: always; }
@@ -2859,20 +2918,15 @@
                     const workDate = this.parseDateString(this.currentTagData.dateKey);
                     const dayName = this.DAYS_OF_WEEK[workDate.getDay()];
                     
-                    printContent += `
-                        <div class="tag">
-                            <div class="tag-header">Tag ${tagNumber} - Order #${this.currentTagData.task.orderNumber}</div>
-                            <div class="tag-info">
-                                <strong>Person:</strong> ${this.currentTagData.person} | 
-                                <strong>Work Day:</strong> ${dayName} | 
-                                <strong>Work Date:</strong> ${this.formatDateForDisplay(this.currentTagData.dateKey)}
-                            </div>
-                            <div class="tag-info">
-                                <strong>Due Date:</strong> ${this.formatDateForDisplay(this.currentTagData.task.dateDue)}
-                            </div>
-                            ${customInfo ? `<div class="tag-custom">${customInfo}</div>` : ''}
-                        </div>
-                    `;
+printContent += `
+    <div class="tag">
+        <div class="tag-header">Tag ${tagNumber} - Order ${this.currentTagData.task.orderNumber}</div>
+        <div class="tag-info"><strong>Person:</strong> ${this.currentTagData.person}</div>
+        <div class="tag-info"><strong>Work Day:</strong> ${dayName.substring(0, 3)}</div>
+        <div class="tag-info"><strong>Work Date:</strong> ${this.formatDateForDisplay(this.currentTagData.dateKey)}</div>
+        ${customInfo ? `<div class="tag-custom"><strong>Alteration:</strong> ${customInfo}</div>` : ''}
+    </div>
+`;
                 });
                 
                 printContent += `
@@ -7015,4 +7069,3 @@
     </script>
 </body>
 </html>
-
