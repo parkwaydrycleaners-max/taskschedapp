@@ -2780,6 +2780,9 @@ async printAllTags() {
     if (!this.currentTagData) return;
     
     const tagInputs = document.querySelectorAll('.tag-custom-info');
+    const printWindow = window.open('', '_blank');
+    
+    let content = '';
     
     for (let i = 0; i < tagInputs.length; i++) {
         const input = tagInputs[i];
@@ -2788,26 +2791,45 @@ async printAllTags() {
         const workDate = this.parseDateString(this.currentTagData.dateKey);
         const dayName = this.DAYS_OF_WEEK[workDate.getDay()];
         
-        const printWindow = window.open('', '_blank');
+        // Thermal printer format - shorter lines
+        content += '========================\n';
+        content += '    TAG ' + tagNumber + ' - ORDER\n';
+        content += '========================\n';
+        content += '\n';
+        content += 'Order: ' + this.currentTagData.task.orderNumber + '\n';
+        content += '\n';
+        content += 'Person: ' + this.currentTagData.person + '\n';
+        content += '\n';
+        content += 'Day: ' + dayName + '\n';
+        content += '\n';
+        content += 'Date: ' + this.formatDateForDisplay(this.currentTagData.dateKey) + '\n';
         
-        const content = 
-            'TAG ' + tagNumber + '\n' +
-            'ORDER: ' + this.currentTagData.task.orderNumber + '\n' +
-            'PERSON: ' + this.currentTagData.person + '\n' +
-            'DAY: ' + dayName + '\n' +
-            'DATE: ' + this.formatDateForDisplay(this.currentTagData.dateKey) + '\n' +
-            (customInfo ? 'NOTE: ' + customInfo + '\n' : '') +
-            '--- CUT HERE ---\n\n\n';
+        if (customInfo && customInfo.length > 0) {
+            content += '\n';
+            content += 'ALTERATION:\n';
+            content += customInfo + '\n';
+        }
         
-        printWindow.document.write('<pre style="font-family:monospace;font-size:14px;">' + content + '</pre>');
-        printWindow.document.close();
-        printWindow.print();
-        
-        // Small delay between tags
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        content += '\n';
+        content += '========================\n';
+        content += '\n';
+        content += '      -- CUT HERE --\n';
+        content += '\n';
+        content += '\n';
+        content += '\n';
+        content += '\n';
+        content += '\n';
     }
     
+    // Use simple pre tag for thermal printers
+    const html = '<html><head><style>body{margin:0;padding:5px;font-family:monospace;font-size:12px;line-height:1.2;}</style></head><body><pre>' + content + '</pre></body></html>';
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.print();
+    
     document.getElementById('tagPrintingModal').classList.add('hidden');
+    this.showToast('Thermal printer tags created', 'success');
 }
             
 async printTagsDirectly(tagInputs) {
@@ -4037,46 +4059,99 @@ printContent += `
                 container.appendChild(statsDiv);
             }
             
-            createSearchResultItem(result) {
-                const { task, person, dateKey, dateDisplay } = result;
-                
-                const dueDateDisplay = this.formatDateForDisplay(task.dateDue);
-                const dueDateColor = new Date(task.dateDue) < new Date() ? 'text-red-500' : 'text-green-500';
-                
-                const item = document.createElement('div');
-                item.className = 'p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors';
-                
-                item.innerHTML = `
-                    <div class="flex justify-between items-start mb-2">
-                        <div class="text-lg font-semibold text-primary">#${task.orderNumber}</div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400">${task.duration * 15} min</div>
-                    </div>
-                    <div class="text-sm text-gray-600 dark:text-gray-300 mb-2">${task.description}</div>
-                    <div class="flex justify-between items-center text-xs">
-                        <div class="flex space-x-4">
-                            <span class="text-gray-500 dark:text-gray-400">📅 ${dateDisplay}</span>
-                            <span class="text-gray-500 dark:text-gray-400">👤 ${person}</span>
-                        </div>
-                        <div class="${dueDateColor}">Due: ${dueDateDisplay}</div>
-                    </div>
-                    <div class="text-xs text-blue-500 dark:text-blue-400 mt-2 font-medium">
-                        Double-click to navigate
-                    </div>
-                `;
-                
-                item.addEventListener('dblclick', () => {
-                    document.getElementById('searchModal').classList.add('hidden');
-                    
-                    const [year, month, day] = dateKey.split('-');
-                    this.currentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                    this.updateDateDisplay();
-                    this.renderWhiteboard();
-                    
-                    setTimeout(() => this.highlightOrder(task.orderNumber, person), 200);
-                });
-                
-                return item;
+createSearchResultItem(result) {
+    const { task, person, dateKey, dateDisplay } = result;
+    
+    const dueDateDisplay = this.formatDateForDisplay(task.dateDue);
+    const dueDateColor = new Date(task.dateDue) < new Date() ? 'text-red-500' : 'text-green-500';
+    
+    // Fix timezone issue - use proper date formatting
+    const workDate = this.parseDateString(dateKey);
+    const correctWorkDateDisplay = workDate ? this.formatDateForDisplay(workDate) : dateDisplay;
+    
+    // Determine status
+    let status, statusClass;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const taskDueDate = new Date(task.dateDue);
+    taskDueDate.setHours(0, 0, 0, 0);
+    
+    if (task.completed) {
+        status = '✅ Complete';
+        statusClass = 'text-green-600 dark:text-green-400';
+    } else if (taskDueDate < today) {
+        status = '⚠️ Overdue';
+        statusClass = 'text-red-600 dark:text-red-400';
+    } else {
+        status = '⏳ Incomplete';
+        statusClass = 'text-blue-600 dark:text-blue-400';
+    }
+    
+    const item = document.createElement('div');
+    item.className = 'p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors';
+    
+    item.innerHTML = `
+        <div class="flex justify-between items-start mb-2">
+            <div class="text-lg font-semibold text-primary">#${task.orderNumber}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">${task.duration * 15} min</div>
+        </div>
+        <div class="text-sm text-gray-600 dark:text-gray-300 mb-2">${task.description}</div>
+        <div class="flex justify-between items-center text-xs mb-2">
+            <div class="flex space-x-4">
+                <span class="text-gray-500 dark:text-gray-400">📅 Work: ${correctWorkDateDisplay}</span>
+                <span class="text-gray-500 dark:text-gray-400">👤 ${person}</span>
+            </div>
+            <div class="${dueDateColor}">Due: ${dueDateDisplay}</div>
+        </div>
+        <div class="flex justify-between items-center">
+            <label class="flex items-center cursor-pointer">
+                <input type="checkbox" class="search-result-checkbox w-4 h-4 text-primary border border-gray-300 rounded focus:ring-2 focus:ring-primary mr-2" 
+                       data-task-id="${task.id}" 
+                       data-person="${person}" 
+                       data-date="${dateKey}"
+                       ${task.completed ? 'checked' : ''}>
+                <span class="text-sm font-medium ${statusClass}">${status}</span>
+            </label>
+            <div class="text-xs text-blue-500 dark:text-blue-400 font-medium cursor-pointer hover:underline" onclick="this.closest('.p-4').dispatchEvent(new Event('dblclick'))">
+                Double-click to navigate
+            </div>
+        </div>
+    `;
+    
+    // Add checkbox event listener
+    const checkbox = item.querySelector('.search-result-checkbox');
+    checkbox.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        
+        const taskId = checkbox.dataset.taskId;
+        const person = checkbox.dataset.person;
+        const dateKey = checkbox.dataset.date;
+        
+        // Find the task and toggle its completion
+        let foundTask = null;
+        if (this.tasks[dateKey] && this.tasks[dateKey][person]) {
+            foundTask = this.tasks[dateKey][person].find(t => t.id == taskId);
+            if (foundTask) {
+                await this.toggleTaskCompletion(foundTask);
+                // Refresh search results
+                this.performSearch();
             }
+        }
+    });
+    
+    item.addEventListener('dblclick', () => {
+        document.getElementById('searchModal').classList.add('hidden');
+        
+        const [year, month, day] = dateKey.split('-');
+        this.currentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        this.updateDateDisplay();
+        this.renderWhiteboard();
+        
+        setTimeout(() => this.highlightOrder(task.orderNumber, person), 200);
+    });
+    
+    return item;
+}
             
             formatDateForDisplay(date) {
                 if (date instanceof Date) {
