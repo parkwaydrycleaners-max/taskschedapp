@@ -53,10 +53,19 @@
 }
 
 @media print {
-    .tag { 
-        page-break-after: always; 
-        page-break-inside: avoid;
-    }
+.tag { 
+    border: 2px solid #333; 
+    padding: 12px; 
+    margin-bottom: 50px;  /* INCREASED FROM 10px */
+    page-break-inside: avoid;
+    page-break-after: always;
+    min-height: 80px;
+    max-height: 120px;
+    font-size: 14px;
+    line-height: 1.4;
+    background: white;
+    width: calc(100% - 24px);
+}
     .tag:last-child { 
         page-break-after: auto; 
     }
@@ -131,12 +140,22 @@
     line-height: 0;
     height: 0;
     overflow: hidden;
+    page-break-after: always;
 }
-
 @media print {
-    .tag { 
-        page-break-after: always; 
-        page-break-inside: avoid;
+.tag { 
+    border: 2px solid #333; 
+    padding: 12px; 
+    margin-bottom: 50px;  /* INCREASED FROM 10px */
+    page-break-inside: avoid;
+    page-break-after: always;
+    min-height: 80px;
+    max-height: 120px;
+    font-size: 14px;
+    line-height: 1.4;
+    background: white;
+    width: calc(100% - 24px);
+}
     }
     .tag:last-child { 
         page-break-after: auto; 
@@ -2722,7 +2741,7 @@
                 
                 tagInputs.forEach((input, index) => {
                     const tagNumber = index + 1;
-                    const customInfo = input.value || '';
+                    const customInfo = input.value.trim() || '';
                     
                     const tagPreview = document.createElement('div');
                     tagPreview.className = 'border border-gray-300 dark:border-gray-600 rounded p-3 bg-white dark:bg-gray-800 text-sm';
@@ -2735,7 +2754,7 @@
                             <div><strong>Due Date:</strong> ${this.formatDateForDisplay(this.currentTagData.task.dateDue)}</div>
                         </div>
                         ${customInfo ? `<div class="mt-2 font-medium text-blue-600 dark:text-blue-400">${customInfo}</div>` : ''}
-                        <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">${this.currentTagData.task.description}</div>
+                        <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">${this.currentTagData.task.description}</div><div></div><div></div>
                     `;
                     previewContainer.appendChild(tagPreview);
                 });
@@ -2757,131 +2776,100 @@
                 this.updateTagPreview();
             }
             
-            async printAllTags() {
-                if (!this.currentTagData) return;
-                
-                const tagInputs = document.querySelectorAll('.tag-custom-info');
-                
-                // Try direct printing first (if extension is available)
-                if (window.DirectPrint && window.DirectPrint.isAvailable) {
-                    try {
-                        await this.printTagsDirectly(tagInputs);
-                        return; // Success - exit early
-                    } catch (error) {
-                        console.warn('Direct print failed, falling back to browser dialog:', error);
-                        this.showToast('Direct print failed, using browser dialog', 'warning');
+async printAllTags() {
+    if (!this.currentTagData) return;
+    
+    const tagInputs = document.querySelectorAll('.tag-custom-info');
+    
+    for (let i = 0; i < tagInputs.length; i++) {
+        const input = tagInputs[i];
+        const tagNumber = i + 1;
+        const customInfo = input.value || '';
+        const workDate = this.parseDateString(this.currentTagData.dateKey);
+        const dayName = this.DAYS_OF_WEEK[workDate.getDay()];
+        
+        const printWindow = window.open('', '_blank');
+        
+        const content = 
+            'TAG ' + tagNumber + '\n' +
+            'ORDER: ' + this.currentTagData.task.orderNumber + '\n' +
+            'PERSON: ' + this.currentTagData.person + '\n' +
+            'DAY: ' + dayName + '\n' +
+            'DATE: ' + this.formatDateForDisplay(this.currentTagData.dateKey) + '\n' +
+            (customInfo ? 'NOTE: ' + customInfo + '\n' : '') +
+            '--- CUT HERE ---\n\n\n';
+        
+        printWindow.document.write('<pre style="font-family:monospace;font-size:14px;">' + content + '</pre>');
+        printWindow.document.close();
+        printWindow.print();
+        
+        // Small delay between tags
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    document.getElementById('tagPrintingModal').classList.add('hidden');
+}
+            
+async printTagsDirectly(tagInputs) {
+    // Make content VERY WIDE so it can't fit side by side
+    for (let index = 0; index < tagInputs.length; index++) {
+        const input = tagInputs[index];
+        const tagNumber = index + 1;
+        const customInfo = input.value || '';
+        const workDate = this.parseDateString(this.currentTagData.dateKey);
+        const dayName = this.DAYS_OF_WEEK[workDate.getDay()];
+        
+        const tagWindow = window.open('', `tag${tagNumber}`, 'width=600,height=400');
+        
+        const wideHTML = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { 
+                        font-family: monospace; 
+                        font-size: 14px; 
+                        margin: 0; 
+                        padding: 20px;
+                        width: 500px;
                     }
-                }
-                
-                // Fallback to browser print dialog
-                this.printTagsWithBrowserDialog(tagInputs);
-            }
-            
-            async printTagsDirectly(tagInputs) {
-                // Generate HTML for all tags
-                let allTagsHTML = `
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <style>
-                            body { 
-                                margin: 0; 
-                                padding: 0; 
-                                font-family: Arial, sans-serif; 
-                            }
-
-.tag { 
-    border: 2px solid #333; 
-    padding: 12px; 
-    margin-bottom: 10px; 
-    page-break-inside: avoid;
-    min-height: 100px;
-    font-size: 14px;
-    line-height: 1.4;
-}
-.tag-header { 
-    font-size: 16px; 
-    font-weight: bold; 
-    margin-bottom: 8px; 
-}
-.tag-info { 
-    font-size: 14px; 
-    margin-bottom: 6px; 
-}
-.tag-custom { 
-    font-size: 14px; 
-    font-weight: bold; 
-    color: #000; 
-    margin: 8px 0; 
-}
-                            @media print {
-                                .tag { page-break-after: always; }
-                                .tag:last-child { page-break-after: auto; }
-                            }
-                        </style>
-                    </head>
-                    <body>
-                `;
-                
-tagInputs.forEach((input, index) => {
-    const tagNumber = index + 1;
-    const customInfo = input.value || '';
-    const workDate = this.parseDateString(this.currentTagData.dateKey);
-    const dayName = this.DAYS_OF_WEEK[workDate.getDay()];
-    
-allTagsHTML += `
-    <div class="tag">
-        <div class="tag-header">Tag ${tagNumber} - Order ${this.currentTagData.task.orderNumber}</div>
-        <div class="tag-info"><strong>Person:</strong> ${this.currentTagData.person}</div>
-        <div class="tag-info"><strong>Work Day:</strong> ${dayName.substring(0, 3)}</div>
-        <div class="tag-info"><strong>Work Date:</strong> ${this.formatDateForDisplay(this.currentTagData.dateKey)}</div>
-        ${customInfo ? `<div class="tag-custom"><strong>Alteration:</strong> ${customInfo}</div>` : ''}
-        <div class="tag-spacer">&nbsp;</div>
-    </div>
-`;
-
-// Add cut command and spacing between tags
-if (index < tagInputs.length - 1) {
-    allTagsHTML += `
-        <div class="page-break" style="page-break-after: always; height: 20px; border-bottom: 2px dashed #ccc; margin: 10px 0;"></div>
-        <div class="cut-instruction">--- CUT HERE ---</div>
-    `;
-}
-    
-    // Add Epson TM-U220 cut command after each tag
-    if (index < tagInputs.length - 1) {
-        allTagsHTML += `
-            <div class="cut-command" style="display: none;">${String.fromCharCode(27)}i</div>
-            <div style="page-break-after: always; height: 0;"></div>
+                    .wide-line {
+                        width: 500px;
+                        padding: 5px 0;
+                        border: 1px solid black;
+                        margin-bottom: 2px;
+                        text-align: center;
+                        background: white;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="wide-line">============== TAG ${tagNumber} - ORDER ==============</div>
+                <div class="wide-line">PERSON: ${this.currentTagData.person}</div>
+                <div class="wide-line">WORK DAY: ${dayName}</div>
+                <div class="wide-line">WORK DATE: ${this.formatDateForDisplay(this.currentTagData.dateKey)}</div>
+                ${customInfo ? `<div class="wide-line">ALTERATION: ${customInfo}</div>` : ''}
+                <div class="wide-line">===============================================</div>
+            </body>
+            </html>
         `;
+        
+        tagWindow.document.write(wideHTML);
+        tagWindow.document.close();
+        
+        // Auto-print with delay
+        setTimeout(() => {
+            tagWindow.focus();
+            tagWindow.print();
+            setTimeout(() => tagWindow.close(), 2000);
+        }, index * 3000);
     }
-});
-                
-                allTagsHTML += `</body></html>`;
-                
-                // Send to direct printer
-const result = await window.DirectPrint.print({
-    title: `Tags - Order ${this.currentTagData.task.orderNumber}`,
-    html: allTagsHTML,
-    copies: 1,
-    width: 50800,  // 2 inches
-    height: 25400,  // 1 inch per tag
-    rawCommands: true,  // Enable raw ESC/POS commands
-    cutBetweenPages: true,  // Cut between each tag
-    escPosCommands: {
-        cut: '\x1B\x69',  // ESC i (partial cut for Epson TM-U220)
-        cutAfterEach: true
-    }
-});
-                if (result.success) {
-                    document.getElementById('tagPrintingModal').classList.add('hidden');
-                    this.showToast(`✅ ${result.message}`, 'success');
-                } else {
-                    throw new Error(result.error || 'Direct print failed');
-                }
-            }
-            
-            printTagsWithBrowserDialog(tagInputs) {
+    
+    document.getElementById('tagPrintingModal').classList.add('hidden');
+    this.showToast(`📏 Printing ${tagInputs.length} WIDE tags to prevent side-by-side layout`, 'success');
+}
+
+ printTagsWithBrowserDialog(tagInputs) {
                 // Create a print window with all tags (original browser printing method)
                 const printWindow = window.open('', '_blank');
                 
@@ -2894,10 +2882,16 @@ const result = await window.DirectPrint.print({
                             body { font-family: Arial, sans-serif; margin: 20px; }
 .tag { 
     border: 2px solid #333; 
-    padding: 15px; 
-    margin-bottom: 20px; 
+    padding: 12px; 
+    margin-bottom: 10px; 
     page-break-inside: avoid;
-    min-height: 120px;
+    page-break-after: always;
+    min-height: 80px;
+    max-height: 120px;
+    font-size: 14px;
+    line-height: 1.4;
+    background: white;
+    width: calc(100% - 24px);
 }
 .tag-header { font-size: 20px; font-weight: bold; margin-bottom: 10px; }
 .tag-info { font-size: 16px; margin-bottom: 8px; }
@@ -3060,6 +3054,8 @@ printContent += `
 
                 this.updateCommonWords();
             }
+
+
             
             // Drag and Drop
             handleDragStart(e) {
