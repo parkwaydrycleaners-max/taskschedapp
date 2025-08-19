@@ -2399,15 +2399,6 @@ showOrderModalForPerson(person, date = null) {
     this.updateCommonWords();
 }
 
-// ADD THIS RIGHT HERE - the alias method for EventManager compatibility
-showOrderModal(person = null, dateKey = null) {
-    if (person && dateKey) {
-        this.showOrderModalForPerson(person, dateKey);
-    } else {
-        this.showNewOrderModal();
-    }
-}
-            
             editTask(task) {
                 let currentPerson = null;
                 let currentDateKey = null;
