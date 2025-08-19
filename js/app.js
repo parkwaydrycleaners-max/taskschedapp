@@ -2083,7 +2083,16 @@ printContent += `
                 
                 return this.dateToLocalDateString(date);
             }
-            
+           
+getOrderNumberValue() {
+    const orderNumberInput = document.getElementById('orderNumberInput');
+    if (!orderNumberInput) return '';
+    
+    const value = orderNumberInput.value.trim();
+    // Return empty string if it's just the placeholder "new"
+    return value === 'new' ? '' : value;
+}
+ 
             attachOrderModalListeners() {
                 document.getElementById('saveOrder').addEventListener('click', () => this.saveOrder());
 
@@ -2092,8 +2101,9 @@ printContent += `
                     console.log('Print Tags From Order button clicked');
                     
                     // Get current order data from modal
-                    const orderNumber = document.getElementById('orderNumberInput').value.trim();
-                    const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
+                    // const orderNumber = document.getElementById('orderNumberInput').value.trim();
+			const orderNumber = this.getOrderNumberValue();                    
+			const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
                     
                     if (!orderNumber) {
                         this.showToast('Please enter an order number first', 'error');
@@ -2387,7 +2397,17 @@ showOrderModalForPerson(person, date = null) {
     // Don't focus immediately since that would clear "new"
     
     this.updateCommonWords();
-}            
+}
+
+// ADD THIS RIGHT HERE - the alias method for EventManager compatibility
+showOrderModal(person = null, dateKey = null) {
+    if (person && dateKey) {
+        this.showOrderModalForPerson(person, dateKey);
+    } else {
+        this.showNewOrderModal();
+    }
+}
+            
             editTask(task) {
                 let currentPerson = null;
                 let currentDateKey = null;
@@ -5510,6 +5530,11 @@ showExportOptionsModal() {
                 }
 
                 const result = await response.json();
+        // SAFETY CHECK - Ensure result has expected structure
+        if (method === 'GET' && !result.records) {
+            result.records = [];
+        }
+
                 console.log('✅ Airtable success response:', result);
                 return result;
             }
@@ -5588,7 +5613,13 @@ showExportOptionsModal() {
                     this.peopleCapacity = {};
                 }
 
-                response.records.forEach(record => {
+    // SAFETY CHECK - Add this
+    if (!response || !response.records || !Array.isArray(response.records)) {
+        console.warn('Invalid response from Airtable People table:', response);
+        return []; // Return empty array instead of crashing
+    }
+
+    response.records.forEach(record => {
                     const fields = record.fields;
                     
                     if (!fields.Name || fields.Name.startsWith('__')) {
@@ -6318,4 +6349,4 @@ showExportOptionsModal() {
             }
         }
         // Initialize the application
-        const app = new TaskSchedulerApp();
+        window.app = new TaskSchedulerApp();
