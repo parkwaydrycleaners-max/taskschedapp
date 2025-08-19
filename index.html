@@ -51,6 +51,14 @@
     height: 0;
     overflow: hidden;
 }
+.order-placeholder {
+    color: #9ca3af !important;
+    font-style: italic !important;
+}
+
+.dark .order-placeholder {
+    color: #6b7280 !important;
+}
 
 @media print {
 .tag { 
@@ -3256,38 +3264,72 @@ printContent += `
             }
             
             // Modal Functions
-            showNewOrderModal() {
-                this.resetOrderModal();
-                document.getElementById('orderModalTitle').textContent = 'Add New Order';
-                document.getElementById('personDateFields').classList.remove('hidden');
-                
-                this.populatePeopleDropdown('assignPersonSelect');
-                
-                document.getElementById('workDateInput').value = this.dateToLocalDateString(this.currentDate);
-                
-                this.loadAndDisplayCustomText();
-                
-                document.getElementById('orderModal').classList.remove('hidden');
-                document.getElementById('orderNumberInput').focus();
-                
-                this.updateCommonWords();
-            }
+showNewOrderModal() {
+    this.resetOrderModal();
+    document.getElementById('orderModalTitle').textContent = 'Add New Order';
+    document.getElementById('personDateFields').classList.remove('hidden');
+    
+    this.populatePeopleDropdown('assignPersonSelect');
+    
+    document.getElementById('workDateInput').value = this.dateToLocalDateString(this.currentDate);
+    
+    this.loadAndDisplayCustomText();
+    
+    // Setup "new" placeholder behavior AFTER reset
+    const orderNumberInput = document.getElementById('orderNumberInput');
+    orderNumberInput.value = 'new';
+    orderNumberInput.style.color = '#9ca3af';
+    orderNumberInput.style.fontStyle = 'italic';
+    
+    // Clear "new" on first focus
+    orderNumberInput.addEventListener('focus', function clearNew() {
+        if (this.value === 'new') {
+            this.value = '';
+            this.style.color = '';
+            this.style.fontStyle = 'normal';
+        }
+        // Remove this listener after first use
+        this.removeEventListener('focus', clearNew);
+    });
+    
+    document.getElementById('orderModal').classList.remove('hidden');
+    // Don't focus immediately since that would clear "new"
+    
+    this.updateCommonWords();
+}
             
-            showOrderModalForPerson(person, date = null) {
-                this.resetOrderModal();
-                document.getElementById('orderModalTitle').textContent = `Add Order for ${person}`;
-                document.getElementById('personDateFields').classList.add('hidden');
-                
-                this.currentOrderPerson = person;
-                this.currentOrderDate = date || this.dateToLocalDateString(this.currentDate);
-                
-                this.loadAndDisplayCustomText();
-                
-                document.getElementById('orderModal').classList.remove('hidden');
-                document.getElementById('orderNumberInput').focus();
-                
-                this.updateCommonWords();
-            }
+showOrderModalForPerson(person, date = null) {
+    this.resetOrderModal();
+    document.getElementById('orderModalTitle').textContent = `Add Order for ${person}`;
+    document.getElementById('personDateFields').classList.add('hidden');
+    
+    this.currentOrderPerson = person;
+    this.currentOrderDate = date || this.dateToLocalDateString(this.currentDate);
+    
+    this.loadAndDisplayCustomText();
+    
+    // Setup "new" placeholder behavior AFTER reset
+    const orderNumberInput = document.getElementById('orderNumberInput');
+    orderNumberInput.value = 'new';
+    orderNumberInput.style.color = '#9ca3af';
+    orderNumberInput.style.fontStyle = 'italic';
+    
+    // Clear "new" on first focus
+    orderNumberInput.addEventListener('focus', function clearNew() {
+        if (this.value === 'new') {
+            this.value = '';
+            this.style.color = '';
+            this.style.fontStyle = 'normal';
+        }
+        // Remove this listener after first use
+        this.removeEventListener('focus', clearNew);
+    });
+    
+    document.getElementById('orderModal').classList.remove('hidden');
+    // Don't focus immediately since that would clear "new"
+    
+    this.updateCommonWords();
+}
             
             editTask(task) {
                 let currentPerson = null;
