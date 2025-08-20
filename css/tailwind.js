@@ -1,4 +1,4 @@
-// Suppress Tailwind CDN warning for Canvas apps
+// Suppress warning (same as before)
 if (window.console && console.warn) {
     const originalWarn = console.warn;
     console.warn = function(...args) {
