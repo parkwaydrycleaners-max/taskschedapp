@@ -6,41 +6,10 @@
     <title>Task Scheduler Pro - Order Management Whiteboard</title>
     <meta name="description" content="Professional task scheduling and order management whiteboard application">
     <meta name="theme-color" content="#5D5CDE">
-    
-   
-    <!-- Preload critical resources -->
-    <link rel="preconnect" href="https://cdn.tailwindcss.com">
-    <link rel="preconnect" href="https://api.airtable.com">
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#5D5CDE',
-                        'primary-dark': '#4C4BC4',
-                        'primary-light': '#7B7AE8'
-                    },
-                    animation: {
-                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                        'slide-in': 'slideIn 0.2s ease-out',
-                        'slide-out': 'slideOut 0.2s ease-in'
-                    },
-                    keyframes: {
-                        slideIn: {
-                            '0%': { transform: 'translateX(-100%)', opacity: '0' },
-                            '100%': { transform: 'translateX(0)', opacity: '1' }
-                        },
-                        slideOut: {
-                            '0%': { transform: 'translateX(0)', opacity: '1' },
-                            '100%': { transform: 'translateX(-100%)', opacity: '0' }
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+<link rel="preconnect" href="https://cdn.tailwindcss.com">
+<link rel="preconnect" href="https://api.airtable.com">
+<script src="css/tailwind.js"></script>
+
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
@@ -337,6 +306,7 @@
                     </span>
                 </div>
                 
+<form id="airtableConfigForm" class="space-y-4">
                 <div>
                     <span for="airtableApiKey" class="block text-sm font-medium mb-2">Airtable API Key:</span>
                     <input type="password" id="airtableApiKey" placeholder="patXXXXXXXXXXXXXX" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
@@ -359,6 +329,7 @@
                         <input type="text" id="tasksTableName" value="Tasks" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
                     </div>
                 </div>
+</form>
                 
                 <div>
                     <span for="timezoneSelect" class="block text-sm font-medium mb-2">Timezone:</span>
