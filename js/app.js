@@ -37,6 +37,9 @@ this.performanceMetrics = {
     lastRenderTime: 0
 };
 
+this.cachedCommonWords = null;
+this.lastCommonWordsUpdate = 0;
+
 // Initialize on page load
 window.addEventListener('beforeunload', () => {
     this.cleanup();
@@ -79,9 +82,6 @@ window.addEventListener('beforeunload', () => {
                 this.DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 
                 // Performance tracking
-                this.cachedCommonWords = null;
-                this.lastCommonWordsUpdate = 0;
-
 		this.errorCount = 0;
 		this.retryQueue = [];
 
@@ -2825,51 +2825,69 @@ updateCommonWords() {
                 });
             }
             
-            generateCommonWords() {
-                const allDescriptions = [];
-                Object.keys(this.tasks).forEach(dateKey => {
-                    Object.keys(this.tasks[dateKey]).forEach(person => {
-                        this.tasks[dateKey][person].forEach(task => {
-                            if (task.description && task.description.trim()) {
-                                allDescriptions.push(task.description.toLowerCase());
-                            }
-                        });
-                    });
-                });
+generateCommonWords() {
+    // Use cached results if available and not too old (30 seconds)
+    const now = Date.now();
+    if (this.cachedCommonWords && (now - this.lastCommonWordsUpdate) < 30000) {
+        return this.cachedCommonWords;
+    }
+    
+    // Default words to use if no data or insufficient words found
+    const defaultWords = ['hem', 'pants', 'dress', 'rush', 'take-in', 'sleeve', 'taper'];
+    
+    // Process descriptions only if we have tasks
+    const taskCount = Object.keys(this.tasks).reduce((count, dateKey) => {
+        return count + Object.values(this.tasks[dateKey]).flat().length;
+    }, 0);
+    
+    if (taskCount === 0) {
+        return defaultWords;
+    }
+    
+    // Process descriptions more efficiently
+    const wordCount = {};
+    const stopWords = new Set(['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by']);
+    
+    // Single loop through all tasks
+    Object.values(this.tasks).forEach(dateData => {
+        Object.values(dateData).forEach(personTasks => {
+            personTasks.forEach(task => {
+                if (!task.description) return;
                 
-                if (allDescriptions.length === 0) {
-                    return ['hem', 'pants', 'dress', 'take in', 'sleeve length', 'jacket', 'taper'];
-                }
-                
-                const wordCount = {};
-                const stopWords = new Set(['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by']);
-                
-                allDescriptions.forEach(description => {
-                    const words = description.match(/\b[a-z]{3,}\b/g) || [];
-                    words.forEach(word => {
-                        if (!stopWords.has(word)) {
-                            wordCount[word] = (wordCount[word] || 0) + 1;
-                        }
-                    });
-                });
-                
-                const sortedWords = Object.entries(wordCount)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 8)
-                    .map(([word]) => word);
-                
-                const defaultWords = ['hem', 'pants', 'dress', 'rush', 'take-in', 'sleeve', 'taper'];
-                while (sortedWords.length < 8) {
-                    const nextDefault = defaultWords[sortedWords.length];
-                    if (nextDefault && !sortedWords.includes(nextDefault)) {
-                        sortedWords.push(nextDefault);
-                    } else {
-                        break;
+                // Extract words and count frequencies in one pass
+                const words = task.description.toLowerCase().match(/\b[a-z]{3,}\b/g) || [];
+                words.forEach(word => {
+                    if (!stopWords.has(word)) {
+                        wordCount[word] = (wordCount[word] || 0) + 1;
                     }
-                }
-                
-                return sortedWords.slice(0, 8);
+                });
+            });
+        });
+    });
+    
+    // Get top words
+    let sortedWords = Object.entries(wordCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([word]) => word);
+    
+    // Fill with default words if needed
+    if (sortedWords.length < 8) {
+        for (const word of defaultWords) {
+            if (sortedWords.length >= 8) break;
+            if (!sortedWords.includes(word)) {
+                sortedWords.push(word);
             }
+        }
+    }
+    
+    // Cache the results
+    this.cachedCommonWords = sortedWords;
+    this.lastCommonWordsUpdate = now;
+    
+    return sortedWords;
+}
+
             
             // Settings Modal Functions
             showSettingsModal() {
