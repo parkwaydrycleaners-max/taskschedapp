@@ -2740,23 +2740,72 @@ async saveOrder() {
                 if (!this.tasks[dateKey][person]) this.tasks[dateKey][person] = [];
                 this.tasks[dateKey][person].push(task);
             }
+
+updateQuickNumbers() {
+    const container = document.getElementById('quickNumbersList');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    // Create numbers 1-9 and some special numbers
+    const numbers = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9
+    ];
+    
+    numbers.forEach(number => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors font-mono';
+        btn.textContent = number.toString();
+        btn.addEventListener('click', () => {
+            this.insertNumberIntoDescription(number);
+        });
+        container.appendChild(btn);
+    });
+}
+
+insertNumberIntoDescription(number) {
+    const textarea = document.getElementById('descriptionInput');
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const currentText = textarea.value;
+    
+    // Insert the number at cursor position
+    const newText = currentText.slice(0, start) + number + currentText.slice(end);
+    textarea.value = newText;
+    
+    // Set cursor position after the inserted number
+    const newCursorPos = start + number.toString().length;
+    textarea.setSelectionRange(newCursorPos, newCursorPos);
+    
+    // Focus back to textarea
+    textarea.focus();
+}
+
+
             
-            updateCommonWords() {
-                const container = document.getElementById('commonWordsList');
-                if (!container) return;
-                
-                const now = Date.now();
-                if (this.cachedCommonWords && (now - this.lastCommonWordsUpdate) < 30000) {
-                    this.renderCommonWords(this.cachedCommonWords, container);
-                    return;
-                }
-                
-                const commonWords = this.generateCommonWords();
-                this.cachedCommonWords = commonWords;
-                this.lastCommonWordsUpdate = now;
-                
-                this.renderCommonWords(commonWords, container);
-            }
+updateCommonWords() {
+    // Update numbers first
+    this.updateQuickNumbers();
+    
+    // Then update common words
+    const container = document.getElementById('commonWordsList');
+    if (!container) return;
+    
+    const now = Date.now();
+    if (this.cachedCommonWords && (now - this.lastCommonWordsUpdate) < 30000) {
+        this.renderCommonWords(this.cachedCommonWords, container);
+        return;
+    }
+    
+    const commonWords = this.generateCommonWords();
+    this.cachedCommonWords = commonWords;
+    this.lastCommonWordsUpdate = now;
+    
+    this.renderCommonWords(commonWords, container);
+}
             
             renderCommonWords(commonWords, container) {
                 container.innerHTML = '';
@@ -2789,7 +2838,7 @@ async saveOrder() {
                 });
                 
                 if (allDescriptions.length === 0) {
-                    return ['printing', 'binding', 'cutting', 'laminating', 'folding', 'stapling', 'assembly'];
+                    return ['hem', 'pants', 'dress', 'take in', 'sleeve length', 'jacket', 'taper'];
                 }
                 
                 const wordCount = {};
