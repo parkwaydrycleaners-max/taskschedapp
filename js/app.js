@@ -10,7 +10,7 @@
             }
         });
 
-        // Task Scheduler Application
+       // Task Scheduler Application
         class TaskSchedulerApp {
             constructor() {
                 // Core state
