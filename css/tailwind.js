@@ -1,4 +1,4 @@
-// Suppress Tailwind CDN warning for Canvas apps
+// Suppress warning (same as before)
 if (window.console && console.warn) {
     const originalWarn = console.warn;
     console.warn = function(...args) {
@@ -9,11 +9,11 @@ if (window.console && console.warn) {
     };
 }
 
-// Dynamically load Tailwind CSS
+// Load Tailwind
 const tailwindScript = document.createElement('script');
 tailwindScript.src = 'https://cdn.tailwindcss.com';
 tailwindScript.onload = function() {
-    // Configure Tailwind
+    // ✅ FIXED: Replace the placeholder comment with actual config
     tailwind.config = {
         theme: {
             extend: {
@@ -41,10 +41,25 @@ tailwindScript.onload = function() {
         }
     };
     
-    // NOW load custom styles after Tailwind is ready
     const customStyles = document.createElement('link');
     customStyles.rel = 'stylesheet';
     customStyles.href = 'css/styles.css';
+    customStyles.onload = function() {
+        // Show content and remove loading
+        document.documentElement.style.visibility = 'visible';
+        const loader = document.querySelector('.loading-spinner');
+        if (loader) loader.remove();
+    };
     document.head.appendChild(customStyles);
 };
+
+// Add error handling in case Tailwind fails to load
+tailwindScript.onerror = function() {
+    console.error('Failed to load Tailwind CSS');
+    // Show content even if Tailwind fails to load
+    document.documentElement.style.visibility = 'visible';
+    const loader = document.querySelector('.loading-spinner');
+    if (loader) loader.remove();
+};
+
 document.head.appendChild(tailwindScript);
