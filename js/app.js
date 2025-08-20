@@ -1,4 +1,4 @@
-// Dark mode detection
+        // Dark mode detection
         if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
             document.documentElement.classList.add('dark');
         }
@@ -10,7 +10,7 @@
             }
         });
 
-       // Task Scheduler Application
+        // Task Scheduler Application
         class TaskSchedulerApp {
             constructor() {
                 // Core state
@@ -70,6 +70,36 @@
 
 		this.errorCount = 0;
 		this.retryQueue = [];
+
+// State management
+this.state = {
+    isLoading: false,
+    isOffline: !navigator.onLine,
+    errorCount: 0,
+    lastSync: null
+};
+
+// Configuration constants
+this.config = {
+    MAX_RETRIES: 3,
+    DEBOUNCE_DELAY: 100,
+    TOAST_DURATION: 4000,
+    AUTO_SAVE_DELAY: 2000
+};
+
+// Initialize caches and performance tracking
+this.elementCache = new Map();
+this.performanceMetrics = {
+    renderCount: 0,
+    averageRenderTime: 0,
+    lastRenderTime: 0
+};
+
+// Initialize on page load
+window.addEventListener('beforeunload', () => {
+    this.cleanup();
+    this.clearElementCache();
+});
                 
                 // Initialize
                 this.init();
@@ -348,6 +378,29 @@
                     this.autoRefreshSettings.isRefreshing = false;
                 }
             }
+
+// Add this method for better performance monitoring
+async performAsyncOperation(name, operation) {
+    const startTime = performance.now();
+    this.state.isLoading = true;
+    
+    try {
+        console.log(`🚀 Starting ${name}...`);
+        const result = await operation();
+        
+        const duration = performance.now() - startTime;
+        console.log(`✅ ${name} completed in ${duration.toFixed(2)}ms`);
+        
+        return result;
+    } catch (error) {
+        const duration = performance.now() - startTime;
+        console.error(`❌ ${name} failed after ${duration.toFixed(2)}ms:`, error);
+        this.handleProductionError(error, name);
+        throw error;
+    } finally {
+        this.state.isLoading = false;
+    }
+}
             
             async saveAutoRefreshSettings() {
                 try {
@@ -567,7 +620,7 @@
             
             async loadMoreHistoricalData() {
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
-                    this.showToast('Please connect to Airtable first', 'error');
+                    this.showErrorToast('validation', 'Please connect to Airtable first');
                     return;
                 }
                 
@@ -831,13 +884,13 @@ init() {
             }
             
             showLoading(message = 'Loading...') {
-                this.isLoading = true;
+                this.state.isLoading = true;
                 document.getElementById('loadingText').textContent = message;
                 document.getElementById('loadingOverlay').classList.remove('hidden');
             }
             
             hideLoading() {
-                this.isLoading = false;
+                this.state.isLoading = false;
                 document.getElementById('loadingOverlay').classList.add('hidden');
             }
             
@@ -1458,12 +1511,12 @@ init() {
                 });
 
                 document.getElementById('cancelOrder')?.addEventListener('click', () => {
-                    document.getElementById('orderModal').classList.add('hidden');
+                    this.getElement('orderModal').classList.add('hidden');
                     this.resetOrderModal();
                 });
 
                 document.getElementById('cancelSettings')?.addEventListener('click', () => {
-                    document.getElementById('settingsModal').classList.add('hidden');
+                    this.handleModalAction('settingsModal', 'hide');
                 });
             }
             
@@ -1556,11 +1609,11 @@ init() {
             attachTagPrintingListeners() {
                 // Close tag printing modal
                 document.getElementById('closeTagPrintingModal').addEventListener('click', () => {
-                    document.getElementById('tagPrintingModal').classList.add('hidden');
+                    this.handleModalAction('tagPrintingModal', 'hide');
                 });
                 
                 document.getElementById('cancelTagPrinting').addEventListener('click', () => {
-                    document.getElementById('tagPrintingModal').classList.add('hidden');
+                    this.handleModalAction('tagPrintingModal', 'hide');
                 });
                 
                 // Update tag quantity
@@ -1646,7 +1699,7 @@ init() {
                 console.log('Current tag data:', this.currentTagData);
                 
                 // Show the modal
-                document.getElementById('tagPrintingModal').classList.remove('hidden');
+                this.handleModalAction('tagPrintingModal', 'show');
                 
                 // Initialize the tag table and preview
                 document.getElementById('tagQuantityInput').value = this.currentTagData.quantity;
@@ -1671,7 +1724,7 @@ init() {
                 console.log('Current tag data from order:', this.currentTagData);
                 
                 // Show the modal
-                document.getElementById('tagPrintingModal').classList.remove('hidden');
+                this.handleModalAction('tagPrintingModal', 'show');
                 
                 // Initialize the tag table and preview
                 document.getElementById('tagQuantityInput').value = this.currentTagData.quantity;
@@ -1902,7 +1955,7 @@ async printAllTags() {
     printWindow.document.close();
     printWindow.print();
     
-    document.getElementById('tagPrintingModal').classList.add('hidden');
+    this.handleModalAction('tagPrintingModal', 'hide');
     this.showToast('Thermal printer tags created', 'success');
 }
             
@@ -1961,7 +2014,7 @@ async printTagsDirectly(tagInputs) {
         }, index * 3000);
     }
     
-    document.getElementById('tagPrintingModal').classList.add('hidden');
+    this.handleModalAction('tagPrintingModal', 'hide');
     this.showToast(`📏 Printing ${tagInputs.length} WIDE tags to prevent side-by-side layout`, 'success');
 }
 
@@ -2058,7 +2111,7 @@ printContent += `
                 }, 800);
                 
                 // Close the modal
-                document.getElementById('tagPrintingModal').classList.add('hidden');
+                this.handleModalAction('tagPrintingModal', 'hide');
                 this.showToast(`${tagInputs.length} tags sent to printer (browser dialog)`, 'info');
             }
             
@@ -2104,7 +2157,7 @@ printContent += `
                     const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
                     
                     if (!orderNumber) {
-                        this.showToast('Please enter an order number first', 'error');
+                        this.showErrorToast('validation', 'Please enter an order number first');
                         return;
                     }
                     
@@ -2127,7 +2180,7 @@ printContent += `
                     }
                     
                     // Close order modal and show tag printing modal
-                    document.getElementById('orderModal').classList.add('hidden');
+                    this.getElement('orderModal').classList.add('hidden');
                     this.showTagPrintingModalFromOrder(tempTaskData, person, dateKey);
                 });
 
@@ -2282,12 +2335,12 @@ printContent += `
                             };
                             
                             await this.updateTaskInAirtable(taskId, updates);
-                            this.showToast('Task moved and synced successfully', 'success');
+                            this.showSuccessToast('sync', 'Task');
                         } catch (error) {
                             this.showToast('Task moved locally. Sync failed: ' + error.message, 'warning');
                         }
                     } else {
-                        this.showToast('Task moved successfully', 'success');
+                        this.showSuccessToast('update', 'Task');
                     }
                 }
             }
@@ -2358,7 +2411,7 @@ showNewOrderModal() {
         this.removeEventListener('focus', clearNew);
     });
     
-    document.getElementById('orderModal').classList.remove('hidden');
+    this.handleModalAction('orderModal', 'show');
     // Don't focus immediately since that would clear "new"
     
     this.updateCommonWords();
@@ -2391,7 +2444,7 @@ showOrderModalForPerson(person, date = null) {
         this.removeEventListener('focus', clearNew);
     });
     
-    document.getElementById('orderModal').classList.remove('hidden');
+    this.handleModalAction('orderModal', 'hide');
     // Don't focus immediately since that would clear "new"
     
     this.updateCommonWords();
@@ -2435,7 +2488,7 @@ showOrderModalForPerson(person, date = null) {
                 
                 this.loadAndDisplayCustomText();
                 
-                document.getElementById('orderModal').classList.remove('hidden');
+                this.handleModalAction('orderModal', 'hide');
                 this.updateCommonWords();
             }
             
@@ -2497,45 +2550,45 @@ showOrderModalForPerson(person, date = null) {
             }
             
 async saveOrder() {
-    const orderNumber = this.sanitizeInput(document.getElementById('orderNumberInput').value.trim());
-    const dateDue = document.getElementById('dueDateInput').value;
-    const description = this.sanitizeInput(document.getElementById('descriptionInput').value.trim());
-    const duration = parseInt(document.getElementById('durationInput').value);
-    const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
+    const orderNumber = this.sanitizeInput(this.getElement('orderNumberInput').value.trim());
+    const dateDue = this.getElement('dueDateInput').value;
+    const description = this.sanitizeInput(this.getElement('descriptionInput').value.trim());
+    const duration = parseInt(this.getElement('durationInput').value);
+    const tagsQuantity = parseInt(this.getElement('tagsQuantityInput').value) || 1;
 
     // Enhanced validation
     const validation = this.validateOrderData(orderNumber, dateDue, description, duration);
     if (!validation.isValid) {
-        this.showToast(validation.errors[0], 'error');
+        this.showErrorToast('validation', validation.errors[0]);
         return;
     }
 
     let targetPerson, targetDateKey;
     
-    if (document.getElementById('personDateFields').classList.contains('hidden')) {
+    if (this.getElement('personDateFields').classList.contains('hidden')) {
         targetPerson = this.currentOrderPerson;
         targetDateKey = this.currentOrderDate;
     } else {
-        targetPerson = document.getElementById('assignPersonSelect').value;
-        targetDateKey = document.getElementById('workDateInput').value;
+        targetPerson = this.getElement('assignPersonSelect').value;
+        targetDateKey = this.getElement('workDateInput').value;
     }
 
     // Use performance tracking
     try {
         if (this.isEditingTask) {
-            await this.performanceTrack('updateTask', 
+            await this.performAsyncOperation('updateOrder', 
                 () => this.updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey)
             );
         } else {
-            await this.performanceTrack('createTask', 
+            await this.performAsyncOperation('createOrder', 
                 () => this.createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey)
             );
         }
         
-        document.getElementById('orderModal').classList.add('hidden');
+        this.handleModalAction('orderModal', 'hide');
         this.renderWhiteboard();
     } catch (error) {
-        this.handleProductionError(error, 'saveOrder');
+        // Error already handled in performAsyncOperation
     }
 }
             
@@ -2775,7 +2828,7 @@ async saveOrder() {
                 document.getElementById('tasksTableName').value = this.airtableConfig.tablesConfig.tasks;
                 
                 this.switchSettingsTab('database');
-                document.getElementById('settingsModal').classList.remove('hidden');
+                this.getElement('settingsModal').classList.remove('hidden');
             }
             
             switchSettingsTab(tab) {
@@ -2984,12 +3037,12 @@ async saveOrder() {
                     return;
                 }
 
-                document.getElementById('settingsModal').classList.add('hidden');
+                this.handleModalAction('settingsModal', 'hide');
                 this.showLoading('Loading data from Airtable...');
 
                 try {
                     await this.loadAllDataFromAirtable();
-                    this.showToast('Connected successfully!', 'success');
+                    this.showSuccessToast('connect');
                     this.renderWhiteboard();
                     await this.saveConfigToIndexedDB();
                 } catch (error) {
@@ -3019,7 +3072,7 @@ async saveOrder() {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                this.showToast('Configuration downloaded!', 'success');
+                this.showSuccessToast('save', 'Configuration');
             }
             
             async uploadConfig(event) {
@@ -3031,7 +3084,7 @@ async saveOrder() {
                     const config = JSON.parse(text);
                     
                     if (!config.apiKey || !config.baseId) {
-                        this.showToast('Invalid config file', 'error');
+                        this.showErrorToast('validation', 'Invalid config file');
                         return;
                     }
                     
@@ -3058,7 +3111,7 @@ async saveOrder() {
             // Search Modal Functions
             showSearchModal() {
                 this.populateSearchPersonFilter();
-                document.getElementById('searchModal').classList.remove('hidden');
+                this.handleModalAction('searchModal', 'show');
                 document.getElementById('searchInput').focus();
             }
             
@@ -3259,7 +3312,7 @@ createSearchResultItem(result) {
     });
     
     item.addEventListener('dblclick', () => {
-        document.getElementById('searchModal').classList.add('hidden');
+        this.handleModalAction('searchModal', 'hide');
         
         const [year, month, day] = dateKey.split('-');
         this.currentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
@@ -3335,7 +3388,7 @@ createSearchResultItem(result) {
             showReportsModal() {
                 this.populateReportPersonFilter();
                 this.setReportDefaultDates();
-                document.getElementById('reportsModal').classList.remove('hidden');
+                this.handleModalAction('reportsModal', 'show');
             }
             
             populateReportPersonFilter() {
@@ -3390,7 +3443,7 @@ createSearchResultItem(result) {
                 const endDate = document.getElementById('reportEndDate').value;
 
                 if (!startDate || !endDate) {
-                    this.showToast('Please select both start and end dates', 'error');
+                    this.showErrorToast('validation', 'Please select both start and end dates');
                     return;
                 }
 
@@ -3552,7 +3605,7 @@ createSearchResultItem(result) {
                     `;
                     
                     row.addEventListener('dblclick', () => {
-                        document.getElementById('reportsModal').classList.add('hidden');
+                        this.handleModalAction('reportsModal', 'hide');
                         
                         const [year, month, day] = item.workDate.split('-');
                         this.currentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
@@ -3603,7 +3656,7 @@ createSearchResultItem(result) {
             
             exportReport() {
                 if (!this.currentReportData || this.currentReportData.length === 0) {
-                    this.showToast('No report data to export', 'error');
+                    this.showErrorToast('validation', 'No report data to export');
                     return;
                 }
 
@@ -3645,7 +3698,7 @@ createSearchResultItem(result) {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                this.showToast('Report exported successfully!', 'success');
+                this.showSuccessToast('save', 'Report');
             }
 //Export Thermal Report
 exportThermalReport() {
@@ -3745,7 +3798,7 @@ showExportOptionsModal() {
                     const shareLink = document.getElementById('shareLink');
                     shareLink.select();
                     navigator.clipboard.writeText(shareLink.value).then(() => {
-                        this.showToast('Link copied to clipboard!', 'success');
+                        this.showSuccessToast('copy', 'Link');
                     });
                 });
             }
@@ -4093,7 +4146,7 @@ showExportOptionsModal() {
             
             showRemovePersonConfirmation(person) {
                 if (this.people.length <= 1) {
-                    this.showToast('Cannot remove the last person', 'error');
+                    this.showErrorToast('validation', 'Cannot remove the last person');
                     return;
                 }
                 
@@ -4721,7 +4774,7 @@ showExportOptionsModal() {
                     try {
                         await this.deleteCapacityOverrideFromAirtable(person, date);
                         console.log('✅ Successfully removed from Airtable');
-                        this.showToast('Capacity override removed and synced', 'success');
+                        this.showSuccessToast('sync', 'Capacity override');
                     } catch (error) {
                         console.error('❌ Failed to remove from Airtable:', error);
                         this.showToast(`Override removed locally. Sync failed: ${error.message}`, 'warning');
@@ -4729,7 +4782,7 @@ showExportOptionsModal() {
                         this.hideLoading();
                     }
                 } else {
-                    this.showToast('Capacity override removed', 'success');
+                    this.showSuccessToast('delete', 'Capacity override');
                 }
                 
                 // Force re-render
@@ -4919,7 +4972,7 @@ showExportOptionsModal() {
                         try {
                             await this.loadAllDataFromAirtable();
                             this.renderWhiteboard();
-                            this.showToast('Connected successfully!', 'success');
+                            this.showSuccessToast('connect');
                             await this.saveConfigToIndexedDB();
                         } catch (error) {
                             this.showToast(`Failed to connect: ${error.message}`, 'error');
@@ -6254,7 +6307,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                     this.showLoading('Saving text...');
                     try {
                         await this.saveTextContentToAirtable(content);
-                        this.showToast('Text saved and synced successfully!', 'success');
+                        this.showSuccessToast('sync', 'Text');
                     } catch (error) {
                         this.showToast(`Failed to sync text: ${error.message}`, 'warning');
                         await this.saveTextContentLocally(content);
@@ -6362,7 +6415,176 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                     display.style.display = 'block';
                 }
             }
-// Add these methods right before the closing } of your TaskSchedulerApp class
+// Add this method to your TaskSchedulerApp class
+// Add this method to cache frequently used elements
+getElement(id) {
+    if (!this.elementCache) {
+        this.elementCache = new Map();
+    }
+    
+    if (!this.elementCache.has(id)) {
+        this.elementCache.set(id, document.getElementById(id));
+    }
+    
+    return this.elementCache.get(id);
+}
+
+// Clear cache when needed
+clearElementCache() {
+    if (this.elementCache) {
+        this.elementCache.clear();
+    }
+}
+
+
+dateUtils = {
+    format: (date, format = 'display') => {
+        if (!date) return '';
+        const d = this.parseDateString(date);
+        if (!d) return 'Invalid Date';
+        
+        switch(format) {
+            case 'input': return d.toISOString().split('T')[0];
+            case 'local': return this.dateToLocalDateString(d);
+            case 'display': return this.formatDateForDisplay(d);
+            case 'relative': return this.getRelativeDate(d);
+            default: return d.toLocaleDateString();
+        }
+    },
+    
+    isToday: (date) => {
+        const today = new Date();
+        const d = this.parseDateString(date);
+        return d && d.toDateString() === today.toDateString();
+    },
+    
+    isPast: (date) => {
+        const d = this.parseDateString(date);
+        return d && d < new Date();
+    },
+    
+    daysBetween: (date1, date2) => {
+        const d1 = this.parseDateString(date1);
+        const d2 = this.parseDateString(date2);
+        if (!d1 || !d2) return 0;
+        return Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24));
+    }
+};
+
+getRelativeDate(date) {
+    const days = this.dateUtils.daysBetween(new Date(), date);
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Tomorrow';
+    if (days === -1) return 'Yesterday';
+    if (days > 0) return `In ${days} days`;
+    return `${Math.abs(days)} days ago`;
+}
+
+getStandardMessage(action, type, item = '') {
+    const messages = {
+        success: {
+            save: `✅ ${item} saved successfully!`,
+            delete: `🗑️ ${item} deleted!`,
+            sync: `🔄 ${item} synced!`,
+            connect: '🔗 Connected successfully!',
+            update: `📝 ${item} updated!`,
+            create: `➕ ${item} created!`
+        },
+        error: {
+            save: '❌ Save failed. Please try again.',
+            delete: '❌ Delete failed. Please try again.',
+            sync: '❌ Sync failed. Changes saved locally.',
+            connect: '❌ Connection failed. Check settings.',
+            network: '🌐 Network error. Check connection.',
+            validation: '⚠️ Please check your input.'
+        },
+        warning: {
+            offline: '📱 You are offline. Changes saved locally.',
+            limit: '⚠️ Approaching limit. Please review.',
+            duplicate: '🔄 Duplicate detected. Please verify.'
+        }
+    };
+    
+    return messages[type]?.[action] || `${action} ${type}`;
+}
+
+showSuccessToast(action, item = '') {
+    this.showToast(this.getStandardMessage(action, 'success', item), 'success');
+}
+
+showErrorToast(action, error = '') {
+    this.showToast(this.getStandardMessage(action, 'error', error), 'error');
+}
+
+handleModalAction(modalId, action) {
+    const modal = document.getElementById(modalId);
+    
+    if (action === 'show') {
+        modal.classList.remove('hidden');
+    } else if (action === 'hide') {
+        modal.classList.add('hidden');
+        if (modalId === 'orderModal') {
+            this.resetOrderModal();
+        }
+    }
+}
+
+resetModalState(modalId) {
+    // Only reset order modal state to avoid breaking other modals
+    if (modalId === 'orderModal') {
+        this.isEditingTask = false;
+        this.editingTaskId = null;
+        this.originalTaskData = null;
+    }
+}
+
+resetModalState(modalId) {
+    const modal = document.getElementById(modalId);
+    const forms = modal.querySelectorAll('form');
+    forms.forEach(form => form.reset());
+    
+    if (modalId === 'orderModal') {
+        this.isEditingTask = false;
+        this.editingTaskId = null;
+        this.originalTaskData = null;
+    }
+}
+
+validateField(value, rules) {
+    const errors = [];
+    
+    rules.forEach(rule => {
+        switch(rule.type) {
+            case 'required':
+                if (!value || value.trim().length === 0) {
+                    errors.push(rule.message || 'This field is required');
+                }
+                break;
+            case 'minLength':
+                if (value && value.length < rule.value) {
+                    errors.push(rule.message || `Minimum ${rule.value} characters required`);
+                }
+                break;
+            case 'maxLength':
+                if (value && value.length > rule.value) {
+                    errors.push(rule.message || `Maximum ${rule.value} characters allowed`);
+                }
+                break;
+            case 'range':
+                const num = parseInt(value);
+                if (num < rule.min || num > rule.max) {
+                    errors.push(rule.message || `Value must be between ${rule.min} and ${rule.max}`);
+                }
+                break;
+        }
+    });
+    
+    return {
+        isValid: errors.length === 0,
+        errors: errors
+    };
+}
+
 handleBackOnline() {
     if (this.retryQueue && this.retryQueue.length > 0) {
         console.log(`Attempting to sync ${this.retryQueue.length} pending changes`);
@@ -6378,11 +6600,11 @@ handleProductionError(error, context = '') {
     console.error(`[${context}] Error #${this.errorCount}:`, error);
     
     if (error.message.includes('Airtable')) {
-        this.showToast('Database connection issue. Changes saved locally.', 'warning');
+        this.showErrorToast('sync');
     } else if (error.message.includes('Network')) {
-        this.showToast('Network error. Please check your connection.', 'error');
+        this.showErrorToast('network');
     } else {
-        this.showToast('Something went wrong. Please refresh if issues persist.', 'error');
+        this.showErrorToast('validation', 'Something went wrong. Please refresh if issues persist.');
     }
 }
 
@@ -6402,24 +6624,49 @@ performanceTrack(name, operation) {
 }
 
 validateOrderData(orderNumber, dateDue, description, duration) {
-    const errors = [];
+    const validations = [
+        {
+            value: orderNumber,
+            rules: [
+                { type: 'required', message: 'Order number is required' },
+                { type: 'minLength', value: 2 },
+                { type: 'maxLength', value: 50 }
+            ]
+        },
+        {
+            value: dateDue,
+            rules: [
+                { type: 'required', message: 'Due date is required' }
+            ]
+        },
+        {
+            value: description,
+            rules: [
+                { type: 'required', message: 'Description is required' },
+                { type: 'minLength', value: 3 },
+                { type: 'maxLength', value: 500 }
+            ]
+        },
+        {
+            value: duration,
+            rules: [
+                { type: 'range', min: 1, max: 32, message: 'Duration must be between 1 and 32 slots' }
+            ]
+        }
+    ];
+
+    const allErrors = [];
     
-    if (!orderNumber || orderNumber.length < 2) {
-        errors.push('Order number must be at least 2 characters');
-    }
-    if (!dateDue) {
-        errors.push('Due date is required');
-    }
-    if (!description || description.trim().length < 3) {
-        errors.push('Description must be at least 3 characters');
-    }
-    if (!duration || duration < 1 || duration > 32) {
-        errors.push('Duration must be between 1 and 32 slots');
-    }
-    
+    validations.forEach(validation => {
+        const result = this.validateField(validation.value, validation.rules);
+        if (!result.isValid) {
+            allErrors.push(...result.errors);
+        }
+    });
+
     return {
-        isValid: errors.length === 0,
-        errors: errors
+        isValid: allErrors.length === 0,
+        errors: allErrors
     };
 }
 
@@ -6452,7 +6699,7 @@ safeExecute(operation, fallback = null) {
         return operation();
     } catch (error) {
         console.error('Operation failed:', error);
-        this.showToast('Operation failed. Please try again.', 'error');
+        this.showErrorToast('validation', 'Operation failed. Please try again.');
         return fallback;
     }
 }
@@ -6465,13 +6712,30 @@ sanitizeInput(input) {
 }
 
 cleanup() {
+    // Clear intervals
     if (this.autoRefreshInterval) {
         clearInterval(this.autoRefreshInterval);
         this.autoRefreshInterval = null;
     }
+    
+    // Clear caches
+    this.clearElementCache();
+    
+    // Clear event listeners
+    if (this.eventListeners) {
+        this.eventListeners.forEach((listeners, elementId) => {
+            const element = document.getElementById(elementId);
+            if (element) {
+                listeners.forEach(({ event, handler }) => {
+                    element.removeEventListener(event, handler);
+                });
+            }
+        });
+        this.eventListeners.clear();
+    }
+    
+    console.log('🧹 App cleanup completed');
 }
-
-
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
