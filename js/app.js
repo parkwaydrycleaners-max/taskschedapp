@@ -10,7 +10,7 @@
             }
         });
 
-// Task Scheduler Application
+        // Task Scheduler Application
         class TaskSchedulerApp {
             constructor() {
                 // Core state
@@ -38,7 +38,7 @@
                         tasks: 'Tasks',
                         capacityOverrides: 'CapacityOverrides'
                     }
-                };
+		};
                 
                 // Auto-refresh settings
                 this.autoRefreshInterval = null;
@@ -67,6 +67,9 @@
                 // Performance tracking
                 this.cachedCommonWords = null;
                 this.lastCommonWordsUpdate = 0;
+
+		this.errorCount = 0;
+		this.retryQueue = [];
                 
                 // Initialize
                 this.init();
@@ -709,12 +712,17 @@
                 }
             }
             
-            init() {
-                this.updateDateDisplay();
-                this.renderWhiteboard();
-                this.attachEventListeners();
-                this.checkForAutoLoad();
-            }
+init() {
+    this.updateDateDisplay();
+    this.renderWhiteboard();
+    this.attachEventListeners();
+    this.checkForAutoLoad();
+    
+    // Initialize production features
+    this.initOfflineDetection();
+    
+    console.log('🚀 Task Scheduler Pro initialized');
+}
             
             // Timezone and Date Utility Functions
             getConfiguredTimezone() {
@@ -1088,9 +1096,9 @@
                                 ${overCapacityIcon}
                             </div>
                             <div class="flex items-center space-x-2 flex-shrink-0">
-                                <label class="flex items-center cursor-pointer" title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
+                                <span class="flex items-center cursor-pointer" title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
                                     <input type="checkbox" class="complete-checkbox w-4 h-4 text-primary border border-gray-300 rounded focus:ring-2 focus:ring-primary" ${task.completed ? 'checked' : ''}>
-                                </label>
+                                </span>
                                 <button class="print-tags-btn text-gray-400 hover:text-purple-500 transition-colors p-1" title="Print Tags">
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a1 1 0 001-1v-4a1 1 0 00-1-1H9a1 1 0 00-1 1v4a1 1 0 001 1zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
@@ -2083,16 +2091,7 @@ printContent += `
                 
                 return this.dateToLocalDateString(date);
             }
-           
-getOrderNumberValue() {
-    const orderNumberInput = document.getElementById('orderNumberInput');
-    if (!orderNumberInput) return '';
-    
-    const value = orderNumberInput.value.trim();
-    // Return empty string if it's just the placeholder "new"
-    return value === 'new' ? '' : value;
-}
- 
+            
             attachOrderModalListeners() {
                 document.getElementById('saveOrder').addEventListener('click', () => this.saveOrder());
 
@@ -2101,9 +2100,8 @@ getOrderNumberValue() {
                     console.log('Print Tags From Order button clicked');
                     
                     // Get current order data from modal
-                    // const orderNumber = document.getElementById('orderNumberInput').value.trim();
-			const orderNumber = this.getOrderNumberValue();                    
-			const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
+                    const orderNumber = document.getElementById('orderNumberInput').value.trim();
+                    const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
                     
                     if (!orderNumber) {
                         this.showToast('Please enter an order number first', 'error');
@@ -2398,7 +2396,7 @@ showOrderModalForPerson(person, date = null) {
     
     this.updateCommonWords();
 }
-
+            
             editTask(task) {
                 let currentPerson = null;
                 let currentDateKey = null;
@@ -2498,37 +2496,48 @@ showOrderModalForPerson(person, date = null) {
                 document.getElementById('durationMinutes').textContent = '30';
             }
             
-            async saveOrder() {
-                const orderNumber = document.getElementById('orderNumberInput').value.trim();
-                const dateDue = document.getElementById('dueDateInput').value;
-                const description = document.getElementById('descriptionInput').value.trim();
-                const duration = parseInt(document.getElementById('durationInput').value);
-                const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
+async saveOrder() {
+    const orderNumber = this.sanitizeInput(document.getElementById('orderNumberInput').value.trim());
+    const dateDue = document.getElementById('dueDateInput').value;
+    const description = this.sanitizeInput(document.getElementById('descriptionInput').value.trim());
+    const duration = parseInt(document.getElementById('durationInput').value);
+    const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
 
-                if (!orderNumber || !dateDue || !description) {
-                    this.showToast('Please fill in all required fields', 'error');
-                    return;
-                }
+    // Enhanced validation
+    const validation = this.validateOrderData(orderNumber, dateDue, description, duration);
+    if (!validation.isValid) {
+        this.showToast(validation.errors[0], 'error');
+        return;
+    }
 
-                let targetPerson, targetDateKey;
-                
-                if (document.getElementById('personDateFields').classList.contains('hidden')) {
-                    targetPerson = this.currentOrderPerson;
-                    targetDateKey = this.currentOrderDate;
-                } else {
-                    targetPerson = document.getElementById('assignPersonSelect').value;
-                    targetDateKey = document.getElementById('workDateInput').value;
-                }
+    let targetPerson, targetDateKey;
+    
+    if (document.getElementById('personDateFields').classList.contains('hidden')) {
+        targetPerson = this.currentOrderPerson;
+        targetDateKey = this.currentOrderDate;
+    } else {
+        targetPerson = document.getElementById('assignPersonSelect').value;
+        targetDateKey = document.getElementById('workDateInput').value;
+    }
 
-                if (this.isEditingTask) {
-                    await this.updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey);
-                } else {
-                    await this.createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey);
-                }
-
-                document.getElementById('orderModal').classList.add('hidden');
-                this.renderWhiteboard();
-            }
+    // Use performance tracking
+    try {
+        if (this.isEditingTask) {
+            await this.performanceTrack('updateTask', 
+                () => this.updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey)
+            );
+        } else {
+            await this.performanceTrack('createTask', 
+                () => this.createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey)
+            );
+        }
+        
+        document.getElementById('orderModal').classList.add('hidden');
+        this.renderWhiteboard();
+    } catch (error) {
+        this.handleProductionError(error, 'saveOrder');
+    }
+}
             
             async updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey) {
                 let currentTask = null;
@@ -2865,7 +2874,7 @@ showOrderModalForPerson(person, date = null) {
                 this.DAYS_OF_WEEK.forEach(day => {
                     const div = document.createElement('div');
                     div.innerHTML = `
-                        <label class="block text-sm font-medium mb-1">${day}:</label>
+                        <span class="block text-sm font-medium mb-1">${day}:</span>
                         <input type="number" id="newPersonCapacity${day}" min="0" max="32" value="16" 
                                class="w-full p-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
                     `;
@@ -3214,14 +3223,14 @@ createSearchResultItem(result) {
             <div class="${dueDateColor}">Due: ${dueDateDisplay}</div>
         </div>
         <div class="flex justify-between items-center">
-            <label class="flex items-center cursor-pointer">
+            <span class="flex items-center cursor-pointer">
                 <input type="checkbox" class="search-result-checkbox w-4 h-4 text-primary border border-gray-300 rounded focus:ring-2 focus:ring-primary mr-2" 
                        data-task-id="${task.id}" 
                        data-person="${person}" 
                        data-date="${dateKey}"
                        ${task.completed ? 'checked' : ''}>
                 <span class="text-sm font-medium ${statusClass}">${status}</span>
-            </label>
+            </span>
             <div class="text-xs text-blue-500 dark:text-blue-400 font-medium cursor-pointer hover:underline" onclick="this.closest('.p-4').dispatchEvent(new Event('dblclick'))">
                 Double-click to navigate
             </div>
@@ -3531,14 +3540,14 @@ createSearchResultItem(result) {
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${item.dueDateDisplay}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${item.durationDisplay}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <label class="flex items-center cursor-pointer">
+                            <span class="flex items-center cursor-pointer">
                                 <input type="checkbox" class="report-checkbox w-4 h-4 text-primary border border-gray-300 rounded focus:ring-2 focus:ring-primary mr-2" 
                                        data-task-id="${item.task.id}" 
                                        data-person="${item.person}" 
                                        data-date="${item.workDate}"
                                        ${item.task.completed ? 'checked' : ''}>
                                 <span class="font-medium ${item.statusClass}">${item.status}</span>
-                            </label>
+                            </span>
                         </td>
                     `;
                     
@@ -3948,7 +3957,7 @@ showExportOptionsModal() {
                         <h3 class="text-lg font-semibold mb-4">📅 Go to Date</h3>
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium mb-2">Select Date:</label>
+                                <span class="block text-sm font-medium mb-2">Select Date:</span>
                                 <input type="date" id="datePickerInput" value="${this.dateToLocalDateString(this.currentDate)}" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
                             </div>
                         </div>
@@ -4111,7 +4120,7 @@ showExportOptionsModal() {
                     const value = currentCapacity[day] || 16;
                     return `
                         <div>
-                            <label class="block text-sm font-medium mb-1">${day}:</label>
+                            <span class="block text-sm font-medium mb-1">${day}:</span>
                             <input type="number" id="capacity${day}" min="0" max="32" value="${value}" 
                                    class="w-full p-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
                         </div>
@@ -4123,7 +4132,7 @@ showExportOptionsModal() {
                         <h3 class="text-lg font-semibold mb-4">⏰ Edit Capacity for ${person}</h3>
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium mb-3">Daily Capacity (15-min slots):</label>
+                                <span class="block text-sm font-medium mb-3">Daily Capacity (15-min slots):</span>
                                 <div class="grid grid-cols-2 gap-3">
                                     ${capacityInputs}
                                 </div>
@@ -4131,7 +4140,7 @@ showExportOptionsModal() {
                             </div>
                             
                             <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                <label class="block text-sm font-medium mb-2">Quick Presets:</label>
+                                <span class="block text-sm font-medium mb-2">Quick Presets:</span>
                                 <div class="flex flex-wrap gap-2">
                                     <button type="button" class="preset-full-time px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">Full Time (Mon-Fri, 8h)</button>
                                     <button type="button" class="preset-part-time px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Part Time (Mon-Fri, 4h)</button>
@@ -4283,33 +4292,33 @@ showExportOptionsModal() {
                         <div class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Order Number:</label>
+                                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Order Number:</span>
                                     <div class="text-lg font-semibold text-primary">#${task.orderNumber}</div>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Duration:</label>
+                                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Duration:</span>
                                     <div class="text-lg font-semibold">${task.duration * 15} minutes</div>
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assigned to:</label>
+                                <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assigned to:</span>
                                 <div class="text-lg font-semibold text-blue-600 dark:text-blue-400">${currentPerson || 'Unknown'}</div>
                             </div>
                             
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Work Date:</label>
+                                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Work Date:</span>
                                     <div class="text-sm">${formattedWorkDate}</div>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date:</label>
+                                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date:</span>
                                     <div class="text-sm ${isOverdue ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${formattedDueDate}</div>
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description:</label>
+                                <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description:</span>
                                 <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border">
                                     <p class="text-gray-800 dark:text-gray-200 leading-relaxed">${task.description || 'No description provided'}</p>
                                 </div>
@@ -4318,7 +4327,7 @@ showExportOptionsModal() {
                             <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status:</label>
+                                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status:</span>
                                         <div class="text-sm ${task.completed ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}">
                                             ${task.completed ? '✅ Completed' : '⏳ In Progress'}
                                         </div>
@@ -4388,9 +4397,9 @@ showExportOptionsModal() {
                                 <div class="font-medium">${formattedDate} (${dayName})</div>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium mb-2">
+                                <span class="block text-sm font-medium mb-2">
                                     Capacity for this day (15-min slots):
-                                </label>
+                                </span>
                                 <input type="number" id="quickCapacityInput" min="0" max="32" value="${currentCapacity}" 
                                        class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
                                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -4524,15 +4533,15 @@ showExportOptionsModal() {
                             <h4 class="font-medium mb-4">Add New Override</h4>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                 <div>
-                                    <label class="block text-sm font-medium mb-2">Start Date:</label>
+                                    <span class="block text-sm font-medium mb-2">Start Date:</span>
                                     <input type="date" id="overrideStartDate" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium mb-2">End Date (Optional):</label>
+                                    <span class="block text-sm font-medium mb-2">End Date (Optional):</span>
                                     <input type="date" id="overrideEndDate" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium mb-2">Capacity (slots):</label>
+                                    <span class="block text-sm font-medium mb-2">Capacity (slots):</span>
                                     <input type="number" id="overrideCapacity" min="0" max="32" value="0" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
                                 </div>
                             </div>
@@ -5491,44 +5500,65 @@ showExportOptionsModal() {
             }
             
             // Airtable API Functions
-            async makeAirtableRequest(endpoint, method = 'GET', data = null) {
-                const url = `https://api.airtable.com/v0/${this.airtableConfig.baseId}/${endpoint}`;
-                const options = {
+async makeAirtableRequest(endpoint, method = 'GET', data = null) {
+    const url = `https://api.airtable.com/v0/${this.airtableConfig.baseId}/${endpoint}`;
+    const maxRetries = 3;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const options = {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${this.airtableConfig.apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (data) {
+                options.body = JSON.stringify(data);
+                console.log('🚀 FORCE AIRTABLE REQUEST:', {
+                    url,
                     method,
-                    headers: {
-                        'Authorization': `Bearer ${this.airtableConfig.apiKey}`,
-                        'Content-Type': 'application/json'
-                    }
-                };
-
-                if (data) {
-                    options.body = JSON.stringify(data);
-                    console.log('🚀 FORCE AIRTABLE REQUEST:', {
-                        url,
-                        method,
-                        data,
-                        force: 'BYPASSING ALL VALIDATION'
-                    });
-                }
-
-                const response = await fetch(url, options);
-                console.log('📡 Airtable response status:', response.status);
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    console.error('❌ Airtable error response:', error);
-                    throw new Error(error.error?.message || `HTTP ${response.status}`);
-                }
-
-                const result = await response.json();
-        // SAFETY CHECK - Ensure result has expected structure
-        if (method === 'GET' && !result.records) {
-            result.records = [];
-        }
-
-                console.log('✅ Airtable success response:', result);
-                return result;
+                    data,
+                    force: 'BYPASSING ALL VALIDATION'
+                });
             }
+
+            const response = await fetch(url, options);
+            console.log('📡 Airtable response status:', response.status);
+            
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('❌ Airtable error response:', error);
+                throw new Error(error.error?.message || `HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            console.log('✅ Airtable success response:', result);
+            
+            // Reset error count on success
+            this.errorCount = 0;
+            return result;
+            
+        } catch (error) {
+            console.warn(`Airtable request attempt ${attempt}/${maxRetries} failed:`, error.message);
+            
+            if (attempt === maxRetries) {
+                // Add to retry queue if offline
+                if (!navigator.onLine) {
+                    this.retryQueue = this.retryQueue || [];
+                    this.retryQueue.push(() => this.makeAirtableRequest(endpoint, method, data));
+                }
+                this.handleProductionError(error, 'airtableRequest');
+                throw error;
+            }
+            
+            // Wait before retry: 1s, 2s, 4s
+            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+}
 
             // Verification Functions for Data Integrity
             async verifyTaskInAirtable(taskId, expectedFields) {
@@ -5604,13 +5634,7 @@ showExportOptionsModal() {
                     this.peopleCapacity = {};
                 }
 
-    // SAFETY CHECK - Add this
-    if (!response || !response.records || !Array.isArray(response.records)) {
-        console.warn('Invalid response from Airtable People table:', response);
-        return []; // Return empty array instead of crashing
-    }
-
-    response.records.forEach(record => {
+                response.records.forEach(record => {
                     const fields = record.fields;
                     
                     if (!fields.Name || fields.Name.startsWith('__')) {
@@ -6338,6 +6362,116 @@ showExportOptionsModal() {
                     display.style.display = 'block';
                 }
             }
+// Add these methods right before the closing } of your TaskSchedulerApp class
+handleBackOnline() {
+    if (this.retryQueue && this.retryQueue.length > 0) {
+        console.log(`Attempting to sync ${this.retryQueue.length} pending changes`);
+        this.retryQueue.forEach(operation => {
+            this.safeExecute(operation);
+        });
+        this.retryQueue = [];
+    }
+}
+
+handleProductionError(error, context = '') {
+    this.errorCount = (this.errorCount || 0) + 1;
+    console.error(`[${context}] Error #${this.errorCount}:`, error);
+    
+    if (error.message.includes('Airtable')) {
+        this.showToast('Database connection issue. Changes saved locally.', 'warning');
+    } else if (error.message.includes('Network')) {
+        this.showToast('Network error. Please check your connection.', 'error');
+    } else {
+        this.showToast('Something went wrong. Please refresh if issues persist.', 'error');
+    }
+}
+
+performanceTrack(name, operation) {
+    const startTime = performance.now();
+    try {
+        const result = operation();
+        const endTime = performance.now();
+        if (endTime - startTime > 100) {
+            console.log(`⚡ ${name}: ${(endTime - startTime).toFixed(2)}ms`);
+        }
+        return result;
+    } catch (error) {
+        console.error(`❌ ${name} failed:`, error);
+        throw error;
+    }
+}
+
+validateOrderData(orderNumber, dateDue, description, duration) {
+    const errors = [];
+    
+    if (!orderNumber || orderNumber.length < 2) {
+        errors.push('Order number must be at least 2 characters');
+    }
+    if (!dateDue) {
+        errors.push('Due date is required');
+    }
+    if (!description || description.trim().length < 3) {
+        errors.push('Description must be at least 3 characters');
+    }
+    if (!duration || duration < 1 || duration > 32) {
+        errors.push('Duration must be between 1 and 32 slots');
+    }
+    
+    return {
+        isValid: errors.length === 0,
+        errors: errors
+    };
+}
+
+initOfflineDetection() {
+    window.addEventListener('online', () => {
+        this.showToast('Connection restored! Syncing data...', 'success');
+        this.handleBackOnline();
+    });
+    
+    window.addEventListener('offline', () => {
+        this.showToast('You are offline. Changes will be saved locally.', 'warning');
+    });
+}
+
+
+debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+safeExecute(operation, fallback = null) {
+    try {
+        return operation();
+    } catch (error) {
+        console.error('Operation failed:', error);
+        this.showToast('Operation failed. Please try again.', 'error');
+        return fallback;
+    }
+}
+
+sanitizeInput(input) {
+    if (typeof input !== 'string') return input;
+    const div = document.createElement('div');
+    div.textContent = input;
+    return div.innerHTML;
+}
+
+cleanup() {
+    if (this.autoRefreshInterval) {
+        clearInterval(this.autoRefreshInterval);
+        this.autoRefreshInterval = null;
+    }
+}
+
+
         }
         // Initialize the application
-        window.app = new TaskSchedulerApp();
+        const app = new TaskSchedulerApp();
