@@ -2417,34 +2417,47 @@ showNewOrderModal() {
     this.updateCommonWords();
 }
             
-            showOrderModalForPerson(person, date = null) {
-                this.resetOrderModal();
-                document.getElementById('orderModalTitle').textContent = `Add Order for ${person}`;
-                document.getElementById('personDateFields').classList.add('hidden');
-                
-                this.currentOrderPerson = person;
-                this.currentOrderDate = date || this.dateToLocalDateString(this.currentDate);
-                
-                // Set up "new" placeholder behavior
-                const orderNumberInput = document.getElementById('orderNumberInput');
-                orderNumberInput.value = 'new';
-                orderNumberInput.style.color = '#9ca3af';
-                orderNumberInput.style.fontStyle = 'italic';
-                
-                // Clear "new" on first focus
-                orderNumberInput.addEventListener('focus', function clearNew() {
-                    if (this.value === 'new') {
-                        this.value = '';
-                        this.style.color = '';
-                        this.style.fontStyle = 'normal';
-                    }
-                    // Remove this listener after first use
-                    this.removeEventListener('focus', clearNew);
-                });
-                
-                this.handleModalAction('orderModal', 'show');
-                console.log('Order modal shown for:', person, 'on date:', this.currentOrderDate);
-            }
+showOrderModalForPerson(person, date = null) {
+    console.log('showOrderModalForPerson called with:', person, date);
+    
+    // Reset form fields manually
+    document.getElementById('orderNumberInput').value = '';
+    document.getElementById('dueDateInput').value = '';
+    document.getElementById('descriptionInput').value = '';
+    document.getElementById('durationInput').value = 2;
+    document.getElementById('tagsQuantityInput').value = 1;
+    
+    // Set modal title and hide person selection
+    document.getElementById('orderModalTitle').textContent = `Add Order for ${person}`;
+    document.getElementById('personDateFields').classList.add('hidden');
+    
+    // Store current order context
+    this.currentOrderPerson = person;
+    this.currentOrderDate = date || this.dateToLocalDateString(this.currentDate);
+    
+    // Set up "new" placeholder behavior
+    const orderNumberInput = document.getElementById('orderNumberInput');
+    orderNumberInput.value = 'new';
+    orderNumberInput.style.color = '#9ca3af';
+    orderNumberInput.style.fontStyle = 'italic';
+    
+    // Clear "new" on first focus (one-time event)
+    const clearNewHandler = function() {
+        if (this.value === 'new') {
+            this.value = '';
+            this.style.color = '';
+            this.style.fontStyle = 'normal';
+        }
+        this.removeEventListener('focus', clearNewHandler);
+    };
+    orderNumberInput.addEventListener('focus', clearNewHandler);
+    
+    // Show the modal
+    document.getElementById('orderModal').classList.remove('hidden');
+    
+    console.log('✅ Order modal opened for:', person, 'on date:', this.currentOrderDate);
+    this.showToast(`Add Order modal opened for ${person}`, 'info');
+}
             
             editTask(task) {
                 let currentPerson = null;
@@ -6735,4 +6748,5 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
