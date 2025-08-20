@@ -6,11 +6,44 @@
     <title>Task Scheduler Pro - Order Management Whiteboard</title>
     <meta name="description" content="Professional task scheduling and order management whiteboard application">
     <meta name="theme-color" content="#5D5CDE">
-<link rel="preconnect" href="https://cdn.tailwindcss.com">
-<link rel="preconnect" href="https://api.airtable.com">
-<script src="css/tailwind.js"></script>
 
-    <link rel="stylesheet" href="css/styles.css">
+    <!-- Critical inline CSS to prevent FOUC -->
+    <style>
+        /* Hide content until CSS loads */
+        html { visibility: hidden; }
+        
+        /* Basic reset and structure */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+        
+        /* Loading spinner (optional) */
+        .loading-spinner {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #5D5CDE;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+    </style>
+    
+    <!-- Preconnect links -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://api.airtable.com">
+    
+    <!-- Load Tailwind setup (which will then load styles.css) -->
+    <script src="css/tailwind.js"></script>
+    
+    <!-- Remove this line - styles.css will be loaded by tailwind.js -->
+    <!-- <link rel="stylesheet" href="css/styles.css"> -->
 </head>
 <body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
     <!-- Header -->
