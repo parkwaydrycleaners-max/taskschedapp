@@ -2783,8 +2783,6 @@ insertNumberIntoDescription(number) {
     // Focus back to textarea
     textarea.focus();
 }
-
-
             
 updateCommonWords() {
     // Update numbers first
