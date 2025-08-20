@@ -28,6 +28,20 @@
                 this.originalTaskData = null;
                 this.currentOrderPerson = null;
                 this.currentOrderDate = null;
+
+// Initialize caches and performance tracking
+this.elementCache = new Map();
+this.performanceMetrics = {
+    renderCount: 0,
+    averageRenderTime: 0,
+    lastRenderTime: 0
+};
+
+// Initialize on page load
+window.addEventListener('beforeunload', () => {
+    this.cleanup();
+    this.clearElementCache();
+});
                 
                 // Configuration
                 this.airtableConfig = {
@@ -87,19 +101,7 @@ this.config = {
     AUTO_SAVE_DELAY: 2000
 };
 
-// Initialize caches and performance tracking
-this.elementCache = new Map();
-this.performanceMetrics = {
-    renderCount: 0,
-    averageRenderTime: 0,
-    lastRenderTime: 0
-};
 
-// Initialize on page load
-window.addEventListener('beforeunload', () => {
-    this.cleanup();
-    this.clearElementCache();
-});
                 
                 // Initialize
                 this.init();
@@ -2418,45 +2420,36 @@ showNewOrderModal() {
 }
             
 showOrderModalForPerson(person, date = null) {
-    console.log('showOrderModalForPerson called with:', person, date);
-    
-    // Reset form fields manually
-    document.getElementById('orderNumberInput').value = '';
-    document.getElementById('dueDateInput').value = '';
-    document.getElementById('descriptionInput').value = '';
-    document.getElementById('durationInput').value = 2;
-    document.getElementById('tagsQuantityInput').value = 1;
-    
-    // Set modal title and hide person selection
+    this.resetOrderModal();
     document.getElementById('orderModalTitle').textContent = `Add Order for ${person}`;
     document.getElementById('personDateFields').classList.add('hidden');
     
-    // Store current order context
     this.currentOrderPerson = person;
     this.currentOrderDate = date || this.dateToLocalDateString(this.currentDate);
     
-    // Set up "new" placeholder behavior
+    this.loadAndDisplayCustomText();
+    
+    // Setup "new" placeholder behavior AFTER reset
     const orderNumberInput = document.getElementById('orderNumberInput');
     orderNumberInput.value = 'new';
     orderNumberInput.style.color = '#9ca3af';
     orderNumberInput.style.fontStyle = 'italic';
     
-    // Clear "new" on first focus (one-time event)
-    const clearNewHandler = function() {
+    // Clear "new" on first focus
+    orderNumberInput.addEventListener('focus', function clearNew() {
         if (this.value === 'new') {
             this.value = '';
             this.style.color = '';
             this.style.fontStyle = 'normal';
         }
-        this.removeEventListener('focus', clearNewHandler);
-    };
-    orderNumberInput.addEventListener('focus', clearNewHandler);
+        // Remove this listener after first use
+        this.removeEventListener('focus', clearNew);
+    });
     
-    // Show the modal
-    document.getElementById('orderModal').classList.remove('hidden');
+    this.handleModalAction('orderModal', 'show');
+    // Don't focus immediately since that would clear "new"
     
-    console.log('✅ Order modal opened for:', person, 'on date:', this.currentOrderDate);
-    this.showToast(`Add Order modal opened for ${person}`, 'info');
+    this.updateCommonWords();
 }
             
             editTask(task) {
@@ -2497,7 +2490,7 @@ showOrderModalForPerson(person, date = null) {
                 
                 this.loadAndDisplayCustomText();
                 
-                this.handleModalAction('orderModal', 'hide');
+                this.handleModalAction('orderModal', 'show');
                 this.updateCommonWords();
             }
             
@@ -6720,6 +6713,27 @@ sanitizeInput(input) {
     return div.innerHTML;
 }
 
+// Add this method to cache frequently used elements
+getElement(id) {
+    if (!this.elementCache) {
+        this.elementCache = new Map();
+    }
+    
+    if (!this.elementCache.has(id)) {
+        this.elementCache.set(id, document.getElementById(id));
+    }
+    
+    return this.elementCache.get(id);
+}
+
+// Clear cache when needed
+clearElementCache() {
+    if (this.elementCache) {
+        this.elementCache.clear();
+    }
+}
+
+
 cleanup() {
     // Clear intervals
     if (this.autoRefreshInterval) {
@@ -6748,5 +6762,3 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
-
-
