@@ -2417,38 +2417,34 @@ showNewOrderModal() {
     this.updateCommonWords();
 }
             
-showOrderModalForPerson(person, date = null) {
-    this.resetOrderModal();
-    document.getElementById('orderModalTitle').textContent = `Add Order for ${person}`;
-    document.getElementById('personDateFields').classList.add('hidden');
-    
-    this.currentOrderPerson = person;
-    this.currentOrderDate = date || this.dateToLocalDateString(this.currentDate);
-    
-    this.loadAndDisplayCustomText();
-    
-    // Setup "new" placeholder behavior AFTER reset
-    const orderNumberInput = document.getElementById('orderNumberInput');
-    orderNumberInput.value = 'new';
-    orderNumberInput.style.color = '#9ca3af';
-    orderNumberInput.style.fontStyle = 'italic';
-    
-    // Clear "new" on first focus
-    orderNumberInput.addEventListener('focus', function clearNew() {
-        if (this.value === 'new') {
-            this.value = '';
-            this.style.color = '';
-            this.style.fontStyle = 'normal';
-        }
-        // Remove this listener after first use
-        this.removeEventListener('focus', clearNew);
-    });
-    
-    this.handleModalAction('orderModal', 'hide');
-    // Don't focus immediately since that would clear "new"
-    
-    this.updateCommonWords();
-}
+            showOrderModalForPerson(person, date = null) {
+                this.resetOrderModal();
+                document.getElementById('orderModalTitle').textContent = `Add Order for ${person}`;
+                document.getElementById('personDateFields').classList.add('hidden');
+                
+                this.currentOrderPerson = person;
+                this.currentOrderDate = date || this.dateToLocalDateString(this.currentDate);
+                
+                // Set up "new" placeholder behavior
+                const orderNumberInput = document.getElementById('orderNumberInput');
+                orderNumberInput.value = 'new';
+                orderNumberInput.style.color = '#9ca3af';
+                orderNumberInput.style.fontStyle = 'italic';
+                
+                // Clear "new" on first focus
+                orderNumberInput.addEventListener('focus', function clearNew() {
+                    if (this.value === 'new') {
+                        this.value = '';
+                        this.style.color = '';
+                        this.style.fontStyle = 'normal';
+                    }
+                    // Remove this listener after first use
+                    this.removeEventListener('focus', clearNew);
+                });
+                
+                this.handleModalAction('orderModal', 'show');
+                console.log('Order modal shown for:', person, 'on date:', this.currentOrderDate);
+            }
             
             editTask(task) {
                 let currentPerson = null;
@@ -6739,3 +6735,4 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
+
