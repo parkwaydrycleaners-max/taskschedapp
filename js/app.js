@@ -863,6 +863,27 @@ init() {
                 }
             }
             
+updateWorkDateDisplay(dateStr) {
+    if (!dateStr) return;
+    
+    const date = this.parseDateString(dateStr);
+    if (!date) return;
+    
+    const dayName = this.DAYS_OF_WEEK[date.getDay()].substring(0, 3); // Get first 3 letters
+    const workDateInput = document.getElementById('workDateInput');
+    
+    // Create or update day display
+    let dayDisplay = document.getElementById('workDateDay');
+    if (!dayDisplay) {
+        dayDisplay = document.createElement('span');
+        dayDisplay.id = 'workDateDay';
+        dayDisplay.className = 'ml-2 text-sm text-gray-600 dark:text-gray-400 font-medium';
+        workDateInput.parentNode.appendChild(dayDisplay);
+    }
+    
+    dayDisplay.textContent = dayName;
+}
+
             showToast(message, type = 'info') {
                 const container = document.getElementById('toastContainer');
                 const toast = document.createElement('div');
@@ -2150,6 +2171,9 @@ printContent += `
             attachOrderModalListeners() {
                 document.getElementById('saveOrder').addEventListener('click', () => this.saveOrder());
 
+document.getElementById('workDateInput').addEventListener('change', (e) => {
+    this.updateWorkDateDisplay(e.target.value);
+});
                 // Print Tags From Order button
                 document.getElementById('printTagsFromOrder').addEventListener('click', () => {
                     console.log('Print Tags From Order button clicked');
@@ -2392,7 +2416,9 @@ showNewOrderModal() {
     
     this.populatePeopleDropdown('assignPersonSelect');
     
-    document.getElementById('workDateInput').value = this.dateToLocalDateString(this.currentDate);
+    const workDateStr = this.dateToLocalDateString(this.currentDate);
+    document.getElementById('workDateInput').value = workDateStr;
+    this.updateWorkDateDisplay(workDateStr);
     
     this.loadAndDisplayCustomText();
     
@@ -2480,6 +2506,7 @@ showOrderModalForPerson(person, date = null) {
                 document.getElementById('assignPersonSelect').value = currentPerson;
                 
                 document.getElementById('workDateInput').value = currentDateKey;
+		this.updateWorkDateDisplay(currentDateKey);
                 document.getElementById('orderNumberInput').value = task.orderNumber;
                 document.getElementById('dueDateInput').value = this.formatDateForInput(task.dateDue);
                 document.getElementById('descriptionInput').value = task.description;
@@ -2747,15 +2774,15 @@ updateQuickNumbers() {
     
     container.innerHTML = '';
     
-    // Create numbers 1-0 and some special numbers
+    // Create numbers 1-9 and some special numbers
     const numbers = [
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 0
+        1, 2, 3, 4, 5, 6, 7, 8, 9
     ];
     
     numbers.forEach(number => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'px-3 py-2 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors font-mono';
+btn.className = 'px-3 py-2 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors font-mono';
         btn.textContent = number.toString();
         btn.addEventListener('click', () => {
             this.insertNumberIntoDescription(number);
@@ -2783,6 +2810,8 @@ insertNumberIntoDescription(number) {
     // Focus back to textarea
     textarea.focus();
 }
+
+
             
 updateCommonWords() {
     // Update numbers first
@@ -4394,8 +4423,18 @@ showExportOptionsModal() {
                 const modal = document.createElement('div');
                 modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
                 
-                const formattedDueDate = this.formatDateForDisplay(task.dateDue);
-                const formattedWorkDate = this.formatDateForDisplay(currentDateKey);
+const formattedDueDate = this.formatDateForDisplay(task.dateDue);
+
+// Format work date with day of week
+let formattedWorkDate;
+const workDate = this.parseDateString(currentDateKey);
+if (workDate) {
+    const dateStr = workDate.toLocaleDateString();
+    const dayName = this.DAYS_OF_WEEK[workDate.getDay()].substring(0, 3);
+    formattedWorkDate = `${dateStr} ${dayName}`;
+} else {
+    formattedWorkDate = this.formatDateForDisplay(currentDateKey);
+}
                 const isOverdue = new Date(task.dateDue) < new Date();
 
                 modal.innerHTML = `
@@ -6748,7 +6787,6 @@ initOfflineDetection() {
     });
 }
 
-
 debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -6798,7 +6836,6 @@ clearElementCache() {
     }
 }
 
-
 cleanup() {
     // Clear intervals
     if (this.autoRefreshInterval) {
@@ -6827,5 +6864,3 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
-
-
