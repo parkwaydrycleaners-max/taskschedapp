@@ -2755,7 +2755,7 @@ updateQuickNumbers() {
     numbers.forEach(number => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors font-mono';
+        btn.className = 'px-3 py-2 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors font-mono';
         btn.textContent = number.toString();
         btn.addEventListener('click', () => {
             this.insertNumberIntoDescription(number);
@@ -6827,3 +6827,4 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
+
