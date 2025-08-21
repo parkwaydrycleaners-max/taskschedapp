@@ -2747,9 +2747,9 @@ updateQuickNumbers() {
     
     container.innerHTML = '';
     
-    // Create numbers 1-9 and some special numbers
+    // Create numbers 1-0 and some special numbers
     const numbers = [
-        1, 2, 3, 4, 5, 6, 7, 8, 9
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 0
     ];
     
     numbers.forEach(number => {
@@ -6827,4 +6827,5 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
