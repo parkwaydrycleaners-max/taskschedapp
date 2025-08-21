@@ -6787,6 +6787,7 @@ initOfflineDetection() {
     });
 }
 
+
 debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -6835,6 +6836,7 @@ clearElementCache() {
         this.elementCache.clear();
     }
 }
+
 
 cleanup() {
     // Clear intervals
