@@ -948,18 +948,14 @@
                 
                 const summaryHtml = `
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
-                        <div class="grid grid-cols-3 gap-4">
+                        <div class="grid grid-cols-2 gap-4">
                             <button class="filter-btn p-3 rounded-lg transition-colors text-center ${currentFilter === 'all' ? 'bg-blue-500 text-white shadow-lg' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}" data-filter="all">
                                 <div class="text-xl font-bold ${currentFilter === 'all' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}">${totalTasks}</div>
                                 <div class="text-xs ${currentFilter === 'all' ? 'text-blue-100' : 'text-gray-600 dark:text-gray-400'}">Total</div>
                             </button>
-                            <button class="filter-btn p-3 rounded-lg transition-colors text-center ${currentFilter === 'complete' ? 'bg-green-500 text-white shadow-lg' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}" data-filter="complete">
-                                <div class="text-xl font-bold ${currentFilter === 'complete' ? 'text-white' : 'text-green-600 dark:text-green-400'}">${completedTasks}</div>
-                                <div class="text-xs ${currentFilter === 'complete' ? 'text-green-100' : 'text-gray-600 dark:text-gray-400'}">Complete</div>
-                            </button>
-                            <button class="filter-btn p-3 rounded-lg transition-colors text-center ${currentFilter === 'incomplete' ? 'bg-orange-500 text-white shadow-lg' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}" data-filter="incomplete">
-                                <div class="text-xl font-bold ${currentFilter === 'incomplete' ? 'text-white' : (incompleteTasks > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-400')}">${incompleteTasks}</div>
-                                <div class="text-xs ${currentFilter === 'incomplete' ? 'text-orange-100' : 'text-gray-600 dark:text-gray-400'}">Incomplete</div>
+                            <button class="filter-btn p-3 rounded-lg transition-colors text-center ${currentFilter === 'incomplete' ? (incompleteTasks === 0 ? 'bg-green-500 text-white shadow-lg' : 'bg-yellow-500 text-white shadow-lg') : (incompleteTasks === 0 ? 'hover:bg-green-100 dark:hover:bg-green-800' : 'hover:bg-yellow-100 dark:hover:bg-yellow-800')}" data-filter="incomplete">
+                                <div class="text-xl font-bold ${currentFilter === 'incomplete' ? 'text-white' : (incompleteTasks === 0 ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400')}">${incompleteTasks}</div>
+                                <div class="text-xs ${currentFilter === 'incomplete' ? (incompleteTasks === 0 ? 'text-green-100' : 'text-yellow-100') : (incompleteTasks === 0 ? 'text-green-700 dark:text-green-300' : 'text-yellow-700 dark:text-yellow-300')}">Incomplete</div>
                             </button>
                         </div>
                     </div>
@@ -1950,7 +1946,18 @@
                     `${totalResults} result${totalResults !== 1 ? 's' : ''}`;
                 
                 const tasksHtml = displayedResults.map(task => {
-                    const isOverdue = task.dateDue && new Date(task.dateDue) < new Date() && !task.completed;
+                    // Fix overdue logic to compare dates only, not times
+                    let isOverdue = false;
+                    if (task.dateDue && !task.completed) {
+                        const dueDate = new Date(task.dateDue);
+                        const today = new Date();
+                        
+                        // Set both dates to midnight for proper comparison
+                        dueDate.setHours(0, 0, 0, 0);
+                        today.setHours(0, 0, 0, 0);
+                        
+                        isOverdue = dueDate < today;
+                    }
                     const isCompleted = task.completed;
                     const isIncomplete = !isCompleted && !isOverdue;
                     
@@ -2052,7 +2059,18 @@
                 
                 // Add new results
                 newResults.forEach(task => {
-                    const isOverdue = task.dateDue && new Date(task.dateDue) < new Date() && !task.completed;
+                    // Fix overdue logic to compare dates only, not times
+                    let isOverdue = false;
+                    if (task.dateDue && !task.completed) {
+                        const dueDate = new Date(task.dateDue);
+                        const today = new Date();
+                        
+                        // Set both dates to midnight for proper comparison
+                        dueDate.setHours(0, 0, 0, 0);
+                        today.setHours(0, 0, 0, 0);
+                        
+                        isOverdue = dueDate < today;
+                    }
                     const isCompleted = task.completed;
                     const isIncomplete = !isCompleted && !isOverdue;
                     
@@ -2378,7 +2396,18 @@
                     `;
                     
                     const tasksHtml = results.map(task => {
-                        const isOverdue = task.dateDue && new Date(task.dateDue) < new Date() && !task.completed;
+                        // Fix overdue logic to compare dates only, not times
+                        let isOverdue = false;
+                        if (task.dateDue && !task.completed) {
+                            const dueDate = new Date(task.dateDue);
+                            const today = new Date();
+                            
+                            // Set both dates to midnight for proper comparison
+                            dueDate.setHours(0, 0, 0, 0);
+                            today.setHours(0, 0, 0, 0);
+                            
+                            isOverdue = dueDate < today;
+                        }
                         const isCompleted = task.completed;
                         const isIncomplete = !isCompleted && !isOverdue;
                         
