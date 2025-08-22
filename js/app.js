@@ -771,6 +771,7 @@ init() {
     this.updateDateDisplay();
     this.renderWhiteboard();
     this.attachEventListeners();
+this.initActivityBasedRefresh();
     this.checkForAutoLoad();
     
     // Initialize production features
@@ -5025,6 +5026,49 @@ const isOverdue = !task.completed && taskDueDate < today;
                 
                 this.renderWhiteboard();
             }
+
+initActivityBasedRefresh() {
+    let lastActivity = Date.now();
+    let wasIdle = false;
+    const IDLE_TIME = 5 * 60 * 1000; // 5 minutes of inactivity
+    
+    // Track user activity
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    
+    const onActivity = async () => {
+        const now = Date.now();
+        const timeSinceLastActivity = now - lastActivity;
+        
+        // If user was idle for more than 5 minutes and now becomes active
+        if (wasIdle && timeSinceLastActivity > IDLE_TIME && this.airtableConfig.apiKey && this.airtableConfig.baseId) {
+            console.log('🔄 User returned after being idle - refreshing data');
+            this.showToast('Welcome back! Refreshing data...', 'info');
+            
+            try {
+                await this.performAutoRefresh();
+            } catch (error) {
+                console.warn('Activity-based refresh failed:', error);
+            }
+            
+            wasIdle = false;
+        }
+        
+        lastActivity = now;
+    };
+    
+    // Attach activity listeners
+    activityEvents.forEach(event => {
+        document.addEventListener(event, onActivity, { passive: true });
+    });
+    
+    // Check for idle state every minute
+    setInterval(() => {
+        const timeSinceLastActivity = Date.now() - lastActivity;
+        wasIdle = timeSinceLastActivity > IDLE_TIME;
+    }, 60 * 1000);
+    
+    console.log('🎯 Activity-based refresh initialized');
+}
             
             // Auto-load functionality
             async checkForAutoLoad() {
