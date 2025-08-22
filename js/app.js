@@ -1,15 +1,3 @@
-        // Dark mode detection
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            document.documentElement.classList.add('dark');
-        }
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
-            if (event.matches) {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
-        });
-
         // Task Scheduler Application
         class TaskSchedulerApp {
             constructor() {
@@ -771,7 +759,7 @@ init() {
     this.updateDateDisplay();
     this.renderWhiteboard();
     this.attachEventListeners();
-this.initActivityBasedRefresh();
+    this.initActivityBasedRefresh();
     this.checkForAutoLoad();
     
     // Initialize production features
@@ -3546,12 +3534,31 @@ createSearchResultItem(result) {
 
                 const reportData = this.collectReportData(selectedPerson, startDate, endDate);
                 
-                let filteredData = reportData;
-                if (statusFilter === 'incomplete') {
-                    filteredData = reportData.filter(item => !item.task.completed);
-                } else if (statusFilter === 'completed') {
-                    filteredData = reportData.filter(item => item.task.completed);
-                }
+let filteredData = reportData;
+if (statusFilter === 'incomplete') {
+    filteredData = reportData.filter(item => !item.task.completed);
+} else if (statusFilter === 'completed') {
+    filteredData = reportData.filter(item => item.task.completed);
+} else if (statusFilter === 'overdue') {
+    // Filter for overdue orders (incomplete + past due date)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    filteredData = reportData.filter(item => {
+        if (item.task.completed) return false;
+        
+        let dueDateString;
+        if (item.task.dateDue instanceof Date) {
+            dueDateString = item.task.dateDue.toISOString().split('T')[0];
+        } else if (typeof item.task.dateDue === 'string') {
+            dueDateString = item.task.dateDue.includes('T') ? item.task.dateDue.split('T')[0] : item.task.dateDue;
+        } else {
+            return false;
+        }
+        
+        const todayString = today.toISOString().split('T')[0];
+        return dueDateString < todayString;
+    });
+}
                 
                 this.displayReport(filteredData, selectedPerson, startDate, endDate, statusFilter);
             }
@@ -3629,36 +3636,79 @@ collectReportData(selectedPerson, startDate, endDate) {
                     return;
                 }
 
-                const totalOrders = reportData.length;
-                const overdueOrders = reportData.filter(item => item.isOverdue).length;
-                const totalDuration = reportData.reduce((sum, item) => sum + item.task.duration, 0);
-                const totalHours = Math.floor(totalDuration * 15 / 60);
-                const totalMins = (totalDuration * 15) % 60;
+const totalOrders = reportData.length;
+const incompleteOrders = reportData.filter(item => !item.task.completed).length;
+// Calculate overdue directly: incomplete orders that are past due date
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+const overdueOrders = reportData.filter(item => {
+    if (item.task.completed) return false; // Skip completed orders
+    
+    // Get due date string
+    let dueDateString;
+    if (item.task.dateDue instanceof Date) {
+        dueDateString = item.task.dateDue.toISOString().split('T')[0];
+    } else if (typeof item.task.dateDue === 'string') {
+        dueDateString = item.task.dateDue.includes('T') ? item.task.dateDue.split('T')[0] : item.task.dateDue;
+    } else {
+        return false;
+    }
+    
+    const todayString = today.toISOString().split('T')[0];
+    return dueDateString < todayString; // Due before today
+}).length;
+const totalDuration = reportData.reduce((sum, item) => sum + item.task.duration, 0);
+const totalHours = Math.floor(totalDuration * 15 / 60);
+const totalMins = (totalDuration * 15) % 60;
 
-                const summaryDiv = document.createElement('div');
-                summaryDiv.className = 'bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6';
-                summaryDiv.innerHTML = `
-                    <h4 class="font-semibold text-blue-800 dark:text-blue-200 mb-4">📊 Report Summary</h4>
-                    <div class="grid grid-cols-3 gap-4 text-sm">
-                        <div class="text-center">
-                            <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${totalOrders}</div>
-                            <div class="text-blue-700 dark:text-blue-300">Total Orders</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-2xl font-bold ${overdueOrders > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${overdueOrders}</div>
-                            <div class="text-blue-700 dark:text-blue-300">Overdue</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${totalHours}h ${totalMins}m</div>
-                            <div class="text-blue-700 dark:text-blue-300">Total Time</div>
-                        </div>
-                    </div>
-                    <div class="mt-3 text-sm text-blue-700 dark:text-blue-300">
-                        <strong>Period:</strong> ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}
-                        ${selectedPerson !== 'all' ? ` • <strong>Person:</strong> ${selectedPerson}` : ''}
-                        • <strong>Filter:</strong> ${filterType === 'incomplete' ? 'Incomplete Orders Only' : 'All Orders'}
-                    </div>
+const summaryDiv = document.createElement('div');
+summaryDiv.className = 'bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6';
+summaryDiv.innerHTML = `
+    <h4 class="font-semibold text-blue-800 dark:text-blue-200 mb-4">📊 Report Summary</h4>
+    <div class="grid grid-cols-4 gap-4 text-sm">
+        <div class="text-center">
+            <button class="report-filter-btn hover:bg-blue-100 dark:hover:bg-blue-800 p-2 rounded transition-colors w-full" data-filter="all">
+                <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${totalOrders}</div>
+                <div class="text-blue-700 dark:text-blue-300">Total Orders</div>
+            </button>
+        </div>
+        <div class="text-center">
+            <button class="report-filter-btn hover:bg-yellow-100 dark:hover:bg-yellow-800 p-2 rounded transition-colors w-full" data-filter="incomplete">
+                <div class="text-2xl font-bold ${incompleteOrders > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}">${incompleteOrders}</div>
+                <div class="text-blue-700 dark:text-blue-300">Incomplete</div>
+            </button>
+        </div>
+        <div class="text-center">
+            <button class="report-filter-btn hover:bg-red-100 dark:hover:bg-red-800 p-2 rounded transition-colors w-full" data-filter="overdue">
+                <div class="text-2xl font-bold ${overdueOrders > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${overdueOrders}</div>
+                <div class="text-blue-700 dark:text-blue-300">Overdue</div>
+            </button>
+        </div>
+        <div class="text-center">
+            <div class="p-2">
+                <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${totalHours}h ${totalMins}m</div>
+                <div class="text-blue-700 dark:text-blue-300">Total Time</div>
+            </div>
+        </div>
+    </div>
+    <div class="mt-3 text-sm text-blue-700 dark:text-blue-300">
+        <strong>Period:</strong> ${this.formatDateForDisplay(startDate)} - ${this.formatDateForDisplay(endDate)}
+        ${selectedPerson !== 'all' ? ` • <strong>Person:</strong> ${selectedPerson}` : ''}
+        • <strong>Filter:</strong> ${filterType === 'incomplete' ? 'Incomplete Orders Only' : filterType === 'overdue' ? 'Overdue Orders Only' : filterType === 'completed' ? 'Completed Orders Only' : 'All Orders'}
+    </div>
                 `;
+// Add click handlers for the filter buttons
+resultsContainer.appendChild(summaryDiv);
+
+summaryDiv.querySelectorAll('.report-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const filter = btn.dataset.filter;
+        this.generateReport(filter);
+    });
+});
+
+resultsContainer.innerHTML = '';
+resultsContainer.appendChild(summaryDiv);
 
                 const tableContainer = document.createElement('div');
                 tableContainer.className = 'overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700';
