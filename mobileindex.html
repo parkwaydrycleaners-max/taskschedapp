@@ -6,26 +6,11 @@
     <title>Task Scheduler Mobile</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .task-card-mobile {
-            transition: all 0.2s ease;
-        }
-        .completed {
-            opacity: 0.7;
-            background-color: #dcfce7;
-        }
-        .dark .completed {
-            background-color: #166534;
-        }
-        .overdue {
-            border-left: 4px solid #ef4444;
-        }
-        .loading-spinner {
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
+        .loading-spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .task-card { transition: all 0.2s ease; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 min-h-screen">
