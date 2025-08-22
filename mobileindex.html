@@ -588,7 +588,8 @@
                     return;
                 }
                 
-                const currentValue = selector.value;
+                // Store the current selection from this.selectedPerson (not the HTML)
+                const preservedSelection = this.selectedPerson;
                 
                 // Clear and add base options
                 selector.innerHTML = '';
@@ -613,17 +614,15 @@
                     selector.appendChild(option);
                 });
                 
-                // Set the correct selection
-                if (this.selectedPerson === '__ALL__' || currentValue === '__ALL__') {
+                // Set the correct selection based on preserved selection
+                if (preservedSelection === '__ALL__') {
                     selector.value = '__ALL__';
                     this.selectedPerson = '__ALL__';
-                } else if (this.selectedPerson && this.people.includes(this.selectedPerson)) {
-                    selector.value = this.selectedPerson;
-                } else if (currentValue && this.people.includes(currentValue)) {
-                    selector.value = currentValue;
-                    this.selectedPerson = currentValue;
-                } else if (!this.selectedPerson && this.people.length > 0) {
-                    // Default to "All Persons" if none selected
+                } else if (preservedSelection && this.people.includes(preservedSelection)) {
+                    selector.value = preservedSelection;
+                    this.selectedPerson = preservedSelection;
+                } else if (!preservedSelection && this.people.length > 0) {
+                    // Default to "All Persons" only if no person was previously selected
                     this.selectedPerson = '__ALL__';
                     selector.value = '__ALL__';
                 }
