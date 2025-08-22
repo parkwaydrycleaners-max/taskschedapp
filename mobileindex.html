@@ -238,12 +238,12 @@
                 this.peopleCapacity = {};
                 this.selectedPerson = null;
                 this.airtableConfig = {};
-                this.currentView = 'tasks'; // 'tasks', 'report', or 'settings'
-                this.searchFilter = 'all'; // Search filter state
-                this.dateFilter = 'all'; // Date filter state
-                this.currentSearchResults = []; // Store current search results
-                this.searchResultsShown = 0; // For pagination
-                this.RESULTS_PER_PAGE = 50; // Results to show per page
+                this.currentView = 'tasks';
+                this.searchFilter = 'all';
+                this.dateFilter = 'all';
+                this.currentSearchResults = [];
+                this.searchResultsShown = 0;
+                this.RESULTS_PER_PAGE = 50;
                 this.DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 
                 this.init();
@@ -262,6 +262,8 @@
                 
                 this.renderTasksView();
             }
+
+
 
             loadConfigFromStorage() {
                 try {
@@ -314,23 +316,7 @@
             async loadDataFromAirtable() {
                 try {
                     await this.loadPeopleFromAirtable();
-                    console.log('📝 Loaded people:', this.people);
-                    
                     await this.loadTasksFromAirtable();
-                    console.log('📝 Loaded tasks:', this.tasks);
-                    
-                    // Debug: Show which dates have tasks
-                    const datesWithTasks = Object.keys(this.tasks);
-                    console.log('📅 Dates with tasks:', datesWithTasks);
-                    
-                    // Debug: Show task counts per person per date
-                    datesWithTasks.forEach(date => {
-                        console.log(`📊 Tasks on ${date}:`, this.tasks[date]);
-                        Object.keys(this.tasks[date]).forEach(person => {
-                            console.log(`  - ${person}: ${this.tasks[date][person].length} tasks`);
-                        });
-                    });
-                    
                     this.hideLoadingMessage();
                 } catch (error) {
                     console.error('Failed to load data:', error);
@@ -343,37 +329,25 @@
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
                 const response = await this.makeAirtableRequest(tableName);
                 
-                console.log('🔍 People table response:', response);
-                
                 this.people = [];
                 this.peopleCapacity = {};
                 
                 response.records.forEach(record => {
                     const fields = record.fields;
-                    console.log('👤 Person record fields available:', Object.keys(fields));
-                    console.log('👤 Person record data:', fields);
                     
                     if (fields.Name && !fields.Name.startsWith('__') && fields.Active !== false) {
                         this.people.push(fields.Name);
                         
-                        // Initialize capacity for all days to undefined (will help distinguish between 0 and not found)
                         const personCapacity = {};
                         
                         // All possible field name patterns for each day
                         const dayPatterns = [
-                            // Sunday (0)
                             ['Sunday', 'Sun', 'Sunday Capacity', 'Sun Capacity', 'SundayCapacity', 'SunCapacity', 'CapacitySunday', 'Day0', 'Day 0', '0'],
-                            // Monday (1)
                             ['Monday', 'Mon', 'Monday Capacity', 'Mon Capacity', 'MondayCapacity', 'MonCapacity', 'CapacityMonday', 'Day1', 'Day 1', '1'],
-                            // Tuesday (2)
                             ['Tuesday', 'Tue', 'Tuesday Capacity', 'Tue Capacity', 'TuesdayCapacity', 'TueCapacity', 'CapacityTuesday', 'Day2', 'Day 2', '2'],
-                            // Wednesday (3)
                             ['Wednesday', 'Wed', 'Wednesday Capacity', 'Wed Capacity', 'WednesdayCapacity', 'WedCapacity', 'CapacityWednesday', 'Day3', 'Day 3', '3'],
-                            // Thursday (4)
                             ['Thursday', 'Thu', 'Thursday Capacity', 'Thu Capacity', 'ThursdayCapacity', 'ThuCapacity', 'CapacityThursday', 'Day4', 'Day 4', '4'],
-                            // Friday (5)
                             ['Friday', 'Fri', 'Friday Capacity', 'Fri Capacity', 'FridayCapacity', 'FriCapacity', 'CapacityFriday', 'Day5', 'Day 5', '5'],
-                            // Saturday (6)
                             ['Saturday', 'Sat', 'Saturday Capacity', 'Sat Capacity', 'SaturdayCapacity', 'SatCapacity', 'CapacitySaturday', 'Day6', 'Day 6', '6']
                         ];
                         
@@ -382,9 +356,8 @@
                             for (const pattern of patterns) {
                                 if (fields.hasOwnProperty(pattern) && fields[pattern] !== null && fields[pattern] !== '') {
                                     const capacityValue = this.parseCapacityValue(fields[pattern]);
-                                    personCapacity[dayIndex] = capacityValue; // Store even if 0
-                                    console.log(`✅ Found ${fields.Name} ${this.DAYS_OF_WEEK[dayIndex]} capacity: ${capacityValue} (field: ${pattern})`);
-                                    break; // Found a valid value, stop looking for this day
+                                    personCapacity[dayIndex] = capacityValue;
+                                    break;
                                 }
                             }
                         });
@@ -400,37 +373,26 @@
                             for (const field of generalCapacityFields) {
                                 if (fields.hasOwnProperty(field) && fields[field] !== null && fields[field] !== '') {
                                     const capacityValue = this.parseCapacityValue(fields[field]);
-                                    // Apply to Monday-Friday (working days) - but allow 0 capacity
                                     for (let i = 1; i <= 5; i++) {
                                         personCapacity[i] = capacityValue;
                                     }
-                                    personCapacity[0] = 0; // Sunday
-                                    personCapacity[6] = 0; // Saturday
-                                    console.log(`✅ Applied general capacity ${capacityValue} to ${fields.Name} for weekdays (field: ${field})`);
+                                    personCapacity[0] = 0;
+                                    personCapacity[6] = 0;
                                     break;
                                 }
                             }
                         }
                         
-                        // Fill in missing days with 0 (instead of leaving undefined)
+                        // Fill in missing days with 0
                         for (let i = 0; i < 7; i++) {
                             if (personCapacity[i] === undefined) {
                                 personCapacity[i] = 0;
                             }
                         }
                         
-                        // Store the capacity data
                         this.peopleCapacity[fields.Name] = personCapacity;
-                        
-                        console.log(`📋 Final ${fields.Name} capacity:`, personCapacity);
-                        
-                        // Debug: Show total weekly capacity
-                        const totalWeekly = Object.values(personCapacity).reduce((sum, cap) => sum + cap, 0);
-                        console.log(`📊 ${fields.Name} total weekly capacity: ${totalWeekly} slots`);
                     }
                 });
-                
-                console.log('📊 Final people capacity data:', this.peopleCapacity);
             }
             
             parseCapacityValue(value) {
@@ -455,90 +417,68 @@
                     }
                 }
                 
-                console.warn('⚠️ Could not parse capacity value:', value, typeof value);
                 return 0;
             }
 
             async loadTasksFromAirtable() {
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
                 
-                // First, discover what fields actually exist in the table
+                // Discover what fields exist in the table
                 if (!this.detectedFields) {
-                    console.log('🔍 Discovering available fields in Tasks table...');
                     const sampleResponse = await this.makeAirtableRequest(`${tableName}?maxRecords=5`);
-                    
-                    if (sampleResponse.records.length > 0) {
-                        this.detectedFields = Object.keys(sampleResponse.records[0].fields);
-                        console.log('📋 Available fields:', this.detectedFields);
-                    } else {
-                        this.detectedFields = [];
-                        console.log('⚠️ No records found to detect fields');
-                    }
+                    this.detectedFields = sampleResponse.records.length > 0 ? 
+                        Object.keys(sampleResponse.records[0].fields) : [];
                 }
                 
                 const dateKey = this.dateToLocalDateString(this.currentDate);
-                
-                // Build filters only for fields that actually exist
                 const possibleDateFields = ['Date', 'Ready Date', 'Task Date', 'TaskDate', 'ScheduledDate', 'Scheduled Date'];
                 const existingDateFields = possibleDateFields.filter(field => this.detectedFields.includes(field));
                 
-                console.log(`🔍 Looking for date fields. Available: ${existingDateFields.join(', ')}`);
-                
                 const possibleFilters = [];
                 
-                // Only create filters for fields that exist
+                // Create filters for fields that exist
                 existingDateFields.forEach(field => {
                     possibleFilters.push(`DATESTR({${field}})='${dateKey}'`);
                     possibleFilters.push(`{${field}}='${dateKey}'`);
                     possibleFilters.push(`IS_SAME({${field}}, DATETIME_PARSE('${dateKey}'), 'day')`);
                 });
                 
-                // If no date fields found, just try the basic ones
+                // Fallback filters
                 if (possibleFilters.length === 0) {
                     possibleFilters.push(`{Date}='${dateKey}'`);
                     possibleFilters.push(`DATESTR({Date})='${dateKey}'`);
                 }
                 
                 let response = null;
-                let workingFilter = null;
                 
+                // Try each filter until one works
                 for (const filter of possibleFilters) {
-                    console.log(`🔍 Trying filter: ${filter}`);
                     try {
                         const encodedFilter = encodeURIComponent(filter);
                         const testResponse = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodedFilter}`);
-                        console.log(`📊 Records found with this filter: ${testResponse.records.length}`);
                         
                         if (testResponse.records.length > 0) {
                             response = testResponse;
-                            workingFilter = filter;
-                            console.log(`✅ Found working filter: ${filter}`);
                             break;
                         }
                     } catch (error) {
-                        console.log(`❌ Filter failed: ${filter}`, error.message);
+                        continue;
                     }
                 }
                 
+                // If no filter worked, load all tasks for client-side filtering
                 if (!response) {
-                    console.log('⚠️ No working filter found, loading all tasks for client-side filtering...');
                     response = await this.makeAirtableRequest(tableName);
-                    console.log(`📊 Total tasks in table: ${response.records.length}`);
                 }
-                
-                console.log('📨 Final response:', response);
-                console.log('📨 Number of records returned:', response.records?.length || 0);
                 
                 this.tasks = {};
                 this.tasks[dateKey] = {};
                 
-                response.records.forEach((record, index) => {
+                response.records.forEach(record => {
                     const fields = record.fields;
-                    
-                    // Check multiple possible field name combinations
                     const person = fields.Person || fields.Name || fields.Worker || fields.Employee;
                     
-                    // Use detected fields for date lookup
+                    // Find date field
                     let date = null;
                     for (const field of existingDateFields) {
                         if (fields[field]) {
@@ -546,7 +486,6 @@
                             break;
                         }
                     }
-                    // Fallback to common field names
                     if (!date) {
                         date = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
                     }
@@ -554,7 +493,6 @@
                     const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
                     
                     if (person && date && orderNumber) {
-                        // Check if this task matches our target date
                         let taskDateStr;
                         if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
                             taskDateStr = date;
@@ -581,8 +519,6 @@
                         }
                     }
                 });
-                
-                console.log(`🎯 Found ${Object.keys(this.tasks[dateKey]).length} people with tasks on ${dateKey}`);
             }
 
             async makeAirtableRequest(endpoint, method = 'GET', data = null) {
@@ -612,22 +548,17 @@
 
             renderTasksView() {
                 const container = document.getElementById('mainContent');
+                if (!container) return;
+                
                 const dateKey = this.dateToLocalDateString(this.currentDate);
-                
-                console.log('🎯 Rendering tasks view for date:', dateKey);
-                console.log('🎯 Selected person:', this.selectedPerson);
-                console.log('🎯 Available people:', this.people);
-                console.log('🎯 Tasks data:', this.tasks);
-                
                 container.innerHTML = '';
                 
                 if (!this.airtableConfig.apiKey) {
-                    console.log('❌ No API key, showing connection message');
                     this.showConnectionMessage();
                     return;
                 }
 
-                // Create the person selector at the top of the orders view
+                // Create the person selector
                 const selectorContainer = document.createElement('div');
                 selectorContainer.className = 'mb-4';
                 selectorContainer.innerHTML = `
@@ -638,36 +569,28 @@
                 `;
                 container.appendChild(selectorContainer);
 
-                // Update person selector and add event listener
                 this.populatePersonSelector();
                 
-                // Add event listener for person selector (since it's dynamically created)
                 const personSelect = document.getElementById('personSelect');
                 if (personSelect) {
                     personSelect.addEventListener('change', (e) => this.selectPerson(e.target.value));
                 }
                 
-                // Show selected person's column or prompt to select one
                 if (!this.selectedPerson) {
-                    console.log('❌ No person selected, showing selection message');
                     this.showPersonSelectionMessage();
                     return;
                 }
                 
-                // Handle "All Persons" view
                 if (this.selectedPerson === '__ALL__') {
-                    console.log('🎯 Rendering all persons view');
                     this.renderAllPersonsView(dateKey, container);
                     return;
                 }
                 
                 const personTasks = this.tasks[dateKey]?.[this.selectedPerson] || [];
-                console.log(`🎯 Tasks for ${this.selectedPerson} on ${dateKey}:`, personTasks);
-                
                 const personColumn = this.createPersonColumn(this.selectedPerson, personTasks, dateKey);
                 container.appendChild(personColumn);
                 
-                // Add Back to Top button for Orders view
+                // Add Back to Top button
                 const backToTopDiv = document.createElement('div');
                 backToTopDiv.className = 'mt-4';
                 backToTopDiv.innerHTML = `
@@ -675,7 +598,6 @@
                 `;
                 container.appendChild(backToTopDiv);
                 
-                // Add event listener for the dynamically created Back to Top button
                 const backToTopOrdersBtn = document.getElementById('backToTopOrders');
                 if (backToTopOrdersBtn) {
                     backToTopOrdersBtn.addEventListener('click', () => this.scrollToTop());
@@ -685,7 +607,6 @@
             populatePersonSelector() {
                 const selector = document.getElementById('personSelect');
                 if (!selector) {
-                    console.log('⚠️ Person selector not found, skipping populate');
                     return;
                 }
                 
@@ -750,8 +671,13 @@
                 const column = document.createElement('div');
                 column.className = 'bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700';
                 
-                // Get capacity information (use default if not available)
-                const capacity = this.getPersonCapacityForDate(person); // Will return the actual value or fallback
+                // Calculate task statistics
+                const totalTasks = tasks.length;
+                const completedTasks = tasks.filter(t => t.completed).length;
+                const incompleteTasks = totalTasks - completedTasks;
+                
+                // Get capacity information
+                const capacity = this.getPersonCapacityForDate(person);
                 const usedSlots = tasks.reduce((total, task) => total + task.duration, 0);
                 const remainingSlots = Math.max(0, capacity - usedSlots);
                 
@@ -762,16 +688,37 @@
                 
                 const dayName = this.DAYS_OF_WEEK[this.currentDate.getDay()];
                 
-                // Header with capacity info
+                // Header with person info
                 const header = document.createElement('div');
                 header.className = 'p-4 border-b border-gray-200 dark:border-gray-700';
                 header.innerHTML = `
-                    <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center justify-between mb-3">
                         <h3 class="font-semibold text-lg text-gray-900 dark:text-gray-100">${person}</h3>
                         <div class="text-sm text-gray-500 dark:text-gray-400">
                             ${dayName}
                         </div>
                     </div>
+                    
+                    <!-- Task Summary -->
+                    <div class="bg-purple-50 dark:bg-purple-900 border border-purple-200 dark:border-purple-700 rounded-lg p-3 mb-3">
+                        <h4 class="font-semibold text-purple-800 dark:text-purple-200 mb-2 text-sm">📋 Task Summary</h4>
+                        <div class="grid grid-cols-3 gap-3 text-center">
+                            <div>
+                                <div class="text-lg font-bold text-purple-600 dark:text-purple-400">${totalTasks}</div>
+                                <div class="text-xs text-purple-700 dark:text-purple-300">Total</div>
+                            </div>
+                            <div>
+                                <div class="text-lg font-bold text-green-600 dark:text-green-400">${completedTasks}</div>
+                                <div class="text-xs text-green-700 dark:text-green-300">Complete</div>
+                            </div>
+                            <div>
+                                <div class="text-lg font-bold text-orange-600 dark:text-orange-400">${incompleteTasks}</div>
+                                <div class="text-xs text-orange-700 dark:text-orange-300">Incomplete</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Capacity Info -->
                     <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
                         Capacity: ${capacity} slots (${capacityHours}h ${capacityMins}m)
                     </div>
@@ -818,16 +765,10 @@
 
             getPersonCapacityForDate(person) {
                 const dayOfWeek = this.currentDate.getDay();
-                const dayName = this.DAYS_OF_WEEK[dayOfWeek];
-                
-                console.log(`🎯 Getting capacity for ${person} on ${dayName} (day ${dayOfWeek})`);
-                console.log(`🎯 Available capacity data for ${person}:`, this.peopleCapacity[person]);
                 
                 // Check if we have specific capacity data for this person
                 if (this.peopleCapacity[person] && this.peopleCapacity[person][dayOfWeek] !== undefined) {
-                    const capacity = this.peopleCapacity[person][dayOfWeek];
-                    console.log(`✅ Found specific capacity for ${person} on ${dayName}: ${capacity}`);
-                    return capacity;
+                    return this.peopleCapacity[person][dayOfWeek];
                 }
                 
                 // Default weekly schedule (16 slots = 4 hours per day Mon-Fri)
@@ -841,10 +782,7 @@
                     6: 0   // Saturday
                 };
                 
-                const fallbackCapacity = defaultCapacity[dayOfWeek] || 0;
-                console.log(`⚠️ Using fallback capacity for ${person} on ${dayName}: ${fallbackCapacity}`);
-                
-                return fallbackCapacity;
+                return defaultCapacity[dayOfWeek] || 0;
             }
 
             createMobileTaskCard(task) {
@@ -1123,7 +1061,6 @@
             }
 
             renderAllPersonsView(dateKey, container) {
-                console.log('🎯 Rendering all persons view for date:', dateKey);
                 
                 // Get all people who have tasks on this date
                 const allPersonsWithTasks = Object.keys(this.tasks[dateKey] || {});
@@ -1154,8 +1091,8 @@
                     return total + (this.tasks[dateKey][person]?.length || 0);
                 }, 0);
                 
-                const completedTasks = allPersonsWithTasks.reduce((total, person) => {
-                    return total + (this.tasks[dateKey][person]?.filter(t => t.completed).length || 0);
+                const incompleteTasks = allPersonsWithTasks.reduce((total, person) => {
+                    return total + (this.tasks[dateKey][person]?.filter(t => !t.completed).length || 0);
                 }, 0);
                 
                 const summaryDiv = document.createElement('div');
@@ -1172,19 +1109,33 @@
                             <div class="text-xs text-purple-700 dark:text-purple-300">Total Tasks</div>
                         </div>
                         <div>
-                            <div class="text-xl font-bold text-green-600 dark:text-green-400">${completedTasks}</div>
-                            <div class="text-xs text-green-700 dark:text-green-300">Completed</div>
+                            <div class="text-xl font-bold text-orange-600 dark:text-orange-400">${incompleteTasks}</div>
+                            <div class="text-xs text-orange-700 dark:text-orange-300">Incomplete</div>
                         </div>
                     </div>
                 `;
                 
                 // Insert summary at the beginning
                 container.insertBefore(summaryDiv, container.firstChild.nextSibling);
+                
+                // Add Back to Top button for All Persons view
+                const backToTopDiv = document.createElement('div');
+                backToTopDiv.className = 'mt-4';
+                backToTopDiv.innerHTML = `
+                    <button id="backToTopOrdersAll" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm">⬆️ Back to Top</button>
+                `;
+                container.appendChild(backToTopDiv);
+                
+                // Add event listener for the Back to Top button
+                const backToTopOrdersAllBtn = document.getElementById('backToTopOrdersAll');
+                if (backToTopOrdersAllBtn) {
+                    backToTopOrdersAllBtn.addEventListener('click', () => this.scrollToTop());
+                }
             }
 
-            renderCurrentView() {
+            async renderCurrentView() {
                 if (this.currentView === 'tasks') {
-                    this.renderTasksView();
+                    await this.renderTasksView();
                 } else {
                     this.renderReport();
                 }
@@ -1642,25 +1593,17 @@
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
                 const targetDueDate = this.dateToLocalDateString(this.currentDate);
                 
-                console.log(`🔍 Loading tasks due on ${targetDueDate} for ready date report...`);
-                
-                // Load all tasks to filter by due date
                 const response = await this.makeAirtableRequest(tableName);
-                console.log(`📊 Total tasks loaded: ${response.records.length}`);
+                this.reportTasks = [];
                 
-                this.reportTasks = []; // Store tasks separately for the report
-                
-                response.records.forEach((record, index) => {
+                response.records.forEach(record => {
                     const fields = record.fields;
-                    
-                    // Check multiple possible field name combinations
                     const person = fields.Person || fields.Name || fields.Worker || fields.Employee;
                     const date = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
                     const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
                     const dateDue = fields.DateDue || fields['Date Due'] || fields.DueDate;
                     
                     if (person && date && orderNumber && dateDue) {
-                        // Convert dates safely
                         let taskDateStr, dueDateStr;
                         
                         if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
@@ -1675,7 +1618,6 @@
                             dueDateStr = this.dateToLocalDateString(new Date(dateDue + 'T12:00:00'));
                         }
                         
-                        // Only include tasks that are DUE on the target date
                         if (dueDateStr === targetDueDate) {
                             const task = {
                                 id: record.id,
@@ -1693,8 +1635,6 @@
                         }
                     }
                 });
-                
-                console.log(`📝 Found ${this.reportTasks.length} tasks due on ${targetDueDate}`);
             }
 
             async toggleTaskCompletionInReport(taskId, person) {
@@ -2232,61 +2172,43 @@
             
             async searchAllTasks(query) {
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
-                
-                // Get date range from search inputs
                 const fromDate = document.getElementById('searchDateFrom')?.value;
                 const toDate = document.getElementById('searchDateTo')?.value;
                 
                 let response;
                 
-                // Use date range filtering if provided for much faster results
+                // Use date range filtering if provided
                 if (fromDate || toDate) {
-                    // First, discover what fields actually exist in the table (if not already done)
                     if (!this.detectedFields) {
-                        console.log('🔍 Discovering available fields in Tasks table for search...');
                         const sampleResponse = await this.makeAirtableRequest(`${tableName}?maxRecords=5`);
-                        
-                        if (sampleResponse.records.length > 0) {
-                            this.detectedFields = Object.keys(sampleResponse.records[0].fields);
-                            console.log('📋 Available fields for search:', this.detectedFields);
-                        } else {
-                            this.detectedFields = [];
-                            console.log('⚠️ No records found to detect fields');
-                        }
+                        this.detectedFields = sampleResponse.records.length > 0 ? 
+                            Object.keys(sampleResponse.records[0].fields) : [];
                     }
                     
-                    // Build filters only for fields that actually exist
                     const possibleDateFields = ['Date', 'Ready Date', 'Task Date', 'TaskDate', 'ScheduledDate', 'Scheduled Date'];
                     const existingDateFields = possibleDateFields.filter(field => this.detectedFields.includes(field));
-                    
-                    console.log(`🔍 Using existing date fields for search: ${existingDateFields.join(', ')}`);
                     
                     if (existingDateFields.length > 0) {
                         let dateFilter = '';
                         
-                        // Build date filter formula only for existing fields
                         if (fromDate && toDate) {
                             if (fromDate === toDate) {
-                                // Single date search - use IS_SAME for exact match
                                 const dateFilterParts = existingDateFields.map(field => 
                                     `IS_SAME({${field}}, DATETIME_PARSE('${fromDate}'), 'day')`
                                 );
                                 dateFilter = `OR(${dateFilterParts.join(', ')})`;
                             } else {
-                                // Date range search - use inclusive comparison
                                 const dateFilterParts = existingDateFields.map(field => 
                                     `AND({${field}} >= DATETIME_PARSE('${fromDate}T00:00:00'), {${field}} <= DATETIME_PARSE('${toDate}T23:59:59'))`
                                 );
                                 dateFilter = `OR(${dateFilterParts.join(', ')})`;
                             }
                         } else if (fromDate) {
-                            // From date only - use inclusive comparison
                             const dateFilterParts = existingDateFields.map(field => 
                                 `{${field}} >= DATETIME_PARSE('${fromDate}T00:00:00')`
                             );
                             dateFilter = `OR(${dateFilterParts.join(', ')})`;
                         } else if (toDate) {
-                            // To date only - use inclusive comparison
                             const dateFilterParts = existingDateFields.map(field => 
                                 `{${field}} <= DATETIME_PARSE('${toDate}T23:59:59')`
                             );
@@ -2296,19 +2218,14 @@
                         try {
                             const encodedFilter = encodeURIComponent(dateFilter);
                             response = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodedFilter}`);
-                            console.log(`📊 Date-filtered search returned ${response.records.length} records`);
                         } catch (error) {
-                            console.warn('Date filtering failed, falling back to all records:', error);
                             response = await this.makeAirtableRequest(tableName);
                         }
                     } else {
-                        console.warn('⚠️ No date fields detected, searching all records');
                         response = await this.makeAirtableRequest(tableName);
                     }
                 } else {
-                    // No date range provided, search all records
                     response = await this.makeAirtableRequest(tableName);
-                    console.log(`📊 Searching all ${response.records.length} records`);
                 }
                 
                 const searchResults = [];
@@ -2316,8 +2233,6 @@
                 
                 response.records.forEach(record => {
                     const fields = record.fields;
-                    
-                    // Extract task info
                     const person = fields.Person || fields.Name || fields.Worker || fields.Employee;
                     const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
                     const description = fields.Description || fields.Notes || fields.Details || '';
@@ -2325,10 +2240,8 @@
                     
                     if (!person || !orderNumber || !date) return;
                     
-                    // Apply additional date filtering if no Airtable filter was used
-                    if (!fromDate && !toDate) {
-                        // No date restriction, include all
-                    } else {
+                    // Apply client-side date filtering as backup
+                    if (fromDate || toDate) {
                         let taskDateStr;
                         if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
                             taskDateStr = date;
@@ -2336,7 +2249,6 @@
                             taskDateStr = this.dateToLocalDateString(new Date(date + 'T12:00:00'));
                         }
                         
-                        // Apply client-side date filtering as backup
                         if (fromDate && taskDateStr < fromDate) return;
                         if (toDate && taskDateStr > toDate) return;
                     }
@@ -2349,7 +2261,6 @@
                     ].join(' ').toLowerCase();
                     
                     if (searchableText.includes(queryLower)) {
-                        // Convert date safely
                         let taskDateStr;
                         if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
                             taskDateStr = date;
@@ -2381,11 +2292,9 @@
                     if (aOrderMatch && !bOrderMatch) return -1;
                     if (!aOrderMatch && bOrderMatch) return 1;
                     
-                    // Then sort by date (newest first)
                     return new Date(b.taskDate) - new Date(a.taskDate);
                 });
                 
-                console.log(`🎯 Found ${searchResults.length} matching tasks`);
                 return searchResults;
             }
             
@@ -2680,10 +2589,50 @@
                     behavior: 'smooth'
                 });
             }
+
+            createMissingMainContent() {
+                // Remove any existing content
+                const existingMain = document.querySelector('main');
+                if (existingMain) {
+                    existingMain.remove();
+                }
+                
+                // Find where to insert the main content (after the navigation)
+                const nav = document.querySelector('header').nextElementSibling;
+                
+                // Create the main content element
+                const mainContent = document.createElement('main');
+                mainContent.id = 'mainContent';
+                mainContent.className = 'p-4';
+                mainContent.innerHTML = `
+                    <div class="text-center py-12">
+                        <div class="text-6xl mb-4">🔧</div>
+                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">App Recovered</h3>
+                        <p class="text-gray-500 dark:text-gray-400 mb-4">The main content area was recreated successfully.</p>
+                        <button id="retryLoad" class="bg-purple-500 text-white px-6 py-3 rounded-lg hover:bg-purple-600 transition-colors">
+                            🔄 Retry Loading
+                        </button>
+                    </div>
+                `;
+                
+                // Insert after navigation
+                nav.parentNode.insertBefore(mainContent, nav.nextSibling);
+                
+                // Add retry button functionality
+                document.getElementById('retryLoad').addEventListener('click', () => {
+                    window.location.reload();
+                });
+            }
         }
 
-        // Initialize mobile app
-        const mobileApp = new MobileTaskScheduler();
+        // Initialize mobile app when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                new MobileTaskScheduler();
+            });
+        } else {
+            new MobileTaskScheduler();
+        }
     </script>
 </body>
 </html>
