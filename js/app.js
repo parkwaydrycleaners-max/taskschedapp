@@ -3555,30 +3555,36 @@ createSearchResultItem(result) {
                 this.displayReport(filteredData, selectedPerson, startDate, endDate, statusFilter);
             }
             
-            collectReportData(selectedPerson, startDate, endDate) {
-                const reportData = [];
-                const today = this.dateToLocalDateString(new Date());
+collectReportData(selectedPerson, startDate, endDate) {
+    const reportData = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
 
-                Object.keys(this.tasks).forEach(workDateKey => {
-                    const peopleToCheck = selectedPerson === 'all' ? Object.keys(this.tasks[workDateKey]) : [selectedPerson];
+    Object.keys(this.tasks).forEach(workDateKey => {
+        const peopleToCheck = selectedPerson === 'all' ? Object.keys(this.tasks[workDateKey]) : [selectedPerson];
+        
+        peopleToCheck.forEach(person => {
+            if (this.tasks[workDateKey][person]) {
+                this.tasks[workDateKey][person].forEach(task => {
+                    const taskDueDateString = this.getTaskDueDateString(task.dateDue);
                     
-                    peopleToCheck.forEach(person => {
-                        if (this.tasks[workDateKey][person]) {
-                            this.tasks[workDateKey][person].forEach(task => {
-                                const taskDueDateString = this.getTaskDueDateString(task.dateDue);
-                                
-                                if (taskDueDateString >= startDate && taskDueDateString <= endDate) {
-                                    let status, statusClass;
-                                    if (task.completed) {
-                                        status = '✅ Complete';
-                                        statusClass = 'text-green-600 dark:text-green-400';
-                                    } else if (taskDueDateString < today) {
-                                        status = '⚠️ Overdue';
-                                        statusClass = 'text-red-600 dark:text-red-400';
-                                    } else {
-                                        status = 'Incomplete';
-                                        statusClass = 'text-blue-600 dark:text-blue-400';
-                                    }
+                    if (taskDueDateString >= startDate && taskDueDateString <= endDate) {
+                        let status, statusClass;
+                        
+                        // Parse due date properly for comparison
+                        const taskDueDate = this.parseDateString(task.dateDue);
+                        taskDueDate.setHours(0, 0, 0, 0); // Normalize to start of day
+                        
+                        if (task.completed) {
+                            status = '✅ Complete';
+                            statusClass = 'text-green-600 dark:text-green-400';
+                        } else if (taskDueDate < today) {
+                            status = '⚠️ Overdue';
+                            statusClass = 'text-red-600 dark:text-red-400';
+                        } else {
+                            status = 'Incomplete';
+                            statusClass = 'text-blue-600 dark:text-blue-400';
+                        }
                                     
                                     reportData.push({
                                         task,
@@ -4435,7 +4441,12 @@ if (workDate) {
 } else {
     formattedWorkDate = this.formatDateForDisplay(currentDateKey);
 }
-                const isOverdue = new Date(task.dateDue) < new Date();
+                // Fix overdue calculation - normalize dates to avoid time issues
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+const taskDueDate = this.parseDateString(task.dateDue);
+taskDueDate.setHours(0, 0, 0, 0);
+const isOverdue = !task.completed && taskDueDate < today;
 
                 modal.innerHTML = `
                     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto fade-in">
