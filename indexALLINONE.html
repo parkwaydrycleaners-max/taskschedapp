@@ -6854,6 +6854,8 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
             
             async loadAllDataFromAirtable() {
                 await this.loadPeopleFromAirtable();
+    // CRITICAL FIX: Save fresh Airtable people capacity to local storage
+    await this.savePeopleCapacityToLocal();
                 await this.loadTasksFromAirtable();
                 await this.loadCapacityOverridesFromAirtable();
                 await this.loadTextContentFromAirtable();
@@ -6889,10 +6891,9 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                         this.DAYS_OF_WEEK.forEach(day => {
                             weeklyCapacity[day] = fields[`Capacity${day}`] || 16;
                         });
-                        
-                        if (!this.peopleCapacity[fields.Name]) {
+                        // Always update weekly capacity from Airtable (source of truth)
                             this.peopleCapacity[fields.Name] = weeklyCapacity;
-                        }
+
                     }
                 });
             }
