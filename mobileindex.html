@@ -178,6 +178,35 @@
                 </label>
             </div>
             
+            <!-- Data Loading Range Section -->
+            <div class="bg-orange-50 dark:bg-orange-900 border border-orange-200 dark:border-orange-700 rounded-lg p-4 mb-6">
+                <h3 class="font-semibold text-orange-800 dark:text-orange-200 mb-3">⚡ Data Loading Range</h3>
+                <p class="text-sm text-orange-700 dark:text-orange-300 mb-4">Smaller ranges load faster but may not include all your data. You can refresh to load more data anytime.</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="weeksBackMobile" class="block text-sm font-medium mb-2 text-orange-700 dark:text-orange-300">Weeks Back:</label>
+                        <select id="weeksBackMobile" class="w-full p-3 text-base border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                            <option value="1">1 week</option>
+                            <option value="2" selected>2 weeks</option>
+                            <option value="4">4 weeks</option>
+                            <option value="8">8 weeks</option>
+                            <option value="12">12 weeks</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="weeksForwardMobile" class="block text-sm font-medium mb-2 text-orange-700 dark:text-orange-300">Weeks Forward:</label>
+                        <select id="weeksForwardMobile" class="w-full p-3 text-base border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                            <option value="2">2 weeks</option>
+                            <option value="4" selected>4 weeks</option>
+                            <option value="8">8 weeks</option>
+                            <option value="12">12 weeks</option>
+                            <option value="26">26 weeks</option>
+                        </select>
+                    </div>
+                </div>
+                <button id="saveDataRangeMobile" class="mt-3 w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm">💾 Save Data Range</button>
+            </div>
+            
             <!-- Manual Setup Section -->
             <div class="space-y-4">
                 <h3 class="font-semibold text-gray-900 dark:text-gray-100">🔧 Manual Setup</h3>
@@ -241,6 +270,12 @@
                 this.personFilters = {};
                 this.allPersonsFilter = 'all';
                 
+                // Data loading range settings (default: 2 weeks back, 4 weeks forward)
+                this.dataRange = {
+                    weeksBack: 2,
+                    weeksForward: 4
+                };
+                
                 this.init();
             }
 
@@ -281,13 +316,17 @@
                             }
                         };
                         
-                        if (config.currentDate) {
-                            this.currentDate = this.parseDateString(config.currentDate) || new Date();
-                        }
+                        // Note: Removed automatic currentDate restoration - app should always start on today's date
+                        // Users can navigate to other dates manually if needed
                         
                         // Restore selected person from localStorage
                         if (config.selectedPerson) {
                             this.selectedPerson = config.selectedPerson;
+                        }
+                        
+                        // Restore data range settings
+                        if (config.dataRange) {
+                            this.dataRange = config.dataRange;
                         }
                     }
                 } catch (error) {
@@ -317,6 +356,7 @@
                 document.getElementById('uploadConfigMobile').addEventListener('change', (e) => this.uploadConfig(e));
                 document.getElementById('testConnectionMobile').addEventListener('click', () => this.testConnection());
                 document.getElementById('saveConfigMobile').addEventListener('click', () => this.saveAndConnect());
+                document.getElementById('saveDataRangeMobile').addEventListener('click', () => this.saveDataRange());
                 
                 // Note: Person selector event listener is now set up dynamically in renderTasksView()
             }
@@ -530,7 +570,7 @@
             }
 
             async makeAirtableRequest(endpoint, method = 'GET', data = null) {
-                const url = `https://api.airtable.com/v0/${this.airtableConfig.baseId}/${endpoint}`;
+                const baseUrl = `https://api.airtable.com/v0/${this.airtableConfig.baseId}/${endpoint}`;
                 
                 const options = {
                     method,
@@ -542,16 +582,64 @@
 
                 if (data) {
                     options.body = JSON.stringify(data);
+                    // For non-GET requests, just make single request
+                    const response = await fetch(baseUrl, options);
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error?.message || `HTTP ${response.status}`);
+                    }
+                    return await response.json();
                 }
 
-                const response = await fetch(url, options);
+                // For GET requests, handle pagination to get ALL records
+                let allRecords = [];
+                let offset = null;
+                let pageCount = 0;
+                const maxPages = 50; // Safety limit to prevent infinite loops
                 
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error?.message || `HTTP ${response.status}`);
-                }
+                do {
+                    pageCount++;
+                    let url = baseUrl;
+                    
+                    // Add offset parameter if we have one
+                    if (offset) {
+                        const separator = baseUrl.includes('?') ? '&' : '?';
+                        url = `${baseUrl}${separator}offset=${encodeURIComponent(offset)}`;
+                    }
+                    
+                    console.log(`📄 Loading page ${pageCount} from Airtable...`);
+                    
+                    const response = await fetch(url, options);
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error?.message || `HTTP ${response.status}`);
+                    }
 
-                return await response.json();
+                    const pageData = await response.json();
+                    
+                    // Add records from this page
+                    if (pageData.records) {
+                        allRecords.push(...pageData.records);
+                        console.log(`📄 Page ${pageCount}: ${pageData.records.length} records (total so far: ${allRecords.length})`);
+                    }
+                    
+                    // Check if there are more pages
+                    offset = pageData.offset;
+                    
+                    // Safety check
+                    if (pageCount >= maxPages) {
+                        console.warn(`⚠️ Reached maximum page limit (${maxPages}), stopping pagination`);
+                        break;
+                    }
+                    
+                } while (offset);
+                
+                console.log(`✅ Pagination complete: ${allRecords.length} total records loaded from ${pageCount} pages`);
+                
+                return {
+                    records: allRecords
+                };
             }
 
             renderTasksView() {
@@ -996,7 +1084,8 @@
                 } else if (currentFilter === 'incomplete') {
                     filteredTasks = this.reportTasks.filter(t => !t.completed);
                 } else if (currentFilter === 'overdue') {
-                    filteredTasks = this.reportTasks.filter(task => {
+                    // Use all tasks with due dates for overdue filtering (not just current date)
+                    filteredTasks = this.allTasksWithDueDates.filter(task => {
                         if (task.completed) return false;
                         
                         const dueDate = new Date(task.dateDue);
@@ -1023,11 +1112,10 @@
                 const completedTasks = this.reportTasks.filter(t => t.completed).length;
                 const incompleteTasks = this.reportTasks.filter(t => !t.completed).length;
                 
-                // Calculate overdue tasks for the ready date report
-                const overdueTasks = this.reportTasks.filter(task => {
+                // Calculate overdue tasks - ALL tasks due before today (global filter)
+                const overdueTasks = this.allTasksWithDueDates.filter(task => {
                     if (task.completed) return false;
                     
-                    // For ready date report, we check if the due date (which is the ready date we're viewing) is in the past
                     const dueDate = new Date(task.dateDue);
                     const today = new Date();
                     
@@ -1074,7 +1162,8 @@
                                         </div>
                                         <div class="text-sm text-gray-800 dark:text-gray-200 mb-2">${task.description}</div>
                                         <div class="text-xs text-gray-500 dark:text-gray-400">
-                                            Scheduled for: ${this.formatDateForDisplay(task.taskDate)}
+                                            <div><strong>Due:</strong> ${this.formatDateForDisplay(task.dateDue)}</div>
+                                            <div><strong>Work Date:</strong> ${this.formatDateForDisplay(task.taskDate)}</div>
                                         </div>
                                     </div>
                                     <div class="flex items-center space-x-3 ml-4">
@@ -1122,18 +1211,35 @@
             navigateDay(direction) {
                 this.currentDate.setDate(this.currentDate.getDate() + direction);
                 this.updateDateDisplay();
-                this.loadDataFromAirtable().then(() => {
-                    this.renderCurrentView();
-                });
+                
+                // Handle different views appropriately
+                if (this.currentView === 'report') {
+                    // Reload report for new date
+                    this.showReportView();
+                } else {
+                    // For tasks view, reload data and render
+                    this.loadDataFromAirtable().then(() => {
+                        this.renderCurrentView();
+                    });
+                }
             }
 
             goToToday() {
                 this.currentDate = new Date();
                 this.updateDateDisplay();
-                this.loadDataFromAirtable().then(() => {
-                    this.renderCurrentView();
-                });
-                this.showToast('📅 Navigated to today', 'info');
+                
+                // Handle different views appropriately
+                if (this.currentView === 'report') {
+                    // Reload report for today
+                    this.showReportView();
+                    this.showToast('📅 Ready Date Report for today', 'info');
+                } else {
+                    // For tasks view, reload data and render
+                    this.loadDataFromAirtable().then(() => {
+                        this.renderCurrentView();
+                    });
+                    this.showToast('📅 Navigated to today', 'info');
+                }
             }
 
             async refreshData() {
@@ -1297,9 +1403,17 @@
                         const [year, month, day] = input.value.split('-');
                         this.currentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
                         this.updateDateDisplay();
-                        this.loadDataFromAirtable().then(() => {
-                            this.renderCurrentView();
-                        });
+                        
+                        // Handle different views appropriately
+                        if (this.currentView === 'report') {
+                            // Reload report for new date
+                            this.showReportView();
+                        } else {
+                            // For tasks view, reload data and render
+                            this.loadDataFromAirtable().then(() => {
+                                this.renderCurrentView();
+                            });
+                        }
                     }
                     document.body.removeChild(input);
                 });
@@ -1588,6 +1702,23 @@
                 document.getElementById('baseIdMobile').value = this.airtableConfig.baseId || '';
                 document.getElementById('peopleTableMobile').value = this.airtableConfig.tablesConfig?.people || 'People';
                 document.getElementById('tasksTableMobile').value = this.airtableConfig.tablesConfig?.tasks || 'Tasks';
+                
+                // Populate data range settings
+                document.getElementById('weeksBackMobile').value = this.dataRange.weeksBack || 2;
+                document.getElementById('weeksForwardMobile').value = this.dataRange.weeksForward || 4;
+            }
+
+            saveDataRange() {
+                const weeksBack = parseInt(document.getElementById('weeksBackMobile').value);
+                const weeksForward = parseInt(document.getElementById('weeksForwardMobile').value);
+                
+                this.dataRange = {
+                    weeksBack: weeksBack,
+                    weeksForward: weeksForward
+                };
+                
+                this.saveConfigToStorage();
+                this.showToast(`⚡ Data range saved: ${weeksBack} weeks back, ${weeksForward} weeks forward`, 'success');
             }
 
             async uploadConfig(event) {
@@ -1660,7 +1791,8 @@
                         baseId: this.airtableConfig.baseId,
                         tablesConfig: this.airtableConfig.tablesConfig,
                         currentDate: this.dateToLocalDateString(this.currentDate),
-                        selectedPerson: this.selectedPerson
+                        selectedPerson: this.selectedPerson,
+                        dataRange: this.dataRange
                     }));
                 } catch (error) {
                     console.warn('Could not save config:', error);
@@ -1713,7 +1845,32 @@
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
                 const targetDueDate = this.dateToLocalDateString(this.currentDate);
                 
-                // Try to filter by Due Date in Airtable first for better performance
+                console.log(`🔍 Loading Ready Date Report for: ${targetDueDate}`);
+                console.log(`⚡ Respecting Data Loading Range: ${this.dataRange.weeksBack} weeks back, ${this.dataRange.weeksForward} weeks forward`);
+                
+                // Calculate smart date range that includes target due date
+                const today = new Date();
+                const startDate = new Date(today);
+                startDate.setDate(today.getDate() - (this.dataRange.weeksBack * 7));
+                const endDate = new Date(today);
+                endDate.setDate(today.getDate() + (this.dataRange.weeksForward * 7));
+                
+                // IMPORTANT: Extend range to include target due date if needed
+                const targetDate = new Date(targetDueDate + 'T12:00:00');
+                if (targetDate < startDate) {
+                    startDate.setTime(targetDate.getTime());
+                    console.log(`📅 Extended range backwards to include target due date`);
+                }
+                if (targetDate > endDate) {
+                    endDate.setTime(targetDate.getTime());
+                    console.log(`📅 Extended range forwards to include target due date`);
+                }
+                
+                const startDateStr = this.dateToLocalDateString(startDate);
+                const endDateStr = this.dateToLocalDateString(endDate);
+                
+                console.log(`📅 Smart loading: due dates between ${startDateStr} and ${endDateStr}`);
+                
                 let response;
                 try {
                     // Discover what fields exist in the table
@@ -1725,24 +1882,37 @@
                     
                     const possibleDueDateFields = ['DateDue', 'Date Due', 'DueDate', 'Due Date'];
                     const existingDueDateFields = possibleDueDateFields.filter(field => this.detectedFields.includes(field));
+                    console.log(`🔍 Found due date fields:`, existingDueDateFields);
                     
                     if (existingDueDateFields.length > 0) {
-                        // Try to filter directly in Airtable
+                        // Use smart filtering: load tasks with due dates in the extended range
                         const dueDateField = existingDueDateFields[0];
-                        const filter = `IS_SAME({${dueDateField}}, DATETIME_PARSE('${targetDueDate}'), 'day')`;
+                        const filter = `AND(
+                            NOT({${dueDateField}} = BLANK()),
+                            {${dueDateField}} >= DATETIME_PARSE('${startDateStr}T00:00:00'),
+                            {${dueDateField}} <= DATETIME_PARSE('${endDateStr}T23:59:59')
+                        )`;
                         const encodedFilter = encodeURIComponent(filter);
+                        
+                        console.log(`🔍 Using smart Airtable filter on field: ${dueDateField}`);
                         response = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodedFilter}`);
                     } else {
-                        // Fallback: load all records
+                        // Fallback: load all records with pagination (no due date field found)
+                        console.log(`⚠️ No due date field found, loading all records with pagination`);
                         response = await this.makeAirtableRequest(tableName);
                     }
+                    
+                    console.log(`📊 Loaded ${response.records.length} records from Airtable using smart range + pagination`);
                 } catch (error) {
-                    console.warn('Airtable filtering failed, loading all records:', error);
+                    console.warn('Smart filtering failed, loading all records:', error);
                     response = await this.makeAirtableRequest(tableName);
+                    console.log(`📊 Fallback: Loaded ${response.records.length} total records with pagination`);
                 }
                 
                 this.reportTasks = [];
+                this.allTasksWithDueDates = []; // Store all tasks for overdue filtering
                 
+                // Process all records to match desktop logic
                 response.records.forEach(record => {
                     const fields = record.fields;
                     const person = fields.Person || fields.Name || fields.Worker || fields.Employee;
@@ -1750,7 +1920,8 @@
                     const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
                     const dateDue = fields.DateDue || fields['Date Due'] || fields.DueDate;
                     
-                    if (person && orderNumber && dateDue) {
+                    // Must have person, orderNumber, and EITHER workDate OR dateDue
+                    if (person && orderNumber && (workDate || dateDue)) {
                         let taskDateStr, dueDateStr;
                         
                         // Handle work date
@@ -1763,32 +1934,51 @@
                         }
                         
                         // Handle due date
-                        if (typeof dateDue === 'string' && dateDue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                            dueDateStr = dateDue;
-                        } else {
-                            dueDateStr = this.dateToLocalDateString(new Date(dateDue + 'T12:00:00'));
+                        if (dateDue) {
+                            if (typeof dateDue === 'string' && dateDue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                                dueDateStr = dateDue;
+                            } else {
+                                dueDateStr = this.dateToLocalDateString(new Date(dateDue + 'T12:00:00'));
+                            }
                         }
                         
-                        // Filter by Due Date - this is the key filter for Ready Date Report
+                        const task = {
+                            id: record.id,
+                            orderNumber: orderNumber,
+                            taskDate: taskDateStr || dueDateStr, // Fallback to due date if no work date
+                            dateDue: dueDateStr,
+                            description: fields.Description || fields.Notes || fields.Details || '',
+                            duration: fields.Duration || fields.Time || fields.Hours || 2,
+                            completed: fields.Completed || fields.Done || fields.Finished || false,
+                            position: fields.Position || fields.Order || fields.Sequence || 0,
+                            person: person
+                        };
+                        
+                        // Store all tasks with due dates for overdue filtering
+                        if (dueDateStr) {
+                            this.allTasksWithDueDates.push(task);
+                        }
+                        
+                        // Ready Date Report logic: Include tasks due on target date
+                        // This matches desktop behavior where it shows tasks by due date
                         if (dueDateStr === targetDueDate) {
-                            const task = {
-                                id: record.id,
-                                orderNumber: orderNumber,
-                                taskDate: taskDateStr || dueDateStr, // Fallback to due date if no work date
-                                dateDue: dueDateStr,
-                                description: fields.Description || fields.Notes || fields.Details || '',
-                                duration: fields.Duration || fields.Time || fields.Hours || 2,
-                                completed: fields.Completed || fields.Done || fields.Finished || false,
-                                position: fields.Position || fields.Order || fields.Sequence || 0,
-                                person: person
-                            };
-                            
                             this.reportTasks.push(task);
+                            console.log(`✅ Added task #${orderNumber} (${person}) - Due: ${dueDateStr}`);
                         }
                     }
                 });
                 
-                console.log(`Loaded ${this.reportTasks.length} tasks due on ${targetDueDate}`);
+                console.log(`📋 Ready Date Report Results:`);
+                console.log(`- ${this.reportTasks.length} tasks due on ${targetDueDate}`);
+                console.log(`- ${this.allTasksWithDueDates.length} total tasks with due dates (for overdue calculation)`);
+                
+                // Debug: Show breakdown by person
+                const tasksByPerson = {};
+                this.reportTasks.forEach(task => {
+                    if (!tasksByPerson[task.person]) tasksByPerson[task.person] = 0;
+                    tasksByPerson[task.person]++;
+                });
+                console.log(`👥 Tasks by person:`, tasksByPerson);
             }
 
             async toggleTaskCompletionInReport(taskId, person) {
@@ -2788,8 +2978,6 @@
                 this.showToast(`🔽 Filtered ${person} to show ${filter === 'all' ? 'all' : filter} tasks`, 'info');
                 this.renderCurrentView();
             }
-
-
 
             createMissingMainContent() {
                 // Remove any existing content
