@@ -3540,26 +3540,67 @@ if (statusFilter === 'incomplete') {
 } else if (statusFilter === 'completed') {
     filteredData = reportData.filter(item => item.task.completed);
 } else if (statusFilter === 'overdue') {
-    // Filter for overdue orders (incomplete + past due date)
+    // For overdue filter: search within the loaded data range only
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    filteredData = reportData.filter(item => {
-        if (item.task.completed) return false;
-        
-        let dueDateString;
-        if (item.task.dateDue instanceof Date) {
-            dueDateString = item.task.dateDue.toISOString().split('T')[0];
-        } else if (typeof item.task.dateDue === 'string') {
-            dueDateString = item.task.dateDue.includes('T') ? item.task.dateDue.split('T')[0] : item.task.dateDue;
-        } else {
-            return false;
+    const todayString = today.toISOString().split('T')[0];
+    
+    filteredData = [];
+    
+    // Calculate the loaded date range based on settings
+    const weeksBack = this.dataLoadSettings.weeksBack || 2;
+    const weeksForward = this.dataLoadSettings.weeksForward || 4;
+    
+    const rangeStart = new Date();
+    rangeStart.setDate(rangeStart.getDate() - (weeksBack * 7));
+    const rangeStartString = this.dateToLocalDateString(rangeStart);
+    
+    const rangeEnd = new Date();
+    rangeEnd.setDate(rangeEnd.getDate() + (weeksForward * 7));
+    const rangeEndString = this.dateToLocalDateString(rangeEnd);
+    
+    // Only search within the loaded data range
+    Object.keys(this.tasks).forEach(workDateKey => {
+        // Skip dates outside the loaded range
+        if (workDateKey < rangeStartString || workDateKey > rangeEndString) {
+            return;
         }
         
-        const todayString = today.toISOString().split('T')[0];
-        return dueDateString < todayString;
+        const peopleToCheck = selectedPerson === 'all' ? Object.keys(this.tasks[workDateKey]) : [selectedPerson];
+        
+        peopleToCheck.forEach(person => {
+            if (this.tasks[workDateKey][person]) {
+                this.tasks[workDateKey][person].forEach(task => {
+                    if (task.completed) return; // Skip completed orders
+                    
+                    let dueDateString;
+                    if (task.dateDue instanceof Date) {
+                        dueDateString = task.dateDue.toISOString().split('T')[0];
+                    } else if (typeof task.dateDue === 'string') {
+                        dueDateString = task.dateDue.includes('T') ? task.dateDue.split('T')[0] : task.dateDue;
+                    } else {
+                        return;
+                    }
+                    
+                    // Only include if due before today
+                    if (dueDateString < todayString) {
+                        filteredData.push({
+                            task,
+                            person,
+                            workDate: workDateKey,
+                            workDateDisplay: this.formatDateForDisplay(workDateKey),
+                            dueDateDisplay: this.formatDateForDisplay(task.dateDue),
+                            durationDisplay: `${task.duration * 15} min`,
+                            isOverdue: true,
+                            status: '⚠️ Overdue',
+                            statusClass: 'text-red-600 dark:text-red-400'
+                        });
+                    }
+                });
+            }
+        });
     });
-}
-                
+}                
                 this.displayReport(filteredData, selectedPerson, startDate, endDate, statusFilter);
             }
             
