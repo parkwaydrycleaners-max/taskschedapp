@@ -1046,9 +1046,28 @@
 
             async refreshData() {
                 this.showToast('🔄 Refreshing data...', 'info');
+                
+                // Preserve current person selection and view state
+                const currentPerson = this.selectedPerson;
+                const currentView = this.currentView;
+                
                 try {
                     await this.loadDataFromAirtable();
-                    this.renderCurrentView();
+                    
+                    // Restore the person selection if it was set
+                    if (currentPerson && this.people.includes(currentPerson)) {
+                        this.selectedPerson = currentPerson;
+                    } else if (currentPerson === '__ALL__') {
+                        this.selectedPerson = '__ALL__';
+                    }
+                    
+                    // Render the appropriate view
+                    if (currentView === 'tasks') {
+                        this.renderTasksView();
+                    } else {
+                        this.renderCurrentView();
+                    }
+                    
                     this.showToast('✅ Data refreshed', 'success');
                 } catch (error) {
                     this.showToast('❌ Failed to refresh data', 'error');
