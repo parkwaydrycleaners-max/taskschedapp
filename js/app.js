@@ -5920,6 +5920,8 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
             
             async loadAllDataFromAirtable() {
                 await this.loadPeopleFromAirtable();
+    // CRITICAL FIX: Save fresh Airtable people capacity to local storage
+    await this.savePeopleCapacityToLocal();
                 await this.loadTasksFromAirtable();
                 await this.loadCapacityOverridesFromAirtable();
                 await this.loadTextContentFromAirtable();
@@ -7010,4 +7012,5 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
