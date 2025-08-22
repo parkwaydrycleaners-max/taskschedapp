@@ -11,6 +11,20 @@
         .task-card { transition: all 0.2s ease; }
         .fade-in { animation: fadeIn 0.3s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Prevent pull-to-refresh on mobile */
+        body {
+            overscroll-behavior-y: contain;
+        }
+        /* Additional mobile fixes */
+        html, body {
+            overflow-x: hidden;
+        }
+        @media (max-width: 768px) {
+            body {
+                touch-action: pan-x pan-y;
+                overscroll-behavior: none;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -259,6 +273,11 @@
                         
                         if (config.currentDate) {
                             this.currentDate = this.parseDateString(config.currentDate) || new Date();
+                        }
+                        
+                        // Restore selected person from localStorage
+                        if (config.selectedPerson) {
+                            this.selectedPerson = config.selectedPerson;
                         }
                     }
                 } catch (error) {
@@ -630,6 +649,10 @@
 
             selectPerson(person) {
                 this.selectedPerson = person;
+                
+                // Save to localStorage immediately when person selection changes
+                this.saveConfigToStorage();
+                
                 this.renderCurrentView();
             }
 
@@ -1554,6 +1577,20 @@
                 }
             }
 
+            saveConfigToStorage() {
+                try {
+                    localStorage.setItem('mobileAppConfig', JSON.stringify({
+                        apiKey: this.airtableConfig.apiKey,
+                        baseId: this.airtableConfig.baseId,
+                        tablesConfig: this.airtableConfig.tablesConfig,
+                        currentDate: this.dateToLocalDateString(this.currentDate),
+                        selectedPerson: this.selectedPerson
+                    }));
+                } catch (error) {
+                    console.warn('Could not save config:', error);
+                }
+            }
+
             async saveAndConnect() {
                 const apiKey = document.getElementById('apiKeyMobile').value.trim();
                 const baseId = document.getElementById('baseIdMobile').value.trim();
@@ -1576,16 +1613,7 @@
                 };
 
                 // Save to localStorage
-                try {
-                    localStorage.setItem('mobileAppConfig', JSON.stringify({
-                        apiKey: this.airtableConfig.apiKey,
-                        baseId: this.airtableConfig.baseId,
-                        tablesConfig: this.airtableConfig.tablesConfig,
-                        currentDate: this.dateToLocalDateString(this.currentDate)
-                    }));
-                } catch (error) {
-                    console.warn('Could not save config:', error);
-                }
+                this.saveConfigToStorage();
 
                 this.showToast('🔄 Connecting and loading data...', 'info');
 
