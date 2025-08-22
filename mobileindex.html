@@ -392,7 +392,7 @@
                         Object.keys(sampleResponse.records[0].fields) : [];
                 }
                 
-                const dateKey = this.dateToLocalDateString(this.currentDate);
+                const dateKey = this.formatDate(this.currentDate, 'string');
                 const possibleDateFields = ['Date', 'Ready Date', 'Task Date', 'TaskDate', 'ScheduledDate'];
                 const existingDateFields = possibleDateFields.filter(field => this.detectedFields.includes(field));
                 
@@ -431,8 +431,7 @@
                     if (!date) date = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
                     
                     if (person && date && orderNumber) {
-                        const taskDateStr = typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/) ? 
-                            date : this.dateToLocalDateString(new Date(date + 'T12:00:00'));
+                        const taskDateStr = this.normalizeAirtableDate(date);
                         
                         if (taskDateStr === dateKey) {
                             if (!this.tasks[dateKey][person]) this.tasks[dateKey][person] = [];
@@ -504,7 +503,7 @@
                 const container = document.getElementById('mainContent');
                 if (!container) return;
                 
-                const dateKey = this.dateToLocalDateString(this.currentDate);
+                const dateKey = this.formatDate(this.currentDate, 'string');
                 container.innerHTML = '';
                 
                 if (!this.airtableConfig.apiKey) {
@@ -766,7 +765,7 @@
                                 ${isIncomplete ? '<span class="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 rounded">Incomplete</span>' : ''}
                             </div>
                             <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">Due: ${this.formatDateForDisplay(task.dateDue)}</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Due: ${this.formatDate(task.dateDue)}</div>
                         </div>
                         <button class="complete-btn ml-4 p-2 rounded-full transition-colors ${
                             isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
@@ -872,7 +871,7 @@
 
             async loadAllTasksForReport() {
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
-                const targetDueDate = this.dateToLocalDateString(this.currentDate);
+                const targetDueDate = this.formatDate(this.currentDate, 'string');
                 
                 const today = new Date();
                 const startDate = new Date(today);
@@ -884,8 +883,8 @@
                 if (targetDate < startDate) startDate.setTime(targetDate.getTime());
                 if (targetDate > endDate) endDate.setTime(targetDate.getTime());
                 
-                const startDateStr = this.dateToLocalDateString(startDate);
-                const endDateStr = this.dateToLocalDateString(endDate);
+                const startDateStr = this.formatDate(startDate, 'string');
+                const endDateStr = this.formatDate(endDate, 'string');
                 
                 let response;
                 try {
@@ -928,13 +927,11 @@
                         let taskDateStr, dueDateStr;
                         
                         if (workDate) {
-                            taskDateStr = typeof workDate === 'string' && workDate.match(/^\d{4}-\d{2}-\d{2}$/) ? 
-                                workDate : this.dateToLocalDateString(new Date(workDate + 'T12:00:00'));
+                            taskDateStr = this.normalizeAirtableDate(workDate);
                         }
                         
                         if (dateDue) {
-                            dueDateStr = typeof dateDue === 'string' && dateDue.match(/^\d{4}-\d{2}-\d{2}$/) ? 
-                                dateDue : this.dateToLocalDateString(new Date(dateDue + 'T12:00:00'));
+                            dueDateStr = this.normalizeAirtableDate(dateDue);
                         }
                         
                         const task = {
@@ -959,7 +956,7 @@
                 const container = document.getElementById('reportContent');
                 const dateDiv = document.getElementById('reportDate');
                 
-                dateDiv.textContent = `Tasks Due on ${this.formatDateForDisplay(this.currentDate)}`;
+                dateDiv.textContent = `Tasks Due on ${this.formatDate(this.currentDate)}`;
                 
                 if (!this.reportTasks || this.reportTasks.length === 0) {
                     container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-8">No tasks due on this date</p>';
@@ -974,11 +971,10 @@
                 } else if (currentFilter === 'incomplete') {
                     filteredTasks = this.reportTasks.filter(t => !t.completed);
                 } else if (currentFilter === 'overdue') {
-                    const reportDateString = this.dateToLocalDateString(this.currentDate);
+                    const reportDateString = this.formatDate(this.currentDate, 'string');
                     filteredTasks = this.allTasksWithDueDates.filter(task => {
                         if (task.completed || !task.dateDue) return false;
-                        const dueDateString = typeof task.dateDue === 'string' && task.dateDue.match(/^\d{4}-\d{2}-\d{2}$/) ? 
-                            task.dateDue : this.dateToLocalDateString(new Date(task.dateDue + 'T12:00:00'));
+                        const dueDateString = this.normalizeAirtableDate(task.dateDue);
                         return dueDateString < reportDateString;
                     });
                 }
@@ -1022,8 +1018,8 @@
                                     </div>
                                     <div class="text-sm text-gray-800 dark:text-gray-200 mb-2">${task.description}</div>
                                     <div class="text-xs text-gray-500 dark:text-gray-400">
-                                        <div><strong>Due:</strong> ${this.formatDateForDisplay(task.dateDue)}</div>
-                                        <div><strong>Work Date:</strong> ${this.formatDateForDisplay(task.taskDate)}</div>
+                                        <div><strong>Due:</strong> ${this.formatDate(task.dateDue)}</div>
+                                        <div><strong>Work Date:</strong> ${this.formatDate(task.taskDate)}</div>
                                     </div>
                                 </div>
                                 <div class="flex items-center space-x-3 ml-4">
@@ -1258,34 +1254,34 @@
                 }, 3000);
             }
 
-            dateToLocalDateString(date) {
-                if (!date) return '';
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            }
-
-            formatDateForDisplay(dateInput) {
-                if (!dateInput) return 'Invalid Date';
+            // Unified date parsing - handles strings, dates, and Airtable formats
+            parseDate(dateInput) {
+                if (!dateInput) return null;
+                if (dateInput instanceof Date) return dateInput;
                 
-                let date;
                 if (typeof dateInput === 'string') {
                     const dateOnly = dateInput.includes('T') ? dateInput.split('T')[0] : dateInput;
-                    const parts = dateOnly.split('-');
-                    if (parts.length === 3) {
-                        const year = parseInt(parts[0]);
-                        const month = parseInt(parts[1]);
-                        const day = parseInt(parts[2]);
-                        if (year && month && day && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-                            date = new Date(year, month - 1, day, 12, 0, 0, 0);
+                    if (dateOnly.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        const [year, month, day] = dateOnly.split('-').map(Number);
+                        if (year && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                            return new Date(year, month - 1, day, 12, 0, 0, 0);
                         }
                     }
-                } else {
-                    date = dateInput;
                 }
+                return null;
+            }
+
+            // Unified date formatting - handles both string and display formats
+            formatDate(dateInput, format = 'display') {
+                const date = this.parseDate(dateInput);
+                if (!date) return format === 'string' ? '' : 'Invalid Date';
                 
-                if (!date) return 'Invalid Date';
+                if (format === 'string') {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                }
                 
                 try {
                     return new Intl.DateTimeFormat('en-US', {
@@ -1296,6 +1292,13 @@
                 } catch (error) {
                     return date.toLocaleDateString();
                 }
+            }
+
+            // Convert Airtable date to standardized date string
+            normalizeAirtableDate(dateValue) {
+                if (!dateValue) return '';
+                return typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{2}-\d{2}$/) ? 
+                    dateValue : this.formatDate(new Date(dateValue + 'T12:00:00'), 'string');
             }
 
             setupSearchEventListeners() {
@@ -1328,7 +1331,7 @@
                             
                             switch(id) {
                                 case 'quickToday':
-                                    const todayStr = this.dateToLocalDateString(today);
+                                    const todayStr = this.formatDate(today, 'string');
                                     if (searchDateFrom) searchDateFrom.value = todayStr;
                                     if (searchDateTo) searchDateTo.value = todayStr;
                                     break;
@@ -1337,22 +1340,22 @@
                                     startOfWeek.setDate(today.getDate() - today.getDay());
                                     const endOfWeek = new Date(startOfWeek);
                                     endOfWeek.setDate(startOfWeek.getDate() + 6);
-                                    if (searchDateFrom) searchDateFrom.value = this.dateToLocalDateString(startOfWeek);
-                                    if (searchDateTo) searchDateTo.value = this.dateToLocalDateString(endOfWeek);
+                                    if (searchDateFrom) searchDateFrom.value = this.formatDate(startOfWeek, 'string');
+                                    if (searchDateTo) searchDateTo.value = this.formatDate(endOfWeek, 'string');
                                     break;
                                 case 'quickMonth':
                                     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
                                     const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                                    if (searchDateFrom) searchDateFrom.value = this.dateToLocalDateString(startOfMonth);
-                                    if (searchDateTo) searchDateTo.value = this.dateToLocalDateString(endOfMonth);
+                                    if (searchDateFrom) searchDateFrom.value = this.formatDate(startOfMonth, 'string');
+                                    if (searchDateTo) searchDateTo.value = this.formatDate(endOfMonth, 'string');
                                     break;
                                 case 'quickAll':
                                     const oneYearAgo = new Date();
                                     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
                                     const oneYearFromNow = new Date();
                                     oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
-                                    if (searchDateFrom) searchDateFrom.value = this.dateToLocalDateString(oneYearAgo);
-                                    if (searchDateTo) searchDateTo.value = this.dateToLocalDateString(oneYearFromNow);
+                                    if (searchDateFrom) searchDateFrom.value = this.formatDate(oneYearAgo, 'string');
+                                    if (searchDateTo) searchDateTo.value = this.formatDate(oneYearFromNow, 'string');
                                     break;
                             }
                             updateSearchButtonState();
@@ -1499,8 +1502,7 @@
                     if (!person || !orderNumber || !date) return;
                     
                     if (fromDate || toDate) {
-                        const taskDateStr = typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/) ? 
-                            date : this.dateToLocalDateString(new Date(date + 'T12:00:00'));
+                        const taskDateStr = this.normalizeAirtableDate(date);
                         if (fromDate && taskDateStr < fromDate) return;
                         if (toDate && taskDateStr > toDate) return;
                     }
@@ -1640,8 +1642,8 @@
                                     </div>
                                     <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
                                     <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                                        <div>Scheduled: ${this.formatDateForDisplay(task.taskDate)}</div>
-                                        ${task.dateDue ? `<div>Due: ${this.formatDateForDisplay(task.dateDue)}</div>` : ''}
+                                        <div>Scheduled: ${this.formatDate(task.taskDate)}</div>
+                                        ${task.dateDue ? `<div>Due: ${this.formatDate(task.dateDue)}</div>` : ''}
                                     </div>
                                 </div>
                                 <div class="ml-4">
@@ -1737,8 +1739,8 @@
                                 </div>
                                 <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
                                 <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                                    <div>Scheduled: ${this.formatDateForDisplay(task.taskDate)}</div>
-                                    ${task.dateDue ? `<div>Due: ${this.formatDateForDisplay(task.dateDue)}</div>` : ''}
+                                    <div>Scheduled: ${this.formatDate(task.taskDate)}</div>
+                                    ${task.dateDue ? `<div>Due: ${this.formatDate(task.dateDue)}</div>` : ''}
                                 </div>
                             </div>
                             <div class="ml-4">
@@ -1966,7 +1968,7 @@
                         apiKey: this.airtableConfig.apiKey,
                         baseId: this.airtableConfig.baseId,
                         tablesConfig: this.airtableConfig.tablesConfig,
-                        currentDate: this.dateToLocalDateString(this.currentDate),
+                        currentDate: this.formatDate(this.currentDate, 'string'),
                         selectedPerson: this.selectedPerson,
                         dataRange: this.dataRange
                     }));
@@ -2074,18 +2076,6 @@
                 this.renderCurrentView();
             }
         }
-
-        // Dark mode support
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            document.documentElement.classList.add('dark');
-        }
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
-            if (event.matches) {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
-        });
 
         // Initialize app
         if (document.readyState === 'loading') {
