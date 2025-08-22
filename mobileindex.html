@@ -654,6 +654,13 @@
                     return;
                 }
                 
+                // Handle "All Persons" view
+                if (this.selectedPerson === '__ALL__') {
+                    console.log('🎯 Rendering all persons view');
+                    this.renderAllPersonsView(dateKey, container);
+                    return;
+                }
+                
                 const personTasks = this.tasks[dateKey]?.[this.selectedPerson] || [];
                 console.log(`🎯 Tasks for ${this.selectedPerson} on ${dateKey}:`, personTasks);
                 
@@ -677,25 +684,49 @@
 
             populatePersonSelector() {
                 const selector = document.getElementById('personSelect');
+                if (!selector) {
+                    console.log('⚠️ Person selector not found, skipping populate');
+                    return;
+                }
+                
                 const currentValue = selector.value;
                 
-                selector.innerHTML = '<option value="">Select a person...</option>';
+                // Clear and add base options
+                selector.innerHTML = '';
                 
+                // Add default option
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Select a person...';
+                selector.appendChild(defaultOption);
+                
+                // Add "All Persons" option
+                const allOption = document.createElement('option');
+                allOption.value = '__ALL__';
+                allOption.textContent = '📋 All Persons';
+                selector.appendChild(allOption);
+                
+                // Add individual people
                 this.people.forEach(person => {
                     const option = document.createElement('option');
                     option.value = person;
                     option.textContent = person;
-                    if (person === currentValue || person === this.selectedPerson) {
-                        option.selected = true;
-                        this.selectedPerson = person;
-                    }
                     selector.appendChild(option);
                 });
                 
-                // Auto-select first person if none selected
-                if (!this.selectedPerson && this.people.length > 0) {
-                    this.selectedPerson = this.people[0];
+                // Set the correct selection
+                if (this.selectedPerson === '__ALL__' || currentValue === '__ALL__') {
+                    selector.value = '__ALL__';
+                    this.selectedPerson = '__ALL__';
+                } else if (this.selectedPerson && this.people.includes(this.selectedPerson)) {
                     selector.value = this.selectedPerson;
+                } else if (currentValue && this.people.includes(currentValue)) {
+                    selector.value = currentValue;
+                    this.selectedPerson = currentValue;
+                } else if (!this.selectedPerson && this.people.length > 0) {
+                    // Default to "All Persons" if none selected
+                    this.selectedPerson = '__ALL__';
+                    selector.value = '__ALL__';
                 }
             }
 
@@ -818,7 +849,20 @@
 
             createMobileTaskCard(task) {
                 const card = document.createElement('div');
-                const isOverdue = new Date(task.dateDue) < new Date() && !task.completed;
+                
+                // Fix overdue logic to compare dates only, not times
+                let isOverdue = false;
+                if (task.dateDue && !task.completed) {
+                    const dueDate = new Date(task.dateDue);
+                    const today = new Date();
+                    
+                    // Set both dates to midnight for proper comparison
+                    dueDate.setHours(0, 0, 0, 0);
+                    today.setHours(0, 0, 0, 0);
+                    
+                    isOverdue = dueDate < today;
+                }
+                
                 const isCompleted = task.completed;
                 const isIncomplete = !isCompleted && !isOverdue;
                 
@@ -1076,6 +1120,66 @@
             updateDateDisplay() {
                 const options = { weekday: 'short', month: 'short', day: 'numeric' };
                 document.getElementById('currentDate').textContent = this.currentDate.toLocaleDateString('en-US', options);
+            }
+
+            renderAllPersonsView(dateKey, container) {
+                console.log('🎯 Rendering all persons view for date:', dateKey);
+                
+                // Get all people who have tasks on this date
+                const allPersonsWithTasks = Object.keys(this.tasks[dateKey] || {});
+                
+                if (allPersonsWithTasks.length === 0) {
+                    container.innerHTML += `
+                        <div class="text-center py-12">
+                            <div class="text-6xl mb-4">📋</div>
+                            <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No Tasks Today</h3>
+                            <p class="text-gray-500 dark:text-gray-400">No tasks scheduled for any person on this date.</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Create a combined view with all persons
+                allPersonsWithTasks.forEach(person => {
+                    const personTasks = this.tasks[dateKey][person] || [];
+                    if (personTasks.length > 0) {
+                        const personColumn = this.createPersonColumn(person, personTasks, dateKey);
+                        personColumn.className += ' mb-6'; // Add spacing between person sections
+                        container.appendChild(personColumn);
+                    }
+                });
+                
+                // Add summary at the top
+                const totalTasks = allPersonsWithTasks.reduce((total, person) => {
+                    return total + (this.tasks[dateKey][person]?.length || 0);
+                }, 0);
+                
+                const completedTasks = allPersonsWithTasks.reduce((total, person) => {
+                    return total + (this.tasks[dateKey][person]?.filter(t => t.completed).length || 0);
+                }, 0);
+                
+                const summaryDiv = document.createElement('div');
+                summaryDiv.className = 'bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6';
+                summaryDiv.innerHTML = `
+                    <h3 class="font-semibold text-blue-800 dark:text-blue-200 mb-2">📋 All Persons Summary</h3>
+                    <div class="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                            <div class="text-xl font-bold text-blue-600 dark:text-blue-400">${allPersonsWithTasks.length}</div>
+                            <div class="text-xs text-blue-700 dark:text-blue-300">People</div>
+                        </div>
+                        <div>
+                            <div class="text-xl font-bold text-purple-600 dark:text-purple-400">${totalTasks}</div>
+                            <div class="text-xs text-purple-700 dark:text-purple-300">Total Tasks</div>
+                        </div>
+                        <div>
+                            <div class="text-xl font-bold text-green-600 dark:text-green-400">${completedTasks}</div>
+                            <div class="text-xs text-green-700 dark:text-green-300">Completed</div>
+                        </div>
+                    </div>
+                `;
+                
+                // Insert summary at the beginning
+                container.insertBefore(summaryDiv, container.firstChild.nextSibling);
             }
 
             renderCurrentView() {
