@@ -5955,10 +5955,8 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                         this.DAYS_OF_WEEK.forEach(day => {
                             weeklyCapacity[day] = fields[`Capacity${day}`] || 16;
                         });
-                        
-                        if (!this.peopleCapacity[fields.Name]) {
+                       // Always update weekly capacity from Airtable (source of truth) 
                             this.peopleCapacity[fields.Name] = weeklyCapacity;
-                        }
                     }
                 });
             }
@@ -7012,3 +7010,4 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
+
