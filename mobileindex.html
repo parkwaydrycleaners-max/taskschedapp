@@ -44,7 +44,10 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                 </svg>
             </button>
-            <button id="currentDate" class="font-semibold text-center min-w-[200px] px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"></button>
+            <div class="flex flex-col items-center">
+                <button id="currentDate" class="font-semibold text-center min-w-[200px] px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors mb-1"></button>
+                <button id="todayBtn" class="text-xs text-purple-600 dark:text-purple-400 hover:underline">Today</button>
+            </div>
             <button id="nextDay" class="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
@@ -242,6 +245,13 @@
             }
 
             async init() {
+                // Debug: Show current date info
+                console.log('🕐 Mobile App Init Debug:');
+                console.log('- Current Date:', this.currentDate);
+                console.log('- Date String:', this.dateToLocalDateString(this.currentDate));
+                console.log('- Timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
+                console.log('- UTC Offset:', this.currentDate.getTimezoneOffset());
+                
                 this.loadConfigFromStorage();
                 this.setupEventListeners();
                 this.updateDateDisplay();
@@ -289,6 +299,7 @@
                 document.getElementById('prevDay').addEventListener('click', () => this.navigateDay(-1));
                 document.getElementById('nextDay').addEventListener('click', () => this.navigateDay(1));
                 document.getElementById('currentDate').addEventListener('click', () => this.showDatePicker());
+                document.getElementById('todayBtn').addEventListener('click', () => this.goToToday());
                 document.getElementById('ordersBtn').addEventListener('click', () => this.showTasksView());
                 document.getElementById('searchBtn').addEventListener('click', () => this.showSearchView());
                 document.getElementById('reportBtn').addEventListener('click', () => this.showReportView());
@@ -679,12 +690,39 @@
                 const completedTasks = tasks.filter(t => t.completed).length;
                 const incompleteTasks = totalTasks - completedTasks;
                 
+                // Calculate overdue tasks (not completed AND due date is in the past)
+                const overdueTasks = tasks.filter(task => {
+                    if (task.completed || !task.dateDue) return false;
+                    
+                    const dueDate = new Date(task.dateDue);
+                    const today = new Date();
+                    
+                    // Set both dates to midnight for proper comparison
+                    dueDate.setHours(0, 0, 0, 0);
+                    today.setHours(0, 0, 0, 0);
+                    
+                    return dueDate < today;
+                }).length;
+                
                 // Filter tasks based on current selection
                 let filteredTasks = tasks;
                 if (currentFilter === 'complete') {
                     filteredTasks = tasks.filter(t => t.completed);
                 } else if (currentFilter === 'incomplete') {
                     filteredTasks = tasks.filter(t => !t.completed);
+                } else if (currentFilter === 'overdue') {
+                    filteredTasks = tasks.filter(task => {
+                        if (task.completed || !task.dateDue) return false;
+                        
+                        const dueDate = new Date(task.dateDue);
+                        const today = new Date();
+                        
+                        // Set both dates to midnight for proper comparison
+                        dueDate.setHours(0, 0, 0, 0);
+                        today.setHours(0, 0, 0, 0);
+                        
+                        return dueDate < today;
+                    });
                 }
                 
                 // Get capacity information
@@ -713,14 +751,18 @@
                     <!-- Task Summary -->
                     <div class="bg-purple-50 dark:bg-purple-900 border border-purple-200 dark:border-purple-700 rounded-lg p-3 mb-3">
                         <h4 class="font-semibold text-purple-800 dark:text-purple-200 mb-2 text-sm">📋 Task Summary</h4>
-                        <div class="grid grid-cols-2 gap-3 text-center">
-                            <button class="person-filter-btn p-3 rounded-lg transition-colors ${currentFilter === 'all' ? 'bg-purple-500 text-white shadow-lg' : 'hover:bg-purple-100 dark:hover:bg-purple-800'}" data-person="${person}" data-filter="all">
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <button class="person-filter-btn p-2 rounded-lg transition-colors ${currentFilter === 'all' ? 'bg-purple-500 text-white shadow-lg' : 'hover:bg-purple-100 dark:hover:bg-purple-800'}" data-person="${person}" data-filter="all">
                                 <div class="text-lg font-bold ${currentFilter === 'all' ? 'text-white' : 'text-purple-600 dark:text-purple-400'}">${totalTasks}</div>
                                 <div class="text-xs ${currentFilter === 'all' ? 'text-purple-100' : 'text-purple-700 dark:text-purple-300'}">Total</div>
                             </button>
-                            <button class="person-filter-btn p-3 rounded-lg transition-colors ${currentFilter === 'incomplete' ? (incompleteTasks === 0 ? 'bg-green-500 text-white shadow-lg' : 'bg-yellow-500 text-white shadow-lg') : (incompleteTasks === 0 ? 'hover:bg-green-100 dark:hover:bg-green-800' : 'hover:bg-yellow-100 dark:hover:bg-yellow-800')}" data-person="${person}" data-filter="incomplete">
+                            <button class="person-filter-btn p-2 rounded-lg transition-colors ${currentFilter === 'incomplete' ? (incompleteTasks === 0 ? 'bg-green-500 text-white shadow-lg' : 'bg-yellow-500 text-white shadow-lg') : (incompleteTasks === 0 ? 'hover:bg-green-100 dark:hover:bg-green-800' : 'hover:bg-yellow-100 dark:hover:bg-yellow-800')}" data-person="${person}" data-filter="incomplete">
                                 <div class="text-lg font-bold ${currentFilter === 'incomplete' ? 'text-white' : (incompleteTasks === 0 ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400')}">${incompleteTasks}</div>
                                 <div class="text-xs ${currentFilter === 'incomplete' ? (incompleteTasks === 0 ? 'text-green-100' : 'text-yellow-100') : (incompleteTasks === 0 ? 'text-green-700 dark:text-green-300' : 'text-yellow-700 dark:text-yellow-300')}">Incomplete</div>
+                            </button>
+                            <button class="person-filter-btn p-2 rounded-lg transition-colors ${currentFilter === 'overdue' ? (overdueTasks === 0 ? 'bg-green-500 text-white shadow-lg' : 'bg-red-500 text-white shadow-lg') : (overdueTasks === 0 ? 'hover:bg-green-100 dark:hover:bg-green-800' : 'hover:bg-red-100 dark:hover:bg-red-800')}" data-person="${person}" data-filter="overdue">
+                                <div class="text-lg font-bold ${currentFilter === 'overdue' ? 'text-white' : (overdueTasks === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')}">${overdueTasks}</div>
+                                <div class="text-xs ${currentFilter === 'overdue' ? (overdueTasks === 0 ? 'text-green-100' : 'text-red-100') : (overdueTasks === 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300')}">Overdue</div>
                             </button>
                         </div>
                     </div>
@@ -953,6 +995,19 @@
                     filteredTasks = this.reportTasks.filter(t => t.completed);
                 } else if (currentFilter === 'incomplete') {
                     filteredTasks = this.reportTasks.filter(t => !t.completed);
+                } else if (currentFilter === 'overdue') {
+                    filteredTasks = this.reportTasks.filter(task => {
+                        if (task.completed) return false;
+                        
+                        const dueDate = new Date(task.dateDue);
+                        const today = new Date();
+                        
+                        // Set both dates to midnight for proper comparison
+                        dueDate.setHours(0, 0, 0, 0);
+                        today.setHours(0, 0, 0, 0);
+                        
+                        return dueDate < today;
+                    });
                 }
                 
                 // Sort tasks by completion status (incomplete first), then by person
@@ -968,9 +1023,24 @@
                 const completedTasks = this.reportTasks.filter(t => t.completed).length;
                 const incompleteTasks = this.reportTasks.filter(t => !t.completed).length;
                 
+                // Calculate overdue tasks for the ready date report
+                const overdueTasks = this.reportTasks.filter(task => {
+                    if (task.completed) return false;
+                    
+                    // For ready date report, we check if the due date (which is the ready date we're viewing) is in the past
+                    const dueDate = new Date(task.dateDue);
+                    const today = new Date();
+                    
+                    // Set both dates to midnight for proper comparison
+                    dueDate.setHours(0, 0, 0, 0);
+                    today.setHours(0, 0, 0, 0);
+                    
+                    return dueDate < today;
+                }).length;
+                
                 const summaryHtml = `
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-3 gap-3">
                             <button class="filter-btn p-3 rounded-lg transition-colors text-center ${currentFilter === 'all' ? 'bg-blue-500 text-white shadow-lg' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}" data-filter="all">
                                 <div class="text-xl font-bold ${currentFilter === 'all' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}">${totalTasks}</div>
                                 <div class="text-xs ${currentFilter === 'all' ? 'text-blue-100' : 'text-gray-600 dark:text-gray-400'}">Total</div>
@@ -978,6 +1048,10 @@
                             <button class="filter-btn p-3 rounded-lg transition-colors text-center ${currentFilter === 'incomplete' ? (incompleteTasks === 0 ? 'bg-green-500 text-white shadow-lg' : 'bg-yellow-500 text-white shadow-lg') : (incompleteTasks === 0 ? 'hover:bg-green-100 dark:hover:bg-green-800' : 'hover:bg-yellow-100 dark:hover:bg-yellow-800')}" data-filter="incomplete">
                                 <div class="text-xl font-bold ${currentFilter === 'incomplete' ? 'text-white' : (incompleteTasks === 0 ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400')}">${incompleteTasks}</div>
                                 <div class="text-xs ${currentFilter === 'incomplete' ? (incompleteTasks === 0 ? 'text-green-100' : 'text-yellow-100') : (incompleteTasks === 0 ? 'text-green-700 dark:text-green-300' : 'text-yellow-700 dark:text-yellow-300')}">Incomplete</div>
+                            </button>
+                            <button class="filter-btn p-3 rounded-lg transition-colors text-center ${currentFilter === 'overdue' ? (overdueTasks === 0 ? 'bg-green-500 text-white shadow-lg' : 'bg-red-500 text-white shadow-lg') : (overdueTasks === 0 ? 'hover:bg-green-100 dark:hover:bg-green-800' : 'hover:bg-red-100 dark:hover:bg-red-800')}" data-filter="overdue">
+                                <div class="text-xl font-bold ${currentFilter === 'overdue' ? 'text-white' : (overdueTasks === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')}">${overdueTasks}</div>
+                                <div class="text-xs ${currentFilter === 'overdue' ? (overdueTasks === 0 ? 'text-green-100' : 'text-red-100') : (overdueTasks === 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300')}">Overdue</div>
                             </button>
                         </div>
                     </div>
@@ -1261,6 +1335,8 @@
                         const day = parseInt(parts[2]);
                         
                         if (year && month && day && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                            // Force local timezone by using Date constructor with individual components
+                            // This prevents timezone interpretation issues with date strings
                             return new Date(year, month - 1, day, 12, 0, 0, 0);
                         }
                     }
@@ -1637,36 +1713,68 @@
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
                 const targetDueDate = this.dateToLocalDateString(this.currentDate);
                 
-                const response = await this.makeAirtableRequest(tableName);
+                // Try to filter by Due Date in Airtable first for better performance
+                let response;
+                try {
+                    // Discover what fields exist in the table
+                    if (!this.detectedFields) {
+                        const sampleResponse = await this.makeAirtableRequest(`${tableName}?maxRecords=5`);
+                        this.detectedFields = sampleResponse.records.length > 0 ? 
+                            Object.keys(sampleResponse.records[0].fields) : [];
+                    }
+                    
+                    const possibleDueDateFields = ['DateDue', 'Date Due', 'DueDate', 'Due Date'];
+                    const existingDueDateFields = possibleDueDateFields.filter(field => this.detectedFields.includes(field));
+                    
+                    if (existingDueDateFields.length > 0) {
+                        // Try to filter directly in Airtable
+                        const dueDateField = existingDueDateFields[0];
+                        const filter = `IS_SAME({${dueDateField}}, DATETIME_PARSE('${targetDueDate}'), 'day')`;
+                        const encodedFilter = encodeURIComponent(filter);
+                        response = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodedFilter}`);
+                    } else {
+                        // Fallback: load all records
+                        response = await this.makeAirtableRequest(tableName);
+                    }
+                } catch (error) {
+                    console.warn('Airtable filtering failed, loading all records:', error);
+                    response = await this.makeAirtableRequest(tableName);
+                }
+                
                 this.reportTasks = [];
                 
                 response.records.forEach(record => {
                     const fields = record.fields;
                     const person = fields.Person || fields.Name || fields.Worker || fields.Employee;
-                    const date = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
+                    const workDate = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
                     const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
                     const dateDue = fields.DateDue || fields['Date Due'] || fields.DueDate;
                     
-                    if (person && date && orderNumber && dateDue) {
+                    if (person && orderNumber && dateDue) {
                         let taskDateStr, dueDateStr;
                         
-                        if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                            taskDateStr = date;
-                        } else {
-                            taskDateStr = this.dateToLocalDateString(new Date(date + 'T12:00:00'));
+                        // Handle work date
+                        if (workDate) {
+                            if (typeof workDate === 'string' && workDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                                taskDateStr = workDate;
+                            } else {
+                                taskDateStr = this.dateToLocalDateString(new Date(workDate + 'T12:00:00'));
+                            }
                         }
                         
+                        // Handle due date
                         if (typeof dateDue === 'string' && dateDue.match(/^\d{4}-\d{2}-\d{2}$/)) {
                             dueDateStr = dateDue;
                         } else {
                             dueDateStr = this.dateToLocalDateString(new Date(dateDue + 'T12:00:00'));
                         }
                         
+                        // Filter by Due Date - this is the key filter for Ready Date Report
                         if (dueDateStr === targetDueDate) {
                             const task = {
                                 id: record.id,
                                 orderNumber: orderNumber,
-                                taskDate: taskDateStr,
+                                taskDate: taskDateStr || dueDateStr, // Fallback to due date if no work date
                                 dateDue: dueDateStr,
                                 description: fields.Description || fields.Notes || fields.Details || '',
                                 duration: fields.Duration || fields.Time || fields.Hours || 2,
@@ -1679,6 +1787,8 @@
                         }
                     }
                 });
+                
+                console.log(`Loaded ${this.reportTasks.length} tasks due on ${targetDueDate}`);
             }
 
             async toggleTaskCompletionInReport(taskId, person) {
