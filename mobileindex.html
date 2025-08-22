@@ -8,27 +8,16 @@
     <style>
         .loading-spinner { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .task-card { transition: all 0.2s ease; }
         .fade-in { animation: fadeIn 0.3s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        /* Prevent pull-to-refresh on mobile */
-        body {
-            overscroll-behavior-y: contain;
-        }
-        /* Additional mobile fixes */
-        html, body {
-            overflow-x: hidden;
-        }
+        body { overscroll-behavior-y: contain; }
+        html, body { overflow-x: hidden; }
         @media (max-width: 768px) {
-            body {
-                touch-action: pan-x pan-y;
-                overscroll-behavior: none;
-            }
+            body { touch-action: pan-x pan-y; overscroll-behavior: none; }
         }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 min-h-screen">
-    <!-- Mobile Header -->
     <header class="bg-white dark:bg-gray-800 shadow-sm border-b px-4 py-3 sticky top-0 z-10">
         <div class="flex items-center justify-between">
             <h1 class="text-lg font-bold text-purple-600 dark:text-purple-400">📱 Task Scheduler Mobile</h1>
@@ -36,7 +25,6 @@
         </div>
     </header>
 
-    <!-- Date Navigation -->
     <div class="bg-white dark:bg-gray-800 border-b px-4 py-3">
         <div class="flex items-center justify-between mb-3">
             <button id="prevDay" class="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
@@ -64,7 +52,6 @@
         </div>
     </div>
 
-    <!-- Main Content -->
     <main id="mainContent" class="p-4">
         <div id="loadingMessage" class="text-center py-8">
             <div class="loading-spinner rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-3"></div>
@@ -72,7 +59,6 @@
         </div>
     </main>
 
-    <!-- Report View (Hidden by default) -->
     <div id="reportView" class="hidden p-4">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
             <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">📊 Ready Date Report</h2>
@@ -82,12 +68,10 @@
         <button id="backToTopReport" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm">⬆️ Back to Top</button>
     </div>
 
-    <!-- Search View (Hidden by default) -->
     <div id="searchView" class="hidden p-4">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
             <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">🔍 Search Orders</h2>
             
-            <!-- Date Range Requirement -->
             <div class="mb-4">
                 <h4 class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Date Range (Required):</h4>
                 <div class="grid grid-cols-2 gap-3 mb-3">
@@ -101,7 +85,6 @@
                     </div>
                 </div>
                 
-                <!-- Quick Date Buttons -->
                 <div class="grid grid-cols-4 gap-2 mb-4">
                     <button id="quickToday" class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Today</button>
                     <button id="quickWeek" class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">This Week</button>
@@ -110,7 +93,6 @@
                 </div>
             </div>
             
-            <!-- Search Input -->
             <div class="mb-4">
                 <label for="searchInputMain" class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Search Orders:</label>
                 <div class="relative">
@@ -126,7 +108,6 @@
                 <button id="clearSearchMain" class="mt-2 text-sm text-purple-600 dark:text-purple-400 hover:underline hidden">Clear search</button>
             </div>
             
-            <!-- Search Filter Buttons (Hidden by default) -->
             <div id="searchFilters" class="hidden mb-4">
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                     <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter Results:</h4>
@@ -143,7 +124,6 @@
                 </div>
             </div>
 
-            <!-- Search Results Container -->
             <div id="searchResults">
                 <div class="text-center py-12 text-gray-500 dark:text-gray-400">
                     <div class="text-6xl mb-4">🔍</div>
@@ -155,17 +135,12 @@
         <button id="backToTopSearch" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm">⬆️ Back to Top</button>
     </div>
 
-    <!-- Settings View (Hidden by default) -->
     <div id="settingsView" class="hidden p-4">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
             <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">⚙️ Settings</h2>
             
-            <!-- Connection Status -->
-            <div id="connectionStatus" class="mb-6 p-3 rounded-lg text-sm">
-                <!-- Status will be populated by JavaScript -->
-            </div>
+            <div id="connectionStatus" class="mb-6 p-3 rounded-lg text-sm"></div>
             
-            <!-- Quick Upload Section -->
             <div class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6">
                 <h3 class="font-semibold text-blue-800 dark:text-blue-200 mb-3">📤 Upload Configuration</h3>
                 <p class="text-sm text-blue-700 dark:text-blue-300 mb-3">Upload a saved configuration file from the desktop version:</p>
@@ -178,7 +153,6 @@
                 </label>
             </div>
             
-            <!-- Data Loading Range Section -->
             <div class="bg-orange-50 dark:bg-orange-900 border border-orange-200 dark:border-orange-700 rounded-lg p-4 mb-6">
                 <h3 class="font-semibold text-orange-800 dark:text-orange-200 mb-3">⚡ Data Loading Range</h3>
                 <p class="text-sm text-orange-700 dark:text-orange-300 mb-4">Smaller ranges load faster but may not include all your data. You can refresh to load more data anytime.</p>
@@ -207,7 +181,6 @@
                 <button id="saveDataRangeMobile" class="mt-3 w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm">💾 Save Data Range</button>
             </div>
             
-            <!-- Manual Setup Section -->
             <div class="space-y-4">
                 <h3 class="font-semibold text-gray-900 dark:text-gray-100">🔧 Manual Setup</h3>
                 
@@ -243,14 +216,9 @@
         <button id="backToTopSettings" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm">⬆️ Back to Top</button>
     </div>
 
-    <!-- Toast Container -->
-    <div id="toastContainer" class="fixed top-20 right-4 z-50 space-y-2">
-        <!-- Toasts will be added here dynamically -->
-    </div>
+    <div id="toastContainer" class="fixed top-20 right-4 z-50 space-y-2"></div>
 
     <script>
-
-
         class MobileTaskScheduler {
             constructor() {
                 this.currentDate = new Date();
@@ -261,32 +229,16 @@
                 this.airtableConfig = {};
                 this.currentView = 'tasks';
                 this.searchFilter = 'all';
-                this.dateFilter = 'all';
                 this.currentSearchResults = [];
                 this.searchResultsShown = 0;
                 this.RESULTS_PER_PAGE = 50;
                 this.DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                // Initialize person filters and All Persons filter
                 this.personFilters = {};
-                this.allPersonsFilter = 'all';
-                
-                // Data loading range settings (default: 2 weeks back, 4 weeks forward)
-                this.dataRange = {
-                    weeksBack: 2,
-                    weeksForward: 4
-                };
-                
+                this.dataRange = { weeksBack: 2, weeksForward: 4 };
                 this.init();
             }
 
             async init() {
-                // Debug: Show current date info
-                console.log('🕐 Mobile App Init Debug:');
-                console.log('- Current Date:', this.currentDate);
-                console.log('- Date String:', this.dateToLocalDateString(this.currentDate));
-                console.log('- Timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
-                console.log('- UTC Offset:', this.currentDate.getTimezoneOffset());
-                
                 this.loadConfigFromStorage();
                 this.setupEventListeners();
                 this.updateDateDisplay();
@@ -300,8 +252,6 @@
                 this.renderTasksView();
             }
 
-
-
             loadConfigFromStorage() {
                 try {
                     const savedConfig = localStorage.getItem('mobileAppConfig');
@@ -310,27 +260,14 @@
                         this.airtableConfig = {
                             apiKey: config.apiKey,
                             baseId: config.baseId,
-                            tablesConfig: config.tablesConfig || {
-                                people: 'People',
-                                tasks: 'Tasks'
-                            }
+                            tablesConfig: config.tablesConfig || { people: 'People', tasks: 'Tasks' }
                         };
                         
-                        // Note: Removed automatic currentDate restoration - app should always start on today's date
-                        // Users can navigate to other dates manually if needed
-                        
-                        // Restore selected person from localStorage
-                        if (config.selectedPerson) {
-                            this.selectedPerson = config.selectedPerson;
-                        }
-                        
-                        // Restore data range settings
-                        if (config.dataRange) {
-                            this.dataRange = config.dataRange;
-                        }
+                        if (config.selectedPerson) this.selectedPerson = config.selectedPerson;
+                        if (config.dataRange) this.dataRange = config.dataRange;
                     }
                 } catch (error) {
-                    console.warn('Could not load config:', error);
+                    // Silent fail for storage issues
                 }
             }
 
@@ -344,21 +281,15 @@
                 document.getElementById('reportBtn').addEventListener('click', () => this.showReportView());
                 document.getElementById('refreshBtn').addEventListener('click', () => this.refreshData());
                 document.getElementById('settingsBtn').addEventListener('click', () => this.showSettingsView());
-
-
                 
-                // Back to top button listeners
-                document.getElementById('backToTopReport').addEventListener('click', () => this.scrollToTop());
-                document.getElementById('backToTopSearch').addEventListener('click', () => this.scrollToTop());
-                document.getElementById('backToTopSettings').addEventListener('click', () => this.scrollToTop());
+                ['backToTopReport', 'backToTopSearch', 'backToTopSettings'].forEach(id => {
+                    document.getElementById(id).addEventListener('click', () => this.scrollToTop());
+                });
                 
-                // Settings event listeners
                 document.getElementById('uploadConfigMobile').addEventListener('change', (e) => this.uploadConfig(e));
                 document.getElementById('testConnectionMobile').addEventListener('click', () => this.testConnection());
                 document.getElementById('saveConfigMobile').addEventListener('click', () => this.saveAndConnect());
                 document.getElementById('saveDataRangeMobile').addEventListener('click', () => this.saveDataRange());
-                
-                // Note: Person selector event listener is now set up dynamically in renderTasksView()
             }
 
             async loadDataFromAirtable() {
@@ -367,7 +298,6 @@
                     await this.loadTasksFromAirtable();
                     this.hideLoadingMessage();
                 } catch (error) {
-                    console.error('Failed to load data:', error);
                     this.showToast('❌ Failed to load data. Check connection.', 'error');
                     this.showConnectionMessage();
                 }
@@ -387,55 +317,39 @@
                         this.people.push(fields.Name);
                         
                         const personCapacity = {};
-                        
-                        // All possible field name patterns for each day
                         const dayPatterns = [
-                            ['Sunday', 'Sun', 'Sunday Capacity', 'Sun Capacity', 'SundayCapacity', 'SunCapacity', 'CapacitySunday', 'Day0', 'Day 0', '0'],
-                            ['Monday', 'Mon', 'Monday Capacity', 'Mon Capacity', 'MondayCapacity', 'MonCapacity', 'CapacityMonday', 'Day1', 'Day 1', '1'],
-                            ['Tuesday', 'Tue', 'Tuesday Capacity', 'Tue Capacity', 'TuesdayCapacity', 'TueCapacity', 'CapacityTuesday', 'Day2', 'Day 2', '2'],
-                            ['Wednesday', 'Wed', 'Wednesday Capacity', 'Wed Capacity', 'WednesdayCapacity', 'WedCapacity', 'CapacityWednesday', 'Day3', 'Day 3', '3'],
-                            ['Thursday', 'Thu', 'Thursday Capacity', 'Thu Capacity', 'ThursdayCapacity', 'ThuCapacity', 'CapacityThursday', 'Day4', 'Day 4', '4'],
-                            ['Friday', 'Fri', 'Friday Capacity', 'Fri Capacity', 'FridayCapacity', 'FriCapacity', 'CapacityFriday', 'Day5', 'Day 5', '5'],
-                            ['Saturday', 'Sat', 'Saturday Capacity', 'Sat Capacity', 'SaturdayCapacity', 'SatCapacity', 'CapacitySaturday', 'Day6', 'Day 6', '6']
+                            ['Sunday', 'Sun', 'Sunday Capacity', 'SundayCapacity', 'Day0', '0'],
+                            ['Monday', 'Mon', 'Monday Capacity', 'MondayCapacity', 'Day1', '1'],
+                            ['Tuesday', 'Tue', 'Tuesday Capacity', 'TuesdayCapacity', 'Day2', '2'],
+                            ['Wednesday', 'Wed', 'Wednesday Capacity', 'WednesdayCapacity', 'Day3', '3'],
+                            ['Thursday', 'Thu', 'Thursday Capacity', 'ThursdayCapacity', 'Day4', '4'],
+                            ['Friday', 'Fri', 'Friday Capacity', 'FridayCapacity', 'Day5', '5'],
+                            ['Saturday', 'Sat', 'Saturday Capacity', 'SaturdayCapacity', 'Day6', '6']
                         ];
                         
-                        // Try to find capacity for each day
                         dayPatterns.forEach((patterns, dayIndex) => {
                             for (const pattern of patterns) {
                                 if (fields.hasOwnProperty(pattern) && fields[pattern] !== null && fields[pattern] !== '') {
-                                    const capacityValue = this.parseCapacityValue(fields[pattern]);
-                                    personCapacity[dayIndex] = capacityValue;
+                                    personCapacity[dayIndex] = this.parseCapacityValue(fields[pattern]);
                                     break;
                                 }
                             }
                         });
                         
-                        // If no specific day capacities found, try general capacity fields
-                        const foundAnyCapacity = Object.keys(personCapacity).length > 0;
-                        if (!foundAnyCapacity) {
-                            const generalCapacityFields = [
-                                'Capacity', 'Daily Capacity', 'DailyCapacity', 'Hours', 'Daily Hours', 
-                                'DailyHours', 'Work Hours', 'WorkHours', 'Default Capacity', 'DefaultCapacity'
-                            ];
-                            
-                            for (const field of generalCapacityFields) {
+                        if (Object.keys(personCapacity).length === 0) {
+                            const generalFields = ['Capacity', 'Daily Capacity', 'DailyCapacity', 'Hours', 'Work Hours'];
+                            for (const field of generalFields) {
                                 if (fields.hasOwnProperty(field) && fields[field] !== null && fields[field] !== '') {
                                     const capacityValue = this.parseCapacityValue(fields[field]);
-                                    for (let i = 1; i <= 5; i++) {
-                                        personCapacity[i] = capacityValue;
-                                    }
-                                    personCapacity[0] = 0;
-                                    personCapacity[6] = 0;
+                                    for (let i = 1; i <= 5; i++) personCapacity[i] = capacityValue;
+                                    personCapacity[0] = personCapacity[6] = 0;
                                     break;
                                 }
                             }
                         }
                         
-                        // Fill in missing days with 0
                         for (let i = 0; i < 7; i++) {
-                            if (personCapacity[i] === undefined) {
-                                personCapacity[i] = 0;
-                            }
+                            if (personCapacity[i] === undefined) personCapacity[i] = 0;
                         }
                         
                         this.peopleCapacity[fields.Name] = personCapacity;
@@ -444,34 +358,18 @@
             }
             
             parseCapacityValue(value) {
-                // Handle different data types and formats
-                if (value === null || value === undefined || value === '') {
-                    return 0;
-                }
-                
-                // If it's already a number
-                if (typeof value === 'number') {
-                    return Math.max(0, Math.floor(value));
-                }
-                
-                // If it's a string, try to parse it
+                if (value === null || value === undefined || value === '') return 0;
+                if (typeof value === 'number') return Math.max(0, Math.floor(value));
                 if (typeof value === 'string') {
-                    // Remove any non-numeric characters except decimal points
-                    const cleaned = value.replace(/[^0-9.]/g, '');
-                    const parsed = parseFloat(cleaned);
-                    
-                    if (!isNaN(parsed)) {
-                        return Math.max(0, Math.floor(parsed));
-                    }
+                    const parsed = parseFloat(value.replace(/[^0-9.]/g, ''));
+                    return !isNaN(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
                 }
-                
                 return 0;
             }
 
             async loadTasksFromAirtable() {
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
                 
-                // Discover what fields exist in the table
                 if (!this.detectedFields) {
                     const sampleResponse = await this.makeAirtableRequest(`${tableName}?maxRecords=5`);
                     this.detectedFields = sampleResponse.records.length > 0 ? 
@@ -479,32 +377,15 @@
                 }
                 
                 const dateKey = this.dateToLocalDateString(this.currentDate);
-                const possibleDateFields = ['Date', 'Ready Date', 'Task Date', 'TaskDate', 'ScheduledDate', 'Scheduled Date'];
+                const possibleDateFields = ['Date', 'Ready Date', 'Task Date', 'TaskDate', 'ScheduledDate'];
                 const existingDateFields = possibleDateFields.filter(field => this.detectedFields.includes(field));
                 
-                const possibleFilters = [];
-                
-                // Create filters for fields that exist
-                existingDateFields.forEach(field => {
-                    possibleFilters.push(`DATESTR({${field}})='${dateKey}'`);
-                    possibleFilters.push(`{${field}}='${dateKey}'`);
-                    possibleFilters.push(`IS_SAME({${field}}, DATETIME_PARSE('${dateKey}'), 'day')`);
-                });
-                
-                // Fallback filters
-                if (possibleFilters.length === 0) {
-                    possibleFilters.push(`{Date}='${dateKey}'`);
-                    possibleFilters.push(`DATESTR({Date})='${dateKey}'`);
-                }
-                
                 let response = null;
-                
-                // Try each filter until one works
-                for (const filter of possibleFilters) {
+                for (const field of existingDateFields) {
                     try {
+                        const filter = `IS_SAME({${field}}, DATETIME_PARSE('${dateKey}'), 'day')`;
                         const encodedFilter = encodeURIComponent(filter);
                         const testResponse = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodedFilter}`);
-                        
                         if (testResponse.records.length > 0) {
                             response = testResponse;
                             break;
@@ -514,10 +395,7 @@
                     }
                 }
                 
-                // If no filter worked, load all tasks for client-side filtering
-                if (!response) {
-                    response = await this.makeAirtableRequest(tableName);
-                }
+                if (!response) response = await this.makeAirtableRequest(tableName);
                 
                 this.tasks = {};
                 this.tasks[dateKey] = {};
@@ -525,8 +403,8 @@
                 response.records.forEach(record => {
                     const fields = record.fields;
                     const person = fields.Person || fields.Name || fields.Worker || fields.Employee;
+                    const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
                     
-                    // Find date field
                     let date = null;
                     for (const field of existingDateFields) {
                         if (fields[field]) {
@@ -534,26 +412,16 @@
                             break;
                         }
                     }
-                    if (!date) {
-                        date = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
-                    }
-                    
-                    const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
+                    if (!date) date = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
                     
                     if (person && date && orderNumber) {
-                        let taskDateStr;
-                        if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                            taskDateStr = date;
-                        } else {
-                            taskDateStr = this.dateToLocalDateString(new Date(date + 'T12:00:00'));
-                        }
+                        const taskDateStr = typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/) ? 
+                            date : this.dateToLocalDateString(new Date(date + 'T12:00:00'));
                         
                         if (taskDateStr === dateKey) {
-                            if (!this.tasks[dateKey][person]) {
-                                this.tasks[dateKey][person] = [];
-                            }
-
-                            const task = {
+                            if (!this.tasks[dateKey][person]) this.tasks[dateKey][person] = [];
+                            
+                            this.tasks[dateKey][person].push({
                                 id: record.id,
                                 orderNumber: orderNumber,
                                 dateDue: fields.DateDue || fields['Date Due'] || fields.DueDate,
@@ -561,9 +429,7 @@
                                 duration: fields.Duration || fields.Time || fields.Hours || 2,
                                 completed: fields.Completed || fields.Done || fields.Finished || false,
                                 position: fields.Position || fields.Order || fields.Sequence || 0
-                            };
-                            
-                            this.tasks[dateKey][person].push(task);
+                            });
                         }
                     }
                 });
@@ -571,7 +437,6 @@
 
             async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                 const baseUrl = `https://api.airtable.com/v0/${this.airtableConfig.baseId}/${endpoint}`;
-                
                 const options = {
                     method,
                     headers: {
@@ -582,7 +447,6 @@
 
                 if (data) {
                     options.body = JSON.stringify(data);
-                    // For non-GET requests, just make single request
                     const response = await fetch(baseUrl, options);
                     if (!response.ok) {
                         const error = await response.json();
@@ -591,55 +455,33 @@
                     return await response.json();
                 }
 
-                // For GET requests, handle pagination to get ALL records
                 let allRecords = [];
                 let offset = null;
                 let pageCount = 0;
-                const maxPages = 50; // Safety limit to prevent infinite loops
+                const maxPages = 50;
                 
                 do {
                     pageCount++;
                     let url = baseUrl;
-                    
-                    // Add offset parameter if we have one
                     if (offset) {
                         const separator = baseUrl.includes('?') ? '&' : '?';
                         url = `${baseUrl}${separator}offset=${encodeURIComponent(offset)}`;
                     }
                     
-                    console.log(`📄 Loading page ${pageCount} from Airtable...`);
-                    
                     const response = await fetch(url, options);
-                    
                     if (!response.ok) {
                         const error = await response.json();
                         throw new Error(error.error?.message || `HTTP ${response.status}`);
                     }
 
                     const pageData = await response.json();
-                    
-                    // Add records from this page
-                    if (pageData.records) {
-                        allRecords.push(...pageData.records);
-                        console.log(`📄 Page ${pageCount}: ${pageData.records.length} records (total so far: ${allRecords.length})`);
-                    }
-                    
-                    // Check if there are more pages
+                    if (pageData.records) allRecords.push(...pageData.records);
                     offset = pageData.offset;
                     
-                    // Safety check
-                    if (pageCount >= maxPages) {
-                        console.warn(`⚠️ Reached maximum page limit (${maxPages}), stopping pagination`);
-                        break;
-                    }
-                    
+                    if (pageCount >= maxPages) break;
                 } while (offset);
                 
-                console.log(`✅ Pagination complete: ${allRecords.length} total records loaded from ${pageCount} pages`);
-                
-                return {
-                    records: allRecords
-                };
+                return { records: allRecords };
             }
 
             renderTasksView() {
@@ -654,7 +496,6 @@
                     return;
                 }
 
-                // Create the person selector
                 const selectorContainer = document.createElement('div');
                 selectorContainer.className = 'mb-4';
                 selectorContainer.innerHTML = `
@@ -686,12 +527,9 @@
                 const personColumn = this.createPersonColumn(this.selectedPerson, personTasks, dateKey);
                 container.appendChild(personColumn);
                 
-                // Add Back to Top button
                 const backToTopDiv = document.createElement('div');
                 backToTopDiv.className = 'mt-4';
-                backToTopDiv.innerHTML = `
-                    <button id="backToTopOrders" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm">⬆️ Back to Top</button>
-                `;
+                backToTopDiv.innerHTML = `<button id="backToTopOrders" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm">⬆️ Back to Top</button>`;
                 container.appendChild(backToTopDiv);
                 
                 const backToTopOrdersBtn = document.getElementById('backToTopOrders');
@@ -702,29 +540,21 @@
 
             populatePersonSelector() {
                 const selector = document.getElementById('personSelect');
-                if (!selector) {
-                    return;
-                }
+                if (!selector) return;
                 
-                // Store the current selection from this.selectedPerson (not the HTML)
                 const preservedSelection = this.selectedPerson;
-                
-                // Clear and add base options
                 selector.innerHTML = '';
                 
-                // Add default option
                 const defaultOption = document.createElement('option');
                 defaultOption.value = '';
                 defaultOption.textContent = 'Select a person...';
                 selector.appendChild(defaultOption);
                 
-                // Add "All Persons" option
                 const allOption = document.createElement('option');
                 allOption.value = '__ALL__';
                 allOption.textContent = '📋 All Persons';
                 selector.appendChild(allOption);
                 
-                // Add individual people
                 this.people.forEach(person => {
                     const option = document.createElement('option');
                     option.value = person;
@@ -732,7 +562,6 @@
                     selector.appendChild(option);
                 });
                 
-                // Set the correct selection based on preserved selection
                 if (preservedSelection === '__ALL__') {
                     selector.value = '__ALL__';
                     this.selectedPerson = '__ALL__';
@@ -740,7 +569,6 @@
                     selector.value = preservedSelection;
                     this.selectedPerson = preservedSelection;
                 } else if (!preservedSelection && this.people.length > 0) {
-                    // Default to "All Persons" only if no person was previously selected
                     this.selectedPerson = '__ALL__';
                     selector.value = '__ALL__';
                 }
@@ -748,10 +576,7 @@
 
             selectPerson(person) {
                 this.selectedPerson = person;
-                
-                // Save to localStorage immediately when person selection changes
                 this.saveConfigToStorage();
-                
                 this.renderCurrentView();
             }
 
@@ -770,29 +595,20 @@
                 const column = document.createElement('div');
                 column.className = 'bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700';
                 
-                // Get current filter for this person (default to 'all')
                 const currentFilter = this.personFilters?.[person] || 'all';
-                
-                // Calculate task statistics
                 const totalTasks = tasks.length;
                 const completedTasks = tasks.filter(t => t.completed).length;
                 const incompleteTasks = totalTasks - completedTasks;
                 
-                // Calculate overdue tasks (not completed AND due date is in the past)
                 const overdueTasks = tasks.filter(task => {
                     if (task.completed || !task.dateDue) return false;
-                    
                     const dueDate = new Date(task.dateDue);
                     const today = new Date();
-                    
-                    // Set both dates to midnight for proper comparison
                     dueDate.setHours(0, 0, 0, 0);
                     today.setHours(0, 0, 0, 0);
-                    
                     return dueDate < today;
                 }).length;
                 
-                // Filter tasks based on current selection
                 let filteredTasks = tasks;
                 if (currentFilter === 'complete') {
                     filteredTasks = tasks.filter(t => t.completed);
@@ -801,42 +617,31 @@
                 } else if (currentFilter === 'overdue') {
                     filteredTasks = tasks.filter(task => {
                         if (task.completed || !task.dateDue) return false;
-                        
                         const dueDate = new Date(task.dateDue);
                         const today = new Date();
-                        
-                        // Set both dates to midnight for proper comparison
                         dueDate.setHours(0, 0, 0, 0);
                         today.setHours(0, 0, 0, 0);
-                        
                         return dueDate < today;
                     });
                 }
                 
-                // Get capacity information
                 const capacity = this.getPersonCapacityForDate(person);
                 const usedSlots = tasks.reduce((total, task) => total + task.duration, 0);
                 const remainingSlots = Math.max(0, capacity - usedSlots);
-                
                 const capacityHours = Math.floor(capacity * 15 / 60);
                 const capacityMins = (capacity * 15) % 60;
                 const remainingHours = Math.floor(remainingSlots * 15 / 60);
                 const remainingMins = (remainingSlots * 15) % 60;
-                
                 const dayName = this.DAYS_OF_WEEK[this.currentDate.getDay()];
                 
-                // Header with person info
                 const header = document.createElement('div');
                 header.className = 'p-4 border-b border-gray-200 dark:border-gray-700';
                 header.innerHTML = `
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="font-semibold text-lg text-gray-900 dark:text-gray-100">${person}</h3>
-                        <div class="text-sm text-gray-500 dark:text-gray-400">
-                            ${dayName}
-                        </div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">${dayName}</div>
                     </div>
                     
-                    <!-- Task Summary -->
                     <div class="bg-purple-50 dark:bg-purple-900 border border-purple-200 dark:border-purple-700 rounded-lg p-3 mb-3">
                         <h4 class="font-semibold text-purple-800 dark:text-purple-200 mb-2 text-sm">📋 Task Summary</h4>
                         <div class="grid grid-cols-3 gap-2 text-center">
@@ -855,28 +660,20 @@
                         </div>
                     </div>
                     
-                    <!-- Capacity Info -->
                     <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
                         Capacity: ${capacity} slots (${capacityHours}h ${capacityMins}m)
                     </div>
                     <div class="flex items-center justify-between text-xs">
-                        <div class="text-gray-600 dark:text-gray-400">
-                            Used: ${usedSlots}/${capacity} slots
-                        </div>
+                        <div class="text-gray-600 dark:text-gray-400">Used: ${usedSlots}/${capacity} slots</div>
                         <div class="font-medium ${remainingSlots > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}">
                             ${remainingSlots > 0 ? `${remainingSlots} remaining` : 'Over capacity'}
                         </div>
                     </div>
-                    ${remainingSlots > 0 ? `
-                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        (${remainingHours}h ${remainingMins}m available)
-                    </div>` : ''}
+                    ${remainingSlots > 0 ? `<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">(${remainingHours}h ${remainingMins}m available)</div>` : ''}
                 `;
                 
-                // Tasks area
                 const tasksArea = document.createElement('div');
                 tasksArea.className = 'p-4 min-h-[400px]';
-                tasksArea.id = `tasks-${person.replace(/\s+/g, '-')}`;
                 
                 if (filteredTasks.length === 0) {
                     const filterText = currentFilter === 'all' ? '' : currentFilter + ' ';
@@ -887,9 +684,7 @@
                         </div>
                     `;
                 } else {
-                    // Sort tasks by position
                     filteredTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
-                    
                     filteredTasks.forEach(task => {
                         const taskElement = this.createMobileTaskCard(task);
                         tasksArea.appendChild(taskElement);
@@ -899,7 +694,6 @@
                 column.appendChild(header);
                 column.appendChild(tasksArea);
                 
-                // Add event listeners for filter buttons
                 setTimeout(() => {
                     const filterButtons = column.querySelectorAll('.person-filter-btn');
                     filterButtons.forEach(btn => {
@@ -917,39 +711,22 @@
 
             getPersonCapacityForDate(person) {
                 const dayOfWeek = this.currentDate.getDay();
-                
-                // Check if we have specific capacity data for this person
                 if (this.peopleCapacity[person] && this.peopleCapacity[person][dayOfWeek] !== undefined) {
                     return this.peopleCapacity[person][dayOfWeek];
                 }
-                
-                // Default weekly schedule (16 slots = 4 hours per day Mon-Fri)
-                const defaultCapacity = {
-                    0: 0,  // Sunday
-                    1: 16, // Monday
-                    2: 16, // Tuesday
-                    3: 16, // Wednesday
-                    4: 16, // Thursday
-                    5: 16, // Friday
-                    6: 0   // Saturday
-                };
-                
+                const defaultCapacity = { 0: 0, 1: 16, 2: 16, 3: 16, 4: 16, 5: 16, 6: 0 };
                 return defaultCapacity[dayOfWeek] || 0;
             }
 
             createMobileTaskCard(task) {
                 const card = document.createElement('div');
                 
-                // Fix overdue logic to compare dates only, not times
                 let isOverdue = false;
                 if (task.dateDue && !task.completed) {
                     const dueDate = new Date(task.dateDue);
                     const today = new Date();
-                    
-                    // Set both dates to midnight for proper comparison
                     dueDate.setHours(0, 0, 0, 0);
                     today.setHours(0, 0, 0, 0);
-                    
                     isOverdue = dueDate < today;
                 }
                 
@@ -973,14 +750,11 @@
                                 ${isIncomplete ? '<span class="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 rounded">Incomplete</span>' : ''}
                             </div>
                             <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">
-                                Due: ${this.formatDateForDisplay(task.dateDue)}
-                            </div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Due: ${this.formatDateForDisplay(task.dateDue)}</div>
                         </div>
                         <button class="complete-btn ml-4 p-2 rounded-full transition-colors ${
                             isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
-                        }" 
-                                data-task-id="${task.id}">
+                        }" data-task-id="${task.id}">
                             ${isCompleted ? '✓' : '○'}
                         </button>
                     </div>
@@ -995,22 +769,16 @@
                 return card;
             }
 
-
-
             async toggleTaskCompletion(task) {
                 const newStatus = !task.completed;
-                
-                // Optimistically update UI
                 task.completed = newStatus;
                 this.renderCurrentView();
                 
-                // Update in Airtable
                 try {
                     await this.updateTaskInAirtable(task.id, { Completed: newStatus });
                     const statusText = newStatus ? 'completed' : 'marked incomplete';
                     this.showToast(`✅ Order #${task.orderNumber} ${statusText}`, 'success');
                 } catch (error) {
-                    // Revert on failure
                     task.completed = !newStatus;
                     this.renderCurrentView();
                     this.showToast('❌ Failed to update task status', 'error');
@@ -1019,28 +787,17 @@
 
             async updateTaskInAirtable(taskId, updates) {
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
-                const data = {
-                    records: [{
-                        id: taskId,
-                        fields: updates
-                    }]
-                };
-
+                const data = { records: [{ id: taskId, fields: updates }] };
                 await this.makeAirtableRequest(tableName, 'PATCH', data);
             }
 
             async showReportView() {
                 this.currentView = 'report';
-                document.getElementById('mainContent').classList.add('hidden');
-                document.getElementById('searchView').classList.add('hidden');
-                document.getElementById('settingsView').classList.add('hidden');
+                this.hideAllViews();
                 document.getElementById('reportView').classList.remove('hidden');
-                
-                // Clear any search state when switching views
                 this.clearSearchState();
                 this.scrollToTop();
                 
-                // Show loading state
                 document.getElementById('reportContent').innerHTML = `
                     <div class="text-center py-8">
                         <div class="loading-spinner rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-3"></div>
@@ -1054,13 +811,116 @@
 
             showTasksView() {
                 this.currentView = 'tasks';
-                document.getElementById('reportView').classList.add('hidden');
-                document.getElementById('searchView').classList.add('hidden');
-                document.getElementById('settingsView').classList.add('hidden');
+                this.hideAllViews();
                 document.getElementById('mainContent').classList.remove('hidden');
-                // Clear any search state when switching views
                 this.clearSearchState();
                 this.scrollToTop();
+            }
+
+            showSearchView() {
+                this.currentView = 'search';
+                this.hideAllViews();
+                document.getElementById('searchView').classList.remove('hidden');
+                this.setupSearchEventListeners();
+            }
+
+            showSettingsView() {
+                this.currentView = 'settings';
+                this.hideAllViews();
+                document.getElementById('settingsView').classList.remove('hidden');
+                this.updateConnectionStatus();
+                this.populateSettingsForm();
+            }
+
+            hideAllViews() {
+                ['mainContent', 'reportView', 'searchView', 'settingsView'].forEach(id => {
+                    document.getElementById(id).classList.add('hidden');
+                });
+            }
+
+            async loadAllTasksForReport() {
+                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
+                const targetDueDate = this.dateToLocalDateString(this.currentDate);
+                
+                const today = new Date();
+                const startDate = new Date(today);
+                startDate.setDate(today.getDate() - (this.dataRange.weeksBack * 7));
+                const endDate = new Date(today);
+                endDate.setDate(today.getDate() + (this.dataRange.weeksForward * 7));
+                
+                const targetDate = new Date(targetDueDate + 'T12:00:00');
+                if (targetDate < startDate) startDate.setTime(targetDate.getTime());
+                if (targetDate > endDate) endDate.setTime(targetDate.getTime());
+                
+                const startDateStr = this.dateToLocalDateString(startDate);
+                const endDateStr = this.dateToLocalDateString(endDate);
+                
+                let response;
+                try {
+                    if (!this.detectedFields) {
+                        const sampleResponse = await this.makeAirtableRequest(`${tableName}?maxRecords=5`);
+                        this.detectedFields = sampleResponse.records.length > 0 ? 
+                            Object.keys(sampleResponse.records[0].fields) : [];
+                    }
+                    
+                    const possibleDueDateFields = ['DateDue', 'Date Due', 'DueDate', 'Due Date'];
+                    const existingDueDateFields = possibleDueDateFields.filter(field => this.detectedFields.includes(field));
+                    
+                    if (existingDueDateFields.length > 0) {
+                        const dueDateField = existingDueDateFields[0];
+                        const filter = `AND(
+                            NOT({${dueDateField}} = BLANK()),
+                            {${dueDateField}} >= DATETIME_PARSE('${startDateStr}T00:00:00'),
+                            {${dueDateField}} <= DATETIME_PARSE('${endDateStr}T23:59:59')
+                        )`;
+                        const encodedFilter = encodeURIComponent(filter);
+                        response = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodedFilter}`);
+                    } else {
+                        response = await this.makeAirtableRequest(tableName);
+                    }
+                } catch (error) {
+                    response = await this.makeAirtableRequest(tableName);
+                }
+                
+                this.reportTasks = [];
+                this.allTasksWithDueDates = [];
+                
+                response.records.forEach(record => {
+                    const fields = record.fields;
+                    const person = fields.Person || fields.Name || fields.Worker || fields.Employee;
+                    const workDate = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
+                    const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
+                    const dateDue = fields.DateDue || fields['Date Due'] || fields.DueDate;
+                    
+                    if (person && orderNumber && (workDate || dateDue)) {
+                        let taskDateStr, dueDateStr;
+                        
+                        if (workDate) {
+                            taskDateStr = typeof workDate === 'string' && workDate.match(/^\d{4}-\d{2}-\d{2}$/) ? 
+                                workDate : this.dateToLocalDateString(new Date(workDate + 'T12:00:00'));
+                        }
+                        
+                        if (dateDue) {
+                            dueDateStr = typeof dateDue === 'string' && dateDue.match(/^\d{4}-\d{2}-\d{2}$/) ? 
+                                dateDue : this.dateToLocalDateString(new Date(dateDue + 'T12:00:00'));
+                        }
+                        
+                        const task = {
+                            id: record.id,
+                            orderNumber: orderNumber,
+                            taskDate: taskDateStr || dueDateStr,
+                            dateDue: dueDateStr,
+                            description: fields.Description || fields.Notes || fields.Details || '',
+                            duration: fields.Duration || fields.Time || fields.Hours || 2,
+                            completed: fields.Completed || fields.Done || fields.Finished || false,
+                            position: fields.Position || fields.Order || fields.Sequence || 0,
+                            person: person
+                        };
+                        
+                        if (dueDateStr) this.allTasksWithDueDates.push(task);
+                        if (dueDateStr === targetDueDate) this.reportTasks.push(task);
+                    }
+                });
             }
 
             renderReport() {
@@ -1074,56 +934,44 @@
                     return;
                 }
                 
-                // Get current filter or default to 'all'
                 const currentFilter = this.reportFilter || 'all';
-                
-                // Filter tasks based on selection
                 let filteredTasks = this.reportTasks;
+                
                 if (currentFilter === 'complete') {
                     filteredTasks = this.reportTasks.filter(t => t.completed);
                 } else if (currentFilter === 'incomplete') {
                     filteredTasks = this.reportTasks.filter(t => !t.completed);
                 } else if (currentFilter === 'overdue') {
-                    // Use all tasks with due dates for overdue filtering (not just current date)
                     filteredTasks = this.allTasksWithDueDates.filter(task => {
                         if (task.completed) return false;
-                        
                         const dueDate = new Date(task.dateDue);
                         const today = new Date();
-                        
-                        // Set both dates to midnight for proper comparison
                         dueDate.setHours(0, 0, 0, 0);
                         today.setHours(0, 0, 0, 0);
-                        
                         return dueDate < today;
                     });
                 }
                 
-                // Sort tasks by completion status (incomplete first), then by person
                 filteredTasks.sort((a, b) => {
-                    if (a.completed !== b.completed) {
-                        return a.completed ? 1 : -1; // Incomplete first
-                    }
+                    if (a.completed !== b.completed) return a.completed ? 1 : -1;
                     return a.person.localeCompare(b.person);
                 });
                 
-                // Generate summary
                 const totalTasks = this.reportTasks.length;
-                const completedTasks = this.reportTasks.filter(t => t.completed).length;
                 const incompleteTasks = this.reportTasks.filter(t => !t.completed).length;
-                
-                // Calculate overdue tasks - ALL tasks due before today (global filter)
+                // Overdue = incomplete tasks due BEFORE today (not including today)
+                const actualToday = new Date();
+                const todayDateString = this.dateToLocalDateString(actualToday);
                 const overdueTasks = this.allTasksWithDueDates.filter(task => {
                     if (task.completed) return false;
+                    if (!task.dateDue) return false;
                     
-                    const dueDate = new Date(task.dateDue);
-                    const today = new Date();
+                    // Convert due date to date string for exact comparison
+                    const dueDateString = typeof task.dateDue === 'string' && task.dateDue.match(/^\d{4}-\d{2}-\d{2}$/) ? 
+                        task.dateDue : this.dateToLocalDateString(new Date(task.dateDue + 'T12:00:00'));
                     
-                    // Set both dates to midnight for proper comparison
-                    dueDate.setHours(0, 0, 0, 0);
-                    today.setHours(0, 0, 0, 0);
-                    
-                    return dueDate < today;
+                    // Only count as overdue if due date is strictly before today
+                    return dueDateString < todayDateString;
                 }).length;
                 
                 const summaryHtml = `
@@ -1145,46 +993,36 @@
                     </div>
                 `;
                 
-                // Generate tasks HTML
                 const tasksHtml = filteredTasks.length === 0 ? 
                     `<p class="text-gray-500 dark:text-gray-400 text-center py-8">No ${currentFilter === 'all' ? '' : currentFilter + ' '}tasks found</p>` :
-                    filteredTasks.map(task => {
-                        const statusClass = task.completed ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400';
-                        const status = task.completed ? 'Complete' : 'Incomplete';
-                        
-                        return `
-                            <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4 mb-3 ${task.completed ? 'bg-green-50 dark:bg-green-900' : 'bg-yellow-50 dark:bg-yellow-900'}">
-                                <div class="flex justify-between items-start">
-                                    <div class="flex-1">
-                                        <div class="flex items-center space-x-2 mb-2">
-                                            <div class="font-semibold text-gray-900 dark:text-gray-100">#${task.orderNumber}</div>
-                                            <div class="text-sm text-gray-600 dark:text-gray-400">${task.person} • ${task.duration * 15}min</div>
-                                        </div>
-                                        <div class="text-sm text-gray-800 dark:text-gray-200 mb-2">${task.description}</div>
-                                        <div class="text-xs text-gray-500 dark:text-gray-400">
-                                            <div><strong>Due:</strong> ${this.formatDateForDisplay(task.dateDue)}</div>
-                                            <div><strong>Work Date:</strong> ${this.formatDateForDisplay(task.taskDate)}</div>
-                                        </div>
+                    filteredTasks.map(task => `
+                        <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4 mb-3 ${task.completed ? 'bg-green-50 dark:bg-green-900' : 'bg-yellow-50 dark:bg-yellow-900'}">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-2">
+                                        <div class="font-semibold text-gray-900 dark:text-gray-100">#${task.orderNumber}</div>
+                                        <div class="text-sm text-gray-600 dark:text-gray-400">${task.person} • ${task.duration * 15}min</div>
                                     </div>
-                                    <div class="flex items-center space-x-3 ml-4">
-                                        <div class="text-sm font-medium ${statusClass}">${status}</div>
-                                        <button class="report-complete-btn p-3 rounded-full transition-colors ${
-                                            task.completed ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
-                                        }" 
-                                                data-task-id="${task.id}"
-                                                data-person="${task.person}"
-                                                title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
-                                            ${task.completed ? '✓' : '○'}
-                                        </button>
+                                    <div class="text-sm text-gray-800 dark:text-gray-200 mb-2">${task.description}</div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                                        <div><strong>Due:</strong> ${this.formatDateForDisplay(task.dateDue)}</div>
+                                        <div><strong>Work Date:</strong> ${this.formatDateForDisplay(task.taskDate)}</div>
                                     </div>
                                 </div>
+                                <div class="flex items-center space-x-3 ml-4">
+                                    <div class="text-sm font-medium ${task.completed ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}">${task.completed ? 'Complete' : 'Incomplete'}</div>
+                                    <button class="report-complete-btn p-3 rounded-full transition-colors ${
+                                        task.completed ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
+                                    }" data-task-id="${task.id}" data-person="${task.person}" title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
+                                        ${task.completed ? '✓' : '○'}
+                                    </button>
+                                </div>
                             </div>
-                        `;
-                    }).join('');
+                        </div>
+                    `).join('');
                 
                 container.innerHTML = summaryHtml + tasksHtml;
                 
-                // Add event listeners for filter buttons
                 const filterButtons = container.querySelectorAll('.filter-btn');
                 filterButtons.forEach(btn => {
                     btn.addEventListener('click', (e) => {
@@ -1195,32 +1033,46 @@
                     });
                 });
                 
-                // Add event listeners for completion buttons
                 const completeButtons = container.querySelectorAll('.report-complete-btn');
                 completeButtons.forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         e.preventDefault();
                         const taskId = btn.getAttribute('data-task-id');
-                        const person = btn.getAttribute('data-person');
-                        this.toggleTaskCompletionInReport(taskId, person);
+                        this.toggleTaskCompletionInReport(taskId);
                     });
                 });
             }
 
-            // Utility methods
+            async toggleTaskCompletionInReport(taskId) {
+                const task = this.reportTasks.find(t => t.id === taskId);
+                if (!task) {
+                    this.showToast('❌ Task not found', 'error');
+                    return;
+                }
+                
+                const newStatus = !task.completed;
+                task.completed = newStatus;
+                this.renderReport();
+                
+                try {
+                    await this.updateTaskInAirtable(task.id, { Completed: newStatus });
+                    const statusText = newStatus ? 'completed' : 'marked incomplete';
+                    this.showToast(`✅ Order #${task.orderNumber} ${statusText}`, 'success');
+                } catch (error) {
+                    task.completed = !newStatus;
+                    this.renderReport();
+                    this.showToast('❌ Failed to update task status', 'error');
+                }
+            }
+
             navigateDay(direction) {
                 this.currentDate.setDate(this.currentDate.getDate() + direction);
                 this.updateDateDisplay();
                 
-                // Handle different views appropriately
                 if (this.currentView === 'report') {
-                    // Reload report for new date
                     this.showReportView();
                 } else {
-                    // For tasks view, reload data and render
-                    this.loadDataFromAirtable().then(() => {
-                        this.renderCurrentView();
-                    });
+                    this.loadDataFromAirtable().then(() => this.renderCurrentView());
                 }
             }
 
@@ -1228,38 +1080,28 @@
                 this.currentDate = new Date();
                 this.updateDateDisplay();
                 
-                // Handle different views appropriately
                 if (this.currentView === 'report') {
-                    // Reload report for today
                     this.showReportView();
                     this.showToast('📅 Ready Date Report for today', 'info');
                 } else {
-                    // For tasks view, reload data and render
-                    this.loadDataFromAirtable().then(() => {
-                        this.renderCurrentView();
-                    });
+                    this.loadDataFromAirtable().then(() => this.renderCurrentView());
                     this.showToast('📅 Navigated to today', 'info');
                 }
             }
 
             async refreshData() {
                 this.showToast('🔄 Refreshing data...', 'info');
-                
-                // Preserve current person selection and view state
                 const currentPerson = this.selectedPerson;
                 const currentView = this.currentView;
                 
                 try {
                     await this.loadDataFromAirtable();
-                    
-                    // Restore the person selection if it was set
                     if (currentPerson && this.people.includes(currentPerson)) {
                         this.selectedPerson = currentPerson;
                     } else if (currentPerson === '__ALL__') {
                         this.selectedPerson = '__ALL__';
                     }
                     
-                    // Render the appropriate view
                     if (currentView === 'tasks') {
                         this.renderTasksView();
                     } else {
@@ -1278,8 +1120,6 @@
             }
 
             renderAllPersonsView(dateKey, container) {
-                
-                // Get all people who have tasks on this date
                 const allPersonsWithTasks = Object.keys(this.tasks[dateKey] || {});
                 
                 if (allPersonsWithTasks.length === 0) {
@@ -1293,24 +1133,19 @@
                     return;
                 }
                 
-                // Create a combined view with all persons
                 allPersonsWithTasks.forEach(person => {
                     const personTasks = this.tasks[dateKey][person] || [];
                     if (personTasks.length > 0) {
                         const personColumn = this.createPersonColumn(person, personTasks, dateKey);
-                        personColumn.className += ' mb-6'; // Add spacing between person sections
+                        personColumn.className += ' mb-6';
                         container.appendChild(personColumn);
                     }
                 });
                 
-                // Add summary at the top
-                const totalTasks = allPersonsWithTasks.reduce((total, person) => {
-                    return total + (this.tasks[dateKey][person]?.length || 0);
-                }, 0);
-                
-                const incompleteTasks = allPersonsWithTasks.reduce((total, person) => {
-                    return total + (this.tasks[dateKey][person]?.filter(t => !t.completed).length || 0);
-                }, 0);
+                const totalTasks = allPersonsWithTasks.reduce((total, person) => 
+                    total + (this.tasks[dateKey][person]?.length || 0), 0);
+                const incompleteTasks = allPersonsWithTasks.reduce((total, person) => 
+                    total + (this.tasks[dateKey][person]?.filter(t => !t.completed).length || 0), 0);
                 
                 const summaryDiv = document.createElement('div');
                 summaryDiv.className = 'bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6';
@@ -1332,24 +1167,17 @@
                     </div>
                 `;
                 
-                // Insert summary at the beginning
                 container.insertBefore(summaryDiv, container.firstChild.nextSibling);
                 
-                // Add Back to Top button for All Persons view
                 const backToTopDiv = document.createElement('div');
                 backToTopDiv.className = 'mt-4';
-                backToTopDiv.innerHTML = `
-                    <button id="backToTopOrdersAll" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm">⬆️ Back to Top</button>
-                `;
+                backToTopDiv.innerHTML = `<button id="backToTopOrdersAll" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm">⬆️ Back to Top</button>`;
                 container.appendChild(backToTopDiv);
                 
-                // Add event listener for the Back to Top button
                 const backToTopOrdersAllBtn = document.getElementById('backToTopOrdersAll');
                 if (backToTopOrdersAllBtn) {
                     backToTopOrdersAllBtn.addEventListener('click', () => this.scrollToTop());
                 }
-
-
             }
 
             async renderCurrentView() {
@@ -1374,17 +1202,12 @@
                     </div>
                 `;
                 
-                // Add event listener for the settings button
-                document.getElementById('openSettingsFromMessage').addEventListener('click', () => {
-                    this.showSettingsView();
-                });
+                document.getElementById('openSettingsFromMessage').addEventListener('click', () => this.showSettingsView());
             }
 
             hideLoadingMessage() {
                 const loading = document.getElementById('loadingMessage');
-                if (loading) {
-                    loading.style.display = 'none';
-                }
+                if (loading) loading.style.display = 'none';
             }
 
             showDatePicker() {
@@ -1404,29 +1227,20 @@
                         this.currentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
                         this.updateDateDisplay();
                         
-                        // Handle different views appropriately
                         if (this.currentView === 'report') {
-                            // Reload report for new date
                             this.showReportView();
                         } else {
-                            // For tasks view, reload data and render
-                            this.loadDataFromAirtable().then(() => {
-                                this.renderCurrentView();
-                            });
+                            this.loadDataFromAirtable().then(() => this.renderCurrentView());
                         }
                     }
                     document.body.removeChild(input);
                 });
                 
-                // Remove if not used within 3 seconds
                 setTimeout(() => {
-                    if (document.body.contains(input)) {
-                        document.body.removeChild(input);
-                    }
+                    if (document.body.contains(input)) document.body.removeChild(input);
                 }, 3000);
             }
 
-            // Date utility methods
             dateToLocalDateString(date) {
                 if (!date) return '';
                 const year = date.getFullYear();
@@ -1435,32 +1249,25 @@
                 return `${year}-${month}-${day}`;
             }
 
-            parseDateString(dateString) {
-                if (!dateString) return null;
-                if (dateString instanceof Date) return dateString;
+            formatDateForDisplay(dateInput) {
+                if (!dateInput) return 'Invalid Date';
                 
-                if (typeof dateString === 'string') {
-                    const dateOnly = dateString.includes('T') ? dateString.split('T')[0] : dateString;
+                let date;
+                if (typeof dateInput === 'string') {
+                    const dateOnly = dateInput.includes('T') ? dateInput.split('T')[0] : dateInput;
                     const parts = dateOnly.split('-');
-                    
                     if (parts.length === 3) {
                         const year = parseInt(parts[0]);
                         const month = parseInt(parts[1]);
                         const day = parseInt(parts[2]);
-                        
                         if (year && month && day && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-                            // Force local timezone by using Date constructor with individual components
-                            // This prevents timezone interpretation issues with date strings
-                            return new Date(year, month - 1, day, 12, 0, 0, 0);
+                            date = new Date(year, month - 1, day, 12, 0, 0, 0);
                         }
                     }
+                } else {
+                    date = dateInput;
                 }
                 
-                return null;
-            }
-
-            formatDateForDisplay(dateInput) {
-                const date = this.parseDateString(dateInput);
                 if (!date) return 'Invalid Date';
                 
                 try {
@@ -1474,33 +1281,13 @@
                 }
             }
 
-            // Settings functionality
-            showSearchView() {
-                this.currentView = 'search';
-                document.getElementById('mainContent').classList.add('hidden');
-                document.getElementById('reportView').classList.add('hidden');
-                document.getElementById('settingsView').classList.add('hidden');
-                document.getElementById('searchView').classList.remove('hidden');
-                
-                // Set up search event listeners
-                this.setupSearchEventListeners();
-            }
-
             setupSearchEventListeners() {
-                const searchInputMain = document.getElementById('searchInputMain');
-                const searchButtonMain = document.getElementById('searchButtonMain');
-                const clearSearchMain = document.getElementById('clearSearchMain');
-                const searchDateFrom = document.getElementById('searchDateFrom');
-                const searchDateTo = document.getElementById('searchDateTo');
-                
-                // Quick date button listeners
-                const quickToday = document.getElementById('quickToday');
-                const quickWeek = document.getElementById('quickWeek');
-                const quickMonth = document.getElementById('quickMonth');
-                const quickAll = document.getElementById('quickAll');
-                
-                // Set up date range validation and search button state
                 const updateSearchButtonState = () => {
+                    const searchDateFrom = document.getElementById('searchDateFrom');
+                    const searchDateTo = document.getElementById('searchDateTo');
+                    const searchInputMain = document.getElementById('searchInputMain');
+                    const searchButtonMain = document.getElementById('searchButtonMain');
+                    
                     const hasFromDate = searchDateFrom && searchDateFrom.value;
                     const hasToDate = searchDateTo && searchDateTo.value;
                     const hasQuery = searchInputMain && searchInputMain.value.trim().length >= 2;
@@ -1508,119 +1295,83 @@
                     if (searchButtonMain) {
                         const canSearch = (hasFromDate || hasToDate) && hasQuery;
                         searchButtonMain.disabled = !canSearch;
-                        
-                        if (canSearch) {
-                            searchButtonMain.className = 'absolute inset-y-0 right-0 flex items-center pr-3 text-purple-500 hover:text-purple-600 transition-colors cursor-pointer';
-                            searchButtonMain.title = 'Search';
-                        } else {
-                            searchButtonMain.className = 'absolute inset-y-0 right-0 flex items-center pr-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-                            searchButtonMain.title = 'Enter search term and select date range';
-                        }
+                        searchButtonMain.className = canSearch ? 
+                            'absolute inset-y-0 right-0 flex items-center pr-3 text-purple-500 hover:text-purple-600 transition-colors cursor-pointer' :
+                            'absolute inset-y-0 right-0 flex items-center pr-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
                     }
                 };
                 
-                // Quick date handlers
-                if (quickToday) {
-                    quickToday.addEventListener('click', () => {
-                        const today = this.dateToLocalDateString(new Date());
-                        if (searchDateFrom) searchDateFrom.value = today;
-                        if (searchDateTo) searchDateTo.value = today;
-                        updateSearchButtonState();
-                    });
-                }
-                
-                if (quickWeek) {
-                    quickWeek.addEventListener('click', () => {
-                        const today = new Date();
-                        const startOfWeek = new Date(today);
-                        startOfWeek.setDate(today.getDate() - today.getDay());
-                        const endOfWeek = new Date(startOfWeek);
-                        endOfWeek.setDate(startOfWeek.getDate() + 6);
-                        
-                        if (searchDateFrom) searchDateFrom.value = this.dateToLocalDateString(startOfWeek);
-                        if (searchDateTo) searchDateTo.value = this.dateToLocalDateString(endOfWeek);
-                        updateSearchButtonState();
-                    });
-                }
-                
-                if (quickMonth) {
-                    quickMonth.addEventListener('click', () => {
-                        const today = new Date();
-                        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-                        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                        
-                        if (searchDateFrom) searchDateFrom.value = this.dateToLocalDateString(startOfMonth);
-                        if (searchDateTo) searchDateTo.value = this.dateToLocalDateString(endOfMonth);
-                        updateSearchButtonState();
-                    });
-                }
-                
-                if (quickAll) {
-                    quickAll.addEventListener('click', () => {
-                        // Set a very wide range for "all time"
-                        const oneYearAgo = new Date();
-                        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-                        const oneYearFromNow = new Date();
-                        oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
-                        
-                        if (searchDateFrom) searchDateFrom.value = this.dateToLocalDateString(oneYearAgo);
-                        if (searchDateTo) searchDateTo.value = this.dateToLocalDateString(oneYearFromNow);
-                        updateSearchButtonState();
-                    });
-                }
-                
-                // Date input listeners
-                if (searchDateFrom) {
-                    searchDateFrom.addEventListener('change', updateSearchButtonState);
-                }
-                if (searchDateTo) {
-                    searchDateTo.addEventListener('change', updateSearchButtonState);
-                }
-                
+                ['quickToday', 'quickWeek', 'quickMonth', 'quickAll'].forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) {
+                        btn.addEventListener('click', () => {
+                            const today = new Date();
+                            const searchDateFrom = document.getElementById('searchDateFrom');
+                            const searchDateTo = document.getElementById('searchDateTo');
+                            
+                            switch(id) {
+                                case 'quickToday':
+                                    const todayStr = this.dateToLocalDateString(today);
+                                    if (searchDateFrom) searchDateFrom.value = todayStr;
+                                    if (searchDateTo) searchDateTo.value = todayStr;
+                                    break;
+                                case 'quickWeek':
+                                    const startOfWeek = new Date(today);
+                                    startOfWeek.setDate(today.getDate() - today.getDay());
+                                    const endOfWeek = new Date(startOfWeek);
+                                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+                                    if (searchDateFrom) searchDateFrom.value = this.dateToLocalDateString(startOfWeek);
+                                    if (searchDateTo) searchDateTo.value = this.dateToLocalDateString(endOfWeek);
+                                    break;
+                                case 'quickMonth':
+                                    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                                    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                                    if (searchDateFrom) searchDateFrom.value = this.dateToLocalDateString(startOfMonth);
+                                    if (searchDateTo) searchDateTo.value = this.dateToLocalDateString(endOfMonth);
+                                    break;
+                                case 'quickAll':
+                                    const oneYearAgo = new Date();
+                                    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+                                    const oneYearFromNow = new Date();
+                                    oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+                                    if (searchDateFrom) searchDateFrom.value = this.dateToLocalDateString(oneYearAgo);
+                                    if (searchDateTo) searchDateTo.value = this.dateToLocalDateString(oneYearFromNow);
+                                    break;
+                            }
+                            updateSearchButtonState();
+                        });
+                    }
+                });
+
+                ['searchDateFrom', 'searchDateTo'].forEach(id => {
+                    const input = document.getElementById(id);
+                    if (input) input.addEventListener('change', updateSearchButtonState);
+                });
+
+                const searchInputMain = document.getElementById('searchInputMain');
                 if (searchInputMain) {
-                    // Remove existing listeners to avoid duplicates
-                    searchInputMain.removeEventListener('keydown', this.handleSearchKeydown);
-                    searchInputMain.removeEventListener('input', this.handleSearchInput);
-                    
-                    // Add input listener for real-time validation
-                    this.handleSearchInput = () => {
-                        updateSearchButtonState();
-                    };
-                    
-                    // Add keydown listener for Enter key
-                    this.handleSearchKeydown = (e) => {
+                    searchInputMain.addEventListener('input', updateSearchButtonState);
+                    searchInputMain.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter') {
                             e.preventDefault();
                             this.triggerSearch();
-                        } else if (e.key === 'Escape') {
-                            this.clearSearchView();
                         }
-                    };
-                    
-                    searchInputMain.addEventListener('input', this.handleSearchInput);
-                    searchInputMain.addEventListener('keydown', this.handleSearchKeydown);
+                    });
                 }
-                
+
+                const searchButtonMain = document.getElementById('searchButtonMain');
                 if (searchButtonMain) {
-                    // Remove existing listener to avoid duplicates
-                    searchButtonMain.removeEventListener('click', this.handleSearchClick);
-                    
-                    // Add click listener for search button
-                    this.handleSearchClick = (e) => {
+                    searchButtonMain.addEventListener('click', (e) => {
                         e.preventDefault();
                         this.triggerSearch();
-                    };
-                    
-                    searchButtonMain.addEventListener('click', this.handleSearchClick);
+                    });
                 }
-                
+
+                const clearSearchMain = document.getElementById('clearSearchMain');
                 if (clearSearchMain) {
-                    clearSearchMain.removeEventListener('click', this.handleClearSearch);
-                    this.handleClearSearch = () => this.clearSearchView();
-                    clearSearchMain.addEventListener('click', this.handleClearSearch);
+                    clearSearchMain.addEventListener('click', () => this.clearSearchView());
                 }
-                
-                // Initial button state
+
                 updateSearchButtonState();
             }
 
@@ -1628,28 +1379,443 @@
                 const searchInput = document.getElementById('searchInputMain');
                 const query = searchInput ? searchInput.value.trim() : '';
                 
-                if (!query) {
-                    this.showToast('⚠️ Please enter a search term', 'warning');
-                    return;
-                }
-                
-                if (query.length < 2) {
+                if (!query || query.length < 2) {
                     this.showToast('⚠️ Please enter at least 2 characters', 'warning');
                     return;
                 }
                 
-                this.performSearch(query, true);
+                this.performSearch(query);
             }
 
-            showSearchDefault() {
+            async performSearch(query) {
+                this.showSearchLoading();
+                
+                try {
+                    const searchResults = await this.searchAllTasks(query.trim());
+                    this.currentSearchResults = searchResults;
+                    this.searchResultsShown = 0;
+                    this.searchFilter = 'all';
+                    
+                    if (searchResults.length > 0) {
+                        document.getElementById('searchFilters').classList.remove('hidden');
+                        this.setupSearchFilterListeners();
+                        this.renderFilteredSearchResults();
+                    } else {
+                        document.getElementById('searchFilters').classList.add('hidden');
+                        this.showNoSearchResults(query);
+                    }
+                } catch (error) {
+                    this.showToast('❌ Search failed', 'error');
+                    this.showSearchError();
+                }
+            }
+
+            async searchAllTasks(query) {
+                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
+                const fromDate = document.getElementById('searchDateFrom')?.value;
+                const toDate = document.getElementById('searchDateTo')?.value;
+                
+                let response;
+                if (fromDate || toDate) {
+                    if (!this.detectedFields) {
+                        const sampleResponse = await this.makeAirtableRequest(`${tableName}?maxRecords=5`);
+                        this.detectedFields = sampleResponse.records.length > 0 ? 
+                            Object.keys(sampleResponse.records[0].fields) : [];
+                    }
+                    
+                    const possibleDateFields = ['Date', 'Ready Date', 'Task Date', 'TaskDate', 'ScheduledDate'];
+                    const existingDateFields = possibleDateFields.filter(field => this.detectedFields.includes(field));
+                    
+                    if (existingDateFields.length > 0) {
+                        try {
+                            let dateFilter = '';
+                            if (fromDate && toDate) {
+                                if (fromDate === toDate) {
+                                    const dateFilterParts = existingDateFields.map(field => 
+                                        `IS_SAME({${field}}, DATETIME_PARSE('${fromDate}'), 'day')`);
+                                    dateFilter = `OR(${dateFilterParts.join(', ')})`;
+                                } else {
+                                    const dateFilterParts = existingDateFields.map(field => 
+                                        `AND({${field}} >= DATETIME_PARSE('${fromDate}T00:00:00'), {${field}} <= DATETIME_PARSE('${toDate}T23:59:59'))`);
+                                    dateFilter = `OR(${dateFilterParts.join(', ')})`;
+                                }
+                            } else if (fromDate) {
+                                const dateFilterParts = existingDateFields.map(field => 
+                                    `{${field}} >= DATETIME_PARSE('${fromDate}T00:00:00')`);
+                                dateFilter = `OR(${dateFilterParts.join(', ')})`;
+                            } else if (toDate) {
+                                const dateFilterParts = existingDateFields.map(field => 
+                                    `{${field}} <= DATETIME_PARSE('${toDate}T23:59:59')`);
+                                dateFilter = `OR(${dateFilterParts.join(', ')})`;
+                            }
+                            
+                            const encodedFilter = encodeURIComponent(dateFilter);
+                            response = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodedFilter}`);
+                        } catch (error) {
+                            response = await this.makeAirtableRequest(tableName);
+                        }
+                    } else {
+                        response = await this.makeAirtableRequest(tableName);
+                    }
+                } else {
+                    response = await this.makeAirtableRequest(tableName);
+                }
+                
+                const searchResults = [];
+                const queryLower = query.toLowerCase();
+                
+                response.records.forEach(record => {
+                    const fields = record.fields;
+                    const person = fields.Person || fields.Name || fields.Worker || fields.Employee;
+                    const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
+                    const description = fields.Description || fields.Notes || fields.Details || '';
+                    const date = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
+                    
+                    if (!person || !orderNumber || !date) return;
+                    
+                    if (fromDate || toDate) {
+                        const taskDateStr = typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/) ? 
+                            date : this.dateToLocalDateString(new Date(date + 'T12:00:00'));
+                        if (fromDate && taskDateStr < fromDate) return;
+                        if (toDate && taskDateStr > toDate) return;
+                    }
+                    
+                    const searchableText = [orderNumber?.toString() || '', description, person].join(' ').toLowerCase();
+                    if (searchableText.includes(queryLower)) {
+                        const taskDateStr = typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/) ? 
+                            date : this.dateToLocalDateString(new Date(date + 'T12:00:00'));
+                        
+                        searchResults.push({
+                            id: record.id,
+                            orderNumber: orderNumber,
+                            person: person,
+                            description: description,
+                            taskDate: taskDateStr,
+                            dateDue: fields.DateDue || fields['Date Due'] || fields.DueDate,
+                            duration: fields.Duration || fields.Time || fields.Hours || 2,
+                            completed: fields.Completed || fields.Done || fields.Finished || false,
+                            position: fields.Position || fields.Order || fields.Sequence || 0
+                        });
+                    }
+                });
+                
+                searchResults.sort((a, b) => {
+                    const aOrderMatch = a.orderNumber.toString().toLowerCase() === queryLower;
+                    const bOrderMatch = b.orderNumber.toString().toLowerCase() === queryLower;
+                    if (aOrderMatch && !bOrderMatch) return -1;
+                    if (!aOrderMatch && bOrderMatch) return 1;
+                    return new Date(b.taskDate) - new Date(a.taskDate);
+                });
+                
+                return searchResults;
+            }
+
+            setupSearchFilterListeners() {
+                const filterButtons = document.querySelectorAll('.search-filter-btn');
+                filterButtons.forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const filter = btn.getAttribute('data-filter');
+                        this.searchFilter = filter;
+                        this.updateSearchFilterButtons();
+                        this.renderFilteredSearchResults();
+                    });
+                });
+            }
+
+            updateSearchFilterButtons() {
+                const filterButtons = document.querySelectorAll('.search-filter-btn');
+                filterButtons.forEach(btn => {
+                    const filter = btn.getAttribute('data-filter');
+                    const isActive = filter === this.searchFilter;
+                    
+                    if (isActive) {
+                        btn.className = filter === 'incomplete' ? 
+                            'search-filter-btn p-3 rounded-lg transition-colors text-center bg-orange-500 text-white shadow-lg' :
+                            'search-filter-btn p-3 rounded-lg transition-colors text-center bg-blue-500 text-white shadow-lg';
+                        btn.querySelector('div:first-child').className = 'text-lg font-bold text-white';
+                        btn.querySelector('div:last-child').className = filter === 'incomplete' ? 
+                            'text-xs text-orange-100' : 'text-xs text-blue-100';
+                    } else {
+                        btn.className = 'search-filter-btn p-3 rounded-lg transition-colors text-center hover:bg-gray-100 dark:hover:bg-gray-600';
+                        btn.querySelector('div:first-child').className = filter === 'incomplete' ? 
+                            'text-lg font-bold text-orange-600 dark:text-orange-400' : 'text-lg font-bold text-blue-600 dark:text-blue-400';
+                        btn.querySelector('div:last-child').className = 'text-xs text-gray-600 dark:text-gray-400';
+                    }
+                });
+            }
+
+            renderFilteredSearchResults() {
+                if (!this.currentSearchResults) return;
+                
+                let filteredResults = [...this.currentSearchResults];
+                if (this.searchFilter === 'incomplete') {
+                    filteredResults = filteredResults.filter(t => !t.completed);
+                }
+                
+                const allCount = this.currentSearchResults.length;
+                const incompleteCount = this.currentSearchResults.filter(t => !t.completed).length;
+                
+                const searchAllCountElement = document.getElementById('searchAllCount');
+                const searchIncompleteCountElement = document.getElementById('searchIncompleteCount');
+                
+                if (searchAllCountElement) searchAllCountElement.textContent = allCount;
+                if (searchIncompleteCountElement) searchIncompleteCountElement.textContent = incompleteCount;
+                
+                this.displayFilteredSearchResults(filteredResults);
+            }
+
+            displayFilteredSearchResults(results) {
+                const searchResults = document.getElementById('searchResults');
+                
+                if (results.length === 0) {
+                    const filterText = this.searchFilter === 'all' ? '' : this.searchFilter + ' ';
+                    searchResults.innerHTML = `
+                        <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                            <div class="text-6xl mb-4">📋</div>
+                            <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No ${filterText}Results</h3>
+                            <p class="text-gray-500 dark:text-gray-400">No ${filterText}orders found with current filter</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const totalResults = results.length;
+                const toShow = Math.min(this.RESULTS_PER_PAGE, totalResults);
+                const hasMore = totalResults > this.RESULTS_PER_PAGE;
+                const displayedResults = results.slice(0, toShow);
+                
+                const resultsInfo = hasMore ? 
+                    `Showing ${toShow} of ${totalResults} results` : 
+                    `${totalResults} result${totalResults !== 1 ? 's' : ''}`;
+                
+                const tasksHtml = displayedResults.map(task => {
+                    let isOverdue = false;
+                    if (task.dateDue && !task.completed) {
+                        const dueDate = new Date(task.dateDue);
+                        const today = new Date();
+                        dueDate.setHours(0, 0, 0, 0);
+                        today.setHours(0, 0, 0, 0);
+                        isOverdue = dueDate < today;
+                    }
+                    const isCompleted = task.completed;
+                    const isIncomplete = !isCompleted && !isOverdue;
+                    
+                    return `
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-3 border border-gray-200 dark:border-gray-600 shadow-sm">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-2">
+                                        <span class="font-semibold text-purple-600 dark:text-purple-400">#${task.orderNumber}</span>
+                                        <span class="text-sm text-gray-500 dark:text-gray-400">${task.person}</span>
+                                        <span class="text-sm text-gray-500 dark:text-gray-400">${task.duration * 15}min</span>
+                                        ${isOverdue ? '<span class="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 px-2 py-1 rounded">Overdue</span>' : ''}
+                                        ${isCompleted ? '<span class="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded">Complete</span>' : ''}
+                                        ${isIncomplete ? '<span class="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 rounded">Incomplete</span>' : ''}
+                                    </div>
+                                    <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                                        <div>Scheduled: ${this.formatDateForDisplay(task.taskDate)}</div>
+                                        ${task.dateDue ? `<div>Due: ${this.formatDateForDisplay(task.dateDue)}</div>` : ''}
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <button class="search-complete-btn-filtered p-2 rounded-full transition-colors ${
+                                        isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
+                                    }" data-task-id="${task.id}" title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
+                                        ${isCompleted ? '✓' : '○'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                const headerHtml = `
+                    <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
+                        <h3 class="font-semibold text-blue-800 dark:text-blue-200 mb-1">Search Results</h3>
+                        <p class="text-sm text-blue-600 dark:text-blue-300">${resultsInfo}</p>
+                    </div>
+                `;
+                
+                const loadMoreHtml = hasMore ? `
+                    <div class="mt-6 text-center">
+                        <button id="loadMoreResults" class="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
+                            Load More Results (${totalResults - toShow} remaining)
+                        </button>
+                    </div>
+                ` : '';
+                
+                searchResults.innerHTML = headerHtml + tasksHtml + loadMoreHtml;
+                
+                this.currentFilteredResults = results;
+                this.searchResultsShown = toShow;
+                
+                setTimeout(() => {
+                    const completeButtons = searchResults.querySelectorAll('.search-complete-btn-filtered');
+                    completeButtons.forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const taskId = btn.getAttribute('data-task-id');
+                            this.toggleTaskCompletionInFilteredSearch(taskId);
+                        });
+                    });
+                    
+                    const loadMoreBtn = document.getElementById('loadMoreResults');
+                    if (loadMoreBtn) {
+                        loadMoreBtn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            this.loadMoreSearchResults();
+                        });
+                    }
+                }, 10);
+            }
+
+            loadMoreSearchResults() {
+                if (!this.currentFilteredResults) return;
+                
+                const newShown = Math.min(
+                    this.searchResultsShown + this.RESULTS_PER_PAGE,
+                    this.currentFilteredResults.length
+                );
+                
+                const newResults = this.currentFilteredResults.slice(this.searchResultsShown, newShown);
+                const searchResults = document.getElementById('searchResults');
+                
+                const loadMoreBtn = document.getElementById('loadMoreResults');
+                if (loadMoreBtn) loadMoreBtn.parentElement.remove();
+                
+                newResults.forEach(task => {
+                    let isOverdue = false;
+                    if (task.dateDue && !task.completed) {
+                        const dueDate = new Date(task.dateDue);
+                        const today = new Date();
+                        dueDate.setHours(0, 0, 0, 0);
+                        today.setHours(0, 0, 0, 0);
+                        isOverdue = dueDate < today;
+                    }
+                    const isCompleted = task.completed;
+                    const isIncomplete = !isCompleted && !isOverdue;
+                    
+                    const taskElement = document.createElement('div');
+                    taskElement.className = 'bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-3 border border-gray-200 dark:border-gray-600 shadow-sm';
+                    taskElement.innerHTML = `
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-2 mb-2">
+                                    <span class="font-semibold text-purple-600 dark:text-purple-400">#${task.orderNumber}</span>
+                                    <span class="text-sm text-gray-500 dark:text-gray-400">${task.person}</span>
+                                    <span class="text-sm text-gray-500 dark:text-gray-400">${task.duration * 15}min</span>
+                                    ${isOverdue ? '<span class="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 px-2 py-1 rounded">Overdue</span>' : ''}
+                                    ${isCompleted ? '<span class="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded">Complete</span>' : ''}
+                                    ${isIncomplete ? '<span class="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 rounded">Incomplete</span>' : ''}
+                                </div>
+                                <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                                    <div>Scheduled: ${this.formatDateForDisplay(task.taskDate)}</div>
+                                    ${task.dateDue ? `<div>Due: ${this.formatDateForDisplay(task.dateDue)}</div>` : ''}
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <button class="search-complete-btn-filtered p-2 rounded-full transition-colors ${
+                                    isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
+                                }" data-task-id="${task.id}" title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
+                                    ${isCompleted ? '✓' : '○'}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    searchResults.appendChild(taskElement);
+                });
+                
+                this.searchResultsShown = newShown;
+                
+                const remaining = this.currentFilteredResults.length - newShown;
+                if (remaining > 0) {
+                    const loadMoreDiv = document.createElement('div');
+                    loadMoreDiv.className = 'mt-6 text-center';
+                    loadMoreDiv.innerHTML = `
+                        <button id="loadMoreResults" class="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
+                            Load More Results (${remaining} remaining)
+                        </button>
+                    `;
+                    searchResults.appendChild(loadMoreDiv);
+                    
+                    const newLoadMoreBtn = document.getElementById('loadMoreResults');
+                    newLoadMoreBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.loadMoreSearchResults();
+                    });
+                }
+                
+                const resultsInfo = searchResults.querySelector('.bg-blue-50 p');
+                if (resultsInfo) {
+                    const hasMore = this.currentFilteredResults.length > newShown;
+                    const infoText = hasMore ? 
+                        `Showing ${newShown} of ${this.currentFilteredResults.length} results` : 
+                        `${this.currentFilteredResults.length} result${this.currentFilteredResults.length !== 1 ? 's' : ''}`;
+                    resultsInfo.textContent = infoText;
+                }
+                
+                setTimeout(() => {
+                    const newCompleteButtons = searchResults.querySelectorAll('.search-complete-btn-filtered:not([data-listener-added])');
+                    newCompleteButtons.forEach(btn => {
+                        btn.setAttribute('data-listener-added', 'true');
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const taskId = btn.getAttribute('data-task-id');
+                            this.toggleTaskCompletionInFilteredSearch(taskId);
+                        });
+                    });
+                }, 10);
+                
+                this.showToast(`📄 Loaded ${newResults.length} more results`, 'info');
+            }
+
+            showNoSearchResults(query) {
                 const searchResults = document.getElementById('searchResults');
                 searchResults.innerHTML = `
                     <div class="text-center py-12 text-gray-500 dark:text-gray-400">
                         <div class="text-6xl mb-4">🔍</div>
-                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Start Searching</h3>
-                        <p class="text-gray-500 dark:text-gray-400">Enter at least 2 characters to search for orders</p>
+                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No Results Found</h3>
+                        <p class="text-gray-500 dark:text-gray-400">No orders found for "${query}"</p>
                     </div>
                 `;
+            }
+
+            async toggleTaskCompletionInFilteredSearch(taskId) {
+                const task = this.currentSearchResults.find(t => t.id === taskId);
+                if (!task) {
+                    this.showToast('❌ Task not found', 'error');
+                    return;
+                }
+                
+                const newStatus = !task.completed;
+                task.completed = newStatus;
+                
+                try {
+                    await this.updateTaskInAirtable(task.id, { Completed: newStatus });
+                    const statusText = newStatus ? 'completed' : 'marked incomplete';
+                    this.showToast(`✅ Order #${task.orderNumber} ${statusText}`, 'success');
+                    this.renderFilteredSearchResults();
+                } catch (error) {
+                    task.completed = !newStatus;
+                    this.showToast('❌ Failed to update task status', 'error');
+                    this.renderFilteredSearchResults();
+                }
+            }
+
+            showSearchLoading() {
+                const searchResults = document.getElementById('searchResults');
+                if (searchResults) {
+                    searchResults.innerHTML = `
+                        <div class="text-center py-8">
+                            <div class="loading-spinner rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-3"></div>
+                            <p class="text-gray-600 dark:text-gray-400">Searching...</p>
+                        </div>
+                    `;
+                }
             }
 
             showSearchError() {
@@ -1670,19 +1836,14 @@
                 if (searchInput) searchInput.value = '';
                 if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
                 
-                this.showSearchDefault();
-            }
-
-
-
-            showSettingsView() {
-                this.currentView = 'settings';
-                document.getElementById('mainContent').classList.add('hidden');
-                document.getElementById('reportView').classList.add('hidden');
-                document.getElementById('searchView').classList.add('hidden');
-                document.getElementById('settingsView').classList.remove('hidden');
-                this.updateConnectionStatus();
-                this.populateSettingsForm();
+                const searchResults = document.getElementById('searchResults');
+                searchResults.innerHTML = `
+                    <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                        <div class="text-6xl mb-4">🔍</div>
+                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Start Searching</h3>
+                        <p class="text-gray-500 dark:text-gray-400">Enter at least 2 characters to search for orders</p>
+                    </div>
+                `;
             }
 
             updateConnectionStatus() {
@@ -1702,8 +1863,6 @@
                 document.getElementById('baseIdMobile').value = this.airtableConfig.baseId || '';
                 document.getElementById('peopleTableMobile').value = this.airtableConfig.tablesConfig?.people || 'People';
                 document.getElementById('tasksTableMobile').value = this.airtableConfig.tablesConfig?.tasks || 'Tasks';
-                
-                // Populate data range settings
                 document.getElementById('weeksBackMobile').value = this.dataRange.weeksBack || 2;
                 document.getElementById('weeksForwardMobile').value = this.dataRange.weeksForward || 4;
             }
@@ -1712,11 +1871,7 @@
                 const weeksBack = parseInt(document.getElementById('weeksBackMobile').value);
                 const weeksForward = parseInt(document.getElementById('weeksForwardMobile').value);
                 
-                this.dataRange = {
-                    weeksBack: weeksBack,
-                    weeksForward: weeksForward
-                };
-                
+                this.dataRange = { weeksBack: weeksBack, weeksForward: weeksForward };
                 this.saveConfigToStorage();
                 this.showToast(`⚡ Data range saved: ${weeksBack} weeks back, ${weeksForward} weeks forward`, 'success');
             }
@@ -1737,16 +1892,12 @@
                     this.airtableConfig = {
                         apiKey: config.apiKey,
                         baseId: config.baseId,
-                        tablesConfig: config.tablesConfig || {
-                            people: 'People',
-                            tasks: 'Tasks'
-                        }
+                        tablesConfig: config.tablesConfig || { people: 'People', tasks: 'Tasks' }
                     };
                     
                     this.populateSettingsForm();
                     this.updateConnectionStatus();
                     this.showToast('✅ Configuration loaded from file!', 'success');
-                    
                 } catch (error) {
                     this.showToast(`❌ Failed to load config: ${error.message}`, 'error');
                 }
@@ -1795,7 +1946,7 @@
                         dataRange: this.dataRange
                     }));
                 } catch (error) {
-                    console.warn('Could not save config:', error);
+                    // Silent fail for storage issues
                 }
             }
 
@@ -1810,7 +1961,6 @@
                     return;
                 }
 
-                // Update config
                 this.airtableConfig = {
                     apiKey: apiKey,
                     baseId: baseId,
@@ -1820,9 +1970,7 @@
                     }
                 };
 
-                // Save to localStorage
                 this.saveConfigToStorage();
-
                 this.showToast('🔄 Connecting and loading data...', 'info');
 
                 try {
@@ -1830,1066 +1978,13 @@
                     this.updateConnectionStatus();
                     this.showToast('✅ Connected successfully!', 'success');
                     
-                    // Switch back to tasks view
                     setTimeout(() => {
                         this.showTasksView();
                         this.renderTasksView();
                     }, 1000);
-                    
                 } catch (error) {
                     this.showToast(`❌ Failed to load data: ${error.message}`, 'error');
                 }
-            }
-
-            async loadAllTasksForReport() {
-                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
-                const targetDueDate = this.dateToLocalDateString(this.currentDate);
-                
-                console.log(`🔍 Loading Ready Date Report for: ${targetDueDate}`);
-                console.log(`⚡ Respecting Data Loading Range: ${this.dataRange.weeksBack} weeks back, ${this.dataRange.weeksForward} weeks forward`);
-                
-                // Calculate smart date range that includes target due date
-                const today = new Date();
-                const startDate = new Date(today);
-                startDate.setDate(today.getDate() - (this.dataRange.weeksBack * 7));
-                const endDate = new Date(today);
-                endDate.setDate(today.getDate() + (this.dataRange.weeksForward * 7));
-                
-                // IMPORTANT: Extend range to include target due date if needed
-                const targetDate = new Date(targetDueDate + 'T12:00:00');
-                if (targetDate < startDate) {
-                    startDate.setTime(targetDate.getTime());
-                    console.log(`📅 Extended range backwards to include target due date`);
-                }
-                if (targetDate > endDate) {
-                    endDate.setTime(targetDate.getTime());
-                    console.log(`📅 Extended range forwards to include target due date`);
-                }
-                
-                const startDateStr = this.dateToLocalDateString(startDate);
-                const endDateStr = this.dateToLocalDateString(endDate);
-                
-                console.log(`📅 Smart loading: due dates between ${startDateStr} and ${endDateStr}`);
-                
-                let response;
-                try {
-                    // Discover what fields exist in the table
-                    if (!this.detectedFields) {
-                        const sampleResponse = await this.makeAirtableRequest(`${tableName}?maxRecords=5`);
-                        this.detectedFields = sampleResponse.records.length > 0 ? 
-                            Object.keys(sampleResponse.records[0].fields) : [];
-                    }
-                    
-                    const possibleDueDateFields = ['DateDue', 'Date Due', 'DueDate', 'Due Date'];
-                    const existingDueDateFields = possibleDueDateFields.filter(field => this.detectedFields.includes(field));
-                    console.log(`🔍 Found due date fields:`, existingDueDateFields);
-                    
-                    if (existingDueDateFields.length > 0) {
-                        // Use smart filtering: load tasks with due dates in the extended range
-                        const dueDateField = existingDueDateFields[0];
-                        const filter = `AND(
-                            NOT({${dueDateField}} = BLANK()),
-                            {${dueDateField}} >= DATETIME_PARSE('${startDateStr}T00:00:00'),
-                            {${dueDateField}} <= DATETIME_PARSE('${endDateStr}T23:59:59')
-                        )`;
-                        const encodedFilter = encodeURIComponent(filter);
-                        
-                        console.log(`🔍 Using smart Airtable filter on field: ${dueDateField}`);
-                        response = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodedFilter}`);
-                    } else {
-                        // Fallback: load all records with pagination (no due date field found)
-                        console.log(`⚠️ No due date field found, loading all records with pagination`);
-                        response = await this.makeAirtableRequest(tableName);
-                    }
-                    
-                    console.log(`📊 Loaded ${response.records.length} records from Airtable using smart range + pagination`);
-                } catch (error) {
-                    console.warn('Smart filtering failed, loading all records:', error);
-                    response = await this.makeAirtableRequest(tableName);
-                    console.log(`📊 Fallback: Loaded ${response.records.length} total records with pagination`);
-                }
-                
-                this.reportTasks = [];
-                this.allTasksWithDueDates = []; // Store all tasks for overdue filtering
-                
-                // Process all records to match desktop logic
-                response.records.forEach(record => {
-                    const fields = record.fields;
-                    const person = fields.Person || fields.Name || fields.Worker || fields.Employee;
-                    const workDate = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
-                    const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
-                    const dateDue = fields.DateDue || fields['Date Due'] || fields.DueDate;
-                    
-                    // Must have person, orderNumber, and EITHER workDate OR dateDue
-                    if (person && orderNumber && (workDate || dateDue)) {
-                        let taskDateStr, dueDateStr;
-                        
-                        // Handle work date
-                        if (workDate) {
-                            if (typeof workDate === 'string' && workDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                                taskDateStr = workDate;
-                            } else {
-                                taskDateStr = this.dateToLocalDateString(new Date(workDate + 'T12:00:00'));
-                            }
-                        }
-                        
-                        // Handle due date
-                        if (dateDue) {
-                            if (typeof dateDue === 'string' && dateDue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                                dueDateStr = dateDue;
-                            } else {
-                                dueDateStr = this.dateToLocalDateString(new Date(dateDue + 'T12:00:00'));
-                            }
-                        }
-                        
-                        const task = {
-                            id: record.id,
-                            orderNumber: orderNumber,
-                            taskDate: taskDateStr || dueDateStr, // Fallback to due date if no work date
-                            dateDue: dueDateStr,
-                            description: fields.Description || fields.Notes || fields.Details || '',
-                            duration: fields.Duration || fields.Time || fields.Hours || 2,
-                            completed: fields.Completed || fields.Done || fields.Finished || false,
-                            position: fields.Position || fields.Order || fields.Sequence || 0,
-                            person: person
-                        };
-                        
-                        // Store all tasks with due dates for overdue filtering
-                        if (dueDateStr) {
-                            this.allTasksWithDueDates.push(task);
-                        }
-                        
-                        // Ready Date Report logic: Include tasks due on target date
-                        // This matches desktop behavior where it shows tasks by due date
-                        if (dueDateStr === targetDueDate) {
-                            this.reportTasks.push(task);
-                            console.log(`✅ Added task #${orderNumber} (${person}) - Due: ${dueDateStr}`);
-                        }
-                    }
-                });
-                
-                console.log(`📋 Ready Date Report Results:`);
-                console.log(`- ${this.reportTasks.length} tasks due on ${targetDueDate}`);
-                console.log(`- ${this.allTasksWithDueDates.length} total tasks with due dates (for overdue calculation)`);
-                
-                // Debug: Show breakdown by person
-                const tasksByPerson = {};
-                this.reportTasks.forEach(task => {
-                    if (!tasksByPerson[task.person]) tasksByPerson[task.person] = 0;
-                    tasksByPerson[task.person]++;
-                });
-                console.log(`👥 Tasks by person:`, tasksByPerson);
-            }
-
-            async toggleTaskCompletionInReport(taskId, person) {
-                // Find the task in our report data
-                const task = this.reportTasks.find(t => t.id === taskId);
-                
-                if (!task) {
-                    this.showToast('❌ Task not found', 'error');
-                    return;
-                }
-                
-                const newStatus = !task.completed;
-                
-                // Optimistically update UI
-                task.completed = newStatus;
-                this.renderReport();
-                
-                // Update in Airtable
-                try {
-                    await this.updateTaskInAirtable(task.id, { Completed: newStatus });
-                    const statusText = newStatus ? 'completed' : 'marked incomplete';
-                    this.showToast(`✅ Order #${task.orderNumber} ${statusText}`, 'success');
-                } catch (error) {
-                    // Revert on failure
-                    task.completed = !newStatus;
-                    this.renderReport();
-                    this.showToast('❌ Failed to update task status', 'error');
-                }
-            }
-
-            // Consolidated search functionality
-            async performSearch(query, isMainView = false) {
-                const searchInput = document.getElementById(isMainView ? 'searchInputMain' : 'searchInput');
-                const clearSearchBtn = document.getElementById(isMainView ? 'clearSearchMain' : 'clearSearch');
-                const searchFilters = document.getElementById('searchFilters');
-                const personSelectorContainer = document.getElementById('personSelectorContainer');
-                
-                if (!query || query.trim().length < 2) {
-                    if (isMainView) {
-                        this.showSearchDefault();
-                        if (searchFilters) searchFilters.classList.add('hidden');
-                    } else {
-                        if (personSelectorContainer) personSelectorContainer.classList.remove('hidden');
-                    }
-                    if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
-                    return;
-                }
-                
-                if (!isMainView && personSelectorContainer) {
-                    personSelectorContainer.classList.add('hidden');
-                }
-                if (clearSearchBtn) clearSearchBtn.classList.remove('hidden');
-                
-                this.showSearchLoading(isMainView);
-                
-                try {
-                    const searchResults = await this.searchAllTasks(query.trim());
-                    this.currentSearchResults = searchResults; // Store for filtering
-                    this.searchResultsShown = 0; // Reset pagination
-                    this.searchFilter = 'all'; // Reset filter to show all results
-                    
-                    if (isMainView) {
-                        if (searchResults.length > 0) {
-                            if (searchFilters) searchFilters.classList.remove('hidden');
-                            this.setupSearchFilterListeners();
-                            this.renderFilteredSearchResults(); // Show initial results
-                        } else {
-                            if (searchFilters) searchFilters.classList.add('hidden');
-                            this.showNoSearchResults(query);
-                        }
-                    } else {
-                        this.displaySearchResults(searchResults, query, isMainView);
-                    }
-                } catch (error) {
-                    console.error('Search failed:', error);
-                    this.showToast('❌ Search failed', 'error');
-                    if (isMainView) {
-                        this.showSearchError();
-                    }
-                }
-            }
-
-            setupSearchFilterListeners() {
-                const filterButtons = document.querySelectorAll('.search-filter-btn');
-                filterButtons.forEach(btn => {
-                    btn.removeEventListener('click', this.handleSearchFilter);
-                    this.handleSearchFilter = (e) => {
-                        e.preventDefault();
-                        const filter = btn.getAttribute('data-filter');
-                        this.searchFilter = filter;
-                        this.updateSearchFilterButtons();
-                        this.renderFilteredSearchResults();
-                    };
-                    btn.addEventListener('click', this.handleSearchFilter);
-                });
-                
-                // Setup date filter listeners
-                const dateFilterButtons = document.querySelectorAll('.date-filter-btn');
-                dateFilterButtons.forEach(btn => {
-                    btn.removeEventListener('click', this.handleDateFilter);
-                    this.handleDateFilter = (e) => {
-                        e.preventDefault();
-                        const filter = btn.getAttribute('data-date-filter');
-                        this.dateFilter = filter;
-                        this.updateDateFilterButtons();
-                        this.renderFilteredSearchResults();
-                    };
-                    btn.addEventListener('click', this.handleDateFilter);
-                });
-                
-                // Setup custom date range listeners
-                const dateFromInput = document.getElementById('dateFilterFrom');
-                const dateToInput = document.getElementById('dateFilterTo');
-                
-                if (dateFromInput && dateToInput) {
-                    const handleCustomDateFilter = () => {
-                        if (dateFromInput.value || dateToInput.value) {
-                            this.dateFilter = 'custom';
-                            this.updateDateFilterButtons();
-                            this.renderFilteredSearchResults();
-                        }
-                    };
-                    
-                    dateFromInput.removeEventListener('change', handleCustomDateFilter);
-                    dateToInput.removeEventListener('change', handleCustomDateFilter);
-                    dateFromInput.addEventListener('change', handleCustomDateFilter);
-                    dateToInput.addEventListener('change', handleCustomDateFilter);
-                }
-            }
-
-            updateSearchFilterButtons() {
-                const filterButtons = document.querySelectorAll('.search-filter-btn');
-                filterButtons.forEach(btn => {
-                    const filter = btn.getAttribute('data-filter');
-                    const isActive = filter === this.searchFilter;
-                    
-                    if (isActive) {
-                        btn.className = 'search-filter-btn p-3 rounded-lg transition-colors text-center bg-blue-500 text-white shadow-lg';
-                        if (filter === 'all') {
-                            btn.querySelector('div:first-child').className = 'text-lg font-bold text-white';
-                            btn.querySelector('div:last-child').className = 'text-xs text-blue-100';
-                        } else if (filter === 'complete') {
-                            btn.className = 'search-filter-btn p-3 rounded-lg transition-colors text-center bg-green-500 text-white shadow-lg';
-                            btn.querySelector('div:first-child').className = 'text-lg font-bold text-white';
-                            btn.querySelector('div:last-child').className = 'text-xs text-green-100';
-                        } else if (filter === 'incomplete') {
-                            btn.className = 'search-filter-btn p-3 rounded-lg transition-colors text-center bg-orange-500 text-white shadow-lg';
-                            btn.querySelector('div:first-child').className = 'text-lg font-bold text-white';
-                            btn.querySelector('div:last-child').className = 'text-xs text-orange-100';
-                        }
-                    } else {
-                        btn.className = 'search-filter-btn p-3 rounded-lg transition-colors text-center hover:bg-gray-100 dark:hover:bg-gray-600';
-                        if (filter === 'complete') {
-                            btn.querySelector('div:first-child').className = 'text-lg font-bold text-green-600 dark:text-green-400';
-                        } else if (filter === 'incomplete') {
-                            btn.querySelector('div:first-child').className = 'text-lg font-bold text-orange-600 dark:text-orange-400';
-                        } else {
-                            btn.querySelector('div:first-child').className = 'text-lg font-bold text-blue-600 dark:text-blue-400';
-                        }
-                        btn.querySelector('div:last-child').className = 'text-xs text-gray-600 dark:text-gray-400';
-                    }
-                });
-            }
-
-            renderFilteredSearchResults() {
-                if (!this.currentSearchResults) return;
-                
-                // Filter based on current selection
-                let filteredResults = [...this.currentSearchResults];
-                
-                // Apply status filter
-                if (this.searchFilter === 'complete') {
-                    filteredResults = filteredResults.filter(t => t.completed);
-                } else if (this.searchFilter === 'incomplete') {
-                    filteredResults = filteredResults.filter(t => !t.completed);
-                }
-                
-                // Apply date filter
-                filteredResults = this.applyDateFilter(filteredResults);
-                
-                // Update counts
-                const allCount = this.currentSearchResults.length;
-                const completeCount = this.currentSearchResults.filter(t => t.completed).length;
-                const incompleteCount = this.currentSearchResults.filter(t => !t.completed).length;
-                
-                // Update counts with existence checks
-                const searchAllCountElement = document.getElementById('searchAllCount');
-                const searchCompleteCountElement = document.getElementById('searchCompleteCount');
-                const searchIncompleteCountElement = document.getElementById('searchIncompleteCount');
-                
-                if (searchAllCountElement) searchAllCountElement.textContent = allCount;
-                if (searchCompleteCountElement) searchCompleteCountElement.textContent = completeCount;
-                if (searchIncompleteCountElement) searchIncompleteCountElement.textContent = incompleteCount;
-                
-                // Render filtered results
-                this.displayFilteredSearchResults(filteredResults);
-            }
-
-            applyDateFilter(results) {
-                if (this.dateFilter === 'all') {
-                    return results;
-                }
-                
-                const today = new Date();
-                const todayStr = this.dateToLocalDateString(today);
-                
-                return results.filter(task => {
-                    const taskDate = new Date(task.taskDate);
-                    const taskDateStr = task.taskDate;
-                    
-                    switch (this.dateFilter) {
-                        case 'today':
-                            return taskDateStr === todayStr;
-                            
-                        case 'week':
-                            const startOfWeek = new Date(today);
-                            startOfWeek.setDate(today.getDate() - today.getDay());
-                            const endOfWeek = new Date(startOfWeek);
-                            endOfWeek.setDate(startOfWeek.getDate() + 6);
-                            return taskDate >= startOfWeek && taskDate <= endOfWeek;
-                            
-                        case 'month':
-                            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-                            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                            return taskDate >= startOfMonth && taskDate <= endOfMonth;
-                            
-                        case 'custom':
-                            const fromDate = document.getElementById('dateFilterFrom')?.value;
-                            const toDate = document.getElementById('dateFilterTo')?.value;
-                            
-                            if (fromDate && toDate) {
-                                return taskDateStr >= fromDate && taskDateStr <= toDate;
-                            } else if (fromDate) {
-                                return taskDateStr >= fromDate;
-                            } else if (toDate) {
-                                return taskDateStr <= toDate;
-                            }
-                            return true;
-                            
-                        default:
-                            return true;
-                    }
-                });
-            }
-
-            updateDateFilterButtons() {
-                const dateFilterButtons = document.querySelectorAll('.date-filter-btn');
-                dateFilterButtons.forEach(btn => {
-                    const filter = btn.getAttribute('data-date-filter');
-                    const isActive = filter === this.dateFilter;
-                    
-                    if (isActive) {
-                        btn.className = 'date-filter-btn px-3 py-2 text-sm rounded-lg transition-colors bg-purple-500 text-white shadow';
-                    } else {
-                        btn.className = 'date-filter-btn px-3 py-2 text-sm rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300';
-                    }
-                });
-                
-                // Clear custom date inputs if switching away from custom
-                if (this.dateFilter !== 'custom') {
-                    const fromInput = document.getElementById('dateFilterFrom');
-                    const toInput = document.getElementById('dateFilterTo');
-                    if (fromInput) fromInput.value = '';
-                    if (toInput) toInput.value = '';
-                }
-            }
-
-            displayFilteredSearchResults(results) {
-                const searchResults = document.getElementById('searchResults');
-                
-                if (results.length === 0) {
-                    const filterText = this.searchFilter === 'all' ? '' : this.searchFilter + ' ';
-                    searchResults.innerHTML = `
-                        <div class="text-center py-12 text-gray-500 dark:text-gray-400">
-                            <div class="text-6xl mb-4">📋</div>
-                            <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No ${filterText}Results</h3>
-                            <p class="text-gray-500 dark:text-gray-400">No ${filterText}orders found with current filter</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                // Calculate pagination
-                const totalResults = results.length;
-                const toShow = Math.min(this.RESULTS_PER_PAGE, totalResults);
-                const hasMore = totalResults > this.RESULTS_PER_PAGE;
-                const displayedResults = results.slice(0, toShow);
-                
-                // Show results info
-                const resultsInfo = hasMore ? 
-                    `Showing ${toShow} of ${totalResults} results` : 
-                    `${totalResults} result${totalResults !== 1 ? 's' : ''}`;
-                
-                const tasksHtml = displayedResults.map(task => {
-                    // Fix overdue logic to compare dates only, not times
-                    let isOverdue = false;
-                    if (task.dateDue && !task.completed) {
-                        const dueDate = new Date(task.dateDue);
-                        const today = new Date();
-                        
-                        // Set both dates to midnight for proper comparison
-                        dueDate.setHours(0, 0, 0, 0);
-                        today.setHours(0, 0, 0, 0);
-                        
-                        isOverdue = dueDate < today;
-                    }
-                    const isCompleted = task.completed;
-                    const isIncomplete = !isCompleted && !isOverdue;
-                    
-                    return `
-                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-3 border border-gray-200 dark:border-gray-600 shadow-sm">
-                            <div class="flex items-start justify-between">
-                                <div class="flex-1">
-                                    <div class="flex items-center space-x-2 mb-2">
-                                        <span class="font-semibold text-purple-600 dark:text-purple-400">#${task.orderNumber}</span>
-                                        <span class="text-sm text-gray-500 dark:text-gray-400">${task.person}</span>
-                                        <span class="text-sm text-gray-500 dark:text-gray-400">${task.duration * 15}min</span>
-                                        ${isOverdue ? '<span class="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 px-2 py-1 rounded">Overdue</span>' : ''}
-                                        ${isCompleted ? '<span class="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded">Complete</span>' : ''}
-                                        ${isIncomplete ? '<span class="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 rounded">Incomplete</span>' : ''}
-                                    </div>
-                                    <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
-                                    <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                                        <div>Scheduled: ${this.formatDateForDisplay(task.taskDate)}</div>
-                                        ${task.dateDue ? `<div>Due: ${this.formatDateForDisplay(task.dateDue)}</div>` : ''}
-                                    </div>
-                                </div>
-                                <div class="ml-4">
-                                    <button class="search-complete-btn-filtered p-2 rounded-full transition-colors ${
-                                        isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
-                                    }" 
-                                            data-task-id="${task.id}"
-                                            title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
-                                        ${isCompleted ? '✓' : '○'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-                
-                // Results header
-                const headerHtml = `
-                    <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
-                        <h3 class="font-semibold text-blue-800 dark:text-blue-200 mb-1">Search Results</h3>
-                        <p class="text-sm text-blue-600 dark:text-blue-300">${resultsInfo}</p>
-                    </div>
-                `;
-                
-                // Load More button
-                const loadMoreHtml = hasMore ? `
-                    <div class="mt-6 text-center">
-                        <button id="loadMoreResults" class="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
-                            Load More Results (${totalResults - toShow} remaining)
-                        </button>
-                    </div>
-                ` : '';
-                
-                searchResults.innerHTML = headerHtml + tasksHtml + loadMoreHtml;
-                
-                // Store current filtered results for pagination
-                this.currentFilteredResults = results;
-                this.searchResultsShown = toShow;
-                
-                // Add event listeners for filtered results
-                setTimeout(() => {
-                    const completeButtons = searchResults.querySelectorAll('.search-complete-btn-filtered');
-                    completeButtons.forEach(btn => {
-                        btn.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            const taskId = btn.getAttribute('data-task-id');
-                            this.toggleTaskCompletionInFilteredSearch(taskId);
-                        });
-                    });
-                    
-
-                    
-                    // Add Load More button listener
-                    const loadMoreBtn = document.getElementById('loadMoreResults');
-                    if (loadMoreBtn) {
-                        loadMoreBtn.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            this.loadMoreSearchResults();
-                        });
-                    }
-                }, 10);
-            }
-
-            loadMoreSearchResults() {
-                if (!this.currentFilteredResults) return;
-                
-                const newShown = Math.min(
-                    this.searchResultsShown + this.RESULTS_PER_PAGE,
-                    this.currentFilteredResults.length
-                );
-                
-                const newResults = this.currentFilteredResults.slice(this.searchResultsShown, newShown);
-                const searchResults = document.getElementById('searchResults');
-                
-                // Remove the load more button
-                const loadMoreBtn = document.getElementById('loadMoreResults');
-                if (loadMoreBtn) {
-                    loadMoreBtn.parentElement.remove();
-                }
-                
-                // Add new results
-                newResults.forEach(task => {
-                    // Fix overdue logic to compare dates only, not times
-                    let isOverdue = false;
-                    if (task.dateDue && !task.completed) {
-                        const dueDate = new Date(task.dateDue);
-                        const today = new Date();
-                        
-                        // Set both dates to midnight for proper comparison
-                        dueDate.setHours(0, 0, 0, 0);
-                        today.setHours(0, 0, 0, 0);
-                        
-                        isOverdue = dueDate < today;
-                    }
-                    const isCompleted = task.completed;
-                    const isIncomplete = !isCompleted && !isOverdue;
-                    
-                    const taskElement = document.createElement('div');
-                    taskElement.className = 'bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-3 border border-gray-200 dark:border-gray-600 shadow-sm';
-                    taskElement.innerHTML = `
-                        <div class="flex items-start justify-between">
-                            <div class="flex-1">
-                                <div class="flex items-center space-x-2 mb-2">
-                                    <span class="font-semibold text-purple-600 dark:text-purple-400">#${task.orderNumber}</span>
-                                    <span class="text-sm text-gray-500 dark:text-gray-400">${task.person}</span>
-                                    <span class="text-sm text-gray-500 dark:text-gray-400">${task.duration * 15}min</span>
-                                    ${isOverdue ? '<span class="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 px-2 py-1 rounded">Overdue</span>' : ''}
-                                    ${isCompleted ? '<span class="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded">Complete</span>' : ''}
-                                    ${isIncomplete ? '<span class="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 rounded">Incomplete</span>' : ''}
-                                </div>
-                                <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
-                                <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                                    <div>Scheduled: ${this.formatDateForDisplay(task.taskDate)}</div>
-                                    ${task.dateDue ? `<div>Due: ${this.formatDateForDisplay(task.dateDue)}</div>` : ''}
-                                </div>
-                            </div>
-                            <div class="ml-4">
-                                <button class="search-complete-btn-filtered p-2 rounded-full transition-colors ${
-                                    isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
-                                }" 
-                                        data-task-id="${task.id}"
-                                        title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
-                                    ${isCompleted ? '✓' : '○'}
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    
-                    searchResults.appendChild(taskElement);
-                });
-                
-                // Update pagination state
-                this.searchResultsShown = newShown;
-                
-                // Add new Load More button if there are still more results
-                const remaining = this.currentFilteredResults.length - newShown;
-                if (remaining > 0) {
-                    const loadMoreDiv = document.createElement('div');
-                    loadMoreDiv.className = 'mt-6 text-center';
-                    loadMoreDiv.innerHTML = `
-                        <button id="loadMoreResults" class="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
-                            Load More Results (${remaining} remaining)
-                        </button>
-                    `;
-                    searchResults.appendChild(loadMoreDiv);
-                    
-                    // Add event listener to new button
-                    const newLoadMoreBtn = document.getElementById('loadMoreResults');
-                    newLoadMoreBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        this.loadMoreSearchResults();
-                    });
-                }
-                
-                // Update results info
-                const resultsInfo = searchResults.querySelector('.bg-blue-50 p');
-                if (resultsInfo) {
-                    const hasMore = this.currentFilteredResults.length > newShown;
-                    const infoText = hasMore ? 
-                        `Showing ${newShown} of ${this.currentFilteredResults.length} results` : 
-                        `${this.currentFilteredResults.length} result${this.currentFilteredResults.length !== 1 ? 's' : ''}`;
-                    resultsInfo.textContent = infoText;
-                }
-                
-                // Add event listeners for new buttons
-                setTimeout(() => {
-                    const newCompleteButtons = searchResults.querySelectorAll('.search-complete-btn-filtered:not([data-listener-added])');
-                    newCompleteButtons.forEach(btn => {
-                        btn.setAttribute('data-listener-added', 'true');
-                        btn.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            const taskId = btn.getAttribute('data-task-id');
-                            this.toggleTaskCompletionInFilteredSearch(taskId);
-                        });
-                    });
-                    
-                    const newViewButtons = searchResults.querySelectorAll('.view-task-btn-filtered:not([data-listener-added])');
-                    newViewButtons.forEach(btn => {
-                        btn.setAttribute('data-listener-added', 'true');
-                        btn.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            const taskDate = btn.getAttribute('data-task-date');
-                            const taskPerson = btn.getAttribute('data-task-person');
-                            this.viewTaskOnDate(taskDate, taskPerson);
-                        });
-                    });
-                }, 10);
-                
-                this.showToast(`📄 Loaded ${newResults.length} more results`, 'info');
-            }
-
-            showNoSearchResults(query) {
-                const searchResults = document.getElementById('searchResults');
-                searchResults.innerHTML = `
-                    <div class="text-center py-12 text-gray-500 dark:text-gray-400">
-                        <div class="text-6xl mb-4">🔍</div>
-                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No Results Found</h3>
-                        <p class="text-gray-500 dark:text-gray-400">No orders found for "${query}"</p>
-                    </div>
-                `;
-            }
-
-            async toggleTaskCompletionInFilteredSearch(taskId) {
-                // Find the task in current search results
-                const task = this.currentSearchResults.find(t => t.id === taskId);
-                
-                if (!task) {
-                    this.showToast('❌ Task not found', 'error');
-                    return;
-                }
-                
-                const newStatus = !task.completed;
-                
-                // Optimistically update UI
-                task.completed = newStatus;
-                
-                // Update in Airtable
-                try {
-                    await this.updateTaskInAirtable(task.id, { Completed: newStatus });
-                    const statusText = newStatus ? 'completed' : 'marked incomplete';
-                    this.showToast(`✅ Order #${task.orderNumber} ${statusText}`, 'success');
-                    
-                    // Re-render with updated status
-                    this.renderFilteredSearchResults();
-                } catch (error) {
-                    // Revert on failure
-                    task.completed = !newStatus;
-                    this.showToast('❌ Failed to update task status', 'error');
-                    this.renderFilteredSearchResults();
-                }
-            }
-            
-            async searchAllTasks(query) {
-                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
-                const fromDate = document.getElementById('searchDateFrom')?.value;
-                const toDate = document.getElementById('searchDateTo')?.value;
-                
-                let response;
-                
-                // Use date range filtering if provided
-                if (fromDate || toDate) {
-                    if (!this.detectedFields) {
-                        const sampleResponse = await this.makeAirtableRequest(`${tableName}?maxRecords=5`);
-                        this.detectedFields = sampleResponse.records.length > 0 ? 
-                            Object.keys(sampleResponse.records[0].fields) : [];
-                    }
-                    
-                    const possibleDateFields = ['Date', 'Ready Date', 'Task Date', 'TaskDate', 'ScheduledDate', 'Scheduled Date'];
-                    const existingDateFields = possibleDateFields.filter(field => this.detectedFields.includes(field));
-                    
-                    if (existingDateFields.length > 0) {
-                        let dateFilter = '';
-                        
-                        if (fromDate && toDate) {
-                            if (fromDate === toDate) {
-                                const dateFilterParts = existingDateFields.map(field => 
-                                    `IS_SAME({${field}}, DATETIME_PARSE('${fromDate}'), 'day')`
-                                );
-                                dateFilter = `OR(${dateFilterParts.join(', ')})`;
-                            } else {
-                                const dateFilterParts = existingDateFields.map(field => 
-                                    `AND({${field}} >= DATETIME_PARSE('${fromDate}T00:00:00'), {${field}} <= DATETIME_PARSE('${toDate}T23:59:59'))`
-                                );
-                                dateFilter = `OR(${dateFilterParts.join(', ')})`;
-                            }
-                        } else if (fromDate) {
-                            const dateFilterParts = existingDateFields.map(field => 
-                                `{${field}} >= DATETIME_PARSE('${fromDate}T00:00:00')`
-                            );
-                            dateFilter = `OR(${dateFilterParts.join(', ')})`;
-                        } else if (toDate) {
-                            const dateFilterParts = existingDateFields.map(field => 
-                                `{${field}} <= DATETIME_PARSE('${toDate}T23:59:59')`
-                            );
-                            dateFilter = `OR(${dateFilterParts.join(', ')})`;
-                        }
-                        
-                        try {
-                            const encodedFilter = encodeURIComponent(dateFilter);
-                            response = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodedFilter}`);
-                        } catch (error) {
-                            response = await this.makeAirtableRequest(tableName);
-                        }
-                    } else {
-                        response = await this.makeAirtableRequest(tableName);
-                    }
-                } else {
-                    response = await this.makeAirtableRequest(tableName);
-                }
-                
-                const searchResults = [];
-                const queryLower = query.toLowerCase();
-                
-                response.records.forEach(record => {
-                    const fields = record.fields;
-                    const person = fields.Person || fields.Name || fields.Worker || fields.Employee;
-                    const orderNumber = fields.OrderNumber || fields['Order Number'] || fields.Order || fields.ID;
-                    const description = fields.Description || fields.Notes || fields.Details || '';
-                    const date = fields.Date || fields.TaskDate || fields['Ready Date'] || fields.ScheduledDate;
-                    
-                    if (!person || !orderNumber || !date) return;
-                    
-                    // Apply client-side date filtering as backup
-                    if (fromDate || toDate) {
-                        let taskDateStr;
-                        if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                            taskDateStr = date;
-                        } else {
-                            taskDateStr = this.dateToLocalDateString(new Date(date + 'T12:00:00'));
-                        }
-                        
-                        if (fromDate && taskDateStr < fromDate) return;
-                        if (toDate && taskDateStr > toDate) return;
-                    }
-                    
-                    // Search in multiple fields
-                    const searchableText = [
-                        orderNumber?.toString() || '',
-                        description,
-                        person
-                    ].join(' ').toLowerCase();
-                    
-                    if (searchableText.includes(queryLower)) {
-                        let taskDateStr;
-                        if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                            taskDateStr = date;
-                        } else {
-                            taskDateStr = this.dateToLocalDateString(new Date(date + 'T12:00:00'));
-                        }
-                        
-                        const task = {
-                            id: record.id,
-                            orderNumber: orderNumber,
-                            person: person,
-                            description: description,
-                            taskDate: taskDateStr,
-                            dateDue: fields.DateDue || fields['Date Due'] || fields.DueDate,
-                            duration: fields.Duration || fields.Time || fields.Hours || 2,
-                            completed: fields.Completed || fields.Done || fields.Finished || false,
-                            position: fields.Position || fields.Order || fields.Sequence || 0
-                        };
-                        
-                        searchResults.push(task);
-                    }
-                });
-                
-                // Sort by relevance (exact order number matches first, then by date)
-                searchResults.sort((a, b) => {
-                    const aOrderMatch = a.orderNumber.toString().toLowerCase() === queryLower;
-                    const bOrderMatch = b.orderNumber.toString().toLowerCase() === queryLower;
-                    
-                    if (aOrderMatch && !bOrderMatch) return -1;
-                    if (!aOrderMatch && bOrderMatch) return 1;
-                    
-                    return new Date(b.taskDate) - new Date(a.taskDate);
-                });
-                
-                return searchResults;
-            }
-            
-            showSearchLoading(isMainView = false) {
-                if (isMainView) {
-                    // For main search view, update the search results container
-                    const searchResults = document.getElementById('searchResults');
-                    if (searchResults) {
-                        searchResults.innerHTML = `
-                            <div class="text-center py-8">
-                                <div class="loading-spinner rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-3"></div>
-                                <p class="text-gray-600 dark:text-gray-400">Searching...</p>
-                            </div>
-                        `;
-                    }
-                } else {
-                    // For inline search (this shouldn't happen in mobile, but keeping for compatibility)
-                    const container = document.getElementById('mainContent');
-                    const existing = container.querySelector('.search-results');
-                    if (existing) {
-                        existing.remove();
-                    }
-                    
-                    const loadingDiv = document.createElement('div');
-                    loadingDiv.className = 'search-results';
-                    loadingDiv.innerHTML = `
-                        <div class="text-center py-8">
-                            <div class="loading-spinner rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-3"></div>
-                            <p class="text-gray-600 dark:text-gray-400">Searching...</p>
-                        </div>
-                    `;
-                    container.appendChild(loadingDiv);
-                }
-            }
-            
-            displaySearchResults(results, query) {
-                const container = document.getElementById('mainContent');
-                const existing = container.querySelector('.search-results');
-                if (existing) {
-                    existing.remove();
-                }
-                
-                const resultsDiv = document.createElement('div');
-                resultsDiv.className = 'search-results';
-                
-                if (results.length === 0) {
-                    resultsDiv.innerHTML = `
-                        <div class="text-center py-12">
-                            <div class="text-6xl mb-4">🔍</div>
-                            <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No Results Found</h3>
-                            <p class="text-gray-500 dark:text-gray-400">No orders found for "${query}"</p>
-                        </div>
-                    `;
-                } else {
-                    const resultsHeader = `
-                        <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
-                            <h3 class="font-semibold text-blue-800 dark:text-blue-200">Search Results for "${query}"</h3>
-                            <p class="text-sm text-blue-600 dark:text-blue-300">${results.length} order${results.length !== 1 ? 's' : ''} found</p>
-                        </div>
-                    `;
-                    
-                    const tasksHtml = results.map(task => {
-                        // Fix overdue logic to compare dates only, not times
-                        let isOverdue = false;
-                        if (task.dateDue && !task.completed) {
-                            const dueDate = new Date(task.dateDue);
-                            const today = new Date();
-                            
-                            // Set both dates to midnight for proper comparison
-                            dueDate.setHours(0, 0, 0, 0);
-                            today.setHours(0, 0, 0, 0);
-                            
-                            isOverdue = dueDate < today;
-                        }
-                        const isCompleted = task.completed;
-                        const isIncomplete = !isCompleted && !isOverdue;
-                        
-                        return `
-                            <div class="bg-white dark:bg-gray-800 rounded-lg p-4 mb-3 border border-gray-200 dark:border-gray-700 shadow-sm">
-                                <div class="flex items-start justify-between">
-                                    <div class="flex-1">
-                                        <div class="flex items-center space-x-2 mb-2">
-                                            <span class="font-semibold text-purple-600 dark:text-purple-400">#${task.orderNumber}</span>
-                                            <span class="text-sm text-gray-500 dark:text-gray-400">${task.person}</span>
-                                            <span class="text-sm text-gray-500 dark:text-gray-400">${task.duration * 15}min</span>
-                                            ${isOverdue ? '<span class="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 px-2 py-1 rounded">Overdue</span>' : ''}
-                                            ${isCompleted ? '<span class="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded">Complete</span>' : ''}
-                                            ${isIncomplete ? '<span class="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 rounded">Incomplete</span>' : ''}
-                                        </div>
-                                        <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
-                                        <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                                            <div>Scheduled: ${this.formatDateForDisplay(task.taskDate)}</div>
-                                            ${task.dateDue ? `<div>Due: ${this.formatDateForDisplay(task.dateDue)}</div>` : ''}
-                                        </div>
-                                    </div>
-                                    <div class="ml-4 flex flex-col space-y-2">
-                                        <button class="search-complete-btn p-2 rounded-full transition-colors ${
-                                            isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
-                                        }" 
-                                                data-task-id="${task.id}"
-                                                title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
-                                            ${isCompleted ? '✓' : '○'}
-                                        </button>
-                                        <button class="view-task-btn text-xs px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors"
-                                                data-task-date="${task.taskDate}"
-                                                data-task-person="${task.person}"
-                                                title="View on ${this.formatDateForDisplay(task.taskDate)}">
-                                            View
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                    
-                    resultsDiv.innerHTML = resultsHeader + tasksHtml;
-                    
-                    // Add event listeners for search result actions
-                    setTimeout(() => {
-                        const completeButtons = resultsDiv.querySelectorAll('.search-complete-btn');
-                        completeButtons.forEach(btn => {
-                            btn.addEventListener('click', (e) => {
-                                e.preventDefault();
-                                const taskId = btn.getAttribute('data-task-id');
-                                this.toggleTaskCompletionInSearch(taskId, results);
-                            });
-                        });
-                        
-                        const viewButtons = resultsDiv.querySelectorAll('.view-task-btn');
-                        viewButtons.forEach(btn => {
-                            btn.addEventListener('click', (e) => {
-                                e.preventDefault();
-                                const taskDate = btn.getAttribute('data-task-date');
-                                const taskPerson = btn.getAttribute('data-task-person');
-                                this.viewTaskOnDate(taskDate, taskPerson);
-                            });
-                        });
-                    }, 10);
-                }
-                
-                container.appendChild(resultsDiv);
-            }
-            
-            async toggleTaskCompletionInSearch(taskId, searchResults) {
-                // Find the task in search results
-                const task = searchResults.find(t => t.id === taskId);
-                
-                if (!task) {
-                    this.showToast('❌ Task not found', 'error');
-                    return;
-                }
-                
-                const newStatus = !task.completed;
-                
-                // Optimistically update UI
-                task.completed = newStatus;
-                
-                // Update the button in the UI
-                const btn = document.querySelector(`[data-task-id="${taskId}"]`);
-                if (btn) {
-                    if (newStatus) {
-                        btn.className = btn.className.replace('bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500', 'bg-green-500 text-white');
-                        btn.textContent = '✓';
-                    } else {
-                        btn.className = btn.className.replace('bg-green-500 text-white', 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500');
-                        btn.textContent = '○';
-                    }
-                }
-                
-                // Update in Airtable
-                try {
-                    await this.updateTaskInAirtable(task.id, { Completed: newStatus });
-                    const statusText = newStatus ? 'completed' : 'marked incomplete';
-                    this.showToast(`✅ Order #${task.orderNumber} ${statusText}`, 'success');
-                } catch (error) {
-                    // Revert on failure
-                    task.completed = !newStatus;
-                    if (btn) {
-                        if (!newStatus) {
-                            btn.className = btn.className.replace('bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500', 'bg-green-500 text-white');
-                            btn.textContent = '✓';
-                        } else {
-                            btn.className = btn.className.replace('bg-green-500 text-white', 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500');
-                            btn.textContent = '○';
-                        }
-                    }
-                    this.showToast('❌ Failed to update task status', 'error');
-                }
-            }
-            
-            viewTaskOnDate(taskDate, taskPerson) {
-                // Parse the date and set current date
-                const [year, month, day] = taskDate.split('-');
-                this.currentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                this.updateDateDisplay();
-                
-                // Set the selected person
-                this.selectedPerson = taskPerson;
-                
-                // Clear search and reload tasks view
-                this.clearSearch();
-                
-                this.showToast(`📅 Viewing ${taskPerson} on ${this.formatDateForDisplay(taskDate)}`, 'info');
-            }
-            
-            clearSearch() {
-                const searchInput = document.getElementById('searchInput');
-                const clearSearchBtn = document.getElementById('clearSearch');
-                const personSelectorContainer = document.getElementById('personSelectorContainer');
-                const searchResults = document.querySelector('.search-results');
-                
-                if (searchInput) {
-                    searchInput.value = '';
-                }
-                
-                if (clearSearchBtn) {
-                    clearSearchBtn.classList.add('hidden');
-                }
-                
-                if (personSelectorContainer) {
-                    personSelectorContainer.classList.remove('hidden');
-                }
-                
-                if (searchResults) {
-                    searchResults.remove();
-                }
-                
-                // Re-render the normal tasks view
-                this.renderCurrentView();
             }
 
             showToast(message, type = 'info') {
@@ -2907,47 +2002,30 @@
                 
                 container.appendChild(toast);
                 
-                // Trigger animation
-                setTimeout(() => {
-                    toast.classList.remove('opacity-0', 'translate-x-full');
-                }, 10);
+                setTimeout(() => toast.classList.remove('opacity-0', 'translate-x-full'), 10);
                 
-                // Remove toast after 4 seconds
                 setTimeout(() => {
                     toast.classList.add('opacity-0', 'translate-x-full');
                     setTimeout(() => {
-                        if (container.contains(toast)) {
-                            container.removeChild(toast);
-                        }
+                        if (container.contains(toast)) container.removeChild(toast);
                     }, 300);
                 }, 4000);
             }
 
             clearSearchState() {
-                // Clear any search-related state when switching views
                 this.currentSearchResults = [];
                 this.searchResultsShown = 0;
                 this.searchFilter = 'all';
-                this.dateFilter = 'all';
                 
-                // Hide search filters if visible
                 const searchFilters = document.getElementById('searchFilters');
-                if (searchFilters) {
-                    searchFilters.classList.add('hidden');
-                }
+                if (searchFilters) searchFilters.classList.add('hidden');
                 
-                // Clear search inputs
                 const searchInputMain = document.getElementById('searchInputMain');
-                if (searchInputMain) {
-                    searchInputMain.value = '';
-                }
+                if (searchInputMain) searchInputMain.value = '';
                 
                 const clearSearchMain = document.getElementById('clearSearchMain');
-                if (clearSearchMain) {
-                    clearSearchMain.classList.add('hidden');
-                }
+                if (clearSearchMain) clearSearchMain.classList.add('hidden');
                 
-                // Reset search results to default state
                 const searchResults = document.getElementById('searchResults');
                 if (searchResults) {
                     searchResults.innerHTML = `
@@ -2961,64 +2039,32 @@
             }
 
             scrollToTop() {
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
 
-            // Filter functionality methods
             setPersonFilter(person, filter) {
-                // Initialize personFilters if it doesn't exist
-                if (!this.personFilters) {
-                    this.personFilters = {};
-                }
-                
+                if (!this.personFilters) this.personFilters = {};
                 this.personFilters[person] = filter;
                 this.showToast(`🔽 Filtered ${person} to show ${filter === 'all' ? 'all' : filter} tasks`, 'info');
                 this.renderCurrentView();
             }
-
-            createMissingMainContent() {
-                // Remove any existing content
-                const existingMain = document.querySelector('main');
-                if (existingMain) {
-                    existingMain.remove();
-                }
-                
-                // Find where to insert the main content (after the navigation)
-                const nav = document.querySelector('header').nextElementSibling;
-                
-                // Create the main content element
-                const mainContent = document.createElement('main');
-                mainContent.id = 'mainContent';
-                mainContent.className = 'p-4';
-                mainContent.innerHTML = `
-                    <div class="text-center py-12">
-                        <div class="text-6xl mb-4">🔧</div>
-                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">App Recovered</h3>
-                        <p class="text-gray-500 dark:text-gray-400 mb-4">The main content area was recreated successfully.</p>
-                        <button id="retryLoad" class="bg-purple-500 text-white px-6 py-3 rounded-lg hover:bg-purple-600 transition-colors">
-                            🔄 Retry Loading
-                        </button>
-                    </div>
-                `;
-                
-                // Insert after navigation
-                nav.parentNode.insertBefore(mainContent, nav.nextSibling);
-                
-                // Add retry button functionality
-                document.getElementById('retryLoad').addEventListener('click', () => {
-                    window.location.reload();
-                });
-            }
         }
 
-        // Initialize mobile app when DOM is ready
+        // Dark mode support
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // Initialize app
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                new MobileTaskScheduler();
-            });
+            document.addEventListener('DOMContentLoaded', () => new MobileTaskScheduler());
         } else {
             new MobileTaskScheduler();
         }
