@@ -7162,7 +7162,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                 }
             }
             
-            async preserveHistoricalCapacity(personName) {
+	    async preserveHistoricalCapacity(personName, oldWeeklyCapacity) {
                 console.log(`🔒 Starting historical capacity preservation for ${personName}...`);
                 
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
@@ -7223,7 +7223,10 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                     for (const dateStr of pastDates) {
                         if (!existingOverrides.has(dateStr)) {
                             const date = this.parseDateString(dateStr);
-                            const currentCapacity = this.getPersonCapacityForDate(personName, date);
+                            const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
+
+// CRITICAL FIX: Use OLD weekly capacity instead of current (potentially updated) capacity
+const historicalCapacity = oldWeeklyCapacity[dayName];
                             
                             overridesToCreate.push({
                                 fields: {
@@ -7268,15 +7271,18 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                 }
             }
 
-            async updatePersonWeeklyCapacity(name, weeklyCapacity) {
-                console.log(`🔄 Starting weekly capacity update for ${name}...`);
-                
-                // STEP 1: Preserve historical capacity before making any changes
-                await this.preserveHistoricalCapacity(name);
-                
-                // STEP 2: Update the weekly capacity in Airtable
-                await this.updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity);
-            }
+async updatePersonWeeklyCapacity(name, weeklyCapacity) {
+    console.log(`🔄 Starting weekly capacity update for ${name}...`);
+    
+    // STEP 1: Get OLD weekly capacity before making any changes
+    const oldWeeklyCapacity = { ...this.peopleCapacity[name] };
+    
+    // STEP 2: Preserve historical capacity using OLD values
+    await this.preserveHistoricalCapacity(name, oldWeeklyCapacity);
+    
+    // STEP 3: Update the weekly capacity in Airtable
+    await this.updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity);
+}
             
             async updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity) {
                 console.log(`📝 Updating weekly capacity in Airtable for ${name}...`);
