@@ -706,8 +706,8 @@
                     </div>
                     <div class="flex items-center justify-between text-xs">
                         <div class="text-gray-600 dark:text-gray-400">Used: ${usedSlots}/${capacity} slots</div>
-                        <div class="font-medium ${remainingSlots > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}">
-                            ${remainingSlots > 0 ? `${remainingSlots} remaining` : 'Over capacity'}
+                        <div class="font-medium ${remainingSlots > 0 ? 'text-green-600 dark:text-green-400' : remainingSlots === 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-500 dark:text-red-400'}">
+                            ${remainingSlots > 0 ? `${remainingSlots} remaining` : remainingSlots === 0 ? 'Full' : 'Over capacity'}
                         </div>
                     </div>
                     ${remainingSlots > 0 ? `<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">(${remainingHours}h ${remainingMins}m available)</div>` : ''}
