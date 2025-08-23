@@ -1925,7 +1925,7 @@ updateWorkDateDisplay(dateStr) {
                     timeSlots.push(`<div class="time-slot relative border-gray-200 dark:border-gray-600"></div>`);
                 }
 
-                const capacity = this.getPersonCapacityForDate(person, date);
+                const capacity = this.getPersonCapacityForDate(person, date); // ✅ Use date object
                 const capacityHours = Math.floor(capacity * 15 / 60);
                 const capacityMins = (capacity * 15) % 60;
                 const dayName = this.DAYS_OF_WEEK[date.getDay()];
@@ -6098,7 +6098,9 @@ initActivityBasedRefresh() {
             // Auto-load functionality
             async checkForAutoLoad() {
                 await this.loadCapacityOverridesFromLocal();
-                await this.loadPeopleCapacityFromLocal();
+// CRITICAL FIX: Don't load people capacity from local storage
+// Let Airtable data load first and save to local storage
+// await this.loadPeopleCapacityFromLocal();
                 await this.loadViewPreferences();
                 await this.loadAutoRefreshSettings();
                 await this.loadAutoCapacitySettings();
@@ -6113,9 +6115,27 @@ initActivityBasedRefresh() {
                 }
                 
                 const savedConfig = await this.loadSavedConfig();
-                if (savedConfig) {
-                    await this.autoConnectWithSavedConfig(savedConfig);
-                }
+if (savedConfig) {
+    // CRITICAL FIX: Auto-load from Airtable if we have saved credentials
+    this.airtableConfig.apiKey = savedConfig.apiKey;
+    this.airtableConfig.baseId = savedConfig.baseId;
+    if (savedConfig.tablesConfig) {
+        this.airtableConfig.tablesConfig = savedConfig.tablesConfig;
+    }
+    
+    try {
+        this.showLoading('Loading data from Airtable...');
+        await this.loadAllDataFromAirtable();
+        this.renderWhiteboard();
+        console.log('✅ Auto-loaded from saved Airtable config');
+    } catch (error) {
+        console.warn('Failed to auto-load from Airtable:', error);
+        // Fallback to local storage if Airtable fails
+        await this.loadPeopleCapacityFromLocal();
+    } finally {
+        this.hideLoading();
+    }
+}
             }
             
             showQuickSetupDialog() {
@@ -6866,37 +6886,40 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                 }
             }
             
-            async loadPeopleFromAirtable() {
-                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
-                const response = await this.makeAirtableRequest(tableName);
-                
-                this.people = [];
-                if (!this.peopleCapacity) {
-                    this.peopleCapacity = {};
-                }
+ async loadPeopleFromAirtable() {
+    const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
+    const response = await this.makeAirtableRequest(tableName);
+    
+    this.people = [];
+    if (!this.peopleCapacity) {
+        this.peopleCapacity = {};
+    }
 
-                response.records.forEach(record => {
-                    const fields = record.fields;
-                    
-                    if (!fields.Name || fields.Name.startsWith('__')) {
-                        return;
-                    }
-                    
-                    const isActive = fields.Active !== false;
-                    
-                    if (isActive) {
-                        this.people.push(fields.Name);
-                        
-                        const weeklyCapacity = {};
-                        this.DAYS_OF_WEEK.forEach(day => {
-                            weeklyCapacity[day] = fields[`Capacity${day}`] || 16;
-                        });
-                        // Always update weekly capacity from Airtable (source of truth)
-                            this.peopleCapacity[fields.Name] = weeklyCapacity;
+    response.records.forEach(record => {
+        const fields = record.fields;
+        
+        // Skip invalid or system records
+        if (!fields.Name || fields.Name.startsWith('__')) {
+            return;
+        }
+        
+        const isActive = fields.Active !== false;
+        
+        if (isActive) {
+            this.people.push(fields.Name);
+            
+            // Build weekly capacity from Airtable fields
+            const weeklyCapacity = {};
+            this.DAYS_OF_WEEK.forEach(day => {
+                // Use nullish coalescing to preserve 0 values from Airtable
+                weeklyCapacity[day] = fields[`Capacity${day}`] ?? 16;
+            });
 
-                    }
-                });
-            }
+            // Always update weekly capacity from Airtable (source of truth)
+            this.peopleCapacity[fields.Name] = weeklyCapacity;
+        }
+    });
+}
             
             async loadTasksFromAirtable() {
                 console.log('🔄 Loading tasks from Airtable...');
