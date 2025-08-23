@@ -1692,7 +1692,7 @@ updateWorkDateDisplay(dateStr) {
     if (!dayDisplay) {
         dayDisplay = document.createElement('span');
         dayDisplay.id = 'workDateDay';
-        dayDisplay.className = 'ml-2 text-sm text-gray-600 dark:text-gray-400 font-medium';
+        dayDisplay.className = 'ml-2 text-sm text-gray-600 font-medium';
         workDateInput.parentNode.appendChild(dayDisplay);
     }
     
@@ -1788,7 +1788,7 @@ updateWorkDateDisplay(dateStr) {
                 
                 if (this.viewDays > 1) {
                     const dayHeader = document.createElement('div');
-                    dayHeader.className = 'text-center p-2 bg-gray-100 dark:bg-gray-700 rounded-t-lg mb-2 font-semibold';
+                    dayHeader.className = 'text-center p-2 bg-gray-100 rounded-t-lg mb-2 font-semibold';
                     const dayName = this.DAYS_OF_WEEK[date.getDay()];
                     const dayStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     dayHeader.textContent = `${dayName} ${dayStr}`;
@@ -1809,12 +1809,12 @@ updateWorkDateDisplay(dateStr) {
             
             createPersonColumn(person, date, dayOffset) {
                 const column = document.createElement('div');
-                column.className = 'flex-shrink-0 person-column w-[268px] bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700';
+                column.className = 'flex-shrink-0 person-column w-[268px] bg-gray-50 rounded-lg border border-gray-200';
                 column.dataset.person = person;
                 
                 const timeSlots = [];
                 for (let i = 0; i < 32; i++) {
-                    timeSlots.push(`<div class="time-slot relative border-gray-200 dark:border-gray-600"></div>`);
+                    timeSlots.push(`<div class="time-slot relative border-gray-200"></div>`);
                 }
 
                 const capacity = this.getPersonCapacityForDate(person, date); // ✅ Use date object
@@ -1830,30 +1830,30 @@ const remainingHours = Math.floor(remainingSlots * 15 / 60);
 const remainingMins = (remainingSlots * 15) % 60;
 
                 column.innerHTML = `
-                    <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <div class="p-4 border-b border-gray-200">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-semibold text-lg">${person}</h3>
                             <div class="flex space-x-1">
-                                <button class="add-task-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors" title="Add Order" data-person="${person}" data-date="${this.dateToLocalDateString(date)}">
+                                <button class="add-task-btn p-1 hover:bg-gray-200 rounded transition-colors" title="Add Order" data-person="${person}" data-date="${this.dateToLocalDateString(date)}">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                                     </svg>
                                 </button>
 
-                                <button class="quick-capacity-header-btn p-1 hover:bg-purple-100 dark:hover:bg-purple-900 rounded text-purple-500 transition-colors" title="Quick Capacity Override" data-person="${person}" data-date="${this.dateToLocalDateString(date)}">
+                                <button class="quick-capacity-header-btn p-1 hover:bg-purple-100 rounded text-purple-500 transition-colors" title="Quick Capacity Override" data-person="${person}" data-date="${this.dateToLocalDateString(date)}">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                     </svg>
                                 </button>
-                                <button class="snap-cards-btn p-1 hover:bg-green-100 dark:hover:bg-green-900 rounded text-green-500 transition-colors" title="Snap Cards to Top" data-person="${person}" data-date="${this.dateToLocalDateString(date)}">
+                                <button class="snap-cards-btn p-1 hover:bg-green-100 rounded text-green-500 transition-colors" title="Snap Cards to Top" data-person="${person}" data-date="${this.dateToLocalDateString(date)}">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
                                     </svg>
                                 </button>
                             </div>
                         </div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                            <button class="quick-capacity-btn hover:bg-gray-200 dark:hover:bg-gray-600 px-2 py-1 rounded transition-colors text-left w-full" 
+                        <div class="text-xs text-gray-500 mb-1">
+                            <button class="quick-capacity-btn hover:bg-gray-200 px-2 py-1 rounded transition-colors text-left w-full" 
                                     title="Click to set capacity for this day" 
                                     data-person="${person}" 
                                     data-date="${this.dateToLocalDateString(date)}">
@@ -1861,15 +1861,15 @@ const remainingMins = (remainingSlots * 15) % 60;
                             </button>
                         </div>
                         <div class="flex items-center justify-between text-xs">
-                            <div class="text-gray-600 dark:text-gray-400">
+                            <div class="text-gray-600">
                                 Used: ${usedSlots}/${capacity} slots
                             </div>
-                            <div class="font-medium ${remainingSlots > 0 ? 'text-green-600 dark:text-green-400' : remainingSlots === 0 ? 'text-orange-500 dark:text-orange-400' : 'text-red-500 dark:text-red-400'}">
+                            <div class="font-medium ${remainingSlots > 0 ? 'text-green-600' : remainingSlots === 0 ? 'text-orange-500' : 'text-red-500'}">
                                 ${remainingSlots > 0 ? `${remainingSlots} remaining` : remainingSlots === 0 ? 'Full' : 'Over capacity'}
                             </div>
                         </div>
                         ${remainingSlots > 0 ? `
-                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <div class="text-xs text-gray-500 mt-1">
                             (${remainingHours}h ${remainingMins}m available)
                         </div>` : ''}
                     </div>
@@ -1939,11 +1939,11 @@ createTaskCard(task, person, date) {
     
     let bgColor, borderColor;
     if (task.completed) {
-        bgColor = 'bg-green-100 dark:bg-green-900';
-        borderColor = isOverCapacity ? 'border-red-500 border-2' : 'border-green-300 dark:border-green-600';
+        bgColor = 'bg-green-100';
+        borderColor = isOverCapacity ? 'border-red-500 border-2' : 'border-green-300';
     } else {
-        bgColor = 'bg-yellow-100 dark:bg-yellow-900';
-        borderColor = isOverCapacity ? 'border-red-500 border-2' : 'border-yellow-300 dark:border-yellow-600';
+        bgColor = 'bg-yellow-100';
+        borderColor = isOverCapacity ? 'border-red-500 border-2' : 'border-yellow-300';
     }
     
     card.className = `task-card absolute left-2 right-2 ${bgColor} border rounded-lg shadow-sm cursor-move z-10 ${borderColor}`;
@@ -2015,7 +2015,7 @@ createTaskCard(task, person, date) {
             </div>
             ${showDescription ? `
                 <div class="flex-1 min-h-0">
-                    <div class="text-xs text-gray-600 dark:text-gray-400 leading-tight overflow-hidden" 
+                    <div class="text-xs text-gray-600 leading-tight overflow-hidden" 
                          style="max-height: ${Math.max(0, availableHeight)}px; 
                                 display: -webkit-box; 
                                 -webkit-line-clamp: ${Math.floor(availableHeight / 14)}; 
@@ -2608,26 +2608,26 @@ attachTaskCardListeners(card, task) {
                     
                     if (window.DirectPrint && window.DirectPrint.isAvailable) {
                         statusDiv.innerHTML = `
-                            <div class="bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded-lg p-3 mb-4">
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
                                 <div class="flex items-center">
                                     <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                     </svg>
-                                    <span class="text-green-700 dark:text-green-300 font-medium">🖨️ DirectPrint Extension Active</span>
+                                    <span class="text-green-700 font-medium">🖨️ DirectPrint Extension Active</span>
                                 </div>
-                                <p class="text-sm text-green-600 dark:text-green-400 mt-1">Tags will print directly to your thermal printer without browser dialogs.</p>
+                                <p class="text-sm text-green-600 mt-1">Tags will print directly to your thermal printer without browser dialogs.</p>
                             </div>
                         `;
                     } else {
                         statusDiv.innerHTML = `
-                            <div class="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 mb-4">
+                            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
                                 <div class="flex items-center">
                                     <svg class="w-5 h-5 text-yellow-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.996-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
                                     </svg>
-                                    <span class="text-yellow-700 dark:text-yellow-300 font-medium">⚠️ DirectPrint Extension Not Available</span>
+                                    <span class="text-yellow-700 font-medium">⚠️ DirectPrint Extension Not Available</span>
                                 </div>
-                                <p class="text-sm text-yellow-600 dark:text-yellow-400 mt-1">Install the Chrome extension for direct printing. Tags will use browser print dialog as fallback.</p>
+                                <p class="text-sm text-yellow-600 mt-1">Install the Chrome extension for direct printing. Tags will use browser print dialog as fallback.</p>
                             </div>
                         `;
                     }
@@ -2637,20 +2637,20 @@ attachTaskCardListeners(card, task) {
             showExtensionHelp() {
                 const helpModal = this.createModal('🔧 Install DirectPrint Extension', `
                     <div class="space-y-4 text-sm">
-                        <div class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-                            <h4 class="font-semibold text-blue-800 dark:text-blue-200 mb-3">📋 Installation Steps</h4>
-                            <ol class="list-decimal list-inside space-y-2 text-blue-700 dark:text-blue-300">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h4 class="font-semibold text-blue-800 mb-3">📋 Installation Steps</h4>
+                            <ol class="list-decimal list-inside space-y-2 text-blue-700">
                                 <li>Load the extension files into Chrome Developer Mode</li>
-                                <li>Open Chrome and go to <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">chrome://extensions/</code></li>
+                                <li>Open Chrome and go to <code class="bg-blue-100 px-1 rounded">chrome://extensions/</code></li>
                                 <li>Enable "Developer mode" in the top-right corner</li>
                                 <li>Click "Load unpacked" and select the extension folder</li>
                                 <li>The DirectPrint extension should now appear in your extensions list</li>
                             </ol>
                         </div>
                         
-                        <div class="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
-                            <h4 class="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">⚡ Extension Features</h4>
-                            <ul class="list-disc list-inside space-y-1 text-yellow-700 dark:text-yellow-300">
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <h4 class="font-semibold text-yellow-800 mb-2">⚡ Extension Features</h4>
+                            <ul class="list-disc list-inside space-y-1 text-yellow-700">
                                 <li>Direct printing to thermal/label printers</li>
                                 <li>Bypasses browser print dialogs</li>
                                 <li>Automatic printer detection</li>
@@ -2659,8 +2659,8 @@ attachTaskCardListeners(card, task) {
                             </ul>
                         </div>
                         
-                        <div class="text-center pt-4 border-t border-gray-200 dark:border-gray-600">
-                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                        <div class="text-center pt-4 border-t border-gray-200">
+                            <p class="text-xs text-gray-500">
                                 Once installed, refresh this page and the extension will be automatically detected.
                             </p>
                         </div>
@@ -2680,15 +2680,15 @@ attachTaskCardListeners(card, task) {
                 
                 for (let i = 1; i <= quantity; i++) {
                     const row = document.createElement('tr');
-                    row.className = 'bg-white dark:bg-gray-800';
+                    row.className = 'bg-white';
                     row.innerHTML = `
-                        <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">${i}</td>
-                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">${this.currentTagData.task.orderNumber}</td>
-                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">${this.currentTagData.person}</td>
-                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">${dayName}</td>
-                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">${formattedWorkDate}</td>
+                        <td class="px-4 py-3 text-sm font-medium text-gray-900">${i}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${this.currentTagData.task.orderNumber}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${this.currentTagData.person}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${dayName}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${formattedWorkDate}</td>
                         <td class="px-4 py-3">
-                            <input type="text" class="tag-custom-info w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700" 
+                            <input type="text" class="tag-custom-info w-full p-2 text-sm border border-gray-300 rounded bg-white" 
                                    placeholder="Custom info..." data-tag-index="${i}">
                         </td>
                     `;
@@ -2720,7 +2720,7 @@ attachTaskCardListeners(card, task) {
                     const customInfo = input.value.trim() || '';
                     
                     const tagPreview = document.createElement('div');
-                    tagPreview.className = 'border border-gray-300 dark:border-gray-600 rounded p-3 bg-white dark:bg-gray-800 text-sm';
+                    tagPreview.className = 'border border-gray-300 rounded p-3 bg-white text-sm';
                     tagPreview.innerHTML = `
                         <div class="font-bold text-primary text-lg mb-2">Tag ${tagNumber} - Order #${this.currentTagData.task.orderNumber}</div>
                         <div class="grid grid-cols-2 gap-2 text-xs">
@@ -2729,8 +2729,8 @@ attachTaskCardListeners(card, task) {
                             <div><strong>Work Date:</strong> ${this.formatDateForDisplay(this.currentTagData.dateKey)}</div>
                             <div><strong>Due Date:</strong> ${this.formatDateForDisplay(this.currentTagData.task.dateDue)}</div>
                         </div>
-                        ${customInfo ? `<div class="mt-2 font-medium text-blue-600 dark:text-blue-400">${customInfo}</div>` : ''}
-                        <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">${this.currentTagData.task.description}</div><div></div><div></div>
+                        ${customInfo ? `<div class="mt-2 font-medium text-blue-600">${customInfo}</div>` : ''}
+                        <div class="mt-2 text-xs text-gray-500">${this.currentTagData.task.description}</div><div></div><div></div>
                     `;
                     previewContainer.appendChild(tagPreview);
                 });
@@ -3361,11 +3361,11 @@ showOrderModalForPerson(person, date = null) {
                 const toggleBtn = document.getElementById('toggleCompletionBtn');
                 
                 if (isCompleted) {
-                    statusText.innerHTML = '<span class="text-green-600 dark:text-green-400">✅ Completed</span>';
+                    statusText.innerHTML = '<span class="text-green-600">✅ Completed</span>';
                     toggleBtn.className = 'px-4 py-2 rounded-lg font-medium transition-colors bg-yellow-500 text-white hover:bg-yellow-600';
                     toggleBtn.innerHTML = '<span>Mark Incomplete</span>';
                 } else {
-                    statusText.innerHTML = '<span class="text-yellow-600 dark:text-yellow-400">⏳ In Progress</span>';
+                    statusText.innerHTML = '<span class="text-yellow-600">⏳ In Progress</span>';
                     toggleBtn.className = 'px-4 py-2 rounded-lg font-medium transition-colors bg-green-500 text-white hover:bg-green-600';
                     toggleBtn.innerHTML = '<span>Mark Complete</span>';
                 }
@@ -3608,7 +3608,7 @@ updateQuickNumbers() {
     numbers.forEach(number => {
         const btn = document.createElement('button');
         btn.type = 'button';
-btn.className = 'px-3 py-2 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors font-mono';
+btn.className = 'px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-mono';
         btn.textContent = number.toString();
         btn.addEventListener('click', () => {
             this.insertNumberIntoDescription(number);
@@ -3666,7 +3666,7 @@ updateCommonWords() {
                 commonWords.forEach(word => {
                     const btn = document.createElement('button');
                     btn.type = 'button';
-                    btn.className = 'px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors';
+                    btn.className = 'px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors';
                     btn.textContent = word;
                     btn.addEventListener('click', () => {
                         const textarea = document.getElementById('descriptionInput');
@@ -3761,22 +3761,22 @@ generateCommonWords() {
                 const peopleContent = document.getElementById('peopleTabContent');
                 const editTextContent = document.getElementById('editTextTabContent');
                 
-                databaseTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-t';
-                peopleTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-t';
-                editTextTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-t';
+                databaseTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t';
+                peopleTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t';
+                editTextTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500  hover:text-gray-700  rounded-t';
                 databaseContent.classList.add('hidden');
                 peopleContent.classList.add('hidden');
                 editTextContent.classList.add('hidden');
                 
                 if (tab === 'database') {
-                    databaseTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50 dark:bg-gray-700 rounded-t';
+                    databaseTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50  rounded-t';
                     databaseContent.classList.remove('hidden');
                 } else if (tab === 'people') {
-                    peopleTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50 dark:bg-gray-700 rounded-t';
+                    peopleTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50  rounded-t';
                     peopleContent.classList.remove('hidden');
                     this.updateCurrentPeopleList();
                 } else if (tab === 'editText') {
-                    editTextTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50 dark:bg-gray-700 rounded-t';
+                    editTextTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50  rounded-t';
                     editTextContent.classList.remove('hidden');
                     this.loadEditTextContent();
                 }
@@ -3789,13 +3789,13 @@ generateCommonWords() {
                 container.innerHTML = '';
                 
                 if (this.people.length === 0) {
-                    container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-sm">No people added yet.</p>';
+                    container.innerHTML = '<p class="text-gray-500  text-sm">No people added yet.</p>';
                     return;
                 }
                 
                 this.people.forEach(person => {
                     const personCard = document.createElement('div');
-                    personCard.className = 'flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border';
+                    personCard.className = 'flex items-center justify-between p-3 bg-gray-50  rounded-lg border';
                     
                     const capacity = this.peopleCapacity[person] || {};
                     const totalSlots = Object.values(capacity).reduce((sum, slots) => sum + (slots || 0), 0);
@@ -3803,8 +3803,8 @@ generateCommonWords() {
                     
                     personCard.innerHTML = `
                         <div class="flex-1">
-                            <div class="font-medium text-gray-900 dark:text-gray-100">${person}</div>
-                            <div class="text-sm text-gray-500 dark:text-gray-400">
+                            <div class="font-medium text-gray-900 ">${person}</div>
+                            <div class="text-sm text-gray-500 ">
                                 ${totalSlots} total slots/week (~${avgHours}h avg/day)
                             </div>
                         </div>
@@ -3851,7 +3851,7 @@ generateCommonWords() {
                     div.innerHTML = `
                         <span class="block text-sm font-medium mb-1">${day}:</span>
                         <input type="number" id="newPersonCapacity${day}" min="0" max="32" value="16" 
-                               class="w-full p-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
+                               class="w-full p-2 text-base border border-gray-300  rounded-lg bg-white  focus:ring-2 focus:ring-primary focus:border-transparent">
                     `;
                     container.appendChild(div);
                 });
@@ -3944,7 +3944,7 @@ generateCommonWords() {
             showConnectionStatus(message, isError = false) {
                 const statusDiv = document.getElementById('connectionStatus');
                 statusDiv.textContent = message;
-                statusDiv.className = `p-3 rounded-lg text-sm ${isError ? 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300' : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'}`;
+                statusDiv.className = `p-3 rounded-lg text-sm ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
                 statusDiv.classList.remove('hidden');
             }
             
@@ -4060,7 +4060,7 @@ generateCommonWords() {
             
             showEmptySearchState(container) {
                 container.innerHTML = `
-                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <div class="text-center py-8 text-gray-500 ">
                         <p class="text-lg font-medium">Enter search terms</p>
                     </div>
                 `;
@@ -4129,7 +4129,7 @@ generateCommonWords() {
             displaySearchResults(results, container) {
                 if (results.length === 0) {
                     container.innerHTML = `
-                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <div class="text-center py-8 text-gray-500 ">
                             <p class="text-lg font-medium">No orders found</p>
                         </div>
                     `;
@@ -4148,7 +4148,7 @@ generateCommonWords() {
                 container.appendChild(scrollContainer);
                 
                 const statsDiv = document.createElement('div');
-                statsDiv.className = 'text-center py-2 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-600 mt-4';
+                statsDiv.className = 'text-center py-2 text-sm text-gray-500  border-t border-gray-200  mt-4';
                 statsDiv.textContent = `Found ${results.length} order${results.length !== 1 ? 's' : ''}`;
                 container.appendChild(statsDiv);
             }
@@ -4172,28 +4172,28 @@ createSearchResultItem(result) {
     
     if (task.completed) {
         status = '✅ Complete';
-        statusClass = 'text-green-600 dark:text-green-400';
+        statusClass = 'text-green-600';
     } else if (taskDueDate < today) {
         status = '⚠️ Overdue';
-        statusClass = 'text-red-600 dark:text-red-400';
+        statusClass = 'text-red-600';
     } else {
         status = '⏳ Incomplete';
-        statusClass = 'text-blue-600 dark:text-blue-400';
+        statusClass = 'text-blue-600';
     }
     
     const item = document.createElement('div');
-    item.className = 'p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors';
+    item.className = 'p-4 border border-gray-200  rounded-lg hover:bg-gray-50 transition-colors';
     
     item.innerHTML = `
         <div class="flex justify-between items-start mb-2">
             <div class="text-lg font-semibold text-primary">#${task.orderNumber}</div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">${task.duration * 15} min</div>
+            <div class="text-sm text-gray-500 ">${task.duration * 15} min</div>
         </div>
-        <div class="text-sm text-gray-600 dark:text-gray-300 mb-2">${task.description}</div>
+        <div class="text-sm text-gray-600  mb-2">${task.description}</div>
         <div class="flex justify-between items-center text-xs mb-2">
             <div class="flex space-x-4">
-                <span class="text-gray-500 dark:text-gray-400">📅 Work: ${correctWorkDateDisplay}</span>
-                <span class="text-gray-500 dark:text-gray-400">👤 ${person}</span>
+                <span class="text-gray-500 ">📅 Work: ${correctWorkDateDisplay}</span>
+                <span class="text-gray-500 ">👤 ${person}</span>
             </div>
             <div class="${dueDateColor}">Due: ${dueDateDisplay}</div>
         </div>
@@ -4206,7 +4206,7 @@ createSearchResultItem(result) {
                        ${task.completed ? 'checked' : ''}>
                 <span class="text-sm font-medium ${statusClass}">${status}</span>
             </span>
-            <div class="text-xs text-blue-500 dark:text-blue-400 font-medium cursor-pointer hover:underline" onclick="this.closest('.p-4').dispatchEvent(new Event('dblclick'))">
+            <div class="text-xs text-blue-500 font-medium cursor-pointer hover:underline" onclick="this.closest('.p-4').dispatchEvent(new Event('dblclick'))">
                 Double-click to navigate
             </div>
         </div>
@@ -4430,7 +4430,7 @@ if (statusFilter === 'incomplete') {
                             durationDisplay: `${task.duration * 15} min`,
                             isOverdue: true,
                             status: '⚠️ Overdue',
-                            statusClass: 'text-red-600 dark:text-red-400'
+                            statusClass: 'text-red-600'
                         });
                     }
                 });
@@ -4463,13 +4463,13 @@ collectReportData(selectedPerson, startDate, endDate) {
                         
                         if (task.completed) {
                             status = '✅ Complete';
-                            statusClass = 'text-green-600 dark:text-green-400';
+                            statusClass = 'text-green-600';
                         } else if (taskDueDate < today) {
                             status = '⚠️ Overdue';
-                            statusClass = 'text-red-600 dark:text-red-400';
+                            statusClass = 'text-red-600';
                         } else {
                             status = 'Incomplete';
-                            statusClass = 'text-blue-600 dark:text-blue-400';
+                            statusClass = 'text-blue-600';
                         }
                                     
                                     reportData.push({
@@ -4506,7 +4506,7 @@ collectReportData(selectedPerson, startDate, endDate) {
                 
                 if (reportData.length === 0) {
                     resultsContainer.innerHTML = `
-                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <div class="text-center py-8 text-gray-500 ">
                             <p class="text-lg font-medium">No orders found</p>
                         </div>
                     `;
@@ -4540,36 +4540,36 @@ const totalHours = Math.floor(totalDuration * 15 / 60);
 const totalMins = (totalDuration * 15) % 60;
 
 const summaryDiv = document.createElement('div');
-summaryDiv.className = 'bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6';
+summaryDiv.className = 'bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6';
 summaryDiv.innerHTML = `
-    <h4 class="font-semibold text-blue-800 dark:text-blue-200 mb-4">📊 Report Summary</h4>
+    <h4 class="font-semibold text-blue-800 mb-4">📊 Report Summary</h4>
     <div class="grid grid-cols-4 gap-4 text-sm">
         <div class="text-center">
-            <button class="report-filter-btn hover:bg-blue-100 dark:hover:bg-blue-800 p-2 rounded transition-colors w-full" data-filter="all">
-                <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${totalOrders}</div>
-                <div class="text-blue-700 dark:text-blue-300">Total Orders</div>
+            <button class="report-filter-btn hover:bg-blue-100 p-2 rounded transition-colors w-full" data-filter="all">
+                <div class="text-2xl font-bold text-blue-600">${totalOrders}</div>
+                <div class="text-blue-700">Total Orders</div>
             </button>
         </div>
         <div class="text-center">
-            <button class="report-filter-btn hover:bg-yellow-100 dark:hover:bg-yellow-800 p-2 rounded transition-colors w-full" data-filter="incomplete">
-                <div class="text-2xl font-bold ${incompleteOrders > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}">${incompleteOrders}</div>
-                <div class="text-blue-700 dark:text-blue-300">Incomplete</div>
+            <button class="report-filter-btn hover:bg-yellow-100 p-2 rounded transition-colors w-full" data-filter="incomplete">
+                <div class="text-2xl font-bold ${incompleteOrders > 0 ? 'text-yellow-600' : 'text-green-600 '}">${incompleteOrders}</div>
+                <div class="text-blue-700">Incomplete</div>
             </button>
         </div>
         <div class="text-center">
-            <button class="report-filter-btn hover:bg-red-100 dark:hover:bg-red-800 p-2 rounded transition-colors w-full" data-filter="overdue">
-                <div class="text-2xl font-bold ${overdueOrders > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${overdueOrders}</div>
-                <div class="text-blue-700 dark:text-blue-300">Overdue</div>
+            <button class="report-filter-btn hover:bg-red-100 p-2 rounded transition-colors w-full" data-filter="overdue">
+                <div class="text-2xl font-bold ${overdueOrders > 0 ? 'text-red-600' : 'text-green-600'}">${overdueOrders}</div>
+                <div class="text-blue-700">Overdue</div>
             </button>
         </div>
         <div class="text-center">
             <div class="p-2">
-                <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${totalHours}h ${totalMins}m</div>
-                <div class="text-blue-700 dark:text-blue-300">Total Time</div>
+                <div class="text-2xl font-bold text-blue-600">${totalHours}h ${totalMins}m</div>
+                <div class="text-blue-700">Total Time</div>
             </div>
         </div>
     </div>
-    <div class="mt-3 text-sm text-blue-700 dark:text-blue-300">
+    <div class="mt-3 text-sm text-blue-700">
         <strong>Period:</strong> ${this.formatDateForDisplay(startDate)} - ${this.formatDateForDisplay(endDate)}
         ${selectedPerson !== 'all' ? ` • <strong>Person:</strong> ${selectedPerson}` : ''}
         • <strong>Filter:</strong> ${filterType === 'incomplete' ? 'Incomplete Orders Only' : filterType === 'overdue' ? 'Overdue Orders Only' : filterType === 'completed' ? 'Completed Orders Only' : 'All Orders'}
@@ -4589,24 +4589,24 @@ resultsContainer.innerHTML = '';
 resultsContainer.appendChild(summaryDiv);
 
                 const tableContainer = document.createElement('div');
-                tableContainer.className = 'overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700';
+                tableContainer.className = 'overflow-x-auto bg-white rounded-lg border border-gray-200';
                 
                 const table = document.createElement('table');
-                table.className = 'min-w-full divide-y divide-gray-200 dark:divide-gray-700';
+                table.className = 'min-w-full divide-y divide-gray-200';
                 
                 table.innerHTML = `
-                    <thead class="bg-gray-50 dark:bg-gray-700">
+                    <thead class="bg-gray-50 ">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Order #</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Person</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Description</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Work Date</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Due Date</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Duration</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Order #</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Person</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Description</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Work Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Due Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Duration</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Status</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody class="bg-white divide-y divide-gray-200">
                     </tbody>
                 `;
 
@@ -4614,15 +4614,15 @@ resultsContainer.appendChild(summaryDiv);
                 
                 reportData.forEach((item, index) => {
                     const row = document.createElement('tr');
-                    row.className = index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700';
+                    row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50 ';
                     
                     row.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">#${item.task.orderNumber}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${item.person}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900 dark:text-gray-100 max-w-xs truncate" title="${item.task.description}">${item.task.description}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${item.workDateDisplay}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${item.dueDateDisplay}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${item.durationDisplay}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 ">${item.person}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900  max-w-xs truncate" title="${item.task.description}">${item.task.description}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 ">${item.workDateDisplay}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 ">${item.dueDateDisplay}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 ">${item.durationDisplay}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             <span class="flex items-center cursor-pointer">
                                 <input type="checkbox" class="report-checkbox w-4 h-4 text-primary border border-gray-300 rounded focus:ring-2 focus:ring-primary mr-2" 
@@ -4774,24 +4774,24 @@ showExportOptionsModal() {
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
     modal.innerHTML = `
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
             <h3 class="text-lg font-semibold mb-4">📤 Export Report</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Choose your export format:</p>
+            <p class="text-sm text-gray-600  mb-4">Choose your export format:</p>
             
             <div class="space-y-3">
-                <button id="exportCSV" class="w-full p-3 text-left bg-blue-50 hover:bg-blue-100 dark:bg-blue-900 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-700 rounded-lg transition-colors">
-                    <div class="font-medium text-blue-800 dark:text-blue-200">💾 CSV File</div>
-                    <div class="text-xs text-blue-600 dark:text-blue-400">Standard spreadsheet format</div>
+                <button id="exportCSV" class="w-full p-3 text-left bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+                    <div class="font-medium text-blue-800">💾 CSV File</div>
+                    <div class="text-xs text-blue-600">Standard spreadsheet format</div>
                 </button>
                 
-                <button id="exportThermal" class="w-full p-3 text-left bg-orange-50 hover:bg-orange-100 dark:bg-orange-900 dark:hover:bg-orange-800 border border-orange-200 dark:border-orange-700 rounded-lg transition-colors">
-                    <div class="font-medium text-orange-800 dark:text-orange-200">🖨️ Thermal Printer</div>
-                    <div class="text-xs text-orange-600 dark:text-orange-400">Optimized for thermal receipt printers</div>
+                <button id="exportThermal" class="w-full p-3 text-left bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg transition-colors">
+                    <div class="font-medium text-orange-800">🖨️ Thermal Printer</div>
+                    <div class="text-xs text-orange-600">Optimized for thermal receipt printers</div>
                 </button>
             </div>
             
             <div class="flex justify-end space-x-3 mt-6">
-                <button id="cancelExport" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
+                <button id="cancelExport" class="px-4 py-2 text-gray-600  hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
             </div>
         </div>
     `;
@@ -4861,7 +4861,7 @@ showExportOptionsModal() {
                 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                 calendarHTML += '<div class="grid grid-cols-7 gap-1 mb-2">';
                 weekDays.forEach(day => {
-                    calendarHTML += `<div class="p-2 text-center text-sm font-medium text-gray-500 dark:text-gray-400">${day}</div>`;
+                    calendarHTML += `<div class="p-2 text-center text-sm font-medium text-gray-500 ">${day}</div>`;
                 });
                 calendarHTML += '</div>';
                 
@@ -4886,8 +4886,8 @@ showExportOptionsModal() {
                             const cellClass = isSelected ? 
                                 'bg-primary text-white' : 
                                 isToday ? 
-                                    'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' : 
-                                    'hover:bg-gray-100 dark:hover:bg-gray-700';
+                                    'bg-blue-100 text-blue-800' : 
+                                    'hover:bg-gray-100';
                             
                             calendarHTML += `
                                 <button class="calendar-day p-2 h-10 text-sm rounded transition-colors ${cellClass}" 
@@ -4906,15 +4906,15 @@ showExportOptionsModal() {
                 }
                 
                 modal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm w-full mx-4 fade-in">
+                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4 fade-in">
                         <div class="flex items-center justify-between mb-4">
-                            <button class="prev-month p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors">
+                            <button class="prev-month p-2 hover:bg-gray-100 rounded transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                                 </svg>
                             </button>
                             <h3 class="text-lg font-semibold">${monthNames[currentMonth]} ${currentYear}</h3>
-                            <button class="next-month p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors">
+                            <button class="next-month p-2 hover:bg-gray-100 rounded transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                                 </svg>
@@ -4925,9 +4925,9 @@ showExportOptionsModal() {
                             ${calendarHTML}
                         </div>
                         
-                        <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                        <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-200 ">
                             <button class="today-btn px-3 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Today</button>
-                            <button class="close-calendar px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors">Close</button>
+                            <button class="close-calendar px-3 py-2 text-sm text-gray-600  hover:bg-gray-100 rounded transition-colors">Close</button>
                         </div>
                     </div>
                 `;
@@ -4973,26 +4973,26 @@ showExportOptionsModal() {
                             <div>
                                 <h4 class="font-semibold mb-3 text-primary">Navigation</h4>
                                 <ul class="space-y-2">
-                                    <li><kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">T</kbd> Go to Today</li>
-                                    <li><kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">←</kbd> Previous Day</li>
-                                    <li><kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">→</kbd> Next Day</li>
-                                    <li><kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">1/2/3</kbd> Switch View</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-100  rounded text-xs">T</kbd> Go to Today</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-100  rounded text-xs">←</kbd> Previous Day</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-100  rounded text-xs">→</kbd> Next Day</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-100  rounded text-xs">1/2/3</kbd> Switch View</li>
                                 </ul>
                             </div>
                             <div>
                                 <h4 class="font-semibold mb-3 text-primary">Actions</h4>
                                 <ul class="space-y-2">
-                                    <li><kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl+N</kbd> New Order</li>
-                                    <li><kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl+F</kbd> Search</li>
-                                    <li><kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl+R</kbd> Reports</li>
-                                    <li><kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl+Shift+S</kbd> Settings</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-100  rounded text-xs">Ctrl+N</kbd> New Order</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-100  rounded text-xs">Ctrl+F</kbd> Search</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-100  rounded text-xs">Ctrl+R</kbd> Reports</li>
+                                    <li><kbd class="px-2 py-1 bg-gray-100  rounded text-xs">Ctrl+Shift+S</kbd> Settings</li>
                                 </ul>
                             </div>
                         </div>
-                        <div class="pt-3 border-t border-gray-200 dark:border-gray-600">
-                            <p class="text-xs text-gray-500 dark:text-gray-400">
-                                Press <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">?</kbd> or 
-                                <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">H</kbd> anytime to show this help
+                        <div class="pt-3 border-t border-gray-200 ">
+                            <p class="text-xs text-gray-500 ">
+                                Press <kbd class="px-1 py-0.5 bg-gray-100  rounded text-xs">?</kbd> or 
+                                <kbd class="px-1 py-0.5 bg-gray-100  rounded text-xs">H</kbd> anytime to show this help
                             </p>
                         </div>
                     </div>
@@ -5037,16 +5037,16 @@ showExportOptionsModal() {
                 const modal = document.createElement('div');
                 modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
                 modal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4 fade-in">
+                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4 fade-in">
                         <h3 class="text-lg font-semibold mb-4">📅 Go to Date</h3>
                         <div class="space-y-4">
                             <div>
                                 <span class="block text-sm font-medium mb-2">Select Date:</span>
-                                <input type="date" id="datePickerInput" value="${this.dateToLocalDateString(this.currentDate)}" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <input type="date" id="datePickerInput" value="${this.dateToLocalDateString(this.currentDate)}" class="w-full p-3 text-base border border-gray-300  rounded-lg bg-white  focus:ring-2 focus:ring-primary focus:border-transparent">
                             </div>
                         </div>
                         <div class="flex justify-end space-x-3 mt-6">
-                            <button class="cancel-date-picker px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
+                            <button class="cancel-date-picker px-4 py-2 text-gray-600  hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
                             <button class="confirm-date-picker px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Go to Date</button>
                         </div>
                     </div>
@@ -5092,7 +5092,7 @@ showExportOptionsModal() {
                 modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
                 
                 const closeButtonHTML = showCloseButton ? `
-                    <button class="modal-close absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 transition-colors">
+                    <button class="modal-close absolute top-4 right-4 text-gray-400 hover:text-gray-600  p-1 transition-colors">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
@@ -5100,7 +5100,7 @@ showExportOptionsModal() {
                 ` : '';
 
                 modal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl ${maxWidth} w-full mx-4 relative max-h-[90vh] overflow-y-auto fade-in ${className}">
+                    <div class="bg-white p-6 rounded-lg shadow-xl ${maxWidth} w-full mx-4 relative max-h-[90vh] overflow-y-auto fade-in ${className}">
                         ${closeButtonHTML}
                         <h3 class="text-lg font-semibold mb-6">${title}</h3>
                         ${content}
@@ -5126,9 +5126,9 @@ showExportOptionsModal() {
 
             createConfirmationModal(title, message, onConfirm, confirmText = 'Confirm', confirmClass = 'bg-red-500 hover:bg-red-600') {
                 const content = `
-                    <div class="text-gray-700 dark:text-gray-300 mb-6">${message}</div>
+                    <div class="text-gray-700  mb-6">${message}</div>
                     <div class="flex justify-end space-x-3">
-                        <button class="cancel-btn px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
+                        <button class="cancel-btn px-4 py-2 text-gray-600  hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
                         <button class="confirm-btn px-4 py-2 text-white rounded-lg transition-colors ${confirmClass}">${confirmText}</button>
                     </div>
                 `;
@@ -5170,7 +5170,7 @@ showExportOptionsModal() {
             showDeleteConfirmation(task) {
                 const message = `
                     <p class="mb-4">Are you sure you want to delete order <strong>#${task.orderNumber}</strong>?</p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">${task.description}</p>
+                    <p class="text-sm text-gray-500 ">${task.description}</p>
                 `;
                 this.createConfirmationModal('🗑️ Delete Order', message, () => this.deleteTask(task), 'Delete');
             }
@@ -5183,7 +5183,7 @@ showExportOptionsModal() {
                 
                 const message = `
                     <p class="mb-4">Remove <strong>${person}</strong> from the active schedule?</p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">This will hide them from the current view but keep all their data intact.</p>
+                    <p class="text-sm text-gray-500 ">This will hide them from the current view but keep all their data intact.</p>
                 `;
                 this.createConfirmationModal('👤 Remove Person', message, () => this.deactivatePerson(person), 'Remove', 'bg-orange-500 hover:bg-orange-600');
             }
@@ -5206,13 +5206,13 @@ showExportOptionsModal() {
                         <div>
                             <span class="block text-sm font-medium mb-1">${day}:</span>
                             <input type="number" id="capacity${day}" min="0" max="32" value="${value}" 
-                                   class="w-full p-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
+                                   class="w-full p-2 text-base border border-gray-300  rounded-lg bg-white  focus:ring-2 focus:ring-primary focus:border-transparent">
                         </div>
                     `;
                 }).join('');
                 
                 modal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full mx-4 fade-in">
+                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full mx-4 fade-in">
                         <h3 class="text-lg font-semibold mb-4">⏰ Edit Capacity for ${person}</h3>
                         <div class="space-y-4">
                             <div>
@@ -5220,10 +5220,10 @@ showExportOptionsModal() {
                                 <div class="grid grid-cols-2 gap-3">
                                     ${capacityInputs}
                                 </div>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Each slot = 15 minutes. 32 slots = 8 hours max.</p>
+                                <p class="text-xs text-gray-500  mt-2">Each slot = 15 minutes. 32 slots = 8 hours max.</p>
                             </div>
                             
-                            <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                            <div class="bg-gray-50  p-3 rounded-lg">
                                 <span class="block text-sm font-medium mb-2">Quick Presets:</span>
                                 <div class="flex flex-wrap gap-2">
                                     <button type="button" class="preset-full-time px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">Full Time (Mon-Fri, 8h)</button>
@@ -5234,7 +5234,7 @@ showExportOptionsModal() {
                             </div>
                         </div>
                         <div class="flex justify-end space-x-3 mt-6">
-                            <button class="cancel-capacity px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
+                            <button class="cancel-capacity px-4 py-2 text-gray-600  hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
                             <button class="save-capacity px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Save</button>
                         </div>
                     </div>
@@ -5378,10 +5378,10 @@ taskDueDate.setHours(0, 0, 0, 0);
 const isOverdue = !task.completed && taskDueDate < today;
 
                 modal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto fade-in">
+                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto fade-in">
                         <div class="flex justify-between items-center mb-6">
                             <h3 class="text-xl font-bold text-primary">📋 Order Details</h3>
-                            <button class="close-details text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 transition-colors">
+                            <button class="close-details text-gray-400 hover:text-gray-600  p-1 transition-colors">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                                 </svg>
@@ -5391,43 +5391,43 @@ const isOverdue = !task.completed && taskDueDate < today;
                         <div class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Order Number:</span>
+                                    <span class="block text-sm font-medium text-gray-700  mb-1">Order Number:</span>
                                     <div class="text-lg font-semibold text-primary">#${task.orderNumber}</div>
                                 </div>
                                 <div>
-                                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Duration:</span>
+                                    <span class="block text-sm font-medium text-gray-700  mb-1">Duration:</span>
                                     <div class="text-lg font-semibold">${task.duration * 15} minutes</div>
                                 </div>
                             </div>
                             
                             <div>
-                                <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assigned to:</span>
-                                <div class="text-lg font-semibold text-blue-600 dark:text-blue-400">${currentPerson || 'Unknown'}</div>
+                                <span class="block text-sm font-medium text-gray-700  mb-1">Assigned to:</span>
+                                <div class="text-lg font-semibold text-blue-600">${currentPerson || 'Unknown'}</div>
                             </div>
                             
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Work Date:</span>
+                                    <span class="block text-sm font-medium text-gray-700  mb-1">Work Date:</span>
                                     <div class="text-sm">${formattedWorkDate}</div>
                                 </div>
                                 <div>
-                                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date:</span>
-                                    <div class="text-sm ${isOverdue ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${formattedDueDate}</div>
+                                    <span class="block text-sm font-medium text-gray-700  mb-1">Due Date:</span>
+                                    <div class="text-sm ${isOverdue ? 'text-red-600' : 'text-green-600'}">${formattedDueDate}</div>
                                 </div>
                             </div>
                             
                             <div>
-                                <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description:</span>
-                                <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border">
-                                    <p class="text-gray-800 dark:text-gray-200 leading-relaxed">${task.description || 'No description provided'}</p>
+                                <span class="block text-sm font-medium text-gray-700  mb-2">Description:</span>
+                                <div class="bg-gray-50  p-3 rounded-lg border">
+                                    <p class="text-gray-800 leading-relaxed">${task.description || 'No description provided'}</p>
                                 </div>
                             </div>
 
-                            <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border">
+                            <div class="bg-gray-50  p-4 rounded-lg border">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status:</span>
-                                        <div class="text-sm ${task.completed ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}">
+                                        <span class="block text-sm font-medium text-gray-700  mb-1">Status:</span>
+                                        <div class="text-sm ${task.completed ? 'text-green-600' : 'text-yellow-600'}">
                                             ${task.completed ? '✅ Completed' : '⏳ In Progress'}
                                         </div>
                                     </div>
@@ -5438,16 +5438,16 @@ const isOverdue = !task.completed && taskDueDate < today;
                             </div>
                             
                             ${isOverdue ? 
-                                '<div class="bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg p-3"><p class="text-red-800 dark:text-red-200 text-sm font-medium">⚠️ This order is overdue</p></div>' : 
+                                '<div class="bg-red-50 border border-red-200 rounded-lg p-3"><p class="text-red-800 text-sm font-medium">⚠️ This order is overdue</p></div>' : 
                                 ''
                             }
                         </div>
                         
-                        <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                        <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-200 ">
                             <button class="edit-task-btn px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">
                                 Edit Order
                             </button>
-                            <button class="close-details px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                            <button class="close-details px-4 py-2 text-gray-600  hover:bg-gray-100 rounded-lg transition-colors">
                                 Close
                             </button>
                         </div>
@@ -5484,15 +5484,15 @@ const isOverdue = !task.completed && taskDueDate < today;
                 const formattedDate = this.formatDateForDisplay(dateKey);
                 
                 modal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4 fade-in">
+                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4 fade-in">
                         <h3 class="text-lg font-semibold mb-4">⚡ Quick Capacity Override</h3>
                         <div class="space-y-4">
-                            <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                <div class="text-sm text-gray-600 dark:text-gray-400">Person:</div>
+                            <div class="bg-gray-50  p-3 rounded-lg">
+                                <div class="text-sm text-gray-600 ">Person:</div>
                                 <div class="font-medium">${person}</div>
                             </div>
-                            <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                <div class="text-sm text-gray-600 dark:text-gray-400">Date:</div>
+                            <div class="bg-gray-50  p-3 rounded-lg">
+                                <div class="text-sm text-gray-600 ">Date:</div>
                                 <div class="font-medium">${formattedDate} (${dayName})</div>
                             </div>
                             <div>
@@ -5500,8 +5500,8 @@ const isOverdue = !task.completed && taskDueDate < today;
                                     Capacity for this day (15-min slots):
                                 </span>
                                 <input type="number" id="quickCapacityInput" min="0" max="32" value="${currentCapacity}" 
-                                       class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
-                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                       class="w-full p-3 text-base border border-gray-300  rounded-lg bg-white  focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <div class="text-xs text-gray-500  mt-1">
                                     Current: ${currentCapacity} slots (${Math.floor(currentCapacity * 15 / 60)}h ${(currentCapacity * 15) % 60}m)
                                 </div>
                             </div>
@@ -5513,7 +5513,7 @@ const isOverdue = !task.completed && taskDueDate < today;
                             </div>
                         </div>
                         <div class="flex justify-end space-x-3 mt-6">
-                            <button class="cancel-quick-capacity px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
+                            <button class="cancel-quick-capacity px-4 py-2 text-gray-600  hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
                             <button class="save-quick-capacity px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Save</button>
                         </div>
                     </div>
@@ -5617,10 +5617,10 @@ const isOverdue = !task.completed && taskDueDate < today;
                 const sortedDates = Object.keys(currentOverrides).sort();
                 
                 modal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto fade-in">
+                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto fade-in">
                         <div class="flex justify-between items-center mb-6">
                             <h3 class="text-lg font-semibold">📅 Capacity Overrides for ${person}</h3>
-                            <button class="close-overrides text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 transition-colors">
+                            <button class="close-overrides text-gray-400 hover:text-gray-600 p-1 transition-colors">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                                 </svg>
@@ -5628,20 +5628,20 @@ const isOverdue = !task.completed && taskDueDate < today;
                         </div>
                         
                         <!-- Add New Override Section -->
-                        <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-6">
+                        <div class="bg-gray-50 p-4 rounded-lg mb-6">
                             <h4 class="font-medium mb-4">Add New Override</h4>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                 <div>
                                     <span class="block text-sm font-medium mb-2">Start Date:</span>
-                                    <input type="date" id="overrideStartDate" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
+                                    <input type="date" id="overrideStartDate" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
                                 </div>
                                 <div>
                                     <span class="block text-sm font-medium mb-2">End Date (Optional):</span>
-                                    <input type="date" id="overrideEndDate" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
+                                    <input type="date" id="overrideEndDate" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
                                 </div>
                                 <div>
                                     <span class="block text-sm font-medium mb-2">Capacity (slots):</span>
-                                    <input type="number" id="overrideCapacity" min="0" max="32" value="0" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent">
+                                    <input type="number" id="overrideCapacity" min="0" max="32" value="0" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
                                 </div>
                             </div>
                             <div class="flex justify-between items-center">
@@ -5659,17 +5659,17 @@ const isOverdue = !task.completed && taskDueDate < today;
                             <h4 class="font-medium mb-4">Current Overrides</h4>
                             <div id="overridesList" class="space-y-2">
                                 ${sortedDates.length === 0 ? 
-                                    '<p class="text-gray-500 dark:text-gray-400 text-sm">No capacity overrides set.</p>' :
+                                    '<p class="text-gray-500 text-sm">No capacity overrides set.</p>' :
                                     sortedDates.map(date => {
                                         const capacity = currentOverrides[date];
                                         // Fix date display issue by parsing the date string properly
                                         const parsedDate = this.parseDateString(date);
                                         const formattedDate = parsedDate ? this.formatDateForDisplay(parsedDate) : date;
                                         return `
-                                            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border">
+                                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
                                                 <div>
                                                     <div class="font-medium">${formattedDate}</div>
-                                                    <div class="text-sm text-gray-500 dark:text-gray-400">${capacity} slots (${Math.floor(capacity * 15 / 60)}h ${(capacity * 15) % 60}m)</div>
+                                                    <div class="text-sm text-gray-500">${capacity} slots (${Math.floor(capacity * 15 / 60)}h ${(capacity * 15) % 60}m)</div>
                                                 </div>
                                                 <button class="remove-override px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors" data-date="${date}">Remove</button>
                                             </div>
@@ -5679,8 +5679,8 @@ const isOverdue = !task.completed && taskDueDate < today;
                             </div>
                         </div>
                         
-                        <div class="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
-                            <button class="close-overrides px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Close</button>
+                        <div class="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+                            <button class="close-overrides px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Close</button>
                         </div>
                     </div>
                 `;
@@ -6045,18 +6045,18 @@ if (savedConfig) {
                 const modal = document.createElement('div');
                 modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
                 modal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4 fade-in">
+                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4 fade-in">
                         <h3 class="text-lg font-semibold mb-4">🔗 Quick Setup</h3>
-                        <p class="text-gray-700 dark:text-gray-300 mb-4">
+                        <p class="text-gray-700 mb-4">
                             Base ID detected! Enter your Airtable API key to restore your data.
                         </p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                        <p class="text-sm text-gray-500 mb-4">
                             Base ID: <strong>${this.airtableConfig.baseId}</strong>
                         </p>
                         <input type="password" id="quickApiKey" placeholder="Enter your Airtable API Key" 
-                               class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-transparent mb-4">
+                               class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent mb-4">
                         <div class="flex justify-end space-x-3">
-                            <button class="cancel-quick-setup px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
+                            <button class="cancel-quick-setup px-4 py-2 text-gray-600  hover:bg-gray-100  rounded-lg transition-colors">Cancel</button>
                             <button class="confirm-quick-setup px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Connect</button>
                         </div>
                     </div>
@@ -6292,7 +6292,7 @@ if (savedConfig) {
                 this.removeContextMenu();
                 
                 const menu = document.createElement('div');
-                menu.className = 'fixed bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-xl py-2 min-w-[160px]';
+                menu.className = 'fixed bg-white border border-gray-300 rounded-lg shadow-xl py-2 min-w-[160px]';
                 menu.style.zIndex = '9999';
                 menu.id = 'taskContextMenu';
                 
@@ -6322,18 +6322,18 @@ if (savedConfig) {
                         icon: '🗑️',
                         text: 'Delete Order',
                         action: () => this.showDeleteConfirmation(task),
-                        className: 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900'
+                        className: 'text-red-600 hover:bg-red-50'
                     }
                 ];
                 
                 menuItems.forEach(item => {
                     if (item.divider) {
                         const divider = document.createElement('div');
-                        divider.className = 'h-px bg-gray-200 dark:bg-gray-600 my-1';
+                        divider.className = 'h-px bg-gray-200 my-1';
                         menu.appendChild(divider);
                     } else {
                         const menuItem = document.createElement('button');
-                        menuItem.className = `w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center space-x-3 ${item.className || ''}`;
+                        menuItem.className = `w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center space-x-3 ${item.className || ''}`;
                         menuItem.innerHTML = `
                             <span class="text-base">${item.icon}</span>
                             <span>${item.text}</span>
@@ -6450,7 +6450,7 @@ if (savedConfig) {
                     }
                     
                     autocompleteList = document.createElement('div');
-                    autocompleteList.className = 'absolute top-full left-0 right-0 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto z-50 mt-1';
+                    autocompleteList.className = 'absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto z-50 mt-1';
                     autocompleteList.style.display = 'none';
                     
                     descriptionInput.parentNode.style.position = 'relative';
@@ -6472,12 +6472,12 @@ if (savedConfig) {
                     
                     suggestions.forEach((suggestion, index) => {
                         const item = document.createElement('div');
-                        item.className = 'px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 border-b border-gray-100 dark:border-gray-600 last:border-b-0';
+                        item.className = 'px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 border-b border-gray-100 last:border-b-0';
                         item.textContent = suggestion.text;
                         item.dataset.index = index;
                         
                         if (suggestion.isPartial) {
-                            item.innerHTML += ' <span class="text-xs text-gray-500 dark:text-gray-400">(partial match)</span>';
+                            item.innerHTML += ' <span class="text-xs text-gray-500">(partial match)</span>';
                         }
                         
                         item.addEventListener('click', () => {
@@ -6519,7 +6519,7 @@ if (savedConfig) {
                     const items = autocompleteList.querySelectorAll('[data-index]');
                     
                     // Remove previous highlight
-                    items.forEach(item => item.classList.remove('bg-blue-100', 'dark:bg-blue-900'));
+                    items.forEach(item => item.classList.remove('bg-blue-100'));
                     
                     if (direction === 'down') {
                         selectedIndex = (selectedIndex + 1) % currentSuggestions.length;
@@ -6528,7 +6528,7 @@ if (savedConfig) {
                     }
                     
                     if (selectedIndex >= 0) {
-                        items[selectedIndex].classList.add('bg-blue-100', 'dark:bg-blue-900');
+                        items[selectedIndex].classList.add('bg-blue-100');
                         items[selectedIndex].scrollIntoView({ block: 'nearest' });
                     }
                 };
@@ -6995,12 +6995,12 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                             <svg class="w-12 h-12 mx-auto text-blue-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                             </svg>
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">📅 Capacity Overrides Setup</h3>
+                            <h3 class="text-lg font-semibold text-gray-900 mb-2">📅 Capacity Overrides Setup</h3>
                         </div>
-                        <div class="text-left space-y-3 text-sm text-gray-700 dark:text-gray-300">
+                        <div class="text-left space-y-3 text-sm text-gray-700">
                             <p><strong>Quick Capacity Overrides aren't syncing between devices?</strong></p>
                             <p>To sync capacity overrides (like absent days, half days, etc.) across devices, you need to create a "CapacityOverrides" table in Airtable:</p>
-                            <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded border mt-3 mb-3">
+                            <div class="bg-gray-50 p-3 rounded border mt-3 mb-3">
                                 <p class="font-medium mb-2">Create this table structure:</p>
                                 <ul class="list-disc list-inside space-y-1 text-xs">
                                     <li><strong>Person</strong> (Single line text)</li>
@@ -7008,7 +7008,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                                     <li><strong>Capacity</strong> (Number field)</li>
                                 </ul>
                             </div>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Without this table, capacity overrides only save locally and won't sync between browsers or devices.</p>
+                            <p class="text-xs text-gray-500">Without this table, capacity overrides only save locally and won't sync between browsers or devices.</p>
                         </div>
                         <div class="mt-6">
                             <button class="understand-btn w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
