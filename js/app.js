@@ -5932,36 +5932,40 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                 }
             }
             
-            async loadPeopleFromAirtable() {
-                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
-                const response = await this.makeAirtableRequest(tableName);
-                
-                this.people = [];
-                if (!this.peopleCapacity) {
-                    this.peopleCapacity = {};
-                }
+ async loadPeopleFromAirtable() {
+    const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
+    const response = await this.makeAirtableRequest(tableName);
+    
+    this.people = [];
+    if (!this.peopleCapacity) {
+        this.peopleCapacity = {};
+    }
 
-                response.records.forEach(record => {
-                    const fields = record.fields;
-                    
-                    if (!fields.Name || fields.Name.startsWith('__')) {
-                        return;
-                    }
-                    
-                    const isActive = fields.Active !== false;
-                    
-                    if (isActive) {
-                        this.people.push(fields.Name);
-                        
-                        const weeklyCapacity = {};
-                        this.DAYS_OF_WEEK.forEach(day => {
-                            weeklyCapacity[day] = fields[`Capacity${day}`] || 16;
-                        });
-                       // Always update weekly capacity from Airtable (source of truth) 
-                            this.peopleCapacity[fields.Name] = weeklyCapacity;
-                    }
-                });
-            }
+    response.records.forEach(record => {
+        const fields = record.fields;
+        
+        // Skip invalid or system records
+        if (!fields.Name || fields.Name.startsWith('__')) {
+            return;
+        }
+        
+        const isActive = fields.Active !== false;
+        
+        if (isActive) {
+            this.people.push(fields.Name);
+            
+            // Build weekly capacity from Airtable fields
+            const weeklyCapacity = {};
+            this.DAYS_OF_WEEK.forEach(day => {
+                // Use nullish coalescing to preserve 0 values from Airtable
+                weeklyCapacity[day] = fields[`Capacity${day}`] ?? 16;
+            });
+
+            // Always update weekly capacity from Airtable (source of truth)
+            this.peopleCapacity[fields.Name] = weeklyCapacity;
+        }
+    });
+}
             
             async loadTasksFromAirtable() {
                 console.log('🔄 Loading tasks from Airtable...');
@@ -7012,5 +7016,6 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
 
