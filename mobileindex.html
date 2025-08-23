@@ -261,6 +261,7 @@
                 this.tasks = {};
                 this.people = [];
                 this.peopleCapacity = {};
+                this.capacityOverrides = {};
                 this.selectedPerson = null;
                 this.airtableConfig = {};
                 this.currentView = 'tasks';
@@ -337,6 +338,7 @@
             async loadDataFromAirtable() {
                 try {
                     await this.loadPeopleFromAirtable();
+                    await this.loadCapacityOverridesFromAirtable();
                     await this.loadTasksFromAirtable();
                     this.hideLoadingMessage();
                 } catch (error) {
@@ -360,19 +362,27 @@
                         
                         const personCapacity = {};
                         const dayPatterns = [
-                            ['Sunday', 'Sun', 'Sunday Capacity', 'SundayCapacity', 'Day0', '0'],
-                            ['Monday', 'Mon', 'Monday Capacity', 'MondayCapacity', 'Day1', '1'],
-                            ['Tuesday', 'Tue', 'Tuesday Capacity', 'TuesdayCapacity', 'Day2', '2'],
-                            ['Wednesday', 'Wed', 'Wednesday Capacity', 'WednesdayCapacity', 'Day3', '3'],
-                            ['Thursday', 'Thu', 'Thursday Capacity', 'ThursdayCapacity', 'Day4', '4'],
-                            ['Friday', 'Fri', 'Friday Capacity', 'FridayCapacity', 'Day5', '5'],
-                            ['Saturday', 'Sat', 'Saturday Capacity', 'SaturdayCapacity', 'Day6', '6']
+                            ['Sunday', 'Sun', 'Sunday Capacity', 'SundayCapacity', 'CapacitySunday', 'Day0', '0'],
+                            ['Monday', 'Mon', 'Monday Capacity', 'MondayCapacity', 'CapacityMonday', 'Day1', '1'],
+                            ['Tuesday', 'Tue', 'Tuesday Capacity', 'TuesdayCapacity', 'CapacityTuesday', 'Day2', '2'],
+                            ['Wednesday', 'Wed', 'Wednesday Capacity', 'WednesdayCapacity', 'CapacityWednesday', 'Day3', '3'],
+                            ['Thursday', 'Thu', 'Thursday Capacity', 'ThursdayCapacity', 'CapacityThursday', 'Day4', '4'],
+                            ['Friday', 'Fri', 'Friday Capacity', 'FridayCapacity', 'CapacityFriday', 'Day5', '5'],
+                            ['Saturday', 'Sat', 'Saturday Capacity', 'SaturdayCapacity', 'CapacitySaturday', 'Day6', '6']
                         ];
+                        
+                        // Debug logging for Iris
+                        if (fields.Name === 'Iris') {
+                            console.log('Iris fields:', JSON.stringify(fields));
+                        }
                         
                         dayPatterns.forEach((patterns, dayIndex) => {
                             for (const pattern of patterns) {
                                 if (fields.hasOwnProperty(pattern) && fields[pattern] !== null && fields[pattern] !== '') {
                                     personCapacity[dayIndex] = this.parseCapacityValue(fields[pattern]);
+                                    if (fields.Name === 'Iris') {
+                                        console.log(`Iris ${pattern} (day ${dayIndex}):`, fields[pattern], '→', personCapacity[dayIndex]);
+                                    }
                                     break;
                                 }
                             }
@@ -385,6 +395,9 @@
                                     const capacityValue = this.parseCapacityValue(fields[field]);
                                     for (let i = 1; i <= 5; i++) personCapacity[i] = capacityValue;
                                     personCapacity[0] = personCapacity[6] = 0;
+                                    if (fields.Name === 'Iris') {
+                                        console.log(`Iris general capacity from ${field}:`, capacityValue);
+                                    }
                                     break;
                                 }
                             }
@@ -395,8 +408,44 @@
                         }
                         
                         this.peopleCapacity[fields.Name] = personCapacity;
+                        
+                        // Debug final capacity for Iris
+                        if (fields.Name === 'Iris') {
+                            console.log('Iris final capacity:', personCapacity);
+                        }
                     }
                 });
+                
+                // Debug all people capacity
+                console.log('All people capacity:', this.peopleCapacity);
+            }
+
+            async loadCapacityOverridesFromAirtable() {
+                try {
+                    const tableName = encodeURIComponent('CapacityOverrides');
+                    const response = await this.makeAirtableRequest(tableName);
+                    
+                    this.capacityOverrides = {};
+                    
+                    response.records.forEach(record => {
+                        const fields = record.fields;
+                        const person = fields.Person;
+                        const date = fields.Date;
+                        const capacity = fields.Capacity;
+                        
+                        if (person && date && capacity !== null && capacity !== undefined) {
+                            const dateKey = this.normalizeAirtableDate(date);
+                            const overrideKey = `${person}_${dateKey}`;
+                            this.capacityOverrides[overrideKey] = this.parseCapacityValue(capacity);
+                        }
+                    });
+                    
+                    console.log('Capacity overrides loaded:', this.capacityOverrides);
+                } catch (error) {
+                    // If CapacityOverrides table doesn't exist, that's OK
+                    console.log('No CapacityOverrides table found - using base capacities only');
+                    this.capacityOverrides = {};
+                }
             }
             
             parseCapacityValue(value) {
@@ -751,10 +800,21 @@
             }
 
             getPersonCapacityForDate(person) {
+                const dateKey = this.formatDate(this.currentDate, 'string');
+                const overrideKey = `${person}_${dateKey}`;
+                
+                // First check for capacity override (auto-adjusted capacity)
+                if (this.capacityOverrides.hasOwnProperty(overrideKey)) {
+                    return this.capacityOverrides[overrideKey];
+                }
+                
+                // Fall back to base capacity from People table
                 const dayOfWeek = this.currentDate.getDay();
                 if (this.peopleCapacity[person] && this.peopleCapacity[person][dayOfWeek] !== undefined) {
                     return this.peopleCapacity[person][dayOfWeek];
                 }
+                
+                // Final fallback to default capacity
                 const defaultCapacity = { 0: 0, 1: 16, 2: 16, 3: 16, 4: 16, 5: 16, 6: 0 };
                 return defaultCapacity[dayOfWeek] || 0;
             }
