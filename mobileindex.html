@@ -17,26 +17,26 @@
         }
     </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 min-h-screen">
-    <header class="bg-white dark:bg-gray-800 shadow-sm border-b px-4 py-3 sticky top-0 z-10">
+<body class="bg-gray-50 min-h-screen">
+    <header class="bg-white shadow-sm border-b px-4 py-3 sticky top-0 z-10">
         <div class="flex items-center justify-between">
-            <h1 class="text-lg font-bold text-purple-600 dark:text-purple-400">📱 Task Scheduler Mobile</h1>
-            <a href="index.html" class="text-sm text-purple-600 dark:text-purple-400 hover:underline">Desktop Version</a>
+            <h1 class="text-lg font-bold text-purple-600">📱 Task Scheduler Mobile</h1>
+            <a href="index.html" class="text-sm text-purple-600 hover:underline">Desktop Version</a>
         </div>
     </header>
 
-    <div class="bg-white dark:bg-gray-800 border-b px-4 py-3">
+    <div class="bg-white border-b px-4 py-3">
         <div class="flex items-center justify-between mb-3">
-            <button id="prevDay" class="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+            <button id="prevDay" class="p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                 </svg>
             </button>
             <div class="flex flex-col items-center">
-                <button id="currentDate" class="font-semibold text-center min-w-[200px] px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors mb-1"></button>
-                <button id="todayBtn" class="text-xs text-purple-600 dark:text-purple-400 hover:underline">Today</button>
+                <button id="currentDate" class="font-semibold text-center min-w-[200px] px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors mb-1"></button>
+                <button id="todayBtn" class="text-xs text-purple-600 hover:underline">Today</button>
             </div>
-            <button id="nextDay" class="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+            <button id="nextDay" class="p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                 </svg>
@@ -55,96 +55,96 @@
     <main id="mainContent" class="p-4">
         <div id="loadingMessage" class="text-center py-8">
             <div class="loading-spinner rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-3"></div>
-            <p class="text-gray-600 dark:text-gray-400">Loading tasks...</p>
+            <p class="text-gray-600">Loading tasks...</p>
         </div>
     </main>
 
     <div id="reportView" class="hidden p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
-            <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">📊 Ready Date Report</h2>
-            <div id="reportDate" class="text-sm text-gray-600 dark:text-gray-400 mb-4"></div>
+        <div class="bg-white rounded-lg shadow p-4 mb-4">
+            <h2 class="text-lg font-semibold mb-3 text-gray-900">📊 Ready Date Report</h2>
+            <div id="reportDate" class="text-sm text-gray-600 mb-4"></div>
             <div id="reportContent"></div>
         </div>
         <button id="backToTopReport" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm">⬆️ Back to Top</button>
     </div>
 
     <div id="searchView" class="hidden p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
-            <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">🔍 Search Orders</h2>
+        <div class="bg-white rounded-lg shadow p-4 mb-4">
+            <h2 class="text-lg font-semibold mb-3 text-gray-900">🔍 Search Orders</h2>
             
             <div class="mb-4">
-                <h4 class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Date Range (Required):</h4>
+                <h4 class="block text-sm font-medium mb-2 text-gray-700">Date Range (Required):</h4>
                 
                 <div class="mb-3">
-                    <label class="block text-xs text-gray-600 dark:text-gray-400 mb-2">Filter by:</label>
+                    <div class="block text-xs text-gray-600 mb-2">Filter by:</div>
                     <div class="flex space-x-4">
                         <label class="flex items-center">
                             <input type="radio" name="dateFilterType" value="workDate" checked class="mr-2 text-purple-500 focus:ring-purple-500">
-                            <span class="text-sm text-gray-700 dark:text-gray-300">Work Date</span>
+                            <span class="text-sm text-gray-700">Work Date</span>
                         </label>
                         <label class="flex items-center">
                             <input type="radio" name="dateFilterType" value="dueDate" class="mr-2 text-purple-500 focus:ring-purple-500">
-                            <span class="text-sm text-gray-700 dark:text-gray-300">Due Date</span>
+                            <span class="text-sm text-gray-700">Due Date</span>
                         </label>
                     </div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Work Date = scheduled/ready date, Due Date = deadline</p>
+                    <p class="text-xs text-gray-500 mt-1">Work Date = scheduled/ready date, Due Date = deadline</p>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-3 mb-3">
                     <div>
-                        <label for="searchDateFrom" class="block text-xs text-gray-600 dark:text-gray-400 mb-1">From:</label>
-                        <input type="date" id="searchDateFrom" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <label for="searchDateFrom" class="block text-xs text-gray-600 mb-1">From:</label>
+                        <input type="date" id="searchDateFrom" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     </div>
                     <div>
-                        <label for="searchDateTo" class="block text-xs text-gray-600 dark:text-gray-400 mb-1">To:</label>
-                        <input type="date" id="searchDateTo" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <label for="searchDateTo" class="block text-xs text-gray-600 mb-1">To:</label>
+                        <input type="date" id="searchDateTo" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     </div>
                 </div>
                 
                 <div class="grid grid-cols-4 gap-2 mb-4">
-                    <button id="quickToday" class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Today</button>
-                    <button id="quickWeek" class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">This Week</button>
-                    <button id="quickMonth" class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">This Month</button>
-                    <button id="quickAll" class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">All Time</button>
+                    <button id="quickToday" class="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">Today</button>
+                    <button id="quickWeek" class="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">This Week</button>
+                    <button id="quickMonth" class="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">This Month</button>
+                    <button id="quickAll" class="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">All Time</button>
                 </div>
             </div>
             
             <div class="mb-4">
-                <label for="searchInputMain" class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Search Orders:</label>
+                <label for="searchInputMain" class="block text-sm font-medium mb-2 text-gray-700">Search Orders:</label>
                 <div class="relative">
                     <input type="text" id="searchInputMain" placeholder="Search by order #, description, or person..." 
-                           class="w-full p-3 pr-14 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                           class="w-full p-3 pr-14 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     <button id="searchButtonMain" class="absolute inset-y-0 right-0 flex items-center pr-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Search" disabled>
                         <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                         </svg>
                     </button>
                 </div>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Enter search term and select dates above to search</p>
-                <button id="clearSearchMain" class="mt-2 text-sm text-purple-600 dark:text-purple-400 hover:underline hidden">Clear search</button>
+                <p class="mt-1 text-xs text-gray-500">Enter search term and select dates above to search</p>
+                <button id="clearSearchMain" class="mt-2 text-sm text-purple-600 hover:underline hidden">Clear search</button>
             </div>
             
             <div id="searchFilters" class="hidden mb-4">
-                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter Results:</h4>
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">Filter Results:</h4>
                     <div class="grid grid-cols-2 gap-3">
                         <button class="search-filter-btn p-3 rounded-lg transition-colors text-center bg-blue-500 text-white shadow-lg" data-filter="all">
                             <div class="text-lg font-bold text-white" id="searchAllCount">0</div>
                             <div class="text-xs text-blue-100">All</div>
                         </button>
-                        <button class="search-filter-btn p-3 rounded-lg transition-colors text-center hover:bg-gray-100 dark:hover:bg-gray-600" data-filter="incomplete">
-                            <div class="text-lg font-bold text-orange-600 dark:text-orange-400" id="searchIncompleteCount">0</div>
-                            <div class="text-xs text-gray-600 dark:text-gray-400">Incomplete</div>
+                        <button class="search-filter-btn p-3 rounded-lg transition-colors text-center hover:bg-gray-100" data-filter="incomplete">
+                            <div class="text-lg font-bold text-orange-600" id="searchIncompleteCount">0</div>
+                            <div class="text-xs text-gray-600">Incomplete</div>
                         </button>
                     </div>
                 </div>
             </div>
 
             <div id="searchResults">
-                <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                <div class="text-center py-12 text-gray-500">
                     <div class="text-6xl mb-4">🔍</div>
-                    <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Start Searching</h3>
-                    <p class="text-gray-500 dark:text-gray-400">Enter at least 2 characters to search for orders</p>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Start Searching</h3>
+                    <p class="text-gray-500">Enter at least 2 characters to search for orders</p>
                 </div>
             </div>
         </div>
@@ -152,14 +152,14 @@
     </div>
 
     <div id="settingsView" class="hidden p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
-            <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">⚙️ Settings</h2>
+        <div class="bg-white rounded-lg shadow p-4 mb-4">
+            <h2 class="text-lg font-semibold mb-4 text-gray-900">⚙️ Settings</h2>
             
             <div id="connectionStatus" class="mb-6 p-3 rounded-lg text-sm"></div>
             
-            <div class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6">
-                <h3 class="font-semibold text-blue-800 dark:text-blue-200 mb-3">📤 Upload Configuration</h3>
-                <p class="text-sm text-blue-700 dark:text-blue-300 mb-3">Upload a saved configuration file from the desktop version:</p>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 class="font-semibold text-blue-800 mb-3">📤 Upload Configuration</h3>
+                <p class="text-sm text-blue-700 mb-3">Upload a saved configuration file from the desktop version:</p>
                 <label for="uploadConfigMobile" class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
@@ -169,13 +169,13 @@
                 </label>
             </div>
             
-            <div class="bg-orange-50 dark:bg-orange-900 border border-orange-200 dark:border-orange-700 rounded-lg p-4 mb-6">
-                <h3 class="font-semibold text-orange-800 dark:text-orange-200 mb-3">⚡ Data Loading Range</h3>
-                <p class="text-sm text-orange-700 dark:text-orange-300 mb-4">Smaller ranges load faster but may not include all your data. You can refresh to load more data anytime.</p>
+            <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+                <h3 class="font-semibold text-orange-800 mb-3">⚡ Data Loading Range</h3>
+                <p class="text-sm text-orange-700 mb-4">Smaller ranges load faster but may not include all your data. You can refresh to load more data anytime.</p>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label for="weeksBackMobile" class="block text-sm font-medium mb-2 text-orange-700 dark:text-orange-300">Weeks Back:</label>
-                        <select id="weeksBackMobile" class="w-full p-3 text-base border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                        <label for="weeksBackMobile" class="block text-sm font-medium mb-2 text-orange-700">Weeks Back:</label>
+                        <select id="weeksBackMobile" class="w-full p-3 text-base border border-orange-300 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                             <option value="1">1 week</option>
                             <option value="2" selected>2 weeks</option>
                             <option value="4">4 weeks</option>
@@ -184,8 +184,8 @@
                         </select>
                     </div>
                     <div>
-                        <label for="weeksForwardMobile" class="block text-sm font-medium mb-2 text-orange-700 dark:text-orange-300">Weeks Forward:</label>
-                        <select id="weeksForwardMobile" class="w-full p-3 text-base border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                        <label for="weeksForwardMobile" class="block text-sm font-medium mb-2 text-orange-700">Weeks Forward:</label>
+                        <select id="weeksForwardMobile" class="w-full p-3 text-base border border-orange-300 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                             <option value="2">2 weeks</option>
                             <option value="4" selected>4 weeks</option>
                             <option value="8">8 weeks</option>
@@ -198,28 +198,28 @@
             </div>
             
             <div class="space-y-4">
-                <h3 class="font-semibold text-gray-900 dark:text-gray-100">🔧 Manual Setup</h3>
+                <h3 class="font-semibold text-gray-900">🔧 Manual Setup</h3>
                 
                 <div>
-                    <label for="apiKeyMobile" class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Airtable API Key:</label>
-                    <input type="password" id="apiKeyMobile" placeholder="patXXXXXXXXXXXXXX" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Get your API key from <a href="https://airtable.com/account" target="_blank" class="text-purple-600 dark:text-purple-400 hover:underline">airtable.com/account</a></p>
+                    <label for="apiKeyMobile" class="block text-sm font-medium mb-2 text-gray-700">Airtable API Key:</label>
+                    <input type="password" id="apiKeyMobile" placeholder="patXXXXXXXXXXXXXX" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    <p class="text-xs text-gray-500 mt-1">Get your API key from <a href="https://airtable.com/account" target="_blank" class="text-purple-600 hover:underline">airtable.com/account</a></p>
                 </div>
                 
                 <div>
-                    <label for="baseIdMobile" class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Base ID:</label>
-                    <input type="text" id="baseIdMobile" placeholder="appXXXXXXXXXXXXXX" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Found in your Airtable base URL</p>
+                    <label for="baseIdMobile" class="block text-sm font-medium mb-2 text-gray-700">Base ID:</label>
+                    <input type="text" id="baseIdMobile" placeholder="appXXXXXXXXXXXXXX" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    <p class="text-xs text-gray-500 mt-1">Found in your Airtable base URL</p>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label for="peopleTableMobile" class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">People Table:</label>
-                        <input type="text" id="peopleTableMobile" value="People" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <label for="peopleTableMobile" class="block text-sm font-medium mb-2 text-gray-700">People Table:</label>
+                        <input type="text" id="peopleTableMobile" value="People" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     </div>
                     <div>
-                        <label for="tasksTableMobile" class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Tasks Table:</label>
-                        <input type="text" id="tasksTableMobile" value="Tasks" class="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <label for="tasksTableMobile" class="block text-sm font-medium mb-2 text-gray-700">Tasks Table:</label>
+                        <input type="text" id="tasksTableMobile" value="Tasks" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     </div>
                 </div>
                 
@@ -699,10 +699,10 @@
                         </div>
                     `;
                 } else {
-                    filteredTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
-                    filteredTasks.forEach(task => {
-                        const taskElement = this.createMobileTaskCard(task);
-                        tasksArea.appendChild(taskElement);
+                    this.renderTaskList(filteredTasks, tasksArea, {
+                        handlerClass: 'complete-btn',
+                        clickHandler: (task) => this.toggleTaskCompletion(task),
+                        cardStyle: 'mobile'
                     });
                 }
                 
@@ -733,9 +733,17 @@
                 return defaultCapacity[dayOfWeek] || 0;
             }
 
-            createMobileTaskCard(task) {
-                const card = document.createElement('div');
+            // Unified task card creation for all contexts
+            createTaskCard(task, context = {}) {
+                const { 
+                    showPerson = false, 
+                    showWorkDate = false, 
+                    handlerClass = 'complete-btn',
+                    cardStyle = 'mobile',
+                    showFullDates = false 
+                } = context;
                 
+                // Calculate status
                 let isOverdue = false;
                 if (task.dateDue && !task.completed) {
                     const dueDate = new Date(task.dateDue);
@@ -748,40 +756,133 @@
                 const isCompleted = task.completed;
                 const isIncomplete = !isCompleted && !isOverdue;
                 
-                card.className = `bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mb-3 border-l-4 ${
-                    isCompleted ? 'border-green-500 bg-green-50 dark:bg-green-900' : 
-                    isOverdue ? 'border-red-500 bg-red-50 dark:bg-red-900' : 
-                    'border-yellow-500 bg-yellow-50 dark:bg-yellow-900'
-                } transition-all duration-200`;
+                const card = document.createElement('div');
                 
-                card.innerHTML = `
-                    <div class="flex items-start justify-between">
-                        <div class="flex-1">
-                            <div class="flex items-center space-x-2 mb-2">
-                                <span class="font-semibold text-purple-600 dark:text-purple-400">#${task.orderNumber}</span>
-                                <span class="text-sm text-gray-500 dark:text-gray-400">${task.duration * 15}min</span>
-                                ${isOverdue ? '<span class="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 px-2 py-1 rounded">Overdue</span>' : ''}
-                                ${isCompleted ? '<span class="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded">Complete</span>' : ''}
-                                ${isIncomplete ? '<span class="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 rounded">Incomplete</span>' : ''}
+                if (cardStyle === 'mobile') {
+                    card.className = `bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mb-3 border-l-4 ${
+                        isCompleted ? 'border-green-500 bg-green-50 dark:bg-green-900' : 
+                        isOverdue ? 'border-red-500 bg-red-50 dark:bg-red-900' : 
+                        'border-yellow-500 bg-yellow-50 dark:bg-yellow-900'
+                    } transition-all duration-200`;
+                } else {
+                    card.className = `border border-gray-200 dark:border-gray-600 rounded-lg p-4 mb-3 ${
+                        isCompleted ? 'bg-green-50 dark:bg-green-900' : 'bg-yellow-50 dark:bg-yellow-900'
+                    }`;
+                }
+                
+                // Build header info
+                const headerInfo = [`#${task.orderNumber}`];
+                if (showPerson && task.person) headerInfo.push(task.person);
+                headerInfo.push(`${task.duration * 15}min`);
+                
+                // Build status badges
+                const statusBadges = [];
+                if (isOverdue) statusBadges.push('<span class="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 px-2 py-1 rounded">Overdue</span>');
+                if (isCompleted) statusBadges.push('<span class="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded">Complete</span>');
+                if (isIncomplete) statusBadges.push('<span class="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 rounded">Incomplete</span>');
+                
+                // Build date info
+                const dateInfo = [];
+                if (showWorkDate && task.taskDate) {
+                    dateInfo.push(`<div>Scheduled: ${this.formatDate(task.taskDate)}</div>`);
+                }
+                if (task.dateDue) {
+                    dateInfo.push(`<div>Due: ${this.formatDate(task.dateDue)}</div>`);
+                }
+                if (showFullDates && task.taskDate && task.dateDue) {
+                    dateInfo.length = 0; // Clear and rebuild for full format
+                    dateInfo.push(`<div><strong>Due:</strong> ${this.formatDate(task.dateDue)}</div>`);
+                    dateInfo.push(`<div><strong>Work Date:</strong> ${this.formatDate(task.taskDate)}</div>`);
+                }
+                
+                const headerClass = cardStyle === 'mobile' ? 'flex items-center space-x-2 mb-2' : 'flex items-center space-x-2 mb-2';
+                const headerSpanClass = cardStyle === 'mobile' ? 'font-semibold text-purple-600 dark:text-purple-400' : 'font-semibold text-gray-900 dark:text-gray-100';
+                const infoSpanClass = cardStyle === 'mobile' ? 'text-sm text-gray-500 dark:text-gray-400' : 'text-sm text-gray-600 dark:text-gray-400';
+                const descClass = cardStyle === 'mobile' ? 'text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed' : 'text-sm text-gray-800 dark:text-gray-200 mb-2';
+                const dateClass = cardStyle === 'mobile' ? 'text-xs text-gray-500 dark:text-gray-400' : 'text-xs text-gray-500 dark:text-gray-400';
+                
+                if (cardStyle === 'mobile') {
+                    card.innerHTML = `
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="${headerClass}">
+                                    <span class="${headerSpanClass}">${headerInfo[0]}</span>
+                                    ${headerInfo.slice(1).map(info => `<span class="${infoSpanClass}">${info}</span>`).join('')}
+                                    ${statusBadges.join('')}
+                                </div>
+                                <p class="${descClass}">${task.description}</p>
+                                ${dateInfo.length > 0 ? `<div class="${dateClass} ${dateInfo.length > 1 ? 'space-y-1' : ''}">${dateInfo.join('')}</div>` : ''}
                             </div>
-                            <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">Due: ${this.formatDate(task.dateDue)}</div>
+                            <button class="${handlerClass} ml-4 p-2 rounded-full transition-colors ${
+                                isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
+                            }" data-task-id="${task.id}" title="${isCompleted ? 'Mark as incomplete' : 'Mark as complete'}">
+                                ${isCompleted ? '✓' : '○'}
+                            </button>
                         </div>
-                        <button class="complete-btn ml-4 p-2 rounded-full transition-colors ${
-                            isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
-                        }" data-task-id="${task.id}">
-                            ${isCompleted ? '✓' : '○'}
-                        </button>
-                    </div>
-                `;
-                
-                const completeBtn = card.querySelector('.complete-btn');
-                completeBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.toggleTaskCompletion(task);
-                });
+                    `;
+                } else {
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="${headerClass}">
+                                    <div class="${headerSpanClass}">${headerInfo[0]}</div>
+                                    <div class="${infoSpanClass}">${headerInfo.slice(1).join(' • ')}</div>
+                                </div>
+                                <div class="${descClass}">${task.description}</div>
+                                ${dateInfo.length > 0 ? `<div class="${dateClass}">${dateInfo.join('')}</div>` : ''}
+                            </div>
+                            <div class="flex items-center space-x-3 ml-4">
+                                <div class="text-sm font-medium ${isCompleted ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}">${isCompleted ? 'Complete' : 'Incomplete'}</div>
+                                <button class="${handlerClass} p-3 rounded-full transition-colors ${
+                                    isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
+                                }" data-task-id="${task.id}" data-person="${task.person || ''}" title="${isCompleted ? 'Mark as incomplete' : 'Mark as complete'}">
+                                    ${isCompleted ? '✓' : '○'}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
                 
                 return card;
+            }
+
+            // Unified task list rendering
+            renderTaskList(tasks, container, context = {}) {
+                const { 
+                    emptyMessage = 'No tasks found',
+                    handlerClass = 'complete-btn',
+                    clickHandler = null,
+                    sortTasks = true 
+                } = context;
+                
+                if (tasks.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <div class="text-4xl mb-2">📝</div>
+                            <p class="text-sm">${emptyMessage}</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                if (sortTasks) {
+                    tasks.sort((a, b) => (a.position || 0) - (b.position || 0));
+                }
+                
+                tasks.forEach(task => {
+                    const taskElement = this.createTaskCard(task, context);
+                    container.appendChild(taskElement);
+                    
+                    // Attach event handler
+                    const btn = taskElement.querySelector(`.${handlerClass}`);
+                    if (btn && clickHandler) {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            clickHandler(task, e);
+                        });
+                    }
+                });
             }
 
             async toggleTaskCompletion(task) {
@@ -1006,33 +1107,21 @@
                     </div>
                 `;
                 
-                const tasksHtml = filteredTasks.length === 0 ? 
-                    `<p class="text-gray-500 dark:text-gray-400 text-center py-8">No ${currentFilter === 'all' ? '' : currentFilter + ' '}tasks found</p>` :
-                    filteredTasks.map(task => `
-                        <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4 mb-3 ${task.completed ? 'bg-green-50 dark:bg-green-900' : 'bg-yellow-50 dark:bg-yellow-900'}">
-                            <div class="flex justify-between items-start">
-                                <div class="flex-1">
-                                    <div class="flex items-center space-x-2 mb-2">
-                                        <div class="font-semibold text-gray-900 dark:text-gray-100">#${task.orderNumber}</div>
-                                        <div class="text-sm text-gray-600 dark:text-gray-400">${task.person} • ${task.duration * 15}min</div>
-                                    </div>
-                                    <div class="text-sm text-gray-800 dark:text-gray-200 mb-2">${task.description}</div>
-                                    <div class="text-xs text-gray-500 dark:text-gray-400">
-                                        <div><strong>Due:</strong> ${this.formatDate(task.dateDue)}</div>
-                                        <div><strong>Work Date:</strong> ${this.formatDate(task.taskDate)}</div>
-                                    </div>
-                                </div>
-                                <div class="flex items-center space-x-3 ml-4">
-                                    <div class="text-sm font-medium ${task.completed ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}">${task.completed ? 'Complete' : 'Incomplete'}</div>
-                                    <button class="report-complete-btn p-3 rounded-full transition-colors ${
-                                        task.completed ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
-                                    }" data-task-id="${task.id}" data-person="${task.person}" title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
-                                        ${task.completed ? '✓' : '○'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('');
+                let tasksHtml = '';
+                if (filteredTasks.length === 0) {
+                    tasksHtml = `<p class="text-gray-500 dark:text-gray-400 text-center py-8">No ${currentFilter === 'all' ? '' : currentFilter + ' '}tasks found</p>`;
+                } else {
+                    const tasksContainer = document.createElement('div');
+                    this.renderTaskList(filteredTasks, tasksContainer, {
+                        handlerClass: 'report-complete-btn',
+                        clickHandler: (task) => this.toggleTaskCompletionInReport(task.id),
+                        cardStyle: 'report',
+                        showPerson: true,
+                        showFullDates: true,
+                        sortTasks: false
+                    });
+                    tasksHtml = tasksContainer.innerHTML;
+                }
                 
                 container.innerHTML = summaryHtml + tasksHtml;
                 
@@ -1226,7 +1315,7 @@
             showDatePicker() {
                 const input = document.createElement('input');
                 input.type = 'date';
-                input.value = this.dateToLocalDateString(this.currentDate);
+                input.value = this.formatDate(this.currentDate, 'string');
                 input.style.position = 'absolute';
                 input.style.left = '-9999px';
                 
@@ -1509,8 +1598,7 @@
                     
                     const searchableText = [orderNumber?.toString() || '', description, person].join(' ').toLowerCase();
                     if (searchableText.includes(queryLower)) {
-                        const taskDateStr = typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/) ? 
-                            date : this.dateToLocalDateString(new Date(date + 'T12:00:00'));
+                        const taskDateStr = this.normalizeAirtableDate(date);
                         
                         searchResults.push({
                             id: record.id,
@@ -1616,47 +1704,16 @@
                     `Showing ${toShow} of ${totalResults} results` : 
                     `${totalResults} result${totalResults !== 1 ? 's' : ''}`;
                 
-                const tasksHtml = displayedResults.map(task => {
-                    let isOverdue = false;
-                    if (task.dateDue && !task.completed) {
-                        const dueDate = new Date(task.dateDue);
-                        const today = new Date();
-                        dueDate.setHours(0, 0, 0, 0);
-                        today.setHours(0, 0, 0, 0);
-                        isOverdue = dueDate < today;
-                    }
-                    const isCompleted = task.completed;
-                    const isIncomplete = !isCompleted && !isOverdue;
-                    
-                    return `
-                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-3 border border-gray-200 dark:border-gray-600 shadow-sm">
-                            <div class="flex items-start justify-between">
-                                <div class="flex-1">
-                                    <div class="flex items-center space-x-2 mb-2">
-                                        <span class="font-semibold text-purple-600 dark:text-purple-400">#${task.orderNumber}</span>
-                                        <span class="text-sm text-gray-500 dark:text-gray-400">${task.person}</span>
-                                        <span class="text-sm text-gray-500 dark:text-gray-400">${task.duration * 15}min</span>
-                                        ${isOverdue ? '<span class="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 px-2 py-1 rounded">Overdue</span>' : ''}
-                                        ${isCompleted ? '<span class="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded">Complete</span>' : ''}
-                                        ${isIncomplete ? '<span class="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 rounded">Incomplete</span>' : ''}
-                                    </div>
-                                    <p class="text-gray-800 dark:text-gray-200 text-sm mb-2 leading-relaxed">${task.description}</p>
-                                    <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                                        <div>Scheduled: ${this.formatDate(task.taskDate)}</div>
-                                        ${task.dateDue ? `<div>Due: ${this.formatDate(task.dateDue)}</div>` : ''}
-                                    </div>
-                                </div>
-                                <div class="ml-4">
-                                    <button class="search-complete-btn-filtered p-2 rounded-full transition-colors ${
-                                        isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
-                                    }" data-task-id="${task.id}" title="${task.completed ? 'Mark as incomplete' : 'Mark as complete'}">
-                                        ${isCompleted ? '✓' : '○'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
+                const tasksContainer = document.createElement('div');
+                this.renderTaskList(displayedResults, tasksContainer, {
+                    handlerClass: 'search-complete-btn-filtered',
+                    clickHandler: (task) => this.toggleTaskCompletionInFilteredSearch(task.id),
+                    cardStyle: 'mobile',
+                    showPerson: true,
+                    showWorkDate: true,
+                    sortTasks: false
+                });
+                const tasksHtml = tasksContainer.innerHTML;
                 
                 const headerHtml = `
                     <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
@@ -2076,6 +2133,8 @@
                 this.renderCurrentView();
             }
         }
+
+
 
         // Initialize app
         if (document.readyState === 'loading') {
