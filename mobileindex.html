@@ -371,18 +371,13 @@
                             ['Saturday', 'Sat', 'Saturday Capacity', 'SaturdayCapacity', 'CapacitySaturday', 'Day6', '6']
                         ];
                         
-                        // Debug logging for Iris
-                        if (fields.Name === 'Iris') {
-                            console.log('Iris fields:', JSON.stringify(fields));
-                        }
+
                         
                         dayPatterns.forEach((patterns, dayIndex) => {
                             for (const pattern of patterns) {
                                 if (fields.hasOwnProperty(pattern) && fields[pattern] !== null && fields[pattern] !== '') {
                                     personCapacity[dayIndex] = this.parseCapacityValue(fields[pattern]);
-                                    if (fields.Name === 'Iris') {
-                                        console.log(`Iris ${pattern} (day ${dayIndex}):`, fields[pattern], '→', personCapacity[dayIndex]);
-                                    }
+
                                     break;
                                 }
                             }
@@ -395,9 +390,7 @@
                                     const capacityValue = this.parseCapacityValue(fields[field]);
                                     for (let i = 1; i <= 5; i++) personCapacity[i] = capacityValue;
                                     personCapacity[0] = personCapacity[6] = 0;
-                                    if (fields.Name === 'Iris') {
-                                        console.log(`Iris general capacity from ${field}:`, capacityValue);
-                                    }
+
                                     break;
                                 }
                             }
@@ -409,10 +402,7 @@
                         
                         this.peopleCapacity[fields.Name] = personCapacity;
                         
-                        // Debug final capacity for Iris
-                        if (fields.Name === 'Iris') {
-                            console.log('Iris final capacity:', personCapacity);
-                        }
+
                     }
                 });
                 
