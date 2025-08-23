@@ -991,7 +991,7 @@ updateWorkDateDisplay(dateStr) {
                     timeSlots.push(`<div class="time-slot relative border-gray-200 dark:border-gray-600"></div>`);
                 }
 
-                const capacity = this.getPersonCapacityForDate(person, date);
+                const capacity = this.getPersonCapacityForDate(person, date); // ✅ Use date object
                 const capacityHours = Math.floor(capacity * 15 / 60);
                 const capacityMins = (capacity * 15) % 60;
                 const dayName = this.DAYS_OF_WEEK[date.getDay()];
@@ -5164,7 +5164,9 @@ initActivityBasedRefresh() {
             // Auto-load functionality
             async checkForAutoLoad() {
                 await this.loadCapacityOverridesFromLocal();
-                await this.loadPeopleCapacityFromLocal();
+// CRITICAL FIX: Don't load people capacity from local storage
+// Let Airtable data load first and save to local storage
+// await this.loadPeopleCapacityFromLocal();
                 await this.loadViewPreferences();
                 await this.loadAutoRefreshSettings();
                 await this.loadAutoCapacitySettings();
@@ -5179,9 +5181,27 @@ initActivityBasedRefresh() {
                 }
                 
                 const savedConfig = await this.loadSavedConfig();
-                if (savedConfig) {
-                    await this.autoConnectWithSavedConfig(savedConfig);
-                }
+if (savedConfig) {
+    // CRITICAL FIX: Auto-load from Airtable if we have saved credentials
+    this.airtableConfig.apiKey = savedConfig.apiKey;
+    this.airtableConfig.baseId = savedConfig.baseId;
+    if (savedConfig.tablesConfig) {
+        this.airtableConfig.tablesConfig = savedConfig.tablesConfig;
+    }
+    
+    try {
+        this.showLoading('Loading data from Airtable...');
+        await this.loadAllDataFromAirtable();
+        this.renderWhiteboard();
+        console.log('✅ Auto-loaded from saved Airtable config');
+    } catch (error) {
+        console.warn('Failed to auto-load from Airtable:', error);
+        // Fallback to local storage if Airtable fails
+        await this.loadPeopleCapacityFromLocal();
+    } finally {
+        this.hideLoading();
+    }
+}
             }
             
             showQuickSetupDialog() {
@@ -6208,7 +6228,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                 }
             }
             
-            async preserveHistoricalCapacity(personName) {
+	    async preserveHistoricalCapacity(personName, oldWeeklyCapacity) {
                 console.log(`🔒 Starting historical capacity preservation for ${personName}...`);
                 
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
@@ -6269,7 +6289,10 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                     for (const dateStr of pastDates) {
                         if (!existingOverrides.has(dateStr)) {
                             const date = this.parseDateString(dateStr);
-                            const currentCapacity = this.getPersonCapacityForDate(personName, date);
+                            const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
+
+// CRITICAL FIX: Use OLD weekly capacity instead of current (potentially updated) capacity
+const historicalCapacity = oldWeeklyCapacity[dayName];
                             
                             overridesToCreate.push({
                                 fields: {
@@ -6314,15 +6337,18 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                 }
             }
 
-            async updatePersonWeeklyCapacity(name, weeklyCapacity) {
-                console.log(`🔄 Starting weekly capacity update for ${name}...`);
-                
-                // STEP 1: Preserve historical capacity before making any changes
-                await this.preserveHistoricalCapacity(name);
-                
-                // STEP 2: Update the weekly capacity in Airtable
-                await this.updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity);
-            }
+async updatePersonWeeklyCapacity(name, weeklyCapacity) {
+    console.log(`🔄 Starting weekly capacity update for ${name}...`);
+    
+    // STEP 1: Get OLD weekly capacity before making any changes
+    const oldWeeklyCapacity = { ...this.peopleCapacity[name] };
+    
+    // STEP 2: Preserve historical capacity using OLD values
+    await this.preserveHistoricalCapacity(name, oldWeeklyCapacity);
+    
+    // STEP 3: Update the weekly capacity in Airtable
+    await this.updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity);
+}
             
             async updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity) {
                 console.log(`📝 Updating weekly capacity in Airtable for ${name}...`);
@@ -7016,6 +7042,3 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
-
-
-
