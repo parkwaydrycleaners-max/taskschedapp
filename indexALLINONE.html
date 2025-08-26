@@ -7129,17 +7129,17 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                             const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
 
 // CRITICAL FIX: Use OLD weekly capacity instead of current (potentially updated) capacity
-const historicalCapacity = oldWeeklyCapacity[dayName];
+const historicalCapacity = oldWeeklyCapacity?.[dayName] || this.peopleCapacity[personName]?.[dayName] || 16;
                             
                             overridesToCreate.push({
                                 fields: {
                                     Person: personName,
                                     Date: dateStr,
-                                    Capacity: currentCapacity
+                                    Capacity: historicalCapacity
                                 }
                             });
                             
-                            console.log(`🔒 Preserving capacity for ${personName} on ${dateStr}: ${currentCapacity} slots`);
+                            console.log(`🔒 Preserving capacity for ${personName} on ${dateStr}: ${historicalCapacity} slots`);
                             preservedCount++;
                         } else {
                             console.log(`✅ Capacity already preserved for ${personName} on ${dateStr}`);
