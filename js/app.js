@@ -1141,7 +1141,7 @@ createTaskCard(task, person, date) {
         dueDateDisplay = localDate.toLocaleDateString();
         dueDateComparison = localDate;
     } else {
-        dueDateDisplay = 'Invalid Date';
+        dueDateDisplay = 'No due date';
         dueDateComparison = new Date(0);
     }
     
@@ -2711,16 +2711,16 @@ async saveOrder() {
                     correctedDateKey
                 });
                 
-                const task = {
-                    id: Date.now() + Math.random(),
-                    orderNumber,
-                    dateDue,
-                    description,
-                    duration,
-                    tagsQuantity,
-                    position: this.findOptimalPosition(targetPerson, correctedDateKey, duration),
-                    completed: false
-                };
+const task = {
+    id: Date.now() + Math.random(),
+    orderNumber,
+    dateDue: (dateDue && dateDue.trim()) ? dateDue : null,  // ✅ Send null instead of empty string
+    description,
+    duration,
+    tagsQuantity,
+    position: this.findOptimalPosition(targetPerson, correctedDateKey, duration),
+    completed: false
+};
 
                 // Add to local state first
                 this.addTaskToSpecificDate(targetPerson, task, correctedDateKey);
@@ -5836,7 +5836,7 @@ if (savedConfig) {
             }
             
             // Airtable API Functions
-async makeAirtableRequest(endpoint, method = 'GET', data = null) {
+async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false) {
     const url = `https://api.airtable.com/v0/${this.airtableConfig.baseId}/${endpoint}`;
     const maxRetries = 3;
     
@@ -5852,40 +5852,52 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
 
             if (data) {
                 options.body = JSON.stringify(data);
-                console.log('🚀 FORCE AIRTABLE REQUEST:', {
-                    url,
-                    method,
-                    data,
-                    force: 'BYPASSING ALL VALIDATION'
-                });
+                if (!silent) {
+                    console.log('🚀 FORCE AIRTABLE REQUEST:', {
+                        url,
+                        method,
+                        data,
+                        force: 'BYPASSING ALL VALIDATION'
+                    });
+                }
             }
 
             const response = await fetch(url, options);
-            console.log('📡 Airtable response status:', response.status);
+            if (!silent) {
+                console.log('📡 Airtable response status:', response.status);
+            }
             
             if (!response.ok) {
                 const error = await response.json();
-                console.error('❌ Airtable error response:', error);
+                if (!silent) {
+                    console.error('❌ Airtable error response:', error);
+                }
                 throw new Error(error.error?.message || `HTTP ${response.status}`);
             }
 
             const result = await response.json();
-            console.log('✅ Airtable success response:', result);
+            if (!silent) {
+                console.log('✅ Airtable success response:', result);
+            }
             
             // Reset error count on success
             this.errorCount = 0;
             return result;
             
         } catch (error) {
-            console.warn(`Airtable request attempt ${attempt}/${maxRetries} failed:`, error.message);
+            if (!silent) {
+                console.warn(`Airtable request attempt ${attempt}/${maxRetries} failed:`, error.message);
+            }
             
             if (attempt === maxRetries) {
                 // Add to retry queue if offline
                 if (!navigator.onLine) {
                     this.retryQueue = this.retryQueue || [];
-                    this.retryQueue.push(() => this.makeAirtableRequest(endpoint, method, data));
+                    this.retryQueue.push(() => this.makeAirtableRequest(endpoint, method, data, silent));
                 }
-                this.handleProductionError(error, 'airtableRequest');
+                if (!silent) {
+                    this.handleProductionError(error, 'airtableRequest');
+                }
                 throw error;
             }
             
@@ -5895,7 +5907,6 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
         }
     }
 }
-
             // Verification Functions for Data Integrity
             async verifyTaskInAirtable(taskId, expectedFields) {
                 try {
@@ -5926,7 +5937,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
             async verifyTaskDeletion(taskId) {
                 try {
                     const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
-                    await this.makeAirtableRequest(`${tableName}/${taskId}`);
+                    await this.makeAirtableRequest(`${tableName}/${taskId}`, 'GET', null, true); // ← Add silent=true
                     
                     // If we get here, the record still exists (not deleted)
                     console.error('❌ Task deletion verification failed - record still exists:', taskId);
@@ -6239,114 +6250,115 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
                 }
             }
             
-async preserveHistoricalCapacity(personName, oldWeeklyCapacity) {
-    console.log(`🔒 Starting historical capacity preservation for ${personName}...`);
-    
-    if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
-        console.log('⚠️ Airtable not connected - skipping historical preservation');
-        return;
-    }
-    
-    try {
-        // Step 1: Get all existing tasks for this person
-        const tasksTableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
-        const personFilter = `{Person}='${personName}'`;
-        const response = await this.makeAirtableRequest(`${tasksTableName}?filterByFormula=${encodeURIComponent(personFilter)}`);
-        
-        if (response.records.length === 0) {
-            console.log(`ℹ️ No existing tasks found for ${personName} - no historical preservation needed`);
-            return;
-        }
-        
-        // Step 2: Get unique past dates (exclude today and future)
-        const today = new Date();
-        const todayStr = this.dateToLocalDateString(today);
-        
-        const pastDates = new Set();
-        response.records.forEach(record => {
-            const taskDate = record.fields.Date;
-            if (taskDate && taskDate < todayStr) {
-                pastDates.add(taskDate);
-            }
-        });
-        
-        if (pastDates.size === 0) {
-            console.log(`ℹ️ No past dates found for ${personName} - no historical preservation needed`);
-            return;
-        }
-        
-        console.log(`📅 Found ${pastDates.size} past dates to preserve for ${personName}:`, Array.from(pastDates).sort());
-        
-        // Step 3: For each past date, check if there's already a capacity override
-        const overridesTableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
-        let existingOverrides = new Set();
-        
-        try {
-            const overridesResponse = await this.makeAirtableRequest(`${overridesTableName}?filterByFormula=${encodeURIComponent(`{Person}='${personName}'`)}`);
-            overridesResponse.records.forEach(record => {
-                if (record.fields.Date) {
-                    existingOverrides.add(record.fields.Date);
-                }
-            });
-            console.log(`📋 Found ${existingOverrides.size} existing capacity overrides for ${personName}`);
-        } catch (error) {
-            console.warn('⚠️ Could not load existing capacity overrides (table may not exist):', error.message);
-        }
-        
-        // Step 4: Create capacity overrides for past dates that don't already have them
-        let preservedCount = 0;
-        const overridesToCreate = [];
-        
-        for (const dateStr of pastDates) {
-            if (!existingOverrides.has(dateStr)) {
-                const date = this.parseDateString(dateStr);
-                const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
-
-                // CRITICAL FIX: Use OLD weekly capacity with null safety
-                const historicalCapacity = oldWeeklyCapacity?.[dayName] || this.peopleCapacity[personName]?.[dayName] || 16;
-                                
-                overridesToCreate.push({
-                    fields: {
-                        Person: personName,
-                        Date: dateStr,
-                        Capacity: historicalCapacity  // ✅ FIXED: Use correct variable
-                    }
-                });
+	    async preserveHistoricalCapacity(personName, oldWeeklyCapacity) {
+                console.log(`🔒 Starting historical capacity preservation for ${personName}...`);
                 
-                console.log(`🔒 Preserving capacity for ${personName} on ${dateStr}: ${historicalCapacity} slots`);  // ✅ FIXED: Use correct variable
-                preservedCount++;
-            } else {
-                console.log(`✅ Capacity already preserved for ${personName} on ${dateStr}`);
-            }
-        }
-        
-        // Step 5: Batch create the capacity overrides
-        if (overridesToCreate.length > 0) {
-            // Airtable API allows max 10 records per request
-            const batchSize = 10;
-            for (let i = 0; i < overridesToCreate.length; i += batchSize) {
-                const batch = overridesToCreate.slice(i, i + batchSize);
-                const batchData = { records: batch };
+                if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
+                    console.log('⚠️ Airtable not connected - skipping historical preservation');
+                    return;
+                }
                 
                 try {
-                    await this.makeAirtableRequest(overridesTableName, 'POST', batchData);
-                    console.log(`✅ Created batch of ${batch.length} capacity overrides`);
+                    // Step 1: Get all existing tasks for this person
+                    const tasksTableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
+                    const personFilter = `{Person}='${personName}'`;
+                    const response = await this.makeAirtableRequest(`${tasksTableName}?filterByFormula=${encodeURIComponent(personFilter)}`);
+                    
+                    if (response.records.length === 0) {
+                        console.log(`ℹ️ No existing tasks found for ${personName} - no historical preservation needed`);
+                        return;
+                    }
+                    
+                    // Step 2: Get unique past dates (exclude today and future)
+                    const today = new Date();
+                    const todayStr = this.dateToLocalDateString(today);
+                    
+                    const pastDates = new Set();
+                    response.records.forEach(record => {
+                        const taskDate = record.fields.Date;
+                        if (taskDate && taskDate < todayStr) {
+                            pastDates.add(taskDate);
+                        }
+                    });
+                    
+                    if (pastDates.size === 0) {
+                        console.log(`ℹ️ No past dates found for ${personName} - no historical preservation needed`);
+                        return;
+                    }
+                    
+                    console.log(`📅 Found ${pastDates.size} past dates to preserve for ${personName}:`, Array.from(pastDates).sort());
+                    
+                    // Step 3: For each past date, check if there's already a capacity override
+                    const overridesTableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
+                    let existingOverrides = new Set();
+                    
+                    try {
+                        const overridesResponse = await this.makeAirtableRequest(`${overridesTableName}?filterByFormula=${encodeURIComponent(`{Person}='${personName}'`)}`);
+                        overridesResponse.records.forEach(record => {
+                            if (record.fields.Date) {
+                                existingOverrides.add(record.fields.Date);
+                            }
+                        });
+                        console.log(`📋 Found ${existingOverrides.size} existing capacity overrides for ${personName}`);
+                    } catch (error) {
+                        console.warn('⚠️ Could not load existing capacity overrides (table may not exist):', error.message);
+                    }
+                    
+                    // Step 4: Create capacity overrides for past dates that don't already have them
+                    let preservedCount = 0;
+                    const overridesToCreate = [];
+                    
+                    for (const dateStr of pastDates) {
+                        if (!existingOverrides.has(dateStr)) {
+                            const date = this.parseDateString(dateStr);
+                            const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
+
+// CRITICAL FIX: Use OLD weekly capacity instead of current (potentially updated) capacity
+const historicalCapacity = oldWeeklyCapacity?.[dayName] || this.peopleCapacity[personName]?.[dayName] || 16;
+                            
+                            overridesToCreate.push({
+                                fields: {
+                                    Person: personName,
+                                    Date: dateStr,
+                                    Capacity: historicalCapacity
+                                }
+                            });
+                            
+                            console.log(`🔒 Preserving capacity for ${personName} on ${dateStr}: ${historicalCapacity} slots`);
+                            preservedCount++;
+                        } else {
+                            console.log(`✅ Capacity already preserved for ${personName} on ${dateStr}`);
+                        }
+                    }
+                    
+                    // Step 5: Batch create the capacity overrides
+                    if (overridesToCreate.length > 0) {
+                        // Airtable API allows max 10 records per request
+                        const batchSize = 10;
+                        for (let i = 0; i < overridesToCreate.length; i += batchSize) {
+                            const batch = overridesToCreate.slice(i, i + batchSize);
+                            const batchData = { records: batch };
+                            
+                            try {
+                                await this.makeAirtableRequest(overridesTableName, 'POST', batchData);
+                                console.log(`✅ Created batch of ${batch.length} capacity overrides`);
+                            } catch (error) {
+                                console.error(`❌ Failed to create capacity override batch:`, error);
+                                throw error;
+                            }
+                        }
+                        
+                        console.log(`🎯 Successfully preserved historical capacity for ${preservedCount} dates`);
+                    } else {
+                        console.log(`ℹ️ All historical dates already have capacity overrides - no preservation needed`);
+                    }
+                    
                 } catch (error) {
-                    console.error(`❌ Failed to create capacity override batch:`, error);
-                    throw error;
+                    console.error(`❌ Failed to preserve historical capacity for ${personName}:`, error);
+                    throw new Error(`Could not preserve historical data: ${error.message}`);
                 }
             }
-            
-            console.log(`🎯 Successfully preserved historical capacity for ${preservedCount} dates`);
-        } else {
-            console.log(`ℹ️ All historical dates already have capacity overrides - no preservation needed`);
-        }
-        
-    } catch (error) {
-        console.error(`❌ Failed to preserve historical capacity for ${personName}:`, error);
-        throw new Error(`Could not preserve historical data: ${error.message}`);
-    }
-}
+
 async updatePersonWeeklyCapacity(name, weeklyCapacity) {
     console.log(`🔄 Starting weekly capacity update for ${name}...`);
     
@@ -6925,12 +6937,12 @@ validateOrderData(orderNumber, dateDue, description, duration) {
                 { type: 'maxLength', value: 50 }
             ]
         },
-        {
-            value: dateDue,
-            rules: [
-                { type: 'required', message: 'Due date is required' }
-            ]
-        },
+     //   {
+     //       value: dateDue,
+     //       rules: [
+     //           { type: 'required', message: 'Due date is required' }
+     //       ]
+     //   },
         {
             value: description,
             rules: [
