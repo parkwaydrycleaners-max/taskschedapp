@@ -147,160 +147,148 @@
         </div>
     </main>
 
-    <!-- Order Details Modal -->
-    <div id="orderModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full mx-4 relative max-h-[85vh] overflow-y-auto fade-in">
-            <button id="closeOrderModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 transition-colors" title="Close">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </button>
-            
-            <h3 id="orderModalTitle" class="text-lg font-semibold mb-6">Order Details</h3>
-            
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Left Column -->
-                <div class="space-y-4">
-                    <!-- Person and Date Selection (for new orders) -->
-                    <div id="personDateFields" class="space-y-4 hidden">
-                        <div>
-                            <span class="block text-sm font-medium mb-2">Assign to Person:</span>
-                            <select id="assignPersonSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                                <!-- Options populated by JavaScript -->
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <span class="block text-sm font-medium mb-2">Work Date:</span>
-                            <input type="date" id="workDateInput" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                        </div>
-                    </div>
-                    
-                    <!-- Order Number and Due Date -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <span class="block text-sm font-medium mb-2">Order Number:</span>
-                            <input type="text" id="orderNumberInput" placeholder="Enter FULL Order Number" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                        </div>
-                        <div>
-                            <span class="block text-sm font-medium mb-2">Due Date:</span>
-                            <input type="date" id="dueDateInput" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                        </div>
-                    </div>
-                    
-                    <!-- Duration -->
-                    <div class="space-y-3">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm font-medium">Duration (15-min slots):</span>
-                            <input type="number" id="durationInput" min="1" max="32" value="2" class="w-24 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <span class="text-xs text-gray-500">= <span id="durationMinutes">30</span> minutes</span>
-                        </div>
-                        
-                        <!-- Quick Duration Buttons -->
-                        <div class="space-y-2">
-                            <span class="block text-xs text-gray-500">Quick select:</span>
-                            <div class="grid grid-cols-5 gap-2">
-                                <!-- Row 1: 1-5 -->
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="1">1</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="2">2</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="3">3</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="4">4</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="5">5</button>
-                                <!-- Row 2: 6-10 -->
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="6">6</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="7">7</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="8">8</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="9">9</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="10">10</button>
-                            </div>
-                        </div>
-                    </div>
-                   
-                    <!-- Number of Tags -->
-                    <div class="space-y-3">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm font-medium">Number of Tags:</span>
-                            <input type="number" id="tagsQuantityInput" min="1" max="50" value="1" class="w-24 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <span class="text-xs text-gray-500">spans to print</span>
-                        </div>
-                        
-                       <!--  Quick Tag Quantity Buttons --> 
-                        <div class="space-y-2">
-                            <span class="block text-xs text-gray-500">Quick select:</span>
-                            <div class="flex flex-wrap gap-2">
-                                <button type="button" class="tags-qty-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-quantity="1">1</button>
-                                <button type="button" class="tags-qty-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-quantity="2">2</button>
-                                <button type="button" class="tags-qty-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-quantity="5">5</button>
-                                <button type="button" class="tags-qty-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-quantity="10">10</button>
-                                <button type="button" class="tags-qty-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-quantity="20">20</button>
-                            </div>
-                        </div>
-                    </div>
-                </div> 
-                
-                <!-- Right Column -->
-                <div class="space-y-4">
-                    <!-- Custom Text Display -->
-                    <div id="customTextDisplay" class="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                        <div class="text-xs text-gray-500 mb-2 font-medium">Reference Text:</div>
-                        <div id="customTextContent" class="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
-                            <!-- Text content will be loaded here -->
-                        </div>
-                    </div>
-                    
-                    <!-- Description -->
+<!-- Order Details Modal -->
+<div id="orderModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full mx-4 relative max-h-[85vh] overflow-y-auto fade-in">
+        <button id="closeOrderModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 transition-colors" title="Close">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+        </button>
+        
+        <h3 id="orderModalTitle" class="text-lg font-semibold mb-6">Order Details</h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Left Column -->
+            <div class="space-y-4">
+                <!-- Person and Date Selection (for new orders) -->
+                <div id="personDateFields" class="space-y-4 hidden">
                     <div>
-                        <span class="block text-sm font-medium mb-2">Description:</span>
-                        <textarea id="descriptionInput" placeholder="Type: Quantity, Item Name/s, Alteration, and if Rush." rows="4" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
-                        <!-- Quick Numbers -->
+                        <span class="block text-sm font-medium mb-2">Assign to Person:</span>
+                        <select id="assignPersonSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <!-- Options populated by JavaScript -->
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <span class="block text-sm font-medium mb-2">Work Date:</span>
+                        <input type="date" id="workDateInput" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                </div>
+                
+                <!-- Order Number and Due Date -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <span class="block text-sm font-medium mb-2">Order Number:</span>
+                        <input type="text" id="orderNumberInput" placeholder="Enter FULL Order Number" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                    <div>
+                        <span class="block text-sm font-medium mb-2">Due Date <span class="text-gray-400 font-normal"></span>:</span>
+                        <input type="date" id="dueDateInput" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                </div>
+                
+                <!-- Duration -->
+                <div class="space-y-3">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm font-medium">Duration (15-min slots):</span>
+                        <input type="number" id="durationInput" min="1" max="32" value="2" class="w-24 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <span class="text-xs text-gray-500">= <span id="durationMinutes">30</span> minutes</span>
+                    </div>
+                    
+                    <!-- Quick Duration Buttons -->
+                    <div class="space-y-2">
+                        <span class="block text-xs text-gray-500">Quick select:</span>
+                        <div class="grid grid-cols-5 gap-2">
+                            <!-- Row 1: 1-5 -->
+                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="1">1</button>
+                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="2">2</button>
+                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="3">3</button>
+                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="4">4</button>
+                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="5">5</button>
+                            <!-- Row 2: 6-10 -->
+                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="6">6</button>
+                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="7">7</button>
+                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="8">8</button>
+                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="9">9</button>
+                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="10">10</button>
+                        </div>
+                    </div>
+                </div>
+               
+                <!-- Number of Tags -->
+                <div class="space-y-3">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm font-medium">Number of Tags:</span>
+                        <input type="number" id="tagsQuantityInput" min="1" max="50" value="1" class="w-24 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <span class="text-xs text-gray-500">spans to print</span>
+                    </div>
+                    
+                                 </div>
+            </div> 
+            
+            <!-- Right Column -->
+            <div class="space-y-4">
+                <!-- Custom Text Display -->
+                <div id="customTextDisplay" class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="text-xs text-gray-500 mb-2 font-medium">Reference Text:</div>
+                    <div id="customTextContent" class="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto">
+                        <!-- Text content will be loaded here -->
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                <div>
+                    <span class="block text-sm font-medium mb-2">Description:</span>
+                    <textarea id="descriptionInput" placeholder="Type: Quantity, Item Name/s, Alteration, and if Rush." rows="3" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+                    <!-- Quick Numbers -->
 <div class="mt-2">
     <span class="block text-xs text-gray-500 mb-1">Quick numbers:</span>
     <div id="quickNumbersList" class="flex flex-wrap gap-1 mb-3">
         <!-- Populated by JavaScript -->
     </div>
 </div>
-                        <!-- Common Words -->
-                        <div class="mt-2">
-                            <span class="block text-xs text-gray-500 mb-1">Common words:</span>
-                            <div id="commonWordsList" class="flex flex-wrap gap-1">
-                                <!-- Populated by JavaScript -->
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Completion Status (for editing) -->
-                    <div id="completionStatusField" class="hidden bg-gray-50 p-4 rounded-lg border">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <span class="block text-sm font-medium text-gray-700 mb-1">Status:</span>
-                                <div id="completionStatusText" class="text-sm">
-                                    <!-- Populated by JavaScript -->
-                                </div>
-                            </div>
-                            <button type="button" id="toggleCompletionBtn" class="px-4 py-2 rounded-lg font-medium transition-colors">
-                                <!-- Populated by JavaScript -->
-                            </button>
+                    <!-- Common Words -->
+                    <div class="mt-2">
+                        <span class="block text-xs text-gray-500 mb-1">Common words:</span>
+                        <div id="commonWordsList" class="flex flex-wrap gap-1">
+                            <!-- Populated by JavaScript -->
                         </div>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Action Buttons -->
-            <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
-                <button id="printTagsFromOrder" class="px-6 py-2 bg-purple-500 text-white hover:bg-purple-600 rounded-lg transition-colors flex items-center space-x-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a1 1 0 001-1v-4a1 1 0 00-1-1H9a1 1 0 00-1 1v4a1 1 0 001 1zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-                    </svg>
-                    <span>Print Tags</span>
-                </button>
-                <div class="flex space-x-3">
-                    <button id="cancelOrder" class="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
-                    <button id="saveOrder" class="px-6 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Save</button>
+                
+                <!-- Completion Status (for editing) -->
+                <div id="completionStatusField" class="hidden bg-gray-50 p-4 rounded-lg border">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="block text-sm font-medium text-gray-700 mb-1">Status:</span>
+                            <div id="completionStatusText" class="text-sm">
+                                <!-- Populated by JavaScript -->
+                            </div>
+                        </div>
+                        <button type="button" id="toggleCompletionBtn" class="px-4 py-2 rounded-lg font-medium transition-colors">
+                            <!-- Populated by JavaScript -->
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
+        
+        <!-- Action Buttons -->
+        <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
+            <button id="printTagsFromOrder" class="px-6 py-2 bg-purple-500 text-white hover:bg-purple-600 rounded-lg transition-colors flex items-center space-x-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a1 1 0 001-1v-4a1 1 0 00-1-1H9a1 1 0 00-1 1v4a1 1 0 001 1zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                </svg>
+                <span>Print Tags</span>
+            </button>
+            <div class="flex space-x-3">
+                <button id="cancelOrder" class="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+                <button id="saveOrder" class="px-6 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Save</button>
+            </div>
+        </div>
     </div>
-
+</div>
     <!-- Settings Modal -->
     <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4 relative max-h-[90vh] overflow-y-auto fade-in">
@@ -1967,19 +1955,17 @@ createTaskCard(task, person, date) {
         dueDateDisplay = localDate.toLocaleDateString();
         dueDateComparison = localDate;
     } else {
-        dueDateDisplay = 'Invalid Date';
+        dueDateDisplay = 'No due date';
         dueDateComparison = new Date(0);
     }
     
     const dueDateColor = dueDateComparison < new Date() ? 'text-red-500' : 'text-green-500';
     
     // NEW CAPACITY ICON LOGIC
-    let overCapacityIcon = '';
-    if (isExactlyAtCapacity) {
-        overCapacityIcon = '<span class="text-orange-500 ml-1" title="Full">⚠</span>';
-    } else if (isTrulyOverCapacity) {
-        overCapacityIcon = '<span class="text-red-500 ml-1" title="Over capacity">⚠</span>';
-    }
+let overCapacityIcon = '';
+if (isTrulyOverCapacity) {
+    overCapacityIcon = '<span class="text-red-500 ml-1" title="Over capacity">⚠</span>';
+}
 
     const headerHeight = 40;
     const padding = 16;
@@ -3537,16 +3523,16 @@ async saveOrder() {
                     correctedDateKey
                 });
                 
-                const task = {
-                    id: Date.now() + Math.random(),
-                    orderNumber,
-                    dateDue,
-                    description,
-                    duration,
-                    tagsQuantity,
-                    position: this.findOptimalPosition(targetPerson, correctedDateKey, duration),
-                    completed: false
-                };
+const task = {
+    id: Date.now() + Math.random(),
+    orderNumber,
+    dateDue: (dateDue && dateDue.trim()) ? dateDue : null,  // ✅ Send null instead of empty string
+    description,
+    duration,
+    tagsQuantity,
+    position: this.findOptimalPosition(targetPerson, correctedDateKey, duration),
+    completed: false
+};
 
                 // Add to local state first
                 this.addTaskToSpecificDate(targetPerson, task, correctedDateKey);
@@ -6662,7 +6648,7 @@ if (savedConfig) {
             }
             
             // Airtable API Functions
-async makeAirtableRequest(endpoint, method = 'GET', data = null) {
+async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false) {
     const url = `https://api.airtable.com/v0/${this.airtableConfig.baseId}/${endpoint}`;
     const maxRetries = 3;
     
@@ -6678,40 +6664,52 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
 
             if (data) {
                 options.body = JSON.stringify(data);
-                console.log('🚀 FORCE AIRTABLE REQUEST:', {
-                    url,
-                    method,
-                    data,
-                    force: 'BYPASSING ALL VALIDATION'
-                });
+                if (!silent) {
+                    console.log('🚀 FORCE AIRTABLE REQUEST:', {
+                        url,
+                        method,
+                        data,
+                        force: 'BYPASSING ALL VALIDATION'
+                    });
+                }
             }
 
             const response = await fetch(url, options);
-            console.log('📡 Airtable response status:', response.status);
+            if (!silent) {
+                console.log('📡 Airtable response status:', response.status);
+            }
             
             if (!response.ok) {
                 const error = await response.json();
-                console.error('❌ Airtable error response:', error);
+                if (!silent) {
+                    console.error('❌ Airtable error response:', error);
+                }
                 throw new Error(error.error?.message || `HTTP ${response.status}`);
             }
 
             const result = await response.json();
-            console.log('✅ Airtable success response:', result);
+            if (!silent) {
+                console.log('✅ Airtable success response:', result);
+            }
             
             // Reset error count on success
             this.errorCount = 0;
             return result;
             
         } catch (error) {
-            console.warn(`Airtable request attempt ${attempt}/${maxRetries} failed:`, error.message);
+            if (!silent) {
+                console.warn(`Airtable request attempt ${attempt}/${maxRetries} failed:`, error.message);
+            }
             
             if (attempt === maxRetries) {
                 // Add to retry queue if offline
                 if (!navigator.onLine) {
                     this.retryQueue = this.retryQueue || [];
-                    this.retryQueue.push(() => this.makeAirtableRequest(endpoint, method, data));
+                    this.retryQueue.push(() => this.makeAirtableRequest(endpoint, method, data, silent));
                 }
-                this.handleProductionError(error, 'airtableRequest');
+                if (!silent) {
+                    this.handleProductionError(error, 'airtableRequest');
+                }
                 throw error;
             }
             
@@ -6721,7 +6719,6 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
         }
     }
 }
-
             // Verification Functions for Data Integrity
             async verifyTaskInAirtable(taskId, expectedFields) {
                 try {
@@ -6752,7 +6749,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null) {
             async verifyTaskDeletion(taskId) {
                 try {
                     const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
-                    await this.makeAirtableRequest(`${tableName}/${taskId}`);
+                    await this.makeAirtableRequest(`${tableName}/${taskId}`, 'GET', null, true); // ← Add silent=true
                     
                     // If we get here, the record still exists (not deleted)
                     console.error('❌ Task deletion verification failed - record still exists:', taskId);
@@ -7752,12 +7749,12 @@ validateOrderData(orderNumber, dateDue, description, duration) {
                 { type: 'maxLength', value: 50 }
             ]
         },
-        {
-            value: dateDue,
-            rules: [
-                { type: 'required', message: 'Due date is required' }
-            ]
-        },
+     //   {
+     //       value: dateDue,
+     //       rules: [
+     //           { type: 'required', message: 'Due date is required' }
+     //       ]
+     //   },
         {
             value: description,
             rules: [
