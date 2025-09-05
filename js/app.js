@@ -1148,12 +1148,10 @@ createTaskCard(task, person, date) {
     const dueDateColor = dueDateComparison < new Date() ? 'text-red-500' : 'text-green-500';
     
     // NEW CAPACITY ICON LOGIC
-    let overCapacityIcon = '';
-    if (isExactlyAtCapacity) {
-        overCapacityIcon = '<span class="text-orange-500 ml-1" title="Full">⚠</span>';
-    } else if (isTrulyOverCapacity) {
-        overCapacityIcon = '<span class="text-red-500 ml-1" title="Over capacity">⚠</span>';
-    }
+let overCapacityIcon = '';
+if (isTrulyOverCapacity) {
+    overCapacityIcon = '<span class="text-red-500 ml-1" title="Over capacity">⚠</span>';
+}
 
     const headerHeight = 40;
     const padding = 16;
@@ -7064,3 +7062,4 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
+
