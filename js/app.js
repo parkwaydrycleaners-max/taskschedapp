@@ -2658,17 +2658,21 @@ async saveOrder() {
                 if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
                     this.showLoading('Updating order...');
                     try {
-                        const updates = {
-                            OrderNumber: orderNumber,
-                            DateDue: dateDue,
-                            Description: description,
-                            Duration: duration,
-                            TagsQuantity: tagsQuantity,
-                            Person: targetPerson,
-                            Date: targetDateKey,
-                            Position: newPosition,
-                            Completed: updatedTask.completed
-                        };
+const updates = {
+    OrderNumber: orderNumber,
+    Description: description,
+    Duration: duration,
+    TagsQuantity: tagsQuantity,
+    Person: targetPerson,
+    Date: targetDateKey,
+    Position: newPosition,
+    Completed: updatedTask.completed
+};
+
+// Only include DateDue if it exists and is not empty
+if (dateDue && dateDue.trim() !== '') {
+    updates.DateDue = dateDue;
+}
                         await this.updateTaskInAirtable(this.editingTaskId, updates);
                         this.showToast('✅ Order updated and verified in Airtable!', 'success');
                     } catch (error) {
@@ -3630,19 +3634,22 @@ collectReportData(selectedPerson, startDate, endDate) {
                         let status, statusClass;
                         
                         // Parse due date properly for comparison
-                        const taskDueDate = this.parseDateString(task.dateDue);
-                        taskDueDate.setHours(0, 0, 0, 0); // Normalize to start of day
-                        
-                        if (task.completed) {
-                            status = '✅ Complete';
-                            statusClass = 'text-green-600';
-                        } else if (taskDueDate < today) {
-                            status = '⚠️ Overdue';
-                            statusClass = 'text-red-600';
-                        } else {
-                            status = 'Incomplete';
-                            statusClass = 'text-blue-600';
-                        }
+// FIXED CODE:
+const taskDueDate = task.dateDue ? this.parseDateString(task.dateDue) : null;
+if (taskDueDate) {
+    taskDueDate.setHours(0, 0, 0, 0); // Normalize to start of day
+}
+
+if (task.completed) {
+    status = '✅ Complete';
+    statusClass = 'text-green-600';
+} else if (taskDueDate && taskDueDate < today) {
+    status = '⚠️ Overdue';
+    statusClass = 'text-red-600';
+} else {
+    status = 'Incomplete';
+    statusClass = 'text-blue-600';
+}
                                     
                                     reportData.push({
                                         task,
@@ -3651,7 +3658,7 @@ collectReportData(selectedPerson, startDate, endDate) {
                                         workDateDisplay: this.formatDateForDisplay(workDateKey),
                                         dueDateDisplay: this.formatDateForDisplay(task.dateDue),
                                         durationDisplay: `${task.duration * 15} min`,
-                                        isOverdue: !task.completed && taskDueDateString < today,
+                                        isOverdue: !task.completed && taskDueDateString && taskDueDateString !== '9999-12-31' && taskDueDateString < today.toISOString().split('T')[0],
                                         status,
                                         statusClass
                                     });
@@ -3670,7 +3677,7 @@ collectReportData(selectedPerson, startDate, endDate) {
                 } else if (typeof dateDue === 'string') {
                     return dateDue.includes('T') ? dateDue.split('T')[0] : dateDue;
                 }
-                return '';
+                return '9999-12-31';
             }
             
             displayReport(reportData, selectedPerson, startDate, endDate, filterType) {
@@ -4530,7 +4537,7 @@ showExportOptionsModal() {
                 const modal = document.createElement('div');
                 modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
                 
-const formattedDueDate = this.formatDateForDisplay(task.dateDue);
+const formattedDueDate = task.dateDue ? this.formatDateForDisplay(task.dateDue) : 'No Due Date';
 
 // Format work date with day of week
 let formattedWorkDate;
@@ -4545,9 +4552,11 @@ if (workDate) {
                 // Fix overdue calculation - normalize dates to avoid time issues
 const today = new Date();
 today.setHours(0, 0, 0, 0);
-const taskDueDate = this.parseDateString(task.dateDue);
-taskDueDate.setHours(0, 0, 0, 0);
-const isOverdue = !task.completed && taskDueDate < today;
+const taskDueDate = task.dateDue ? this.parseDateString(task.dateDue) : null;
+if (taskDueDate) {
+    taskDueDate.setHours(0, 0, 0, 0);
+}
+const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
 
                 modal.innerHTML = `
                     <div class="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto fade-in">
@@ -6408,7 +6417,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
                         OrderNumber: task.orderNumber,
                         Person: person,
                         Date: date,
-                        DateDue: task.dateDue,
+                        ...(task.dateDue && { DateDue: task.dateDue }),
                         Description: task.description,
                         Duration: task.duration,
                         TagsQuantity: task.tagsQuantity || 1,
@@ -6420,7 +6429,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
                         OrderNumber: task.orderNumber,
                         Person: person,
                         Date: date,
-                        DateDue: task.dateDue,
+                        ...(task.dateDue && { DateDue: task.dateDue }),
                         Description: task.description,
                         Duration: task.duration,
                         Position: task.position,
@@ -6431,7 +6440,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
                         OrderNumber: task.orderNumber,
                         Person: person,
                         Date: date,
-                        DateDue: task.dateDue,
+                        ...(task.dateDue && { DateDue: task.dateDue }),
                         Description: task.description,
                         Duration: task.duration
                     }
@@ -7062,4 +7071,3 @@ cleanup() {
         }
         // Initialize the application
         const app = new TaskSchedulerApp();
-
