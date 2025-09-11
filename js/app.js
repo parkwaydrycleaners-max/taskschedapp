@@ -582,6 +582,86 @@ async performAsyncOperation(name, operation) {
                 // Update current range display
                 this.updateCurrentDataRangeDisplay();
             }
+
+// Add these methods to your TaskSchedulerApp class
+
+// Parallel task loading
+async loadTasksDataParallel() {
+    console.log('🚀 Starting parallel task loading...');
+    
+    const startDate = new Date(this.currentDate);
+    startDate.setDate(this.currentDate.getDate() - (this.weeksBack * 7));
+    
+    const endDate = new Date(this.currentDate);
+    endDate.setDate(this.currentDate.getDate() + (this.weeksForward * 7));
+    
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+    
+    console.log(`📅 Loading tasks from ${startDateStr} to ${endDateStr} (parallel)`);
+    
+    // Use your existing pagination logic but in parallel
+    return await this.loadAllTaskPages(startDateStr, endDateStr);
+}
+
+// Parallel capacity loading
+async loadCapacityOverridesParallel() {
+    console.log('🚀 Starting parallel capacity loading...');
+    return await this.loadAllCapacityPages();
+}
+
+// Parallel config loading
+async loadAirtableConfigParallel() {
+    console.log('🚀 Starting parallel config loading...');
+    return await this.loadAllConfigPages();
+}
+
+// Enhanced parallel loader with fallback
+async loadAllDataParallel() {
+    const performanceTracker = this.trackLoadingPerformance();
+    
+    try {
+        this.showLoading('🚀 Loading data (parallel mode)...');
+        console.log('🚀 Starting parallel data loading...');
+        
+        // Execute all requests in parallel
+const [peopleResult, tasksResult, capacityResult] = await Promise.all([
+    this.loadPeopleFromAirtable(),    // ← ADD THIS LINE
+    this.loadTasksDataParallel(),
+    this.loadCapacityOverridesParallel()
+]);
+        
+        console.log('✅ All parallel requests completed');
+        
+        // Process the results
+        this.processTasksResult(tasksResult);
+        this.processCapacityResult(capacityResult);
+        
+        // Re-render the whiteboard
+        this.renderWhiteboard();
+        
+        performanceTracker.end();
+        
+    } catch (error) {
+        console.error('❌ Parallel loading failed, falling back to sequential:', error);
+        await this.loadAllDataSequential(); // Fallback to your existing method
+    } finally {
+        this.hideLoading();
+    }
+}
+
+// Performance tracking
+trackLoadingPerformance() {
+    const startTime = performance.now();
+    return {
+        end: () => {
+            const endTime = performance.now();
+            const duration = endTime - startTime;
+            console.log(`⚡ Loading completed in ${duration.toFixed(2)}ms`);
+            return duration;
+        }
+    };
+}
             
             updateCurrentDataRangeDisplay() {
                 const currentRangeDiv = document.getElementById('currentDataRange');
@@ -625,8 +705,9 @@ async performAsyncOperation(name, operation) {
                 this.showLoading('Loading additional historical data...');
                 
                 try {
-                    await this.loadTasksFromAirtable();
-                    this.renderWhiteboard();
+                    //await this.loadTasksFromAirtable();
+await this.loadAllDataParallel();                    
+this.renderWhiteboard();
                     
                     const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
                         return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
@@ -929,32 +1010,49 @@ updateWorkDateDisplay(dateStr) {
                 }
             }
             
-            // Whiteboard Rendering
-            renderWhiteboard() {
-                const whiteboard = document.getElementById('whiteboard');
-                const emptyState = document.getElementById('emptyState');
-                
-                if (this.people.length === 0) {
-                    whiteboard.innerHTML = '';
-                    if (emptyState) {
-                        whiteboard.appendChild(emptyState);
-                    }
-                    return;
-                }
-                
-                whiteboard.innerHTML = '';
-                if (emptyState && emptyState.parentNode) {
-                    emptyState.style.display = 'none';
-                }
-                
-                for (let dayOffset = 0; dayOffset < this.viewDays; dayOffset++) {
-                    const viewDate = new Date(this.currentDate);
-                    viewDate.setDate(viewDate.getDate() + dayOffset);
-                    
-                    const dayContainer = this.createDayContainer(viewDate, dayOffset);
-                    whiteboard.appendChild(dayContainer);
-                }
-            }
+// Whiteboard Rendering
+renderWhiteboard() {
+    console.log('🎨 renderWhiteboard() started');
+    console.log('👥 this.people:', this.people);
+    console.log('📏 this.people.length:', this.people ? this.people.length : 'undefined');
+    console.log('🗓️ this.viewDays:', this.viewDays);
+    console.log('📅 this.currentDate:', this.currentDate);
+    console.log('📊 this.tasks keys:', Object.keys(this.tasks));
+    
+    const whiteboard = document.getElementById('whiteboard');
+    const emptyState = document.getElementById('emptyState');
+    
+    console.log('📦 Whiteboard element found:', !!whiteboard);
+    console.log('📝 EmptyState element found:', !!emptyState);
+    
+    if (!this.people || this.people.length === 0) {
+        console.log('❌ EARLY RETURN: people array is empty or undefined');
+        console.log('❌ this.people:', this.people);
+        whiteboard.innerHTML = '';
+        if (emptyState) {
+            whiteboard.appendChild(emptyState);
+        }
+        return;
+    }
+    
+    console.log('✅ Proceeding with rendering...');
+    
+    // Rest of your existing code...
+    whiteboard.innerHTML = '';
+    if (emptyState && emptyState.parentNode) {
+        emptyState.style.display = 'none';
+    }
+    
+    for (let dayOffset = 0; dayOffset < this.viewDays; dayOffset++) {
+        const viewDate = new Date(this.currentDate);
+        viewDate.setDate(viewDate.getDate() + dayOffset);
+        
+        const dayContainer = this.createDayContainer(viewDate, dayOffset);
+        whiteboard.appendChild(dayContainer);
+    }
+    
+    console.log('✅ renderWhiteboard() completed');
+}
             
             createDayContainer(date, dayOffset) {
                 const container = document.createElement('div');
@@ -5967,20 +6065,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                 }
             }
             
-            async loadAllDataFromAirtable() {
-                await this.loadPeopleFromAirtable();
-    // CRITICAL FIX: Save fresh Airtable people capacity to local storage
-    await this.savePeopleCapacityToLocal();
-                await this.loadTasksFromAirtable();
-                await this.loadCapacityOverridesFromAirtable();
-                await this.loadTextContentFromAirtable();
-                
-                // Apply auto-capacity rule after loading all data
-                if (this.autoCapacityRule.enabled) {
-                    this.applyAutoCapacityRule();
-                }
-            }
-            
+          
  async loadPeopleFromAirtable() {
     const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
     const response = await this.makeAirtableRequest(tableName);
@@ -6177,6 +6262,66 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                 }
             }
 
+async loadAllDataFromAirtable() {
+    const performanceTracker = performance.now();
+    this.showLoading('🚀 Loading all data in parallel...');
+    console.log('🚀 Starting parallel data loading...');
+    
+    try {
+        // Execute ALL THREE loads in parallel - including people data!
+        const [peopleResult, tasksResult, capacityResult] = await Promise.all([
+            this.loadPeopleFromAirtable(),    // ← THIS WAS MISSING!
+            this.loadTasksFromAirtable(),
+            this.loadCapacityOverridesFromAirtable()
+        ]);
+        
+        const duration = performance.now() - performanceTracker;
+        console.log(`⚡ Parallel loading completed in ${duration.toFixed(2)}ms`);
+        
+        // Performance feedback
+        if (duration < 3000) {
+            console.log('🚀 Excellent performance - under 3 seconds!');
+        } else if (duration < 5000) {
+            console.log('👍 Good performance - under 5 seconds');
+        } else {
+            console.log('⚠️ Slow performance - over 5 seconds, check network');
+        }
+        
+        // CRITICAL FIX: Save fresh Airtable people capacity to local storage
+        await this.savePeopleCapacityToLocal();
+        await this.loadTextContentFromAirtable();
+        
+        // Re-render whiteboard after all loads complete
+        console.log('🎨 Starting final whiteboard render...');
+        console.log('📊 Tasks data check:', Object.keys(this.tasks).length, 'dates loaded');
+        console.log('📊 People data check:', this.people.length, 'people loaded');
+        console.log('📊 Sample people capacity:', this.peopleCapacity);
+
+        // 🎯 DYNAMIC FIX: Extract people from loaded tasks if needed
+        if (this.people.length === 0 && Object.keys(this.tasks).length > 0) {
+            const peopleSet = new Set();
+            Object.values(this.tasks).forEach(dayTasks => {
+                Object.keys(dayTasks).forEach(person => {
+                    peopleSet.add(person);
+                });
+            });
+            this.people = Array.from(peopleSet);
+            console.log('✅ Dynamically extracted people:', this.people);
+        }
+        
+        if (this.autoCapacityRule && this.autoCapacityRule.enabled) {
+            this.applyAutoCapacityRule();
+        }
+        
+        this.renderWhiteboard();
+        
+    } catch (error) {
+        console.error('❌ Parallel loading failed:', error);
+        this.showErrorToast('Failed to load data from Airtable');
+    } finally {
+        this.hideLoading();
+    }
+}
             showCapacityOverridesSetupInfo() {
                 if (this.hasShownCapacitySetupInfo) return;
                 this.hasShownCapacitySetupInfo = true;
@@ -6258,10 +6403,8 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
             }
             
 	    async preserveHistoricalCapacity(personName, oldWeeklyCapacity) {
-                console.log(`🔒 Starting historical capacity preservation for ${personName}...`);
-                
+             
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
-                    console.log('⚠️ Airtable not connected - skipping historical preservation');
                     return;
                 }
                 
@@ -6272,7 +6415,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                     const response = await this.makeAirtableRequest(`${tasksTableName}?filterByFormula=${encodeURIComponent(personFilter)}`);
                     
                     if (response.records.length === 0) {
-                        console.log(`ℹ️ No existing tasks found for ${personName} - no historical preservation needed`);
+
                         return;
                     }
                     
@@ -7069,5 +7212,6 @@ cleanup() {
     console.log('🧹 App cleanup completed');
 }
         }
+
         // Initialize the application
         const app = new TaskSchedulerApp();
