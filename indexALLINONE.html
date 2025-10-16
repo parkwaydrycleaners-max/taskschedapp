@@ -3932,20 +3932,20 @@ generateCommonWords() {
     
     return sortedWords;
 }
-
-            
+     
             // Settings Modal Functions
-            showSettingsModal() {
-                document.getElementById('airtableApiKey').value = this.airtableConfig.apiKey;
-                document.getElementById('airtableBaseId').value = this.airtableConfig.baseId;
-                document.getElementById('peopleTableName').value = this.airtableConfig.tablesConfig.people;
-                document.getElementById('tasksTableName').value = this.airtableConfig.tablesConfig.tasks;
-
-document.getElementById('dueDateOffsetSetting').value = this.getDueDateOffset();
-                
-                this.switchSettingsTab('database');
-                this.getElement('settingsModal').classList.remove('hidden');
-            }
+showSettingsModal() {
+    // First: Show the modal so elements exist
+    this.getElement('settingsModal').classList.remove('hidden');
+    this.switchSettingsTab('database');
+    
+    // Then: Populate the fields (now they exist)
+    document.getElementById('airtableApiKey').value = this.airtableConfig.apiKey;
+    document.getElementById('airtableBaseId').value = this.airtableConfig.baseId;
+    document.getElementById('peopleTableName').value = this.airtableConfig.tablesConfig.people;
+    document.getElementById('tasksTableName').value = this.airtableConfig.tablesConfig.tasks;
+    document.getElementById('dueDateOffsetSetting').value = this.getDueDateOffset();
+}
             
             switchSettingsTab(tab) {
                 const databaseTab = document.getElementById('databaseTab');
