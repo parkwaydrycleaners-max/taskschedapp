@@ -369,6 +369,23 @@ this.config = {
                 }
             }
 
+// Due Date Offset Methods - ADD THESE TO YOUR CLASS
+getDueDateOffset() {
+    return parseInt(localStorage.getItem('dueDateOffset')) || 0;
+}
+
+saveDueDateOffset(days) {
+    localStorage.setItem('dueDateOffset', days.toString());
+}
+
+getDefaultDueDate() {
+    const offset = this.getDueDateOffset();
+    const today = new Date();
+    const dueDate = new Date(today);
+    dueDate.setDate(today.getDate() + offset);
+    return dueDate.toISOString().split('T')[0];
+}
+
 // Add this method for better performance monitoring
 async performAsyncOperation(name, operation) {
     const startTime = performance.now();
@@ -1009,6 +1026,73 @@ updateWorkDateDisplay(dateStr) {
                     document.getElementById('currentDate').textContent = `${startStr} - ${endStr}, ${yearStr}`;
                 }
             }
+
+// Due Date Offset Functions
+saveDueDateOffset(days) {
+    localStorage.setItem('dueDateOffset', days.toString());
+    console.log(`💾 Due date offset saved: ${days} days`);
+}
+
+getDueDateOffset() {
+    const saved = localStorage.getItem('dueDateOffset');
+    return saved ? parseInt(saved) : 0;
+}
+
+getDefaultDueDate() {
+    const offset = this.getDueDateOffset();
+    const today = new Date();
+    const dueDate = new Date(today);
+    dueDate.setDate(today.getDate() + offset);
+    return this.dateToLocalDateString(dueDate);
+}
+
+async saveDueDateOffsetSettings() {
+    try {
+        const db = await this.openConfigDatabase();
+        const transaction = db.transaction(['config'], 'readwrite');
+        const store = transaction.objectStore('config');
+        
+        const settings = {
+            id: 'due-date-offset-settings',
+            offsetDays: this.getDueDateOffset(),
+            lastSaved: new Date().toISOString()
+        };
+        
+        return new Promise((resolve, reject) => {
+            const request = store.put(settings);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        console.warn('Could not save due date offset settings:', error);
+    }
+}
+
+async loadDueDateOffsetSettings() {
+    try {
+        const db = await this.openConfigDatabase();
+        const transaction = db.transaction(['config'], 'readonly');
+        const store = transaction.objectStore('config');
+        
+        return new Promise((resolve) => {
+            const request = store.get('due-date-offset-settings');
+            request.onsuccess = () => {
+                const result = request.result;
+                if (result && result.offsetDays !== undefined) {
+                    localStorage.setItem('dueDateOffset', result.offsetDays.toString());
+                    const settingInput = document.getElementById('dueDateOffsetSetting');
+                    if (settingInput) {
+                        settingInput.value = result.offsetDays;
+                    }
+                }
+                resolve(result);
+            };
+            request.onerror = () => resolve(null);
+        });
+    } catch (error) {
+        return null;
+    }
+}
             
 // Whiteboard Rendering
 renderWhiteboard() {
@@ -3022,6 +3106,8 @@ generateCommonWords() {
                 document.getElementById('airtableBaseId').value = this.airtableConfig.baseId;
                 document.getElementById('peopleTableName').value = this.airtableConfig.tablesConfig.people;
                 document.getElementById('tasksTableName').value = this.airtableConfig.tablesConfig.tasks;
+
+document.getElementById('dueDateOffsetSetting').value = this.getDueDateOffset();
                 
                 this.switchSettingsTab('database');
                 this.getElement('settingsModal').classList.remove('hidden');
@@ -3227,6 +3313,8 @@ generateCommonWords() {
                 this.airtableConfig.baseId = document.getElementById('airtableBaseId').value.trim();
                 this.airtableConfig.tablesConfig.people = document.getElementById('peopleTableName').value.trim();
                 this.airtableConfig.tablesConfig.tasks = document.getElementById('tasksTableName').value.trim();
+
+    this.saveDueDateOffset(parseInt(document.getElementById('dueDateOffsetSetting').value) || 0);
 
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
                     this.showConnectionStatus('Please enter both API Key and Base ID', true);
@@ -5264,6 +5352,20 @@ initActivityBasedRefresh() {
     };
     
     // Attach activity listeners
+// Add this to your constructor, near other event listeners
+document.addEventListener('DOMContentLoaded', () => {
+    // Set up due date auto-population on focus
+    const dueDateInput = document.getElementById('dueDateInput');
+    if (dueDateInput) {
+        dueDateInput.addEventListener('focus', () => {
+            // Only auto-populate if field is empty and offset > 0
+            if (!dueDateInput.value && this.getDueDateOffset() > 0) {
+                dueDateInput.value = this.getDefaultDueDate();
+            }
+        });
+    }
+});
+
     activityEvents.forEach(event => {
         document.addEventListener(event, onActivity, { passive: true });
     });
