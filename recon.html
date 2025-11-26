@@ -654,7 +654,7 @@
                 </div>
 
                 <div class="row balance-row" id="cashBalanceRow">
-                    <div class="row-label">BALANCE?</div>
+                    <div class="row-label">BALANCE? (±$2 tolerance)</div>
                     <div class="row-value" id="cashBalance">$0.00</div>
                 </div>
 
@@ -793,7 +793,8 @@
             document.getElementById('cashCalcText').textContent = cashCalc;
 
             const cashBalanceRow = document.getElementById('cashBalanceRow');
-            if (Math.abs(cashBalance) < 0.01) {
+            const cashTolerance = 2.00; // $2 tolerance for coins not counted
+            if (Math.abs(cashBalance) < cashTolerance) {
                 cashBalanceRow.classList.remove('unbalanced');
                 document.getElementById('cashTips').classList.remove('show');
             } else {
@@ -843,6 +844,8 @@
             const tips = [];
             const isPositive = balance > 0; // Register > POS
 
+            tips.push('<strong>⚠️ Variance exceeds $2.00 tolerance (coins not counted)</strong>');
+
             if (isPositive) {
                 // Cash Register has MORE than POS
                 tips.push('<strong>Cash Register is higher than POS by ' + fmt(Math.abs(balance)) + '</strong>');
@@ -852,19 +855,19 @@
                 tips.push('Confirm petty cash amount is correct - verify you subtracted it');
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance detected:</strong> Recount the physical cash in the register');
+                    tips.push('<strong>Large variance detected:</strong> Recount the physical cash in the register (bills only)');
                 }
             } else {
                 // POS shows MORE than Cash Register
                 tips.push('<strong>POS is higher than Cash Register by ' + fmt(Math.abs(balance)) + '</strong>');
                 tips.push('Check if some cash sales were accidentally entered as credit card in POS');
-                tips.push('Verify all cash was counted - check under drawer, in safe, etc.');
+                tips.push('Verify all bills were counted - check under drawer, in safe, etc.');
                 tips.push('Check if cash was removed during the day (bank deposit, petty cash withdrawal)');
                 tips.push('Confirm cash refunds are correctly entered');
-                tips.push('Verify the register count includes all bills and coins');
+                tips.push('Review all mixed payment transactions - verify cash portions match');
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance detected:</strong> Consider recounting cash and reviewing all cash transactions');
+                    tips.push('<strong>Large variance detected:</strong> Consider recounting cash bills and reviewing all cash transactions');
                 }
             }
 
@@ -891,7 +894,7 @@
             const totalPOSCash = parseFloat(document.getElementById('totalPOSCash').textContent.replace('$', ''));
             const totalRegisterSales = parseFloat(document.getElementById('totalRegisterSales').textContent.replace('$', ''));
             const cashBalance = parseFloat(document.getElementById('cashBalance').textContent.replace('$', ''));
-            const cashBalanced = Math.abs(cashBalance) < 0.01;
+            const cashBalanced = Math.abs(cashBalance) < 2.00; // $2 tolerance for coins
 
             const totalSales = totalCCActual + totalRegisterSales;
             const allBalanced = cardBalanced && cashBalanced;
@@ -1084,7 +1087,7 @@
 
             list.innerHTML = history.map(r => {
                 const cardOK = Math.abs(r.card.balance) < 0.01;
-                const cashOK = Math.abs(r.cash.balance) < 0.01;
+                const cashOK = Math.abs(r.cash.balance) < 2.00; // $2 tolerance
                 const allOK = cardOK && cashOK;
                 const notesHtml = r.notes ? `<div style="margin-top:0.5rem;font-style:italic;color:var(--text)">📝 ${r.notes}</div>` : '';
 
