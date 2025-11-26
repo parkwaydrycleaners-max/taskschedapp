@@ -815,7 +815,7 @@
                 tips.push('<strong>CC Machine is higher than POS by ' + fmt(Math.abs(balance)) + '</strong>');
                 tips.push('Check if all credit card transactions from the machine appear in today\'s POS sales');
                 tips.push('Verify no sales were accidentally entered twice in the POS');
-                tips.push('Check if any sales from yesterday were processed today on the CC machine');
+                tips.push('Check if any modified receipts from past orders were paid today - these show on CC machine but not in today\'s POS sales');
                 tips.push('Confirm all adjustments (voids, store credits, etc.) are correctly entered');
                 tips.push('Verify the .50 transaction count is accurate');
 
@@ -1157,4 +1157,3 @@
     </script>
 </body>
 </html>
-
