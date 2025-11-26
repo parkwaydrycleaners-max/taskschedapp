@@ -842,24 +842,30 @@
 
         function showCashTips(balance, registerTotal, posTotal) {
             const tips = [];
-            const isPositive = balance > 0; // Register > POS
+            const isPositive = balance > 0; // Register Sales > POS
 
             tips.push('<strong>⚠️ Variance exceeds $2.00 tolerance (coins not counted)</strong>');
 
-            if (isPositive) {
-                // Cash Register has MORE than POS
-                tips.push('<strong>Cash Register is higher than POS by ' + fmt(Math.abs(balance)) + '</strong>');
+            // Check if register total is negative (petty cash exceeds register count)
+            if (registerTotal < 0) {
+                tips.push('<strong>Petty Cash (' + fmt(getVal('pettyCash')) + ') exceeds Cash Register count (' + fmt(getVal('cashRegister1') + getVal('cashRegister2')) + ')</strong>');
+                tips.push('Verify petty cash amount is correct - it should not be more than what\'s in the register');
+                tips.push('Check if petty cash was already removed from the register before counting');
+                tips.push('Confirm the cash register count is accurate');
+            } else if (isPositive) {
+                // Total Register Sales (after adjustments) is higher than POS
+                tips.push('<strong>Adjusted Register Total is higher than POS by ' + fmt(Math.abs(balance)) + '</strong>');
                 tips.push('Check if all cash sales are recorded in POS');
                 tips.push('Verify "Cash Sales Not on POS" field includes any manual/off-system sales');
-                tips.push('Check if extra cash was added to the register (tips, cash back, etc.)');
-                tips.push('Confirm petty cash amount is correct - verify you subtracted it');
+                tips.push('Check if "Other Cash Added" or extra cash was added to the register');
+                tips.push('Confirm petty cash amount is correct');
 
                 if (Math.abs(balance) > 50) {
                     tips.push('<strong>Large variance detected:</strong> Recount the physical cash in the register (bills only)');
                 }
             } else {
-                // POS shows MORE than Cash Register
-                tips.push('<strong>POS is higher than Cash Register by ' + fmt(Math.abs(balance)) + '</strong>');
+                // POS shows MORE than Total Register Sales (after adjustments)
+                tips.push('<strong>POS Total is higher than Adjusted Register Total by ' + fmt(Math.abs(balance)) + '</strong>');
                 tips.push('Check if some cash sales were accidentally entered as credit card in POS');
                 tips.push('Verify all bills were counted - check under drawer, in safe, etc.');
                 tips.push('Check if cash was removed during the day (bank deposit, petty cash withdrawal)');
