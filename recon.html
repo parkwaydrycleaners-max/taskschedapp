@@ -371,6 +371,53 @@
             pointer-events: none;
         }
 
+        .report-section {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: var(--header-bg);
+            border-radius: 8px;
+            border: 2px solid var(--border);
+        }
+
+        .report-section h3 {
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+
+        .report-output {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            color: var(--text);
+            min-height: 150px;
+            margin-bottom: 1rem;
+        }
+
+        .copy-button {
+            background: #28a745;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .copy-button:hover {
+            background: #218838;
+        }
+
+        .copy-button.copied {
+            background: #17a2b8;
+        }
+
         @media (max-width: 768px) {
             .boards {
                 grid-template-columns: 1fr;
@@ -576,6 +623,12 @@
             <textarea id="notesField" placeholder="Add notes about today's reconciliation (e.g., reasons for variance, special circumstances, etc.)"></textarea>
         </div>
 
+        <div class="report-section">
+            <h3>📄 Sales Report (Copy & Paste)</h3>
+            <div class="report-output" id="reportOutput">Enter values above to generate report...</div>
+            <button class="copy-button" onclick="copyReport()">📋 Copy Report to Clipboard</button>
+        </div>
+
         <div class="actions">
             <button onclick="saveRecord()">💾 Save Record</button>
             <button class="secondary" onclick="clearAll()">🔄 Clear All</button>
@@ -694,6 +747,112 @@
             } else {
                 cashBalanceRow.classList.add('unbalanced');
             }
+
+            // Generate report
+            generateReport();
+        }
+
+        function generateReport() {
+            const date = document.getElementById('reconciliationDate').value;
+            if (!date) {
+                document.getElementById('reportOutput').textContent = 'Enter values above to generate report...';
+                return;
+            }
+
+            const dateObj = new Date(date);
+            const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            // Get all values
+            const totalPOSCard = parseFloat(document.getElementById('totalPOSCard').textContent.replace('$', ''));
+            const totalCCActual = parseFloat(document.getElementById('totalCCActual').textContent.replace('$', ''));
+            const cardBalance = parseFloat(document.getElementById('cardBalance').textContent.replace('$', ''));
+            const cardBalanced = Math.abs(cardBalance) < 0.01;
+
+            const totalPOSCash = parseFloat(document.getElementById('totalPOSCash').textContent.replace('$', ''));
+            const totalRegisterSales = parseFloat(document.getElementById('totalRegisterSales').textContent.replace('$', ''));
+            const cashBalance = parseFloat(document.getElementById('cashBalance').textContent.replace('$', ''));
+            const cashBalanced = Math.abs(cashBalance) < 0.01;
+
+            const totalSales = totalCCActual + totalRegisterSales;
+            const allBalanced = cardBalanced && cashBalanced;
+
+            const notes = document.getElementById('notesField').value.trim();
+
+            // Build report
+            let report = '';
+            report += '═══════════════════════════════════════════════\n';
+            report += '           DAILY SALES RECONCILIATION\n';
+            report += '═══════════════════════════════════════════════\n';
+            report += `DATE: ${formattedDate}\n`;
+            report += '═══════════════════════════════════════════════\n\n';
+
+            report += '💳 CREDIT CARD SALES\n';
+            report += '───────────────────────────────────────────────\n';
+            report += `POS Credit Card Total:        ${fmt(totalPOSCard)}\n`;
+            report += `Actual CC Machine Total:      ${fmt(totalCCActual)}\n`;
+            report += `Card Balance:                 ${fmt(cardBalance)} ${cardBalanced ? '✓' : '⚠️'}\n\n`;
+
+            report += '💵 CASH SALES\n';
+            report += '───────────────────────────────────────────────\n';
+            report += `POS Cash Total:               ${fmt(totalPOSCash)}\n`;
+            report += `Actual Register Total:        ${fmt(totalRegisterSales)}\n`;
+            report += `Cash Balance:                 ${fmt(cashBalance)} ${cashBalanced ? '✓' : '⚠️'}\n\n`;
+
+            report += '📊 SUMMARY\n';
+            report += '───────────────────────────────────────────────\n';
+            report += `Total Sales (Card + Cash):    ${fmt(totalSales)}\n`;
+            report += `Overall Status:               ${allBalanced ? '✓ BALANCED' : '⚠️ VARIANCE DETECTED'}\n`;
+
+            if (notes) {
+                report += '\n📝 NOTES\n';
+                report += '───────────────────────────────────────────────\n';
+                report += `${notes}\n`;
+            }
+
+            report += '\n═══════════════════════════════════════════════\n';
+
+            document.getElementById('reportOutput').textContent = report;
+        }
+
+        function copyReport() {
+            const reportText = document.getElementById('reportOutput').textContent;
+
+            if (reportText === 'Enter values above to generate report...') {
+                showAlert('Please enter values first to generate a report');
+                return;
+            }
+
+            navigator.clipboard.writeText(reportText).then(() => {
+                const btn = document.querySelector('.copy-button');
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Copied!';
+                btn.classList.add('copied');
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('copied');
+                }, 2000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = reportText;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+
+                const btn = document.querySelector('.copy-button');
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Copied!';
+                btn.classList.add('copied');
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
         }
 
         function validateInputs() {
@@ -792,6 +951,7 @@
                 inputs.forEach(input => input.value = '');
                 document.getElementById('notesField').value = '';
                 calculate();
+                generateReport();
             });
         }
 
@@ -870,6 +1030,8 @@
 
         calculate();
         displayHistory();
+        generateReport();
     </script>
 </body>
 </html>
+
