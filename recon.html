@@ -418,6 +418,45 @@
             background: #17a2b8;
         }
 
+        .tips-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 1rem;
+            margin-top: 1rem;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .dark .tips-box {
+            background: #0d3a5c;
+            border-left-color: #42a5f5;
+        }
+
+        .tips-box.show {
+            display: block;
+        }
+
+        .tips-box h4 {
+            margin: 0 0 0.75rem 0;
+            font-size: 1rem;
+            color: #1976d2;
+        }
+
+        .dark .tips-box h4 {
+            color: #42a5f5;
+        }
+
+        .tips-box ul {
+            margin: 0;
+            padding-left: 1.5rem;
+        }
+
+        .tips-box li {
+            margin-bottom: 0.5rem;
+            color: var(--text);
+            line-height: 1.5;
+        }
+
         @media (max-width: 768px) {
             .boards {
                 grid-template-columns: 1fr;
@@ -523,6 +562,11 @@
                     <div class="row-label">BALANCE?</div>
                     <div class="row-value" id="cardBalance">$0.00</div>
                 </div>
+
+                <div class="tips-box" id="cardTips">
+                    <h4>💡 Troubleshooting Tips:</h4>
+                    <ul id="cardTipsList"></ul>
+                </div>
             </div>
 
             <!-- RIGHT: CASH -->
@@ -612,6 +656,11 @@
                 <div class="row balance-row" id="cashBalanceRow">
                     <div class="row-label">BALANCE?</div>
                     <div class="row-value" id="cashBalance">$0.00</div>
+                </div>
+
+                <div class="tips-box" id="cashTips">
+                    <h4>💡 Troubleshooting Tips:</h4>
+                    <ul id="cashTipsList"></ul>
                 </div>
             </div>
         </div>
@@ -703,8 +752,10 @@
             const cardBalanceRow = document.getElementById('cardBalanceRow');
             if (Math.abs(cardBalance) < 0.01) {
                 cardBalanceRow.classList.remove('unbalanced');
+                document.getElementById('cardTips').classList.remove('show');
             } else {
                 cardBalanceRow.classList.add('unbalanced');
+                showCardTips(cardBalance, totalCCActual, totalPOSCard);
             }
 
             // CASH SIDE
@@ -744,12 +795,79 @@
             const cashBalanceRow = document.getElementById('cashBalanceRow');
             if (Math.abs(cashBalance) < 0.01) {
                 cashBalanceRow.classList.remove('unbalanced');
+                document.getElementById('cashTips').classList.remove('show');
             } else {
                 cashBalanceRow.classList.add('unbalanced');
+                showCashTips(cashBalance, totalRegisterSales, totalPOSCash);
             }
 
             // Generate report
             generateReport();
+        }
+
+        function showCardTips(balance, ccActual, posCard) {
+            const tips = [];
+            const isPositive = balance > 0; // CC Machine > POS
+
+            if (isPositive) {
+                // CC Machine shows MORE than POS
+                tips.push('<strong>CC Machine is higher than POS by ' + fmt(Math.abs(balance)) + '</strong>');
+                tips.push('Check if all credit card transactions from the machine appear in today\'s POS sales');
+                tips.push('Verify no sales were accidentally entered twice in the POS');
+                tips.push('Check if any sales from yesterday were processed today on the CC machine');
+                tips.push('Confirm all adjustments (voids, store credits, etc.) are correctly entered');
+
+                if (Math.abs(balance) > 50) {
+                    tips.push('<strong>Large variance detected:</strong> Double-check CC machine totals and verify batch settlement');
+                }
+            } else {
+                // POS shows MORE than CC Machine
+                tips.push('<strong>POS is higher than CC Machine by ' + fmt(Math.abs(balance)) + '</strong>');
+                tips.push('Check if some credit card sales were accidentally entered as cash in POS');
+                tips.push('Verify all credit card transactions from today have settled on the machine');
+                tips.push('Check if any sales were entered in POS but declined/failed on the CC machine');
+                tips.push('Confirm the CC machine batch was properly settled for today');
+
+                if (Math.abs(balance) > 50) {
+                    tips.push('<strong>Large variance detected:</strong> Review all mixed payment transactions carefully');
+                }
+            }
+
+            document.getElementById('cardTipsList').innerHTML = tips.map(t => `<li>${t}</li>`).join('');
+            document.getElementById('cardTips').classList.add('show');
+        }
+
+        function showCashTips(balance, registerTotal, posTotal) {
+            const tips = [];
+            const isPositive = balance > 0; // Register > POS
+
+            if (isPositive) {
+                // Cash Register has MORE than POS
+                tips.push('<strong>Cash Register is higher than POS by ' + fmt(Math.abs(balance)) + '</strong>');
+                tips.push('Check if all cash sales are recorded in POS');
+                tips.push('Verify "Cash Sales Not on POS" field includes any manual/off-system sales');
+                tips.push('Check if extra cash was added to the register (tips, cash back, etc.)');
+                tips.push('Confirm petty cash amount is correct - verify you subtracted it');
+
+                if (Math.abs(balance) > 50) {
+                    tips.push('<strong>Large variance detected:</strong> Recount the physical cash in the register');
+                }
+            } else {
+                // POS shows MORE than Cash Register
+                tips.push('<strong>POS is higher than Cash Register by ' + fmt(Math.abs(balance)) + '</strong>');
+                tips.push('Check if some cash sales were accidentally entered as credit card in POS');
+                tips.push('Verify all cash was counted - check under drawer, in safe, etc.');
+                tips.push('Check if cash was removed during the day (bank deposit, petty cash withdrawal)');
+                tips.push('Confirm cash refunds are correctly entered');
+                tips.push('Verify the register count includes all bills and coins');
+
+                if (Math.abs(balance) > 50) {
+                    tips.push('<strong>Large variance detected:</strong> Consider recounting cash and reviewing all cash transactions');
+                }
+            }
+
+            document.getElementById('cashTipsList').innerHTML = tips.map(t => `<li>${t}</li>`).join('');
+            document.getElementById('cashTips').classList.add('show');
         }
 
         function generateReport() {
