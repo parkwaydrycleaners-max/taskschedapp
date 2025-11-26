@@ -816,20 +816,22 @@
                 tips.push('Verify no sales were accidentally entered twice in the POS');
                 tips.push('Check if any sales from yesterday were processed today on the CC machine');
                 tips.push('Confirm all adjustments (voids, store credits, etc.) are correctly entered');
+                tips.push('Verify the .50 transaction count is accurate');
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance detected:</strong> Double-check CC machine totals and verify batch settlement');
+                    tips.push('<strong>Large variance detected:</strong> Double-check both CC machine totals - reprint receipts if needed');
                 }
             } else {
                 // POS shows MORE than CC Machine
                 tips.push('<strong>POS is higher than CC Machine by ' + fmt(Math.abs(balance)) + '</strong>');
                 tips.push('Check if some credit card sales were accidentally entered as cash in POS');
-                tips.push('Verify all credit card transactions from today have settled on the machine');
-                tips.push('Check if any sales were entered in POS but declined/failed on the CC machine');
-                tips.push('Confirm the CC machine batch was properly settled for today');
+                tips.push('Verify all credit card transactions processed successfully (no declines)');
+                tips.push('Check if any manual card entries in POS didn\'t process on the machine');
+                tips.push('Review all mixed payment transactions - verify card portions match');
+                tips.push('Confirm all adjustments are entered correctly');
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance detected:</strong> Review all mixed payment transactions carefully');
+                    tips.push('<strong>Large variance detected:</strong> Review transaction log on CC machine vs POS sales report');
                 }
             }
 
