@@ -98,12 +98,10 @@
     #dli-press {
         padding-bottom: 40px;
     }
-
     .feed-header {
         text-align: center;
         margin-bottom: 15px;
     }
-
     .feed-box {
         background:white;
         padding:20px;
@@ -112,12 +110,10 @@
         max-width:850px;
         margin:0 auto;
     }
-
     .feed-toggle {
         text-align:center;
         margin-bottom:15px;
     }
-
     .feed-toggle button {
         padding:8px 14px;
         margin:0 5px;
@@ -132,7 +128,6 @@
         background:#0a75ff;
         color:white;
     }
-
     .read-more-btn {
         display:inline-block;
         margin-top:5px;
@@ -209,6 +204,7 @@
 
     <div class="tiles">
 
+        <!-- Desktop Alterations -->
         <div class="tile">
             <svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>
             <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html" target="_blank">
@@ -216,6 +212,7 @@
             </a>
         </div>
 
+        <!-- Mobile Alterations -->
         <div class="tile">
             <svg><rect x="7" y="3" width="10" height="18" rx="2"/></svg>
             <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html" target="_blank">
@@ -223,6 +220,7 @@
             </a>
         </div>
 
+        <!-- Daily Reconciliation -->
         <div class="tile">
             <svg><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html" target="_blank">
@@ -230,6 +228,7 @@
             </a>
         </div>
 
+        <!-- Work Schedule -->
         <div class="tile">
             <svg><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
             <a href="https://docs.google.com/spreadsheets/d/1-N-pSP-FWhxooDHEuQRCDzDDc01jqjiAyW4c9bwRRCY/edit?gid=0#gid=0" target="_blank">
@@ -237,6 +236,7 @@
             </a>
         </div>
 
+        <!-- Payroll -->
         <div class="tile">
             <svg><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 10h6M9 14h6"/></svg>
             <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html" target="_blank">
@@ -244,6 +244,7 @@
             </a>
         </div>
 
+        <!-- WhatsApp -->
         <div class="tile">
             <svg viewBox="0 0 24 24">
                 <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z"
@@ -253,6 +254,17 @@
             </svg>
             <a href="https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG" target="_blank">
                 WhatsApp Group
+            </a>
+        </div>
+
+        <!-- Clean Bot Chatbot -->
+        <div class="tile">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v12H5l-3 3V4z" stroke="#0a75ff" stroke-width="2" fill="none"/>
+                <path d="M8 9h8M8 13h5" stroke="#0a75ff" stroke-width="2" fill="none"/>
+            </svg>
+            <a href="https://www.facebook.com/messages/t/2083730355435395" target="_blank">
+                Clean Bot Chatbot
             </a>
         </div>
 
@@ -329,8 +341,7 @@ function loadFeed(count) {
                         <a class="read-more-btn" href="${link}" target="_blank">
                             Read More
                         </a>
-                    </li>
-                `;
+                    </li>`;
             }
 
             feedHTML += "</ul>";
