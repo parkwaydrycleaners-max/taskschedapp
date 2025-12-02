@@ -1,819 +1,116 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alterations Pro - Order Management Whiteboard</title>
-    <meta name="description" content="Professional task scheduling and order management whiteboard application">
-    <meta name="theme-color" content="#5D5CDE">
+<meta charset="UTF-8">
+<title>Top Cleaners & Alterations – Intranet</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Critical inline CSS to prevent FOUC -->
-    <style>
-        /* Hide content until CSS loads */
-        html { visibility: hidden; }
-        
-        /* Basic reset and structure */
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
-        
-        /* Loading spinner (optional) */
-        .loading-spinner {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 40px;
-            height: 40px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #5D5CDE;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: translate(-50%, -50%) rotate(0deg); }
-            100% { transform: translate(-50%, -50%) rotate(360deg); }
-        }
-    </style>
-    
-    <!-- Preconnect links -->
-    <link rel="preconnect" href="https://cdn.tailwindcss.com">
-    <link rel="preconnect" href="https://api.airtable.com">
-    
-    <!-- Load Tailwind setup (which will then load styles.css) -->
-    <script src="css/tailwind.js"></script>
-    
-    <!-- Remove this line - styles.css will be loaded by tailwind.js -->
-    <!-- <link rel="stylesheet" href="css/styles.css"> -->
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        background: #f5f5f5;
+        padding: 20px;
+        line-height: 1.5;
+    }
+
+    h1 {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .section {
+        background: white;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 8px;
+        box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .section-title {
+        font-size: 1.3rem;
+        margin-bottom: 12px;
+        border-left: 5px solid #0a75ff;
+        padding-left: 10px;
+    }
+
+    ul {
+        list-style: none;
+        padding-left: 0;
+    }
+
+    li {
+        margin: 10px 0;
+    }
+
+    a {
+        text-decoration: none;
+        color: #0a75ff;
+        font-weight: bold;
+    }
+
+    a:hover {
+        text-decoration: underline;
+    }
+
+    .footer {
+        text-align: center;
+        margin-top: 40px;
+        color: #555;
+    }
+
+    /* Easy button style (optional) */
+    .btn {
+        display: inline-block;
+        padding: 10px 15px;
+        background: #0a75ff;
+        color: white;
+        border-radius: 6px;
+        margin-top: 10px;
+        text-decoration: none;
+    }
+
+    .btn:hover {
+        background: #004ec2;
+    }
+</style>
+
 </head>
-<body class="bg-white text-gray-900 min-h-screen">
-    <!-- Header -->
-    <header class="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-40">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-4">
-                <h1 class="text-2xl font-bold text-primary">📋 Alterations Pro</h1>
-                <div class="flex items-center space-x-2">
-                    <!-- Navigation Controls -->
-                    <button id="readyDateBtn" class="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 transition-colors min-w-[120px] h-[44px] flex items-center justify-center" title="Ready Date Report">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                        </svg>
-                        Ready Date
-                    </button>
-                    
-                    <button id="todayBtn" class="px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors" title="Go to Today">
-                        Today
-                    </button>
-                    
-                    <button id="prevDay" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-                        </svg>
-                    </button>
-                    
-                    <button id="currentDate" class="text-lg font-semibold px-4 py-2 bg-gray-100 rounded-lg min-w-[200px] text-center hover:bg-gray-200 transition-colors cursor-pointer"></button>
-                    
-                    <button id="nextDay" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                        </svg>
-                    </button>
-                    
-                    <div class="ml-4 flex items-center space-x-2">
-                        <span class="text-sm font-medium">View:</span>
-                        <select id="viewDaysSelect" class="p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <option value="1">1 Day</option>
-                            <option value="2" selected>2 Days</option>
-                            <option value="3">3 Days</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="flex items-center space-x-3">
-                <button id="addNewOrderBtn" class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary-dark transition-colors min-w-[120px] h-[44px] flex items-center justify-center" title="Add New Order">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                    </svg>
-                    Add Order
-                </button>
-                
-                <button id="searchBtn" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors min-w-[120px] h-[44px] flex items-center justify-center" title="Search Orders (Ctrl+F)">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                    Search
-                </button>
-                
-                <button id="settingsBtn" class="bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors min-w-[120px] h-[44px] flex items-center justify-center">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    </svg>
-                    Settings
-                </button>
-                
-                <button id="shareBtn" class="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition-colors min-w-[120px] h-[44px] flex items-center justify-center">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z"></path>
-                    </svg>
-                    Share
-                </button>
-                <a href="mobileindex.html" class="bg-purple-500 text-white px-6 py-3 rounded-lg hover:bg-purple-600 transition-colors min-w-[120px] h-[44px] flex items-center justify-center text-decoration-none">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                    </svg>
-                    Mobile
-                </a>
-            </div>
-        </div>
-    </header>
+<body>
 
-    <!-- Main Content -->
-    <main class="flex-1 p-6">
-        <div id="whiteboard" class="flex space-x-4 min-h-[600px] overflow-x-auto pb-4">
-            <!-- Person columns will be dynamically added here -->
-            <div id="emptyState" class="flex-1 flex items-center justify-center text-center py-20">
-                <div class="max-w-md mx-auto">
-                    <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
-                    </svg>
-                    <h3 class="text-xl font-semibold text-gray-700 mb-2">Welcome to Alterations Pro</h3>
-                    <p class="text-gray-500 mb-6">Connect your Airtable database to start managing orders and schedules</p>
-                    <button id="setupBtn" class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary-dark transition-colors">
-                        Get Started
-                    </button>
-                </div>
-            </div>
-        </div>
-    </main>
+<h1>Top Cleaners & Alterations – Home Page</h1>
 
-<!-- Order Details Modal -->
-<div id="orderModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full mx-4 relative max-h-[85vh] overflow-y-auto fade-in">
-        <button id="closeOrderModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 transition-colors" title="Close">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-        </button>
-        
-        <h3 id="orderModalTitle" class="text-lg font-semibold mb-6">Order Details</h3>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Left Column -->
-            <div class="space-y-4">
-                <!-- Person and Date Selection (for new orders) -->
-                <div id="personDateFields" class="space-y-4 hidden">
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Assign to Person:</span>
-                        <select id="assignPersonSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <!-- Options populated by JavaScript -->
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Work Date:</span>
-                        <input type="date" id="workDateInput" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    </div>
-                </div>
-                
-                <!-- Order Number and Due Date -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Order Number:</span>
-                        <input type="text" id="orderNumberInput" placeholder="Enter FULL Order Number" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Due Date:</span>
-                        <input type="date" id="dueDateInput" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    </div>
-                </div>
-                
-                <!-- Duration -->
-                <div class="space-y-3">
-                    <div class="flex items-center space-x-2">
-                        <span class="text-sm font-medium">Duration (15-min slots):</span>
-                        <input type="number" id="durationInput" min="1" max="32" value="2" class="w-24 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                        <span class="text-xs text-gray-500">= <span id="durationMinutes">30</span> minutes</span>
-                    </div>
-                    
-                    <!-- Quick Duration Buttons -->
-                    <div class="space-y-2">
-                        <span class="block text-xs text-gray-500">Quick select:</span>
-                        <div class="grid grid-cols-5 gap-2">
-                            <!-- Row 1: 1-5 -->
-                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="1">1</button>
-                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="2">2</button>
-                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="3">3</button>
-                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="4">4</button>
-                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="5">5</button>
-                            <!-- Row 2: 6-10 -->
-                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="6">6</button>
-                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="7">7</button>
-                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="8">8</button>
-                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="9">9</button>
-                            <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="10">10</button>
-                        </div>
-                    </div>
-                </div>
-               
-                <!-- Number of Tags -->
-                <div class="space-y-3">
-                    <div class="flex items-center space-x-2">
-                        <span class="text-sm font-medium">Number of Tags:</span>
-                        <input type="number" id="tagsQuantityInput" min="1" max="50" value="1" class="w-24 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                        <span class="text-xs text-gray-500">spans to print</span>
-                    </div>
-                </div>
-            </div> 
-            
-            <!-- Right Column -->
-            <div class="space-y-4">
-                <!-- Custom Text Display -->
-                <div id="customTextDisplay" class="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <div class="text-xs text-gray-500 mb-2 font-medium">Reference Text:</div>
-                    <div id="customTextContent" class="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto">
-                        <!-- Text content will be loaded here -->
-                    </div>
-                </div>
-                
-                <!-- Description -->
-                <div>
-                    <span class="block text-sm font-medium mb-2">Description:</span>
-                    <textarea id="descriptionInput" placeholder="Type: Quantity, Item Name/s, Alteration, and if Rush." rows="3" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
-                    <!-- Quick Numbers -->
-<div class="mt-2">
-    <span class="block text-xs text-gray-500 mb-1">Quick numbers:</span>
-    <div id="quickNumbersList" class="flex flex-wrap gap-1 mb-3">
-        <!-- Populated by JavaScript -->
-    </div>
-</div>
-                    <!-- Common Words -->
-                    <div class="mt-2">
-                        <span class="block text-xs text-gray-500 mb-1">Common words:</span>
-                        <div id="commonWordsList" class="flex flex-wrap gap-1">
-                            <!-- Populated by JavaScript -->
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Completion Status (for editing) -->
-                <div id="completionStatusField" class="hidden bg-gray-50 p-4 rounded-lg border">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <span class="block text-sm font-medium text-gray-700 mb-1">Status:</span>
-                            <div id="completionStatusText" class="text-sm">
-                                <!-- Populated by JavaScript -->
-                            </div>
-                        </div>
-                        <button type="button" id="toggleCompletionBtn" class="px-4 py-2 rounded-lg font-medium transition-colors">
-                            <!-- Populated by JavaScript -->
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Action Buttons -->
-        <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
-            <button id="printTagsFromOrder" class="px-6 py-2 bg-purple-500 text-white hover:bg-purple-600 rounded-lg transition-colors flex items-center space-x-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a1 1 0 001-1v-4a1 1 0 00-1-1H9a1 1 0 00-1 1v4a1 1 0 001 1zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-                </svg>
-                <span>Print Tags</span>
-            </button>
-            <div class="flex space-x-3">
-                <button id="cancelOrder" class="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
-                <button id="saveOrder" class="px-6 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Save</button>
-            </div>
-        </div>
-    </div>
+<!-- MAIN LINKS SECTION -->
+<div class="section">
+    <div class="section-title">Core Tools</div>
+    <ul>
+        <li><a href="https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html" target="_blank">Alterations Scheduler</a></li>
+        <li><a href="https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html" target="_blank">Daily Sales Reconciliation</a></li>
+        <li><a href="https://docs.google.com/spreadsheets/d/1-N-pSP-FWhxooDHEuQRCDzDDc01jqjiAyW4c9bwRRCY/edit?gid=0#gid=0" target="_blank">Weekly Work Schedule</a></li>
+        <li><a href="https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html" target="_blank">Payroll Calculator</a></li>
+    </ul>
 </div>
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4 relative max-h-[90vh] overflow-y-auto fade-in">
-            <button id="closeSettingsModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 transition-colors" title="Close">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </button>
-            
-              <!-- Tab Navigation -->
-            <div class="flex border-b border-gray-200 mb-6">
-                <button id="databaseTab" class="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50 rounded-t">Database</button>
-                <button id="peopleTab" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t">Manage People</button>
-                <button id="editTextTab" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t">Edit Text</button>
-            </div>
-            
-            <!-- Edit Text Tab -->
-            <div id="editTextTabContent" class="space-y-4 hidden">
-                <h3 class="text-lg font-semibold mb-4">📝 Edit Text</h3>
-                
-                <div>
-                    <span for="editableTextArea" class="block text-sm font-medium mb-2">Custom Text Content:</span>
-                    <textarea id="editableTextArea" rows="8" 
-                              placeholder="Enter custom text that will be displayed in order modals..."
-                              class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
-                    <p class="text-xs text-gray-500 mt-1">This text will appear as read-only in Add Order and Edit Order modals.</p>
-                </div>
-                
-                <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                    <button id="clearEditText" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Clear</button>
-                    <button id="saveEditText" class="px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Save Text</button>
-                </div>
-            </div>
-            
-            <!-- Database Settings Tab -->
-            <div id="databaseTabContent" class="space-y-4">
-                <h3 class="text-lg font-semibold mb-4">🔗 Airtable Connection</h3>
-                
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                    <h4 class="font-medium text-blue-800 mb-2">Quick Setup</h4>
-                    <p class="text-sm text-blue-700 mb-3">Upload a saved configuration file to instantly connect:</p>
-                    <label for="uploadConfig" class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                        </svg>
-                        Upload Config
-                        <input type="file" id="uploadConfig" accept=".json" class="hidden">
-                    </label>
-                </div>
-                
-<form id="airtableConfigForm" class="space-y-4">
-                <div>
-                    <span for="airtableApiKey" class="block text-sm font-medium mb-2">Airtable API Key:</span>
-                    <input type="password" id="airtableApiKey" placeholder="patXXXXXXXXXXXXXX" autocomplete="off" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    <p class="text-xs text-gray-500 mt-1">Get your API key from <a href="https://airtable.com/account" target="_blank" class="text-primary hover:underline">airtable.com/account</a></p>
-                </div>
-                
-                <div>
-                    <span for="airtableBaseId" class="block text-sm font-medium mb-2">Base ID:</span>
-                    <input type="text" id="airtableBaseId" placeholder="appXXXXXXXXXXXXXX" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    <p class="text-xs text-gray-500 mt-1">Found in your Airtable base URL</p>
-                </div>
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <span for="peopleTableName" class="block text-sm font-medium mb-2">People Table:</span>
-                        <input type="text" id="peopleTableName" value="People" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    </div>
-                    <div>
-                        <span for="tasksTableName" class="block text-sm font-medium mb-2">Tasks Table:</span>
-                        <input type="text" id="tasksTableName" value="Tasks" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    </div>
-                </div>
-</form>
-                
-                <div>
-                    <span for="timezoneSelect" class="block text-sm font-medium mb-2">Timezone:</span>
-                    <select id="timezoneSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                        <option value="local">Use Browser Timezone</option>
-                        <option value="America/New_York">Eastern Time (ET)</option>
-                        <option value="America/Chicago">Central Time (CT)</option>
-                        <option value="America/Denver">Mountain Time (MT)</option>
-                        <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                        <option value="UTC">UTC</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">Timezone for date handling and display</p>
-                </div>
-                
-                <div>
-                    <span for="autoRefreshSelect" class="block text-sm font-medium mb-2">Auto Refresh:</span>
-                    <select id="autoRefreshSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                        <option value="off">Off</option>
-                        <option value="30">30 seconds</option>
-                        <option value="60">1 minute</option>
-                        <option value="300">5 minutes</option>
-                        <option value="1800">30 minutes</option>
-                        <option value="3600">1 hour</option>
-                        <option value="7200">2 hours</option>
-                        <option value="21600">6 hours</option>
-                        <option value="43200">12 hours</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">Automatically sync with Airtable at regular intervals</p>
-                    <div id="autoRefreshStatus" class="mt-2 text-xs text-gray-500">
-                        <!-- Auto refresh status will appear here -->
-                    </div>
-                </div>
-                
-                <div>
-                    <span for="autoCapacityRuleSelect" class="block text-sm font-medium mb-2">Auto-Capacity Rule:</span>
-                    <div class="flex space-x-2">
-                        <select id="autoCapacityRuleSelect" class="flex-1 p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <option value="off">Off</option>
-                            <option value="today-tomorrow">Today + Tomorrow</option>
-                            <option value="today-tomorrow-past" selected>Today + Tomorrow + Past Days</option>
-                        </select>
-                        <button id="applyAutoCapacityBtn" class="px-4 py-2 bg-purple-500 text-white hover:bg-purple-600 rounded-lg transition-colors whitespace-nowrap">Apply</button>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-1">Set capacity to match used slots (eliminating open time) for selected date ranges</p>
-                    <div id="autoCapacityStatus" class="mt-2 text-xs text-gray-500">
-                        <!-- Auto capacity status will appear here -->
-                    </div>
-                </div>
-                
-                <div>
-                    <span for="weeksBackSelect" class="block text-sm font-medium mb-2">Data Loading Range:</span>
-                    <div class="grid grid-cols-2 gap-4 mb-3">
-                        <div>
-                            <span class="block text-xs font-medium mb-1">Weeks Back:</span>
-                            <select id="weeksBackSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                                <option value="1">1 week</option>
-                                <option value="2" selected>2 weeks</option>
-                                <option value="3">3 weeks</option>
-                                <option value="4">4 weeks</option>
-                                <option value="6">6 weeks</option>
-                                <option value="8">8 weeks</option>
-                            </select>
-                        </div>
-                        <div>
-                            <span class="block text-xs font-medium mb-1">Weeks Forward:</span>
-                            <select id="weeksForwardSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                                <option value="2">2 weeks</option>
-                                <option value="3">3 weeks</option>
-                                <option value="4" selected>4 weeks</option>
-                                <option value="6">6 weeks</option>
-                                <option value="8">8 weeks</option>
-                            </select>
-                        </div>
-                    </div>
-                    <p class="text-xs text-gray-500 mb-2">Smaller ranges load faster but may not include all your data. You can load more data anytime using the "Load More Historical Data" button in Reports.</p>
-                    <div id="dataLoadingStatus" class="text-xs text-gray-500">
-                        <!-- Data loading status will appear here -->
-                    </div>
-                </div>
-                
-                <div id="connectionStatus" class="p-3 rounded-lg text-sm hidden">
-                    <!-- Status messages -->
-                </div>
-                
-                <div class="flex justify-between mt-6">
-                    <div class="flex space-x-3">
-                        <button id="testConnection" class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors">Test Connection</button>
-                        <button id="downloadConfig" class="px-4 py-2 bg-green-500 text-white hover:bg-green-600 rounded-lg transition-colors">Download Config</button>
-                    </div>
-                    <div class="flex space-x-3">
-                        <button id="cancelSettings" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
-                        <button id="saveSettings" class="px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Connect & Load</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- People Management Tab -->
-            <div id="peopleTabContent" class="space-y-6 hidden">
-                <!-- Add New Person Section -->
-                <div>
-                    <h3 class="text-lg font-semibold mb-4">👥 Add New Person</h3>
-                    
-                    <div class="space-y-4">
-                        <div>
-                            <span class="block text-sm font-medium mb-2">Name:</span>
-                            <input type="text" id="personNameInput" placeholder="Enter person's name" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                        </div>
-                        
-                        <div>
-                            <span class="block text-sm font-medium mb-3">Weekly Schedule (15-min slots):</span>
-                            <div class="grid grid-cols-2 gap-3" id="personCapacityInputs">
-                                <!-- Populated by JavaScript -->
-                            </div>
-                            <p class="text-xs text-gray-500 mt-2">Each slot = 15 minutes. 32 slots = 8 hours max. Set to 0 for days off.</p>
-                        </div>
-                        
-                        <!-- Quick Presets -->
-                        <div>
-                            <span class="block text-sm font-medium mb-2">Quick Presets:</span>
-                            <div class="flex flex-wrap gap-2">
-                                <button type="button" id="presetFullTime" class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">Full Time (Mon-Fri, 8h)</button>
-                                <button type="button" id="presetPartTime" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Part Time (Mon-Fri, 4h)</button>
-                                <button type="button" id="presetWeekends" class="px-3 py-1 text-sm bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors">Weekends Only</button>
-                                <button type="button" id="presetClear" class="px-3 py-1 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">Clear All</button>
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <span class="flex items-center space-x-2">
-                                <input type="checkbox" id="personActiveInput" checked class="w-4 h-4 text-primary border border-gray-300 rounded focus:ring-2 focus:ring-primary">
-                                <span class="text-sm font-medium">Add to active schedule immediately</span>
-                            </span>
-                        </div>
-                        
-                        <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                            <button id="clearPersonForm" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Clear Form</button>
-                            <button id="addPersonBtn" class="px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Add Person</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Current People List -->
-                <div>
-                    <h3 class="text-lg font-semibold mb-4">Current People</h3>
-                    <div id="currentPeopleList" class="space-y-2">
-                        <!-- Populated by JavaScript -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<!-- WHATSAPP -->
+<div class="section">
+    <div class="section-title">Team Communication</div>
+    <p>Click below to open the team WhatsApp group:</p>
+    <a class="btn" href="YOUR_WHATSAPP_GROUP_LINK_HERE" target="_blank">Join WhatsApp Group</a>
+</div>
 
-    <!-- Search Modal -->
-    <div id="searchModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto fade-in">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-semibold">🔍 Search Orders</h3>
-                <button id="closeSearchModal" class="text-gray-400 hover:text-gray-600 p-1 transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            
-            <!-- Search Input -->
-            <div class="flex space-x-2 mb-6">
-                <input type="text" id="searchInput" placeholder="Search by order number, description, or person..." class="flex-1 p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                <button id="performSearch" class="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                </button>
-            </div>
-            
-            <!-- Search Filters -->
-            <div class="bg-gray-50 p-4 rounded-lg mb-6">
-                <h4 class="font-medium mb-3">Filters</h4>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Person:</span>
-                        <select id="searchPersonFilter" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <option value="all">All People</option>
-                        </select>
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Status:</span>
-                        <select id="searchStatusFilter" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <option value="all">All Orders</option>
-                            <option value="complete">Complete</option>
-                            <option value="incomplete">Incomplete</option>
-                        </select>
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Due Status:</span>
-                        <select id="searchDueFilter" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <option value="all">All Orders</option>
-                            <option value="overdue">Overdue</option>
-                            <option value="due-soon">Due Soon (≤1 day)</option>
-                            <option value="on-track">On Track</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <!-- Date Range Filters -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Work Date From:</span>
-                        <input type="date" id="searchWorkDateFrom" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Work Date To:</span>
-                        <input type="date" id="searchWorkDateTo" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    </div>
-                </div>
-                
-                <div class="flex justify-between items-center">
-                    <div class="flex space-x-2">
-                        <button id="searchToday" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Today</button>
-                        <button id="searchThisWeek" class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">This Week</button>
-                        <button id="searchAllTime" class="px-3 py-1 text-sm bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors">All Time</button>
-                    </div>
-                    <button id="clearSearchFilters" class="px-3 py-1 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">Clear Filters</button>
-                </div>
-            </div>
-            
-            <!-- Search Results -->
-            <div id="searchResults" class="space-y-2">
-                <div class="text-center py-8 text-gray-500">
-                    <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                    <p class="text-lg font-medium">Search for orders</p>
-                    <p class="text-sm mt-1">Enter search terms and click Search or press Enter</p>
-                </div>
-            </div>
-        </div>
-    </div>
+<!-- EXPANDABLE AREA FOR MORE LINKS -->
+<div class="section">
+    <div class="section-title">Additional Resources</div>
+    <p>Add new links or notes here as the intranet grows.</p>
+    <ul>
+        <li><a href="#" target="_blank">Example Link 1</a></li>
+        <li><a href="#" target="_blank">Example Link 2</a></li>
+    </ul>
+</div>
 
-    <!-- Reports Modal -->
-    <div id="reportsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[80vh] overflow-y-auto fade-in">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-semibold">📊 Ready Date Report</h3>
-                <button id="closeReportsModal" class="text-gray-400 hover:text-gray-600 p-1 transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            
-            <!-- Report Filters -->
-            <div class="bg-gray-50 p-4 rounded-lg mb-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Person:</span>
-                        <select id="reportPersonFilter" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <option value="all">All People</option>
-                        </select>
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Start Date:</span>
-                        <input type="date" id="reportStartDate" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium mb-2">End Date:</span>
-                        <input type="date" id="reportEndDate" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                    </div>
-                </div>
-                <div class="flex justify-between items-center">
-                    <div class="flex space-x-2">
-                        <button id="reportToday" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Today</button>
-                        <button id="reportTomorrow" class="px-3 py-1 text-sm bg-cyan-500 text-white rounded hover:bg-cyan-600 transition-colors">Tomorrow</button>
-                        <button id="reportWeek" class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">This Week</button>
-                        <button id="reportMonth" class="px-3 py-1 text-sm bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors">This Month</button>
-                    </div>
-                    <div class="flex space-x-2">
-                        <button id="generateAllReport" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">All Orders</button>
-                        <button id="generateIncompleteReport" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">Incomplete Only</button>
-                        <button id="generateCompletedReport" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">Completed</button>
-                    </div>
-                </div>
-                
-                <!-- Load More Historical Data Section -->
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6" id="loadMoreDataSection">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h4 class="font-medium text-blue-800 mb-2">📚 Data Loading Range</h4>
-                            <div class="text-sm text-blue-700" id="currentDataRange">
-                                <!-- Will be populated by JavaScript -->
-                            </div>
-                            <div class="text-xs text-blue-600 mt-1">
-                                Currently loading: <span id="currentWeeksRange"></span>
-                            </div>
-                        </div>
-                        <button id="loadMoreDataBtn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                            Load More Historical Data
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Report Results -->
-            <div id="reportResults">
-                <div class="text-center py-8 text-gray-500">
-                    <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
-                    <p class="text-lg font-medium">Generate Report</p>
-                    <p class="text-sm mt-1">Select filters and click a report button</p>
-                   </div>
-            </div>
-            
-            <div class="flex justify-end space-x-3 mt-6">
-                <button id="exportReport" class="px-4 py-2 bg-green-500 text-white hover:bg-green-600 rounded-lg hidden transition-colors">Export CSV</button>
-            </div>
-        </div>
-    </div>
+<div class="footer">
+    Top Cleaners & Alterations • Internal Access Only
+</div>
 
-    <!-- Share Modal -->
-    <div id="shareModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4 fade-in">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-semibold">🔗 Share Whiteboard</h3>
-                <button id="closeShareModal" class="text-gray-400 hover:text-gray-600 p-1 transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            
-            <p class="text-gray-600 mb-4">Copy this link to share your whiteboard:</p>
-            <div class="flex items-center space-x-2 mb-4">
-                <input type="text" id="shareLink" readonly class="flex-1 p-3 text-base border border-gray-300 rounded-lg bg-gray-50">
-                <button id="copyShareLink" class="px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Copy</button>
-            </div>
-            
-            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p class="text-sm text-yellow-800">
-                    <strong>Note:</strong> Recipients will need their own Airtable API key to access the data.
-                </p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60 hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl">
-            <div class="flex items-center space-x-3">
-                <div class="loading-spinner rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                <span id="loadingText">Loading...</span>
-            </div>
-        </div>
-    </div>
-
-
-    <!-- Tag Printing Modal -->
-    <div id="tagPrintingModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[85vh] overflow-y-auto fade-in">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-semibold">🏷️ Print Tags</h3>
-                <button id="closeTagPrintingModal" class="text-gray-400 hover:text-gray-600 p-1 transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div> 
-
-            <!-- Tag Preview and Edit Section  -->
-                 <div class="mb-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h4 class="font-semibold">Tag Preview & Editing</h4>
-                    <div class="flex items-center space-x-2 text-sm text-gray-600">
-                        <span>Number of tags:</span>
-                        <input type="number" id="tagQuantityInput" min="1" max="50" value="1" class="w-16 px-2 py-1 border border-gray-300 rounded bg-white">
-                        <button id="updateTagQuantity" class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Update</button>
-                    </div>
-             </div>
-            
-                <!-- Tags Table -->
-                <div class="border border-gray-200 rounded-lg overflow-hidden">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tag #</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Person</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Work Day</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Work Date</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Custom Info</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tagTableBody" class="bg-white divide-y divide-gray-200">
-                            <!-- Tag rows will be generated here -->
-                        </tbody>
-                    </table>
-                </div>
-                
-                <!-- Bulk Edit Section -->
-                <div class="mt-4 bg-gray-50 p-4 rounded-lg">
-                    <h5 class="font-medium mb-3">Bulk Edit Custom Info</h5>
-                    <div class="flex items-center space-x-3">
-                        <input type="text" id="bulkCustomInfo" placeholder="Enter info to apply to all tags..." class="flex-1 p-2 text-sm border border-gray-300 rounded bg-white">
-                        <button id="applyBulkInfo" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors">Apply to All</button>
-                        <button id="clearAllInfo" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">Clear All</button>
-                    </div>
-                    <div class="mt-2">
-                        <span class="block text-sm font-medium mb-2">Quick Templates:</span>
-                        <div class="flex flex-wrap gap-2">
-                            <button class="template-btn px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors" data-template="Rush order">Rush order</button>
-                            <button class="template-btn px-3 py-1 text-sm bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors" data-template="Front desk pickup">Front desk pickup</button>
-                            <button class="template-btn px-3 py-1 text-sm bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors" data-template="Fragile - handle with care">Fragile</button>
-                            <button class="template-btn px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors" data-template="Priority">Priority</button>
-                            <button class="template-btn px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors" data-template="Quality check required">QC Required</button>
-                        </div>
-                    </div>
-                </div>
-            </div> 
-           
-            <!-- Print Preview Section -->
-            <div class="mb-6" id="printPreviewSection" style="display: none;">
-                <div class="flex justify-between items-center mb-4">
-                    <h4 class="font-semibold">Print Preview</h4>
-                    <button id="hidePreviewBtn" class="px-3 py-1 text-sm bg-gray-500 text-white hover:bg-gray-600 rounded transition-colors">Hide Preview</button>
-                </div>
-                <div class="bg-gray-100 p-4 rounded-lg max-h-60 overflow-y-auto">
-                    <div id="tagPrintPreview" class="space-y-4">
-                        <!-- Print preview will be generated here -->
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Print Actions -->
-            <div class="flex justify-between items-center pt-4 border-t border-gray-200">
-                <div class="text-sm text-gray-600">
-                    <span id="totalTagsCount">0</span> tags ready to print
-                </div>
-                <div class="flex space-x-3">
-                    <button id="cancelTagPrinting" class="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
-                    <button id="printTags" class="px-6 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Print All Tags</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Toast Notifications -->
-    <div id="toastContainer" class="fixed top-20 right-4 z-50 space-y-2">
-        <!-- Toasts will be added here dynamically -->
-    </div>
-
-    <!-- JavaScript Files -->
-    <script src="js/app.js">
-</script>
 </body>
 </html>
