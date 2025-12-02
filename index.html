@@ -294,7 +294,6 @@
     Internal Access Only
 </div>
 
-<!-- FEED SCRIPT (FIXED) -->
 <script>
 function loadFeed(count) {
     document.getElementById("btn3").classList.remove("active");
@@ -302,39 +301,49 @@ function loadFeed(count) {
     document.getElementById("btn10").classList.remove("active");
     document.getElementById("btn" + count).classList.add("active");
 
-    fetch("https://api.feednami.com/api/v1/feed?url=https://dlionline.org/category/press-releases/feed/")
-      .then(response => response.json())
-      .then(data => {
-          let feedHTML = "<ul style='padding-left:0; list-style:none; margin:0;'>";
+    const feedUrl = "https://api.allorigins.win/raw?url=" +
+        encodeURIComponent("https://dlionline.org/category/press-releases/feed/");
 
-          data.entries.slice(0, count).forEach(item => {
-              feedHTML += `
-                  <li style="margin-bottom:18px;">
-                      <strong>
-                          <a href="${item.link}" target="_blank"
-                             style="color:#0a75ff; text-decoration:none;">
-                              ${item.title}
-                          </a>
-                      </strong>
-                      <br>
-                      <small style="color:#666;">
-                          ${new Date(item.published).toLocaleDateString()}
-                      </small>
-                      <br>
-                      <a class="read-more-btn" href="${item.link}" target="_blank">
-                          Read More
-                      </a>
-                  </li>
-              `;
-          });
+    fetch(feedUrl)
+        .then(response => response.text())
+        .then(str => (new window.DOMParser()).parseFromString(str, "text/xml"))
+        .then(data => {
+            let items = data.querySelectorAll("item");
+            let feedHTML = "<ul style='padding-left:0; list-style:none; margin:0;'>";
 
-          feedHTML += "</ul>";
-          document.getElementById("dli-feed").innerHTML = feedHTML;
-      })
-      .catch(() => {
-          document.getElementById("dli-feed").innerHTML =
-            "Unable to load DLI press releases.";
-      });
+            for (let i = 0; i < Math.min(count, items.length); i++) {
+                let item = items[i];
+                let title = item.querySelector("title").textContent;
+                let link = item.querySelector("link").textContent;
+                let pubDate = new Date(item.querySelector("pubDate").textContent);
+
+                feedHTML += `
+                    <li style="margin-bottom:18px;">
+                        <strong>
+                            <a href="${link}" target="_blank"
+                               style="color:#0a75ff; text-decoration:none;">
+                               ${title}
+                            </a>
+                        </strong>
+                        <br>
+                        <small style="color:#666;">
+                            ${pubDate.toLocaleDateString()}
+                        </small>
+                        <br>
+                        <a class="read-more-btn" href="${link}" target="_blank">
+                            Read More
+                        </a>
+                    </li>
+                `;
+            }
+
+            feedHTML += "</ul>";
+            document.getElementById("dli-feed").innerHTML = feedHTML;
+        })
+        .catch(err => {
+            document.getElementById("dli-feed").innerHTML =
+              "Unable to load DLI press releases.";
+        });
 }
 
 loadFeed(3);
@@ -342,3 +351,4 @@ loadFeed(3);
 
 </body>
 </html>
+
