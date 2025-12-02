@@ -158,7 +158,9 @@
     .dli-logo {
         width:50px;
         float:right;
+        margin-left:10px;
     }
+
 </style>
 
 </head>
@@ -292,20 +294,20 @@
     Internal Access Only
 </div>
 
+<!-- FEED SCRIPT (FIXED) -->
 <script>
 function loadFeed(count) {
     document.getElementById("btn3").classList.remove("active");
     document.getElementById("btn5").classList.remove("active");
     document.getElementById("btn10").classList.remove("active");
-
     document.getElementById("btn" + count).classList.add("active");
 
-    fetch("https://api.rss2json.com/v1/api.json?rss_url=https://dlionline.org/category/press-releases/feed/")
+    fetch("https://api.feednami.com/api/v1/feed?url=https://dlionline.org/category/press-releases/feed/")
       .then(response => response.json())
       .then(data => {
           let feedHTML = "<ul style='padding-left:0; list-style:none; margin:0;'>";
 
-          data.items.slice(0, count).forEach(item => {
+          data.entries.slice(0, count).forEach(item => {
               feedHTML += `
                   <li style="margin-bottom:18px;">
                       <strong>
@@ -316,7 +318,7 @@ function loadFeed(count) {
                       </strong>
                       <br>
                       <small style="color:#666;">
-                          ${new Date(item.pubDate).toLocaleDateString()}
+                          ${new Date(item.published).toLocaleDateString()}
                       </small>
                       <br>
                       <a class="read-more-btn" href="${item.link}" target="_blank">
@@ -328,6 +330,10 @@ function loadFeed(count) {
 
           feedHTML += "</ul>";
           document.getElementById("dli-feed").innerHTML = feedHTML;
+      })
+      .catch(() => {
+          document.getElementById("dli-feed").innerHTML =
+            "Unable to load DLI press releases.";
       });
 }
 
