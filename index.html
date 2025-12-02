@@ -209,7 +209,6 @@
 
     <div class="tiles">
 
-        <!-- Desktop Alterations -->
         <div class="tile">
             <svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>
             <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html" target="_blank">
@@ -217,7 +216,6 @@
             </a>
         </div>
 
-        <!-- Mobile Alterations -->
         <div class="tile">
             <svg><rect x="7" y="3" width="10" height="18" rx="2"/></svg>
             <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html" target="_blank">
@@ -225,7 +223,6 @@
             </a>
         </div>
 
-        <!-- Daily Reconciliation -->
         <div class="tile">
             <svg><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html" target="_blank">
@@ -233,7 +230,6 @@
             </a>
         </div>
 
-        <!-- Work Schedule -->
         <div class="tile">
             <svg><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
             <a href="https://docs.google.com/spreadsheets/d/1-N-pSP-FWhxooDHEuQRCDzDDc01jqjiAyW4c9bwRRCY/edit?gid=0#gid=0" target="_blank">
@@ -241,7 +237,6 @@
             </a>
         </div>
 
-        <!-- Payroll -->
         <div class="tile">
             <svg><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 10h6M9 14h6"/></svg>
             <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html" target="_blank">
@@ -249,7 +244,6 @@
             </a>
         </div>
 
-        <!-- WhatsApp -->
         <div class="tile">
             <svg viewBox="0 0 24 24">
                 <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z"
@@ -294,6 +288,7 @@
     Internal Access Only
 </div>
 
+<!-- WORKING FEED SCRIPT -->
 <script>
 function loadFeed(count) {
     document.getElementById("btn3").classList.remove("active");
@@ -301,8 +296,9 @@ function loadFeed(count) {
     document.getElementById("btn10").classList.remove("active");
     document.getElementById("btn" + count).classList.add("active");
 
-    const feedUrl = "https://api.allorigins.win/raw?url=" +
-        encodeURIComponent("https://dlionline.org/category/press-releases/feed/");
+    const feedUrl =
+      "https://api.allorigins.win/raw?url=" +
+      encodeURIComponent("https://dlionline.org/category/press-releases/feed/");
 
     fetch(feedUrl)
         .then(response => response.text())
@@ -340,7 +336,7 @@ function loadFeed(count) {
             feedHTML += "</ul>";
             document.getElementById("dli-feed").innerHTML = feedHTML;
         })
-        .catch(err => {
+        .catch(() => {
             document.getElementById("dli-feed").innerHTML =
               "Unable to load DLI press releases.";
         });
@@ -351,4 +347,3 @@ loadFeed(3);
 
 </body>
 </html>
-
