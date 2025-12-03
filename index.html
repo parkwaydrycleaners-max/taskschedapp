@@ -94,51 +94,7 @@
         font-size: 0.95rem;
     }
 
-    /* Press Release Section */
-    #dli-press {
-        padding-bottom: 40px;
-    }
-    .feed-header {
-        text-align: center;
-        margin-bottom: 15px;
-    }
-    .feed-box {
-        background:white;
-        padding:20px;
-        border-radius:10px;
-        box-shadow:0px 2px 6px rgba(0,0,0,0.1);
-        max-width:850px;
-        margin:0 auto;
-    }
-    .feed-toggle {
-        text-align:center;
-        margin-bottom:15px;
-    }
-    .feed-toggle button {
-        padding:8px 14px;
-        margin:0 5px;
-        border:1px solid #0a75ff;
-        background:white;
-        color:#0a75ff;
-        border-radius:5px;
-        cursor:pointer;
-        font-size:0.9rem;
-    }
-    .feed-toggle button.active {
-        background:#0a75ff;
-        color:white;
-    }
-    .read-more-btn {
-        display:inline-block;
-        margin-top:5px;
-        padding:6px 10px;
-        background:#0a75ff;
-        color:white;
-        border-radius:5px;
-        text-decoration:none;
-        font-size:0.8rem;
-    }
-
+    /* Footer */
     .footer {
         text-align: center;
         color: #444;
@@ -149,13 +105,6 @@
         color: #0a75ff;
         text-decoration: none;
     }
-
-    .dli-logo {
-        width:50px;
-        float:right;
-        margin-left:10px;
-    }
-
 </style>
 
 </head>
@@ -180,13 +129,6 @@
         <a href="#tools">
             <svg><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
             Tools
-        </a>
-    </div>
-
-    <div class="nav-item">
-        <a href="#dli-press">
-            <svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>
-            News
         </a>
     </div>
 
@@ -271,25 +213,6 @@
     </div>
 </div>
 
-<!-- DLI PRESS RELEASE FEED -->
-<div class="tile-section" id="dli-press">
-    <div class="feed-header">
-        <h2>DLI Press Releases</h2>
-    </div>
-
-    <div class="feed-toggle">
-        <button onclick="loadFeed(3)" id="btn3" class="active">3</button>
-        <button onclick="loadFeed(5)" id="btn5">5</button>
-        <button onclick="loadFeed(10)" id="btn10">10</button>
-    </div>
-
-    <div class="feed-box">
-        <img src="https://dlionline.org/wp-content/uploads/2020/06/cropped-DLI-Logo-Square.png"
-             class="dli-logo">
-        <div id="dli-feed">Loading latest press releases...</div>
-    </div>
-</div>
-
 <!-- FOOTER -->
 <div class="footer" id="contact">
     <strong>Top Cleaners & Alterations</strong><br>
@@ -299,62 +222,6 @@
     Website: <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
     Internal Access Only
 </div>
-
-<!-- WORKING FEED SCRIPT -->
-<script>
-function loadFeed(count) {
-    document.getElementById("btn3").classList.remove("active");
-    document.getElementById("btn5").classList.remove("active");
-    document.getElementById("btn10").classList.remove("active");
-    document.getElementById("btn" + count).classList.add("active");
-
-    const feedUrl =
-      "https://api.allorigins.win/raw?url=" +
-      encodeURIComponent("https://dlionline.org/category/press-releases/feed/");
-
-    fetch(feedUrl)
-        .then(response => response.text())
-        .then(str => (new window.DOMParser()).parseFromString(str, "text/xml"))
-        .then(data => {
-            let items = data.querySelectorAll("item");
-            let feedHTML = "<ul style='padding-left:0; list-style:none; margin:0;'>";
-
-            for (let i = 0; i < Math.min(count, items.length); i++) {
-                let item = items[i];
-                let title = item.querySelector("title").textContent;
-                let link = item.querySelector("link").textContent;
-                let pubDate = new Date(item.querySelector("pubDate").textContent);
-
-                feedHTML += `
-                    <li style="margin-bottom:18px;">
-                        <strong>
-                            <a href="${link}" target="_blank"
-                               style="color:#0a75ff; text-decoration:none;">
-                               ${title}
-                            </a>
-                        </strong>
-                        <br>
-                        <small style="color:#666;">
-                            ${pubDate.toLocaleDateString()}
-                        </small>
-                        <br>
-                        <a class="read-more-btn" href="${link}" target="_blank">
-                            Read More
-                        </a>
-                    </li>`;
-            }
-
-            feedHTML += "</ul>";
-            document.getElementById("dli-feed").innerHTML = feedHTML;
-        })
-        .catch(() => {
-            document.getElementById("dli-feed").innerHTML =
-              "Unable to load DLI press releases.";
-        });
-}
-
-loadFeed(3);
-</script>
 
 </body>
 </html>
