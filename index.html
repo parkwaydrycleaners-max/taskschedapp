@@ -14,12 +14,14 @@
         line-height: 1.4;
     }
 
-    /* Logo */
-    .logo-container {
+    /* Logo Area */
+    .logo-wrap {
+        background: white;
+        padding: 25px 0 20px 0;
+        border-bottom: 1px solid #e0e0e0;
         text-align: center;
-        padding: 20px 0 10px 0;
     }
-    .logo-container img {
+    .logo-wrap img {
         width: 200px;
         height: auto;
     }
@@ -110,16 +112,9 @@
 </head>
 <body>
 
-<!-- LOGO (White Background Area) -->
-<div class="logo-wrap" style="
-    background:white;
-    padding: 25px 0 20px 0;
-    border-bottom: 1px solid #e0e0e0;
-    text-align:center;
-">
-    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png"
-         alt="Top Cleaners & Alterations Logo"
-         style="width:200px; height:auto;">
+<!-- LOGO AREA -->
+<div class="logo-wrap">
+    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png" alt="Top Cleaners & Alterations Logo">
 </div>
 
 <!-- NAVIGATION BAR -->
@@ -153,7 +148,7 @@
 
     <div class="tiles">
 
-        <!-- Desktop Alterations -->
+        <!-- Alterations Scheduler Desktop -->
         <div class="tile">
             <svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>
             <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html" target="_blank">
@@ -161,7 +156,7 @@
             </a>
         </div>
 
-        <!-- Mobile Alterations -->
+        <!-- Alterations Scheduler Mobile -->
         <div class="tile">
             <svg><rect x="7" y="3" width="10" height="18" rx="2"/></svg>
             <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html" target="_blank">
@@ -177,11 +172,24 @@
             </a>
         </div>
 
-        <!-- Work Schedule -->
+        <!-- Weekly Work Schedule (UPDATED) -->
         <div class="tile">
             <svg><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
-            <a href="https://docs.google.com/spreadsheets/d/1-N-pSP-FWhxooDHEuQRCDzDDc01jqjiAyW4c9bwRRCY/edit?gid=0#gid=0" target="_blank">
+            <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true"
+               target="_blank">
                 Weekly Work Schedule
+            </a>
+        </div>
+
+        <!-- Directory of Contacts (NEW) -->
+        <div class="tile">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v16H4z" stroke="#0a75ff" stroke-width="2" fill="none"/>
+                <path d="M8 9h8M8 13h5" stroke="#0a75ff" stroke-width="2" fill="none"/>
+            </svg>
+            <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true"
+               target="_blank">
+                Directory of Contacts
             </a>
         </div>
 
@@ -193,7 +201,7 @@
             </a>
         </div>
 
-        <!-- WhatsApp -->
+        <!-- WhatsApp Group -->
         <div class="tile">
             <svg viewBox="0 0 24 24">
                 <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z"
@@ -206,16 +214,16 @@
             </a>
         </div>
 
-<!-- CleanChat AI -->
-<div class="tile">
-    <svg viewBox="0 0 24 24">
-        <path d="M4 4h16v12H5l-3 3V4z" stroke="#0a75ff" stroke-width="2" fill="none"/>
-        <path d="M8 9h8M8 13h5" stroke="#0a75ff" stroke-width="2" fill="none"/>
-    </svg>
-    <a href="https://www.facebook.com/messages/t/2083730355435395" target="_blank">
-        CleanChat AI
-    </a>
-</div>
+        <!-- CleanChat AI (UPDATED NAME) -->
+        <div class="tile">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v12H5l-3 3V4z" stroke="#0a75ff" stroke-width="2" fill="none"/>
+                <path d="M8 9h8M8 13h5" stroke="#0a75ff" stroke-width="2" fill="none"/>
+            </svg>
+            <a href="https://www.facebook.com/messages/t/2083730355435395" target="_blank">
+                CleanChat AI
+            </a>
+        </div>
 
     </div>
 </div>
@@ -226,11 +234,10 @@
     1016 W West Covina Parkway<br>
     West Covina, CA 91790<br>
     Phone: (626) 480-9200<br>
-    Website: <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
+    Website:
+    <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
     Internal Access Only
 </div>
 
 </body>
 </html>
-
-
