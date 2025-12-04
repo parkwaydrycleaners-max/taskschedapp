@@ -1,1056 +1,374 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payroll Computation App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#5D5CDE',
-                        'primary-dark': '#4948B8'
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        .fade-in { animation: fadeIn 0.2s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    </style>
+<meta charset="UTF-8">
+<title>Top Cleaners & Alterations – Intranet</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        background: #f7f7f7;
+        padding: 0;
+        line-height: 1.4;
+    }
+
+    /* Logo Area */
+    .logo-wrap {
+        background: white;
+        padding: 25px 0 20px 0;
+        border-bottom: 1px solid #e0e0e0;
+        text-align: center;
+    }
+    .logo-wrap img {
+        width: 200px;
+        height: auto;
+    }
+
+    /* Navigation Bar */
+    .navbar {
+        display: flex;
+        justify-content: center;
+        gap: 40px;
+        padding: 12px 0;
+        background: #ffffff;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    .nav-item {
+        text-align: center;
+        font-size: 0.8rem;
+        color: #333;
+    }
+    .nav-item svg {
+        width: 24px;
+        height: 24px;
+        stroke: #333;
+        stroke-width: 2;
+        fill: none;
+        display: block;
+        margin: 0 auto 4px auto;
+    }
+    .nav-item a {
+        text-decoration: none;
+        color: #333;
+    }
+    .nav-item a:hover {
+        color: #0a75ff;
+    }
+
+    /* Tile Section */
+    .tile-section {
+        padding: 20px;
+    }
+    .tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 20px;
+    }
+    .tile {
+        background: white;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0px 2px 6px rgba(0,0,0,0.08);
+        transition: 0.25s;
+    }
+    .tile:hover {
+        transform: translateY(-3px);
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.15);
+    }
+    .tile svg {
+        width: 40px;
+        height: 40px;
+        stroke: #0a75ff;
+        stroke-width: 2;
+        fill: none;
+        margin-bottom: 12px;
+    }
+    .tile a {
+        text-decoration: none;
+        color: #222;
+        font-weight: bold;
+        font-size: 0.95rem;
+    }
+
+    /* Reputation Section */
+    h2 {
+        margin-top: 10px;
+        text-align: center;
+    }
+    .rep-card {
+        background:white;
+        padding:20px;
+        border-radius:10px;
+        box-shadow:0px 2px 6px rgba(0,0,0,0.1);
+        margin-bottom:20px;
+    }
+
+    /* Footer */
+    .footer {
+        text-align: center;
+        color: #444;
+        padding: 30px 15px;
+        font-size: 0.9rem;
+    }
+    .footer a {
+        color: #0a75ff;
+        text-decoration: none;
+    }
+</style>
+
 </head>
-<body class="bg-white dark:bg-gray-900 min-h-screen transition-colors duration-300">
-    <div class="container mx-auto px-4 py-6 max-w-4xl">
-        <!-- Header -->
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Payroll Computation</h1>
-            <p class="text-gray-600 dark:text-gray-400">Calculate employee wages, tips, and processing fees</p>
-            
-            <!-- Database Restore Banner -->
-            <div id="restoreBanner" class="hidden mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <svg class="w-5 h-5 text-blue-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
-                        </svg>
-                        <div>
-                            <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">Sample Data Loaded</h3>
-                            <p class="text-sm text-blue-600 dark:text-blue-300">Import existing database?</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                        <button data-action="quickImport" class="bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1 rounded transition-colors">Import Database</button>
-                        <button data-action="dismissBanner" class="text-blue-400 hover:text-blue-600 transition-colors">
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </header>
+<body>
 
-        <!-- Navigation -->
-        <nav class="mb-8">
-            <div class="flex space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-                <button data-page="payroll" class="nav-tab active flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors">Payroll Calculator</button>
-                <button data-page="employees" class="nav-tab flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors">Employees</button>
-                <button data-page="settings" class="nav-tab flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors">Settings</button>
-                <button data-page="data" class="nav-tab flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors">Data</button>
-            </div>
-        </nav>
+<!-- LOGO AREA -->
+<div class="logo-wrap">
+    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png" alt="Top Cleaners & Alterations Logo">
+</div>
 
-        <!-- Payroll Calculator Page -->
-        <div id="payrollPage" class="page">
-            <div class="grid lg:grid-cols-2 gap-8">
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Calculate Payroll</h2>
-                    
-                    <form id="payrollForm" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Employee</label>
-                            <select name="employeeId" required class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                <option value="">Choose an employee...</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hours Worked</label>
-                            <input type="number" name="hours" min="0" step="1" class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="8">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Additional Minutes</label>
-                            <input type="number" name="minutes" min="0" max="59" step="1" class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="30">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hourly Wage ($)</label>
-                            <input type="number" name="hourlyWage" min="0" step="0.01" required class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="15.00">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tips on Card ($)</label>
-                            <input type="number" name="tipsOnCard" min="0" step="0.01" class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="25.00">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Deductions ($)</label>
-                            <input type="number" name="deductions" min="0" step="0.01" class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="0.00">
-                        </div>
-                        <button type="submit" class="w-full bg-primary hover:bg-primary-dark text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200">Calculate Payroll</button>
-                    </form>
-                </div>
+<!-- NAVIGATION BAR -->
+<div class="navbar">
 
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Payroll Summary</h2>
-                    <div id="results" class="space-y-4">
-                        <div class="text-center text-gray-500 dark:text-gray-400 py-8">Enter employee details and click calculate to see results</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Employees Page -->
-        <div id="employeesPage" class="page hidden">
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Manage Employees</h2>
-                    <button data-action="showAddEmployee" class="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors">Add Employee</button>
-                </div>
-                <div id="employeeList" class="space-y-3"></div>
-                
-                <!-- Employee Form -->
-                <div id="employeeForm" class="hidden mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <h3 id="employeeFormTitle" class="text-lg font-medium text-gray-900 dark:text-white mb-4">Add New Employee</h3>
-                    <form id="employeeFormElement" class="space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input type="text" name="name" placeholder="Employee Name" required class="px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                            <input type="number" name="hourlyWage" placeholder="Hourly Wage ($)" min="0" step="0.01" required class="px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
-                        <div class="flex gap-4 justify-end">
-                            <button type="submit" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">Save</button>
-                            <button type="button" data-action="cancelEmployee" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Settings Page -->
-        <div id="settingsPage" class="page hidden">
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Settings</h2>
-                <form id="settingsForm" class="space-y-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Card Processing Fee Rate (%)</label>
-                        <div class="flex items-center space-x-3">
-                            <input type="number" name="processingRate" min="0" max="10" step="0.01" required class="flex-1 px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                            <span class="text-gray-500 dark:text-gray-400">%</span>
-                        </div>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">This rate will be deducted from tips on card payments</p>
-                    </div>
-                    <button type="submit" class="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded-lg transition-colors">Save Settings</button>
-                </form>
-            </div>
-        </div>
-
-        <!-- Data Management Page -->
-        <div id="dataPage" class="page hidden">
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Data Management</h2>
-                <div class="space-y-6">
-                    <div class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Export Data</h3>
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Download your database file to save all data.</p>
-                        <button data-action="export" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">Download Database</button>
-                    </div>
-                    
-                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Import Data</h3>
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Upload a previously exported database file.</p>
-                        <input type="file" id="importFile" accept=".db,.sqlite,.sqlite3" class="hidden">
-                        <button data-action="import" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">Upload Database</button>
-                    </div>
-                    
-                    <div class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Database Information</h3>
-                        <div id="dbInfo" class="text-sm text-gray-600 dark:text-gray-400">
-                            <div>Employees: <span id="employeeCount">0</span></div>
-                            <div>Payroll Records: <span id="payrollCount">0</span></div>
-                            <div>Database Size: <span id="dbSize">0 KB</span></div>
-                        </div>
-                    </div>
-                    
-                    <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Clear All Data</h3>
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">This will permanently delete all data.</p>
-                        <button data-action="clearData" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors">Clear All Data</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="nav-item">
+        <a href="#">
+            <svg><circle cx="12" cy="12" r="9"/></svg>
+            Home
+        </a>
     </div>
 
-    <script>
-        'use strict';
+    <div class="nav-item">
+        <a href="#tools">
+            <svg><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
+            Tools
+        </a>
+    </div>
 
-        // Dark mode support
-        const initDarkMode = () => {
-            if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-                document.documentElement.classList.add('dark');
-            }
-            window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', e => {
-                document.documentElement.classList.toggle('dark', e.matches);
-            });
-        };
+    <div class="nav-item">
+        <a href="#reputation-section">
+            <svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>
+            Ratings
+        </a>
+    </div>
 
-        // Database Manager
-        class DatabaseManager {
-            constructor() {
-                this.db = null;
-                this.SQL = null;
-                this.employees = [];
-                this.processingRate = 3.30;
-                this.nextEmployeeId = 1;
-            }
+    <div class="nav-item">
+        <a href="#contact">
+            <svg><path d="M4 4h16v12H4z"/><path d="M4 4l8 6 8-6"/></svg>
+            Contact
+        </a>
+    </div>
 
-            async init() {
-                try {
-                    this.SQL = await initSqlJs({
-                        locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
-                    });
-                    
-                    this.db = new this.SQL.Database();
-                    this.createTables();
-                    
-                    this.isEmpty = this.isEmpty();
-                    if (this.isEmpty) {
-                        this.insertSampleData();
-                    }
-                    
-                    this.loadData();
-                    this.updateInfo();
-                    
-                } catch (error) {
-                    console.error('Database initialization failed:', error);
-                    this.initFallbackData();
-                }
-            }
+</div>
 
-            createTables() {
-                const tables = [
-                    `CREATE TABLE IF NOT EXISTS employees (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        name TEXT NOT NULL,
-                        hourly_wage REAL NOT NULL,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )`,
-                    `CREATE TABLE IF NOT EXISTS settings (
-                        key TEXT PRIMARY KEY,
-                        value TEXT NOT NULL,
-                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )`,
-                    `CREATE TABLE IF NOT EXISTS payroll_records (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        employee_id INTEGER,
-                        hours_worked REAL NOT NULL,
-                        minutes_worked INTEGER NOT NULL,
-                        hourly_wage REAL NOT NULL,
-                        tips_on_card REAL NOT NULL,
-                        deductions REAL NOT NULL DEFAULT 0,
-                        processing_rate REAL NOT NULL,
-                        base_pay REAL NOT NULL,
-                        processing_fee REAL NOT NULL,
-                        net_tips REAL NOT NULL,
-                        total_pay REAL NOT NULL,
-                        calculated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (employee_id) REFERENCES employees (id)
-                    )`,
-                    `CREATE TABLE IF NOT EXISTS migrations (
-                        id INTEGER PRIMARY KEY,
-                        migration_name TEXT UNIQUE NOT NULL,
-                        applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )`
-                ];
-                
-                tables.forEach(sql => this.db?.run(sql));
-                
-                // Run pending migrations
-                this.runMigrations();
-            }
+<!-- TILE SECTION -->
+<div class="tile-section" id="tools">
 
-            runMigrations() {
-                const migrations = [
-                    {
-                        name: 'add_deductions_column',
-                        run: () => {
-                            try {
-                                // Check if deductions column exists
-                                const result = this.db.exec("PRAGMA table_info(payroll_records)");
-                                
-                                if (result[0]) {
-                                    const columns = result[0].values.map(row => row[1]);
-                                    
-                                    if (!columns.includes('deductions')) {
-                                        this.db.run("ALTER TABLE payroll_records ADD COLUMN deductions REAL NOT NULL DEFAULT 0");
-                                        return true;
-                                    }
-                                }
-                                return false;
-                            } catch (error) {
-                                console.error('Failed to add deductions column:', error);
-                                return false;
-                            }
-                        }
-                    }
-                    // Future migrations can be added here
-                ];
+    <div class="tiles">
 
-                migrations.forEach(migration => {
-                    try {
-                        // Check if migration already applied
-                        let migrationExists = false;
-                        try {
-                            const result = this.db.exec(`SELECT 1 FROM migrations WHERE migration_name = '${migration.name}'`);
-                            migrationExists = result.length > 0 && result[0].values.length > 0;
-                        } catch (e) {
-                            // migrations table might not exist yet, that's ok
-                            migrationExists = false;
-                        }
-                        
-                        if (!migrationExists) { // Migration not applied yet
-                            const success = migration.run();
-                            if (success) {
-                                // Record that migration was applied
-                                try {
-                                    this.db.run(`INSERT INTO migrations (migration_name) VALUES ('${migration.name}')`);
-                                } catch (e) {
-                                    // Could not record migration, but it was applied
-                                }
-                            }
-                        }
-                    } catch (error) {
-                        console.error(`Migration ${migration.name} failed:`, error);
-                    }
-                });
-            }
+        <!-- Alterations Scheduler Desktop -->
+        <div class="tile">
+            <svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html" target="_blank">
+                Alterations Scheduler (Desktop)
+            </a>
+        </div>
 
-            isEmpty() {
-                if (!this.db) return true;
-                const result = this.db.exec("SELECT COUNT(*) as count FROM employees");
-                return result[0]?.values[0]?.[0] === 0;
-            }
+        <!-- Alterations Scheduler Mobile -->
+        <div class="tile">
+            <svg><rect x="7" y="3" width="10" height="18" rx="2"/></svg>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html" target="_blank">
+                Alterations Scheduler (Mobile)
+            </a>
+        </div>
 
-            insertSampleData() {
-                const sampleEmployees = [
-                    { name: 'Pink Apron', hourlyWage: 16.50 },
-                    { name: 'Grey Apron', hourlyWage: 17.00 },
-                    { name: 'Yellow Apron', hourlyWage: 17.00 },
-                    { name: 'Green Apron', hourlyWage: 17.50 },
-                    { name: 'Green Apron', hourlyWage: 18.00 },
-                    { name: 'Black Apron', hourlyWage: 20.00 }
-                ];
-                
-                sampleEmployees.forEach(emp => {
-                    this.db?.run("INSERT INTO employees (name, hourly_wage) VALUES (?, ?)", [emp.name, emp.hourlyWage]);
-                });
-                
-                this.db?.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['processing_rate', this.processingRate.toString()]);
-            }
+        <!-- Daily Reconciliation -->
+        <div class="tile">
+            <svg><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html" target="_blank">
+                Daily Reconciliation
+            </a>
+        </div>
 
-            initFallbackData() {
-                this.employees = [
-                    { id: 1, name: 'Pink Apron', hourlyWage: 16.50 },
-                    { id: 2, name: 'Grey Apron', hourlyWage: 17.00 },
-                    { id: 3, name: 'Yellow Apron', hourlyWage: 17.00 },
-                    { id: 4, name: 'Green Apron', hourlyWage: 17.50 },
-                    { id: 5, name: 'Green Apron', hourlyWage: 18.00 },
-                    { id: 6, name: 'Black Apron', hourlyWage: 20.00 }
-                ];
-                this.nextEmployeeId = 7;
-            }
+        <!-- Weekly Work Schedule -->
+        <div class="tile">
+            <svg><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
+            <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true"
+               target="_blank">
+                Weekly Work Schedule
+            </a>
+        </div>
 
-            loadData() {
-                if (!this.db) return;
-                
-                // Load employees
-                const employeeResult = this.db.exec("SELECT id, name, hourly_wage FROM employees ORDER BY name");
-                this.employees = employeeResult[0]?.values.map(row => ({
-                    id: row[0],
-                    name: row[1],
-                    hourlyWage: row[2]
-                })) || [];
-                
-                // Set next employee ID
-                const maxIdResult = this.db.exec("SELECT MAX(id) FROM employees");
-                this.nextEmployeeId = (maxIdResult[0]?.values[0]?.[0] || 0) + 1;
-                
-                // Load settings
-                const settingsResult = this.db.exec("SELECT value FROM settings WHERE key = 'processing_rate'");
-                if (settingsResult[0]?.values[0]) {
-                    this.processingRate = parseFloat(settingsResult[0].values[0][0]);
-                }
-            }
+        <!-- Directory of Contacts -->
+        <div class="tile">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v16H4z" stroke="#0a75ff" stroke-width="2" fill="none"/>
+                <path d="M8 9h8M8 13h5" stroke="#0a75ff" stroke-width="2" fill="none"/>
+            </svg>
+            <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true"
+               target="_blank">
+                Directory of Contacts
+            </a>
+        </div>
 
-            saveEmployee(name, hourlyWage, id = null) {
-                if (!this.db) return null;
-                
-                if (id) {
-                    this.db.run("UPDATE employees SET name = ?, hourly_wage = ? WHERE id = ?", [name, hourlyWage, id]);
-                    const index = this.employees.findIndex(emp => emp.id === id);
-                    if (index !== -1) {
-                        this.employees[index] = { id, name, hourlyWage };
-                    }
-                    return id;
-                } else {
-                    this.db.run("INSERT INTO employees (name, hourly_wage) VALUES (?, ?)", [name, hourlyWage]);
-                    const result = this.db.exec("SELECT last_insert_rowid()");
-                    const newId = result[0].values[0][0];
-                    this.employees.push({ id: newId, name, hourlyWage });
-                    return newId;
-                }
-            }
+        <!-- Payroll -->
+        <div class="tile">
+            <svg><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 10h6M9 14h6"/></svg>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html" target="_blank">
+                Payroll Calculator
+            </a>
+        </div>
 
-            deleteEmployee(id) {
-                if (!this.db) return;
-                this.db.run("DELETE FROM employees WHERE id = ?", [id]);
-                this.employees = this.employees.filter(emp => emp.id !== id);
-            }
+        <!-- WhatsApp Group -->
+        <div class="tile">
+            <svg viewBox="0 0 24 24">
+                <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z"
+                      stroke="#0a75ff" stroke-width="2" fill="none"/>
+                <path d="M9 9c.5 1.5 2 3 3.5 3.5l1-.5 1.5 1.5-1 1.5c-2 .5-6-1-7.5-4.5z"
+                      stroke="#0a75ff" stroke-width="2" fill="none"/>
+            </svg>
+            <a href="https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG" target="_blank">
+                WhatsApp Group
+            </a>
+        </div>
 
-            saveSettings(processingRate) {
-                if (!this.db) return;
-                this.db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['processing_rate', processingRate.toString()]);
-                this.processingRate = processingRate;
-            }
+        <!-- CleanChat AI -->
+        <div class="tile">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v12H5l-3 3V4z" stroke="#0a75ff" stroke-width="2" fill="none"/>
+                <path d="M8 9h8M8 13h5" stroke="#0a75ff" stroke-width="2" fill="none"/>
+            </svg>
+            <a href="https://www.facebook.com/messages/t/2083730355435395" target="_blank">
+                CleanChat AI
+            </a>
+        </div>
 
-            savePayrollRecord(employeeId, data) {
-                if (!this.db) return;
-                
-                // Try to save with deductions column first
-                try {
-                    this.db.run(`
-                        INSERT INTO payroll_records 
-                        (employee_id, hours_worked, minutes_worked, hourly_wage, tips_on_card, 
-                         deductions, processing_rate, base_pay, processing_fee, net_tips, total_pay) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    `, [
-                        employeeId, data.hours, data.minutes, data.hourlyWage, data.tipsOnCard,
-                        data.deductions, data.processingRate, data.basePay, data.processingFee,
-                        data.netTips, data.totalPay
-                    ]);
-                } catch (error) {
-                    // If it fails, try to add the deductions column and retry
-                    try {
-                        this.db.run("ALTER TABLE payroll_records ADD COLUMN deductions REAL NOT NULL DEFAULT 0");
-                        
-                        // Retry the insert
-                        this.db.run(`
-                            INSERT INTO payroll_records 
-                            (employee_id, hours_worked, minutes_worked, hourly_wage, tips_on_card, 
-                             deductions, processing_rate, base_pay, processing_fee, net_tips, total_pay) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        `, [
-                            employeeId, data.hours, data.minutes, data.hourlyWage, data.tipsOnCard,
-                            data.deductions, data.processingRate, data.basePay, data.processingFee,
-                            data.netTips, data.totalPay
-                        ]);
-                        
-                    } catch (alterError) {
-                        // If we still can't add the column, save without deductions
-                        this.db.run(`
-                            INSERT INTO payroll_records 
-                            (employee_id, hours_worked, minutes_worked, hourly_wage, tips_on_card, 
-                             processing_rate, base_pay, processing_fee, net_tips, total_pay) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        `, [
-                            employeeId, data.hours, data.minutes, data.hourlyWage, data.tipsOnCard,
-                            data.processingRate, data.basePay, data.processingFee,
-                            data.netTips, data.totalPay
-                        ]);
-                    }
-                }
-            }
+        <!-- Call Logs -->
+        <div class="tile">
+            <svg viewBox="0 0 24 24">
+                <path d="M6 2h12v20H6z" stroke="#0a75ff" stroke-width="2" fill="none"/>
+                <path d="M9 6h6M9 10h6M9 14h4" stroke="#0a75ff" stroke-width="2" fill="none"/>
+            </svg>
+            <a href="https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6" target="_blank">
+                Call Logs (Voiply CDRs)
+            </a>
+        </div>
 
-            updateInfo() {
-                if (!this.db) return;
-                
-                const employeeResult = this.db.exec("SELECT COUNT(*) FROM employees");
-                const payrollResult = this.db.exec("SELECT COUNT(*) FROM payroll_records");
-                
-                const employeeCount = employeeResult[0]?.values[0]?.[0] || 0;
-                const payrollCount = payrollResult[0]?.values[0]?.[0] || 0;
-                const data = this.db.export();
-                const sizeKB = Math.round(data.length / 1024);
-                
-                document.getElementById('employeeCount').textContent = employeeCount;
-                document.getElementById('payrollCount').textContent = payrollCount;
-                document.getElementById('dbSize').textContent = sizeKB + ' KB';
-            }
+    </div>
+</div>
 
-            export() {
-                if (!this.db) throw new Error('No database available');
-                return this.db.export();
-            }
+<!-- ONLINE REPUTATION MONITOR -->
+<div id="reputation-section" style="padding:20px; max-width:850px; margin:20px auto;">
+    <h2>⭐ Online Reputation Monitor</h2>
 
-            import(arrayBuffer) {
-                const uints = new Uint8Array(arrayBuffer);
-                this.db = new this.SQL.Database(uints);
-                
-                const tables = this.db.exec("SELECT name FROM sqlite_master WHERE type='table'");
-                const tableNames = tables[0]?.values.map(row => row[0]) || [];
-                
-                if (!tableNames.includes('employees') || !tableNames.includes('settings')) {
-                    throw new Error('Invalid database file format');
-                }
-                
-                this.loadData();
-                this.updateInfo();
-            }
+    <!-- GOOGLE CARD -->
+    <div class="rep-card">
+        <h3>Google Reviews</h3>
+        <div id="google-rating">Loading...</div>
+        <div id="google-bars" style="margin-top:10px;"></div>
+    </div>
 
-            clearAll() {
-                if (!this.db) return;
-                this.db.run("DELETE FROM payroll_records");
-                this.db.run("DELETE FROM employees");
-                this.db.run("DELETE FROM settings");
-                this.insertSampleData();
-                this.loadData();
-                this.updateInfo();
-            }
-        }
+    <!-- YELP CARD -->
+    <div class="rep-card">
+        <h3>Yelp Reviews</h3>
+        <div id="yelp-rating">Loading...</div>
+        <div id="yelp-bars" style="margin-top:10px;"></div>
+    </div>
 
-        // UI Manager
-        class UIManager {
-            constructor(dbManager) {
-                this.db = dbManager;
-                this.currentPage = 'payroll';
-                this.editingEmployeeId = null;
-            }
+    <!-- FACEBOOK CARD -->
+    <div class="rep-card">
+        <h3>Facebook Reviews</h3>
+        <div id="facebook-rating">Loading...</div>
+        <div id="facebook-bars" style="margin-top:10px;"></div>
+    </div>
+</div>
 
-            init() {
-                this.bindEvents();
-                this.renderEmployees();
-                this.updateSettings();
-                
-                // Show restore banner if sample data was loaded
-                if (this.db.isEmpty) {
-                    this.showRestoreBanner();
-                }
-            }
+<!-- FOOTER -->
+<div class="footer" id="contact">
+    <strong>Top Cleaners & Alterations</strong><br>
+    1016 W West Covina Parkway<br>
+    West Covina, CA 91790<br>
+    Phone: (626) 480-9200<br>
+    Website:
+    <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
+    Internal Access Only
+</div>
 
-            bindEvents() {
-                // Navigation
-                document.querySelectorAll('[data-page]').forEach(btn => {
-                    btn.addEventListener('click', (e) => this.showPage(e.target.dataset.page));
-                });
+<!-- LIVE REPUTATION MONITOR SCRIPT -->
+<script>
+const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 
-                // Forms
-                const payrollForm = document.getElementById('payrollForm');
-                if (payrollForm) {
-                    payrollForm.addEventListener('submit', (e) => this.handlePayrollSubmit(e));
-                }
+// Utility: build micro-block bars
+function blocks(count, emoji) {
+    let out = "";
+    for (let i = 0; i < count; i++) out += emoji;
+    return out;
+}
 
-                const employeeForm = document.getElementById('employeeFormElement');
-                if (employeeForm) {
-                    employeeForm.addEventListener('submit', (e) => this.handleEmployeeSubmit(e));
-                }
+function renderBars(positive, neutral, negative) {
+    return `
+        <div>🟩 ${positive} positive<br>${blocks(Math.min(20, Math.floor(positive/5)), "🟩")}</div>
+        <div style="margin-top:8px;">🟨 ${neutral} neutral<br>${blocks(Math.min(20, Math.floor(neutral/2)), "🟨")}</div>
+        <div style="margin-top:8px;">🟥 ${negative} negative<br>${blocks(Math.min(20, Math.floor(negative/2)), "🟥")}</div>
+    `;
+}
 
-                const settingsForm = document.getElementById('settingsForm');
-                if (settingsForm) {
-                    settingsForm.addEventListener('submit', (e) => this.handleSettingsSubmit(e));
-                }
+// GOOGLE
+fetch(`${WORKER_URL}/google`)
+    .then(r => r.json())
+    .then(data => {
+        let rating = data.result.rating;
+        let total = data.result.user_ratings_total;
 
-                // Employee selection auto-fill
-                const employeeSelect = document.querySelector('[name="employeeId"]');
-                if (employeeSelect) {
-                    employeeSelect.addEventListener('change', (e) => {
-                        const employee = this.db.employees.find(emp => emp.id == e.target.value);
-                        const wageInput = document.querySelector('[name="hourlyWage"]');
-                        const hoursInput = document.querySelector('[name="hours"]');
-                        const minutesInput = document.querySelector('[name="minutes"]');
-                        const tipsInput = document.querySelector('[name="tipsOnCard"]');
-                        const deductionsInput = document.querySelector('[name="deductions"]');
-                        const resultsDiv = document.getElementById('results');
-                        
-                        // Clear all fields except hourly wage
-                        if (hoursInput) hoursInput.value = '';
-                        if (minutesInput) minutesInput.value = '';
-                        if (tipsInput) tipsInput.value = '';
-                        if (deductionsInput) deductionsInput.value = '';
-                        
-                        // Clear results panel back to default state
-                        if (resultsDiv) {
-                            resultsDiv.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-8">Enter employee details and click calculate to see results</div>';
-                        }
-                        
-                        // Set hourly wage for selected employee
-                        if (employee && wageInput) {
-                            wageInput.value = employee.hourlyWage.toFixed(2);
-                        } else if (wageInput) {
-                            wageInput.value = '';
-                        }
-                    });
-                }
+        let positive = Math.round(total * 0.85);
+        let neutral = Math.round(total * 0.10);
+        let negative = total - positive - neutral;
 
-                // Action buttons
-                document.addEventListener('click', (e) => {
-                    const action = e.target.closest('[data-action]')?.dataset.action;
-                    if (action) this.handleAction(action, e);
-                });
+        document.getElementById("google-rating").innerHTML =
+            `⭐ ${rating} (${total} reviews)`;
 
-                // File import
-                const importFile = document.getElementById('importFile');
-                if (importFile) {
-                    importFile.addEventListener('change', (e) => {
-                        if (e.target.files[0]) this.importDatabase(e.target.files[0]);
-                    });
-                }
-            }
+        document.getElementById("google-bars").innerHTML =
+            renderBars(positive, neutral, negative);
+    });
 
-            handleAction(action, e) {
-                const actions = {
-                    showAddEmployee: () => this.showEmployeeForm(),
-                    cancelEmployee: () => this.hideEmployeeForm(),
-                    editEmployee: () => this.editEmployee(parseInt(e.target.closest('[data-id]').dataset.id)),
-                    deleteEmployee: () => this.deleteEmployee(parseInt(e.target.closest('[data-id]').dataset.id)),
-                    export: () => this.exportDatabase(),
-                    import: () => document.getElementById('importFile').click(),
-                    clearData: () => this.clearAllData(),
-                    quickImport: () => document.getElementById('importFile').click(),
-                    dismissBanner: () => this.hideRestoreBanner()
-                };
-                
-                actions[action]?.();
-            }
+// YELP
+fetch(`${WORKER_URL}/yelp`)
+    .then(r => r.json())
+    .then(data => {
+        let rating = data.rating;
+        let total = data.review_count;
 
-            showPage(pageName) {
-                // Hide all pages
-                document.querySelectorAll('.page').forEach(page => page.classList.add('hidden'));
-                document.getElementById(pageName + 'Page').classList.remove('hidden');
-                
-                // Update nav buttons
-                document.querySelectorAll('.nav-tab').forEach(tab => {
-                    tab.classList.remove('active', 'bg-primary', 'text-white');
-                    tab.classList.add('text-gray-700', 'dark:text-gray-300', 'hover:bg-gray-200', 'dark:hover:bg-gray-700');
-                });
-                
-                const activeTab = document.querySelector(`[data-page="${pageName}"]`);
-                activeTab.classList.add('active', 'bg-primary', 'text-white');
-                activeTab.classList.remove('text-gray-700', 'dark:text-gray-300', 'hover:bg-gray-200', 'dark:hover:bg-gray-700');
-                
-                this.currentPage = pageName;
-                
-                if (pageName === 'data') {
-                    this.db.updateInfo();
-                }
-            }
+        let positive = Math.round(total * (rating / 5));
+        let negative = Math.round(total * ((5-rating)/5));
+        let neutral = total - positive - negative;
 
-            handlePayrollSubmit(e) {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                const data = Object.fromEntries(formData.entries());
-                
-                // Validation
-                if (!data.employeeId) {
-                    this.showAlert('Please select an employee');
-                    return;
-                }
-                
-                const hourlyWage = parseFloat(data.hourlyWage) || 0;
-                if (hourlyWage <= 0) {
-                    this.showAlert('Please enter a valid hourly wage');
-                    return;
-                }
+        document.getElementById("yelp-rating").innerHTML =
+            `⭐ ${rating} (${total} reviews)`;
 
-                // Calculate payroll
-                const hours = parseFloat(data.hours) || 0;
-                const minutes = parseFloat(data.minutes) || 0;
-                const tipsOnCard = parseFloat(data.tipsOnCard) || 0;
-                const deductions = parseFloat(data.deductions) || 0;
-                
-                const totalHours = hours + (minutes / 60);
-                const basePay = totalHours * hourlyWage;
-                const processingFee = (tipsOnCard * this.db.processingRate) / 100;
-                const netTips = tipsOnCard - processingFee;
-                const totalPay = basePay + netTips - deductions;
-                
-                const employee = this.db.employees.find(emp => emp.id == data.employeeId);
-                
-                // Save to database
-                this.db.savePayrollRecord(data.employeeId, {
-                    hours, minutes, hourlyWage, tipsOnCard, deductions,
-                    processingRate: this.db.processingRate, basePay, processingFee, netTips, totalPay
-                });
-                
-                // Display results
-                this.displayResults({
-                    employeeName: employee?.name || 'Unknown',
-                    totalHours: totalHours.toFixed(2),
-                    hourlyWage, basePay, tipsOnCard, processingRate: this.db.processingRate,
-                    processingFee, netTips, deductions, totalPay
-                });
-                
-                this.db.updateInfo();
-            }
+        document.getElementById("yelp-bars").innerHTML =
+            renderBars(positive, neutral, negative);
+    });
 
-            handleEmployeeSubmit(e) {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                const data = Object.fromEntries(formData.entries());
-                
-                const name = data.name.trim();
-                const wage = parseFloat(data.hourlyWage);
-                
-                if (!name) {
-                    this.showAlert('Please enter an employee name');
-                    return;
-                }
-                
-                if (isNaN(wage) || wage <= 0) {
-                    this.showAlert('Please enter a valid hourly wage');
-                    return;
-                }
-                
-                this.db.saveEmployee(name, wage, this.editingEmployeeId);
-                this.hideEmployeeForm();
-                this.renderEmployees();
-                this.db.updateInfo();
-            }
+// FACEBOOK
+fetch(`${WORKER_URL}/facebook`)
+    .then(r => r.json())
+    .then(data => {
+        let rating = data.overall_star_rating;
+        let total = data.rating_count;
 
-            handleSettingsSubmit(e) {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                const rate = parseFloat(formData.get('processingRate'));
-                
-                if (isNaN(rate) || rate < 0 || rate > 10) {
-                    this.showAlert('Please enter a valid processing rate between 0% and 10%');
-                    return;
-                }
-                
-                this.db.saveSettings(rate);
-                this.db.updateInfo();
-                this.showAlert('Settings saved successfully!');
-            }
+        let positive = Math.round(total * (rating/5));
+        let negative = Math.round(total * ((5-rating)/5));
+        let neutral = total - positive - negative;
 
-            renderEmployees() {
-                const list = document.getElementById('employeeList');
-                const select = document.querySelector('[name="employeeId"]');
-                
-                list.innerHTML = '';
-                select.innerHTML = '<option value="">Choose an employee...</option>';
-                
-                if (this.db.employees.length === 0) {
-                    list.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-8">No employees added yet</div>';
-                    return;
-                }
-                
-                this.db.employees.forEach(employee => {
-                    // List item
-                    const item = document.createElement('div');
-                    item.className = 'flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg';
-                    item.innerHTML = `
-                        <div class="flex-1">
-                            <div class="text-gray-900 dark:text-white font-medium">${employee.name}</div>
-                            <div class="text-sm text-gray-500 dark:text-gray-400">$${employee.hourlyWage.toFixed(2)}/hour</div>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <button data-action="editEmployee" data-id="${employee.id}" class="text-blue-500 hover:text-blue-700 transition-colors p-1" title="Edit">
-                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path>
-                                </svg>
-                            </button>
-                            <button data-action="deleteEmployee" data-id="${employee.id}" class="text-red-500 hover:text-red-700 transition-colors p-1" title="Delete">
-                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                                </svg>
-                            </button>
-                        </div>
-                    `;
-                    list.appendChild(item);
-                    
-                    // Select option
-                    const option = document.createElement('option');
-                    option.value = employee.id;
-                    option.textContent = `${employee.name} ($${employee.hourlyWage.toFixed(2)}/hr)`;
-                    select.appendChild(option);
-                });
-            }
+        document.getElementById("facebook-rating").innerHTML =
+            `⭐ ${rating} (${total} reviews)`;
 
-            showEmployeeForm(employee = null) {
-                const form = document.getElementById('employeeForm');
-                const title = document.getElementById('employeeFormTitle');
-                const formElement = document.getElementById('employeeFormElement');
-                
-                this.editingEmployeeId = employee?.id || null;
-                title.textContent = employee ? 'Edit Employee' : 'Add New Employee';
-                
-                if (employee) {
-                    formElement.name.value = employee.name;
-                    formElement.hourlyWage.value = employee.hourlyWage;
-                } else {
-                    formElement.reset();
-                }
-                
-                form.classList.remove('hidden');
-                formElement.name.focus();
-            }
+        document.getElementById("facebook-bars").innerHTML =
+            renderBars(positive, neutral, negative);
+    });
+</script>
 
-            hideEmployeeForm() {
-                document.getElementById('employeeForm').classList.add('hidden');
-                document.getElementById('employeeFormElement').reset();
-                this.editingEmployeeId = null;
-            }
-
-            editEmployee(id) {
-                const employee = this.db.employees.find(emp => emp.id === id);
-                if (employee) this.showEmployeeForm(employee);
-            }
-
-            deleteEmployee(id) {
-                this.showConfirmDialog('Are you sure you want to remove this employee?', () => {
-                    this.db.deleteEmployee(id);
-                    this.renderEmployees();
-                    this.db.updateInfo();
-                });
-            }
-
-            updateSettings() {
-                document.querySelector('[name="processingRate"]').value = this.db.processingRate;
-            }
-
-            displayResults(data) {
-                const resultsDiv = document.getElementById('results');
-                resultsDiv.innerHTML = `
-                    <div class="fade-in">
-                        <div class="border-b border-gray-200 dark:border-gray-600 pb-4 mb-4">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${data.employeeName}</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">${data.totalHours} hours @ $${data.hourlyWage.toFixed(2)}/hour</p>
-                        </div>
-                        
-                        <div class="space-y-3">
-                            <div class="flex justify-between">
-                                <span class="text-gray-600 dark:text-gray-400">Base Pay:</span>
-                                <span class="font-medium text-gray-900 dark:text-white">$${data.basePay.toFixed(2)}</span>
-                            </div>
-                            
-                            <div class="border-t border-gray-200 dark:border-gray-600 pt-3">
-                                <div class="flex justify-between">
-                                    <span class="text-gray-600 dark:text-gray-400">Tips on Card:</span>
-                                    <span class="font-medium text-gray-900 dark:text-white">$${data.tipsOnCard.toFixed(2)}</span>
-                                </div>
-                                <div class="flex justify-between text-sm">
-                                    <span class="text-gray-500 dark:text-gray-500">Processing Fee (${data.processingRate}%):</span>
-                                    <span class="text-red-500">-$${data.processingFee.toFixed(2)}</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-600 dark:text-gray-400">Net Tips:</span>
-                                    <span class="font-medium text-gray-900 dark:text-white">$${data.netTips.toFixed(2)}</span>
-                                </div>
-                            </div>
-                            
-                            ${data.deductions > 0 ? `
-                            <div class="border-t border-gray-200 dark:border-gray-600 pt-3">
-                                <div class="flex justify-between">
-                                    <span class="text-gray-600 dark:text-gray-400">Deductions:</span>
-                                    <span class="font-medium text-red-500">-$${data.deductions.toFixed(2)}</span>
-                                </div>
-                            </div>
-                            ` : ''}
-                            
-                            <div class="border-t-2 border-gray-300 dark:border-gray-600 pt-3">
-                                <div class="flex justify-between items-center text-lg">
-                                    <span class="font-semibold text-gray-900 dark:text-white">Total Pay:</span>
-                                    <div class="flex items-center space-x-2">
-                                        <span class="font-bold text-primary">$${data.totalPay.toFixed(2)}</span>
-                                        <button onclick="copyTotalPay('${data.totalPay.toFixed(2)}', this)" class="p-1 text-gray-500 hover:text-primary transition-colors" title="Copy amount">
-                                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path>
-                                                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"></path>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                    <div class="flex justify-between items-center mb-1">
-                                        <div class="text-sm text-gray-600 dark:text-gray-400">Summary:</div>
-                                        <button onclick="copySummary('${(() => {
-                                            let summary = `${parseFloat(data.totalHours).toFixed(2)} hr @ ${data.hourlyWage.toFixed(2)}`;
-                                            if (data.netTips > 0) summary += ` t${data.netTips.toFixed(2)}`;
-                                            if (data.deductions > 0) summary += ` d${data.deductions.toFixed(2)}`;
-                                            return summary;
-                                        })()}', this)" class="p-1 text-gray-500 hover:text-primary transition-colors" title="Copy summary">
-                                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path>
-                                                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"></path>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    <div class="font-mono text-sm text-gray-900 dark:text-white select-all bg-white dark:bg-gray-800 p-2 rounded border">${(() => {
-                                        let summary = `${parseFloat(data.totalHours).toFixed(2)} hr @ ${data.hourlyWage.toFixed(2)}`;
-                                        if (data.netTips > 0) summary += ` t${data.netTips.toFixed(2)}`;
-                                        if (data.deductions > 0) summary += ` d${data.deductions.toFixed(2)}`;
-                                        return summary;
-                                    })()}</div>
-                                    ${parseFloat(data.totalHours) > 0 ? `
-                                    <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-                                        <div class="text-xs text-gray-500 dark:text-gray-400">Blended Rate: $${((data.basePay + data.netTips) / parseFloat(data.totalHours)).toFixed(2)}/hr</div>
-                                    </div>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            exportDatabase() {
-                try {
-                    const data = this.db.export();
-                    const blob = new Blob([data], { type: 'application/x-sqlite3' });
-                    const url = URL.createObjectURL(blob);
-                    
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `payroll_database_${new Date().toISOString().split('T')[0]}.db`;
-                    a.click();
-                    
-                    URL.revokeObjectURL(url);
-                    this.showAlert('Database exported successfully!');
-                } catch (error) {
-                    this.showAlert('Export failed: ' + error.message);
-                }
-            }
-
-            importDatabase(file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        this.db.import(e.target.result);
-                        this.renderEmployees();
-                        this.updateSettings();
-                        this.hideRestoreBanner();
-                        this.showAlert('Database imported successfully!');
-                    } catch (error) {
-                        this.showAlert('Import failed: ' + error.message);
-                    }
-                };
-                reader.readAsArrayBuffer(file);
-            }
-
-            clearAllData() {
-                this.showConfirmDialog('Are you sure you want to clear all data? This cannot be undone.', () => {
-                    this.db.clearAll();
-                    this.renderEmployees();
-                    this.updateSettings();
-                    this.showRestoreBanner();
-                    this.showAlert('All data has been cleared and reset to defaults.');
-                });
-            }
-
-            showRestoreBanner() {
-                document.getElementById('restoreBanner').classList.remove('hidden');
-            }
-
-            hideRestoreBanner() {
-                document.getElementById('restoreBanner').classList.add('hidden');
-            }
-
-            showAlert(message) {
-                const modal = document.createElement('div');
-                modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-                modal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
-                        <p class="text-gray-700 dark:text-gray-300 mb-4">${message}</p>
-                        <div class="flex justify-end">
-                            <button class="px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded transition-colors">OK</button>
-                        </div>
-                    </div>
-                `;
-                
-                modal.querySelector('button').addEventListener('click', () => modal.remove());
-                document.body.appendChild(modal);
-            }
-
-            showConfirmDialog(message, onConfirm) {
-                const modal = document.createElement('div');
-                modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-                modal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
-                        <p class="text-gray-700 dark:text-gray-300 mb-4">${message}</p>
-                        <div class="flex justify-end space-x-3">
-                            <button class="cancel-btn px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors">Cancel</button>
-                            <button class="confirm-btn px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded transition-colors">Confirm</button>
-                        </div>
-                    </div>
-                `;
-                
-                modal.querySelector('.cancel-btn').addEventListener('click', () => modal.remove());
-                modal.querySelector('.confirm-btn').addEventListener('click', () => {
-                    modal.remove();
-                    onConfirm();
-                });
-                
-                document.body.appendChild(modal);
-            }
-        }
-
-        // Copy function for total pay
-        window.copyTotalPay = async function(amount, buttonElement) {
-            try {
-                await navigator.clipboard.writeText(amount);
-                // Visual feedback
-                const originalHTML = buttonElement.innerHTML;
-                buttonElement.innerHTML = `
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                    </svg>
-                `;
-                buttonElement.classList.add('text-green-500');
-                buttonElement.classList.remove('text-gray-500', 'hover:text-primary');
-                
-                setTimeout(() => {
-                    buttonElement.innerHTML = originalHTML;
-                    buttonElement.classList.remove('text-green-500');
-                    buttonElement.classList.add('text-gray-500', 'hover:text-primary');
-                }, 1500);
-            } catch (err) {
-                console.error('Failed to copy: ', err);
-            }
-        };
-
-        // Copy function for summary
-        window.copySummary = async function(summaryText, buttonElement) {
-            try {
-                await navigator.clipboard.writeText(summaryText);
-                // Visual feedback
-                const originalHTML = buttonElement.innerHTML;
-                buttonElement.innerHTML = `
-                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                    </svg>
-                `;
-                buttonElement.classList.add('text-green-500');
-                buttonElement.classList.remove('text-gray-500', 'hover:text-primary');
-                
-                setTimeout(() => {
-                    buttonElement.innerHTML = originalHTML;
-                    buttonElement.classList.remove('text-green-500');
-                    buttonElement.classList.add('text-gray-500', 'hover:text-primary');
-                }, 1500);
-            } catch (err) {
-                console.error('Failed to copy: ', err);
-            }
-        };
-
-        // Application initialization
-        (async function initApp() {
-            initDarkMode();
-            
-            const dbManager = new DatabaseManager();
-            await dbManager.init();
-            
-            window.UI = new UIManager(dbManager);
-            UI.init();
-        })();
-    </script>
 </body>
 </html>
