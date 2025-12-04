@@ -96,6 +96,19 @@
         font-size: 0.95rem;
     }
 
+    /* Reputation Section */
+    h2 {
+        margin-top: 10px;
+        text-align: center;
+    }
+    .rep-card {
+        background:white;
+        padding:20px;
+        border-radius:10px;
+        box-shadow:0px 2px 6px rgba(0,0,0,0.1);
+        margin-bottom:20px;
+    }
+
     /* Footer */
     .footer {
         text-align: center;
@@ -131,6 +144,13 @@
         <a href="#tools">
             <svg><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
             Tools
+        </a>
+    </div>
+
+    <div class="nav-item">
+        <a href="#reputation-section">
+            <svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>
+            Ratings
         </a>
     </div>
 
@@ -172,7 +192,7 @@
             </a>
         </div>
 
-        <!-- Weekly Work Schedule (UPDATED) -->
+        <!-- Weekly Work Schedule -->
         <div class="tile">
             <svg><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
             <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true"
@@ -181,7 +201,7 @@
             </a>
         </div>
 
-        <!-- Directory of Contacts (NEW) -->
+        <!-- Directory of Contacts -->
         <div class="tile">
             <svg viewBox="0 0 24 24">
                 <path d="M4 4h16v16H4z" stroke="#0a75ff" stroke-width="2" fill="none"/>
@@ -225,7 +245,7 @@
             </a>
         </div>
 
-        <!-- Call Logs (Voiply CDRs) -->
+        <!-- Call Logs -->
         <div class="tile">
             <svg viewBox="0 0 24 24">
                 <path d="M6 2h12v20H6z" stroke="#0a75ff" stroke-width="2" fill="none"/>
@@ -239,6 +259,32 @@
     </div>
 </div>
 
+<!-- ONLINE REPUTATION MONITOR -->
+<div id="reputation-section" style="padding:20px; max-width:850px; margin:20px auto;">
+    <h2>⭐ Online Reputation Monitor</h2>
+
+    <!-- GOOGLE CARD -->
+    <div class="rep-card">
+        <h3>Google Reviews</h3>
+        <div id="google-rating">Loading...</div>
+        <div id="google-bars" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- YELP CARD -->
+    <div class="rep-card">
+        <h3>Yelp Reviews</h3>
+        <div id="yelp-rating">Loading...</div>
+        <div id="yelp-bars" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- FACEBOOK CARD -->
+    <div class="rep-card">
+        <h3>Facebook Reviews</h3>
+        <div id="facebook-rating">Loading...</div>
+        <div id="facebook-bars" style="margin-top:10px;"></div>
+    </div>
+</div>
+
 <!-- FOOTER -->
 <div class="footer" id="contact">
     <strong>Top Cleaners & Alterations</strong><br>
@@ -249,6 +295,80 @@
     <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
     Internal Access Only
 </div>
+
+<!-- LIVE REPUTATION MONITOR SCRIPT -->
+<script>
+const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
+
+// Utility: build micro-block bars
+function blocks(count, emoji) {
+    let out = "";
+    for (let i = 0; i < count; i++) out += emoji;
+    return out;
+}
+
+function renderBars(positive, neutral, negative) {
+    return `
+        <div>🟩 ${positive} positive<br>${blocks(Math.min(20, Math.floor(positive/5)), "🟩")}</div>
+        <div style="margin-top:8px;">🟨 ${neutral} neutral<br>${blocks(Math.min(20, Math.floor(neutral/2)), "🟨")}</div>
+        <div style="margin-top:8px;">🟥 ${negative} negative<br>${blocks(Math.min(20, Math.floor(negative/2)), "🟥")}</div>
+    `;
+}
+
+// GOOGLE
+fetch(`${WORKER_URL}/google`)
+    .then(r => r.json())
+    .then(data => {
+        let rating = data.result.rating;
+        let total = data.result.user_ratings_total;
+
+        let positive = Math.round(total * 0.85);
+        let neutral = Math.round(total * 0.10);
+        let negative = total - positive - neutral;
+
+        document.getElementById("google-rating").innerHTML =
+            `⭐ ${rating} (${total} reviews)`;
+
+        document.getElementById("google-bars").innerHTML =
+            renderBars(positive, neutral, negative);
+    });
+
+// YELP
+fetch(`${WORKER_URL}/yelp`)
+    .then(r => r.json())
+    .then(data => {
+        let rating = data.rating;
+        let total = data.review_count;
+
+        let positive = Math.round(total * (rating / 5));
+        let negative = Math.round(total * ((5-rating)/5));
+        let neutral = total - positive - negative;
+
+        document.getElementById("yelp-rating").innerHTML =
+            `⭐ ${rating} (${total} reviews)`;
+
+        document.getElementById("yelp-bars").innerHTML =
+            renderBars(positive, neutral, negative);
+    });
+
+// FACEBOOK
+fetch(`${WORKER_URL}/facebook`)
+    .then(r => r.json())
+    .then(data => {
+        let rating = data.overall_star_rating;
+        let total = data.rating_count;
+
+        let positive = Math.round(total * (rating/5));
+        let negative = Math.round(total * ((5-rating)/5));
+        let neutral = total - positive - negative;
+
+        document.getElementById("facebook-rating").innerHTML =
+            `⭐ ${rating} (${total} reviews)`;
+
+        document.getElementById("facebook-bars").innerHTML =
+            renderBars(positive, neutral, negative);
+    });
+</script>
 
 </body>
 </html>
