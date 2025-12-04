@@ -343,10 +343,12 @@
 
             insertSampleData() {
                 const sampleEmployees = [
-                    { name: 'John Smith', hourlyWage: 16.50 },
-                    { name: 'Sarah Johnson', hourlyWage: 18.00 },
-                    { name: 'Mike Davis', hourlyWage: 17.50 },
-                    { name: 'Lisa Wilson', hourlyWage: 17.00 }
+                    { name: 'Pink Apron', hourlyWage: 16.50 },
+                    { name: 'Grey Apron', hourlyWage: 17.00 },
+                    { name: 'Yellow Apron', hourlyWage: 17.00 },
+                    { name: 'Green Apron', hourlyWage: 17.50 },
+                    { name: 'Green Apron', hourlyWage: 18.00 },
+                    { name: 'Black Apron', hourlyWage: 20.00 }
                 ];
                 
                 sampleEmployees.forEach(emp => {
@@ -358,12 +360,14 @@
 
             initFallbackData() {
                 this.employees = [
-                    { id: 1, name: 'John Smith', hourlyWage: 15.00 },
-                    { id: 2, name: 'Sarah Johnson', hourlyWage: 16.50 },
-                    { id: 3, name: 'Mike Davis', hourlyWage: 14.75 },
-                    { id: 4, name: 'Lisa Wilson', hourlyWage: 17.25 }
+                    { id: 1, name: 'Pink Apron', hourlyWage: 16.50 },
+                    { id: 2, name: 'Grey Apron', hourlyWage: 17.00 },
+                    { id: 3, name: 'Yellow Apron', hourlyWage: 17.00 },
+                    { id: 4, name: 'Green Apron', hourlyWage: 17.50 },
+                    { id: 5, name: 'Green Apron', hourlyWage: 18.00 },
+                    { id: 6, name: 'Black Apron', hourlyWage: 20.00 }
                 ];
-                this.nextEmployeeId = 5;
+                this.nextEmployeeId = 7;
             }
 
             loadData() {
@@ -886,6 +890,11 @@
                                         if (data.deductions > 0) summary += ` d${data.deductions.toFixed(2)}`;
                                         return summary;
                                     })()}</div>
+                                    ${parseFloat(data.totalHours) > 0 ? `
+                                    <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">Blended Rate: $${((data.basePay + data.netTips) / parseFloat(data.totalHours)).toFixed(2)}/hr</div>
+                                    </div>
+                                    ` : ''}
                                 </div>
                             </div>
                         </div>
@@ -1045,5 +1054,3 @@
     </script>
 </body>
 </html>
-
-
