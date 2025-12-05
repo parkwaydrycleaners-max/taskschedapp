@@ -39,7 +39,7 @@
     .nav-item a { text-decoration: none; color: #333; }
     .nav-item a:hover { color: #0a75ff; }
 
-    /* Tile Grid */
+    /* Tiles */
     .tile-section { padding: 20px; }
     .tiles {
         display: grid;
@@ -50,40 +50,17 @@
         background: white;
         padding: 18px;
         border-radius: 10px;
-        box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
         text-align: center;
         transition: 0.25s;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+        cursor: pointer;
     }
     .tile:hover { transform: translateY(-3px); }
     .tile svg { width: 40px; height: 40px; stroke: #0a75ff; stroke-width: 2; margin-bottom: 12px; }
     .tile a { font-weight: bold; color: #222; text-decoration: none; }
 
-    /* Reputation Card */
-    #reputation-section {
-        padding: 20px;
-        max-width: 460px; /* 2 tile width */
-        margin-left: 20px; /* align left */
-    }
-
-    .rep-card {
-        background:white;
-        padding:20px;
-        border-radius:10px;
-        box-shadow:0px 2px 6px rgba(0,0,0,0.1);
-        margin-bottom:20px;
-    }
-
-    /* Footer */
-    .footer {
-        text-align: center;
-        color: #444;
-        padding: 30px 15px;
-        font-size: 0.9rem;
-    }
-    .footer a { color: #0a75ff; }
+    /* Review micro bars */
+    .bars { font-size: 0.9rem; line-height: 1.1rem; }
 </style>
 
 </head>
@@ -98,33 +75,37 @@
 <div class="navbar">
     <div class="nav-item"><a href="#"><svg><circle cx="12" cy="12" r="9"/></svg>Home</a></div>
     <div class="nav-item"><a href="#tools"><svg><rect x="4" y="4" width="16" height="16" rx="3"/></svg>Tools</a></div>
-    <div class="nav-item"><a href="#reputation-section"><svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>Ratings</a></div>
     <div class="nav-item"><a href="#contact"><svg><path d="M4 4h16v12H4z"/><path d="M4 4l8 6 8-6"/></svg>Contact</a></div>
 </div>
 
-<!-- TILES -->
+<!-- TILE SECTION -->
 <div class="tile-section" id="tools">
+
     <div class="tiles">
 
-        <!-- DESKTOP ALT -->
+        <!-- Existing tiles unchanged… -->
+
         <div class="tile">
             <svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>
-            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html" target="_blank">Alterations Scheduler (Desktop)</a>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html" target="_blank">
+                Alterations Scheduler (Desktop)
+            </a>
         </div>
 
-        <!-- MOBILE ALT -->
         <div class="tile">
             <svg><rect x="7" y="3" width="10" height="18" rx="2"/></svg>
-            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html" target="_blank">Alterations Scheduler (Mobile)</a>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html" target="_blank">
+                Alterations Scheduler (Mobile)
+            </a>
         </div>
 
-        <!-- RECON -->
         <div class="tile">
             <svg><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html" target="_blank">Daily Reconciliation</a>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html" target="_blank">
+                Daily Reconciliation
+            </a>
         </div>
 
-        <!-- WEEKLY SCHEDULE -->
         <div class="tile">
             <svg><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
             <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true" target="_blank">
@@ -132,7 +113,6 @@
             </a>
         </div>
 
-        <!-- DIRECTORY -->
         <div class="tile">
             <svg><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>
             <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true" target="_blank">
@@ -140,13 +120,13 @@
             </a>
         </div>
 
-        <!-- PAYROLL -->
         <div class="tile">
             <svg><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 10h6M9 14h6"/></svg>
-            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html" target="_blank">Payroll Calculator</a>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html" target="_blank">
+                Payroll Calculator
+            </a>
         </div>
 
-        <!-- WHATSAPP -->
         <div class="tile">
             <svg viewBox="0 0 24 24">
                 <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z" stroke="#0a75ff" stroke-width="2" fill="none"/>
@@ -155,41 +135,40 @@
             <a href="https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG" target="_blank">WhatsApp Group</a>
         </div>
 
-        <!-- CLEANCHAT AI -->
         <div class="tile">
             <svg><path d="M4 4h16v12H5l-3 3V4z"/><path d="M8 9h8M8 13h5"/></svg>
             <a href="https://www.facebook.com/messages/t/2083730355435395" target="_blank">CleanChat AI</a>
         </div>
 
-        <!-- CALL LOGS -->
         <div class="tile">
             <svg><path d="M6 2h12v20H6z"/><path d="M9 6h6M9 10h6M9 14h4"/></svg>
             <a href="https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6" target="_blank">Call Logs</a>
         </div>
 
-    </div>
-</div>
+        <!-- ⭐ GOOGLE RATING TILE -->
+        <div class="tile" onclick="window.open('https://www.google.com/maps/place/West+Covina+Parkway+Top+Cleaners+and+Alterations','_blank')">
+            <svg><circle cx="12" cy="12" r="9"/></svg>
+            <strong>Google Reviews</strong>
+            <div id="google-rating">Loading...</div>
+            <div id="google-bars" class="bars"></div>
+        </div>
 
-<!-- ⭐ REPUTATION WIDGET (Left-Aligned, 2-Tile Width) -->
-<div id="reputation-section">
-    <h2>⭐ Online Reputation Monitor</h2>
+        <!-- ⭐ YELP RATING TILE -->
+        <div class="tile" onclick="window.open('https://www.yelp.com/biz/west-covina-parkway-top-cleaners-and-alterations-west-covina','_blank')">
+            <svg><path d="M4 4h16v16H4z"/></svg>
+            <strong>Yelp Reviews</strong>
+            <div id="yelp-rating">Loading...</div>
+            <div id="yelp-bars" class="bars"></div>
+        </div>
 
-    <div class="rep-card">
-        <h3>Google Reviews</h3>
-        <div id="google-rating">Loading...</div>
-        <div id="google-bars" style="margin-top:10px;"></div>
-    </div>
+        <!-- ⭐ FACEBOOK RATING TILE -->
+        <div class="tile" onclick="window.open('https://www.facebook.com/1385716841487687/reviews','_blank')">
+            <svg><path d="M4 4h16v16H4z"/></svg>
+            <strong>Facebook Reviews</strong>
+            <div id="facebook-rating">Loading...</div>
+            <div id="facebook-bars" class="bars"></div>
+        </div>
 
-    <div class="rep-card">
-        <h3>Yelp Reviews</h3>
-        <div id="yelp-rating">Loading...</div>
-        <div id="yelp-bars" style="margin-top:10px;"></div>
-    </div>
-
-    <div class="rep-card">
-        <h3>Facebook Reviews</h3>
-        <div id="facebook-rating">Loading...</div>
-        <div id="facebook-bars" style="margin-top:10px;"></div>
     </div>
 </div>
 
@@ -203,75 +182,45 @@
     Internal Access Only
 </div>
 
-<!-- ⭐ LIVE REPUTATION SCRIPT -->
+<!-- ⭐ LIVE SCRIPT -->
 <script>
 const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 
-function blocks(count, emoji) {
-    return emoji.repeat(count);
-}
-
-function renderBars(positive, neutral, negative) {
+function blocks(count, emoji) { return emoji.repeat(count); }
+function bars(p,n,neg) {
     return `
-        <div>🟩 ${positive} positive<br>${blocks(Math.min(20, Math.floor(positive/5)), "🟩")}</div>
-        <div style="margin-top:8px;">🟨 ${neutral} neutral<br>${blocks(Math.min(20, Math.floor(neutral/2)), "🟨")}</div>
-        <div style="margin-top:8px;">🟥 ${negative} negative<br>${blocks(Math.min(20, Math.floor(negative/2)), "🟥")}</div>
+        🟩 ${p}<br>${blocks(Math.min(10,Math.floor(p/5)),"🟩")}<br>
+        🟨 ${n}<br>${blocks(Math.min(10,Math.floor(n/5)),"🟨")}<br>
+        🟥 ${neg}<br>${blocks(Math.min(10,Math.floor(neg/5)),"🟥")}
     `;
 }
 
 // GOOGLE
-fetch(`${WORKER_URL}/google`)
-    .then(r => r.json())
-    .then(data => {
-        const rating = data.result.rating;
-        const total = data.result.user_ratings_total;
-
-        const positive = Math.round(total * 0.85);
-        const neutral = Math.round(total * 0.1);
-        const negative = total - positive - neutral;
-
-        document.getElementById("google-rating").innerText =
-            `⭐ ${rating} (${total} reviews)`;
-
-        document.getElementById("google-bars").innerHTML =
-            renderBars(positive, neutral, negative);
-    });
+fetch(`${WORKER_URL}/google`).then(r=>r.json()).then(d=>{
+    const r = d.result.rating;
+    const t = d.result.user_ratings_total;
+    const p = Math.round(t*0.85), n = Math.round(t*0.1), neg = t-p-n;
+    document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("google-bars").innerHTML = bars(p,n,neg);
+});
 
 // YELP
-fetch(`${WORKER_URL}/yelp`)
-    .then(r => r.json())
-    .then(data => {
-        const rating = data.rating;
-        const total = data.review_count;
-
-        const positive = Math.round(total * (rating/5));
-        const negative = Math.round(total * ((5-rating)/5));
-        const neutral = total - positive - negative;
-
-        document.getElementById("yelp-rating").innerText =
-            `⭐ ${rating} (${total} reviews)`;
-
-        document.getElementById("yelp-bars").innerHTML =
-            renderBars(positive, neutral, negative);
-    });
+fetch(`${WORKER_URL}/yelp`).then(r=>r.json()).then(d=>{
+    const r = d.rating;
+    const t = d.review_count;
+    const p = Math.round(t*(r/5)), neg = Math.round(t*((5-r)/5)), n = t-p-neg;
+    document.getElementById("yelp-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("yelp-bars").innerHTML = bars(p,n,neg);
+});
 
 // FACEBOOK
-fetch(`${WORKER_URL}/facebook`)
-    .then(r => r.json())
-    .then(data => {
-        const rating = data.overall_star_rating;
-        const total = data.rating_count;
-
-        const positive = Math.round((rating/5) * total);
-        const negative = Math.round(((5-rating)/5) * total);
-        const neutral = total - positive - negative;
-
-        document.getElementById("facebook-rating").innerText =
-            `⭐ ${rating} (${total} reviews)`;
-
-        document.getElementById("facebook-bars").innerHTML =
-            renderBars(positive, neutral, negative);
-    });
+fetch(`${WORKER_URL}/facebook`).then(r=>r.json()).then(d=>{
+    const r = d.overall_star_rating;
+    const t = d.rating_count;
+    const p = Math.round(t*(r/5)), neg = Math.round(t*((5-r)/5)), n = t-p-neg;
+    document.getElementById("facebook-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("facebook-bars").innerHTML = bars(p,n,neg);
+});
 </script>
 
 </body>
