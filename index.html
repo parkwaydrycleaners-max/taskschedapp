@@ -10,14 +10,13 @@
         font-family: Arial, sans-serif;
         margin: 0;
         background: #f7f7f7;
-        padding: 0;
         line-height: 1.4;
     }
 
-    /* Logo Area */
+    /* Logo */
     .logo-wrap {
         background: white;
-        padding: 25px 0 20px 0;
+        padding: 25px 0;
         border-bottom: 1px solid #e0e0e0;
         text-align: center;
     }
@@ -26,41 +25,22 @@
         height: auto;
     }
 
-    /* Navigation Bar */
+    /* Navbar */
     .navbar {
         display: flex;
         justify-content: center;
         gap: 40px;
         padding: 12px 0;
-        background: #ffffff;
+        background: white;
         border-bottom: 1px solid #e0e0e0;
     }
-    .nav-item {
-        text-align: center;
-        font-size: 0.8rem;
-        color: #333;
-    }
-    .nav-item svg {
-        width: 24px;
-        height: 24px;
-        stroke: #333;
-        stroke-width: 2;
-        fill: none;
-        display: block;
-        margin: 0 auto 4px auto;
-    }
-    .nav-item a {
-        text-decoration: none;
-        color: #333;
-    }
-    .nav-item a:hover {
-        color: #0a75ff;
-    }
+    .nav-item { text-align: center; font-size: 0.8rem; color: #333; }
+    .nav-item svg { width: 24px; height: 24px; stroke: #333; stroke-width: 2; fill: none; display: block; margin: 0 auto 4px; }
+    .nav-item a { text-decoration: none; color: #333; }
+    .nav-item a:hover { color: #0a75ff; }
 
-    /* Tile Section */
-    .tile-section {
-        padding: 20px;
-    }
+    /* Tile Grid */
+    .tile-section { padding: 20px; }
     .tiles {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -69,38 +49,25 @@
     .tile {
         background: white;
         padding: 18px;
+        border-radius: 10px;
+        box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
+        text-align: center;
+        transition: 0.25s;
         display: flex;
         flex-direction: column;
         align-items: center;
-        border-radius: 10px;
-        text-align: center;
-        box-shadow: 0px 2px 6px rgba(0,0,0,0.08);
-        transition: 0.25s;
     }
-    .tile:hover {
-        transform: translateY(-3px);
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.15);
-    }
-    .tile svg {
-        width: 40px;
-        height: 40px;
-        stroke: #0a75ff;
-        stroke-width: 2;
-        fill: none;
-        margin-bottom: 12px;
-    }
-    .tile a {
-        text-decoration: none;
-        color: #222;
-        font-weight: bold;
-        font-size: 0.95rem;
+    .tile:hover { transform: translateY(-3px); }
+    .tile svg { width: 40px; height: 40px; stroke: #0a75ff; stroke-width: 2; margin-bottom: 12px; }
+    .tile a { font-weight: bold; color: #222; text-decoration: none; }
+
+    /* Reputation Card */
+    #reputation-section {
+        padding: 20px;
+        max-width: 460px; /* 2 tile width */
+        margin-left: 20px; /* align left */
     }
 
-    /* Reputation Section */
-    h2 {
-        margin-top: 10px;
-        text-align: center;
-    }
     .rep-card {
         background:white;
         padding:20px;
@@ -116,168 +83,109 @@
         padding: 30px 15px;
         font-size: 0.9rem;
     }
-    .footer a {
-        color: #0a75ff;
-        text-decoration: none;
-    }
+    .footer a { color: #0a75ff; }
 </style>
 
 </head>
 <body>
 
-<!-- LOGO AREA -->
+<!-- LOGO -->
 <div class="logo-wrap">
-    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png" alt="Top Cleaners & Alterations Logo">
+    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png">
 </div>
 
-<!-- NAVIGATION BAR -->
+<!-- NAVBAR -->
 <div class="navbar">
-
-    <div class="nav-item">
-        <a href="#">
-            <svg><circle cx="12" cy="12" r="9"/></svg>
-            Home
-        </a>
-    </div>
-
-    <div class="nav-item">
-        <a href="#tools">
-            <svg><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
-            Tools
-        </a>
-    </div>
-
-    <div class="nav-item">
-        <a href="#reputation-section">
-            <svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>
-            Ratings
-        </a>
-    </div>
-
-    <div class="nav-item">
-        <a href="#contact">
-            <svg><path d="M4 4h16v12H4z"/><path d="M4 4l8 6 8-6"/></svg>
-            Contact
-        </a>
-    </div>
-
+    <div class="nav-item"><a href="#"><svg><circle cx="12" cy="12" r="9"/></svg>Home</a></div>
+    <div class="nav-item"><a href="#tools"><svg><rect x="4" y="4" width="16" height="16" rx="3"/></svg>Tools</a></div>
+    <div class="nav-item"><a href="#reputation-section"><svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>Ratings</a></div>
+    <div class="nav-item"><a href="#contact"><svg><path d="M4 4h16v12H4z"/><path d="M4 4l8 6 8-6"/></svg>Contact</a></div>
 </div>
 
-<!-- TILE SECTION -->
+<!-- TILES -->
 <div class="tile-section" id="tools">
-
     <div class="tiles">
 
-        <!-- Alterations Scheduler Desktop -->
+        <!-- DESKTOP ALT -->
         <div class="tile">
             <svg><path d="M4 4h16v16H4z"/><path d="M4 10h16"/></svg>
-            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html" target="_blank">
-                Alterations Scheduler (Desktop)
-            </a>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html" target="_blank">Alterations Scheduler (Desktop)</a>
         </div>
 
-        <!-- Alterations Scheduler Mobile -->
+        <!-- MOBILE ALT -->
         <div class="tile">
             <svg><rect x="7" y="3" width="10" height="18" rx="2"/></svg>
-            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html" target="_blank">
-                Alterations Scheduler (Mobile)
-            </a>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html" target="_blank">Alterations Scheduler (Mobile)</a>
         </div>
 
-        <!-- Daily Reconciliation -->
+        <!-- RECON -->
         <div class="tile">
             <svg><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html" target="_blank">
-                Daily Reconciliation
-            </a>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html" target="_blank">Daily Reconciliation</a>
         </div>
 
-        <!-- Weekly Work Schedule -->
+        <!-- WEEKLY SCHEDULE -->
         <div class="tile">
             <svg><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
-            <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true"
-               target="_blank">
+            <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true" target="_blank">
                 Weekly Work Schedule
             </a>
         </div>
 
-        <!-- Directory of Contacts -->
+        <!-- DIRECTORY -->
         <div class="tile">
-            <svg viewBox="0 0 24 24">
-                <path d="M4 4h16v16H4z" stroke="#0a75ff" stroke-width="2" fill="none"/>
-                <path d="M8 9h8M8 13h5" stroke="#0a75ff" stroke-width="2" fill="none"/>
-            </svg>
-            <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true"
-               target="_blank">
+            <svg><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>
+            <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true" target="_blank">
                 Directory of Contacts
             </a>
         </div>
 
-        <!-- Payroll -->
+        <!-- PAYROLL -->
         <div class="tile">
             <svg><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 10h6M9 14h6"/></svg>
-            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html" target="_blank">
-                Payroll Calculator
-            </a>
+            <a href="https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html" target="_blank">Payroll Calculator</a>
         </div>
 
-        <!-- WhatsApp Group -->
+        <!-- WHATSAPP -->
         <div class="tile">
             <svg viewBox="0 0 24 24">
-                <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z"
-                      stroke="#0a75ff" stroke-width="2" fill="none"/>
-                <path d="M9 9c.5 1.5 2 3 3.5 3.5l1-.5 1.5 1.5-1 1.5c-2 .5-6-1-7.5-4.5z"
-                      stroke="#0a75ff" stroke-width="2" fill="none"/>
+                <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z" stroke="#0a75ff" stroke-width="2" fill="none"/>
+                <path d="M9 9c.5 1.5 2 3 3.5 3.5l1-.5 1.5 1.5-1 1.5c-2 .5-6-1-7.5-4.5z" stroke="#0a75ff" stroke-width="2" fill="none"/>
             </svg>
-            <a href="https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG" target="_blank">
-                WhatsApp Group
-            </a>
+            <a href="https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG" target="_blank">WhatsApp Group</a>
         </div>
 
-        <!-- CleanChat AI -->
+        <!-- CLEANCHAT AI -->
         <div class="tile">
-            <svg viewBox="0 0 24 24">
-                <path d="M4 4h16v12H5l-3 3V4z" stroke="#0a75ff" stroke-width="2" fill="none"/>
-                <path d="M8 9h8M8 13h5" stroke="#0a75ff" stroke-width="2" fill="none"/>
-            </svg>
-            <a href="https://www.facebook.com/messages/t/2083730355435395" target="_blank">
-                CleanChat AI
-            </a>
+            <svg><path d="M4 4h16v12H5l-3 3V4z"/><path d="M8 9h8M8 13h5"/></svg>
+            <a href="https://www.facebook.com/messages/t/2083730355435395" target="_blank">CleanChat AI</a>
         </div>
 
-        <!-- Call Logs -->
+        <!-- CALL LOGS -->
         <div class="tile">
-            <svg viewBox="0 0 24 24">
-                <path d="M6 2h12v20H6z" stroke="#0a75ff" stroke-width="2" fill="none"/>
-                <path d="M9 6h6M9 10h6M9 14h4" stroke="#0a75ff" stroke-width="2" fill="none"/>
-            </svg>
-            <a href="https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6" target="_blank">
-                Call Logs (Voiply CDRs)
-            </a>
+            <svg><path d="M6 2h12v20H6z"/><path d="M9 6h6M9 10h6M9 14h4"/></svg>
+            <a href="https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6" target="_blank">Call Logs</a>
         </div>
 
     </div>
 </div>
 
-<!-- ONLINE REPUTATION MONITOR -->
-<div id="reputation-section" style="padding:20px; max-width:850px; margin:20px auto;">
+<!-- ⭐ REPUTATION WIDGET (Left-Aligned, 2-Tile Width) -->
+<div id="reputation-section">
     <h2>⭐ Online Reputation Monitor</h2>
 
-    <!-- GOOGLE CARD -->
     <div class="rep-card">
         <h3>Google Reviews</h3>
         <div id="google-rating">Loading...</div>
         <div id="google-bars" style="margin-top:10px;"></div>
     </div>
 
-    <!-- YELP CARD -->
     <div class="rep-card">
         <h3>Yelp Reviews</h3>
         <div id="yelp-rating">Loading...</div>
         <div id="yelp-bars" style="margin-top:10px;"></div>
     </div>
 
-    <!-- FACEBOOK CARD -->
     <div class="rep-card">
         <h3>Facebook Reviews</h3>
         <div id="facebook-rating">Loading...</div>
@@ -291,20 +199,16 @@
     1016 W West Covina Parkway<br>
     West Covina, CA 91790<br>
     Phone: (626) 480-9200<br>
-    Website:
-    <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
+    Website: <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
     Internal Access Only
 </div>
 
-<!-- LIVE REPUTATION MONITOR SCRIPT -->
+<!-- ⭐ LIVE REPUTATION SCRIPT -->
 <script>
 const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 
-// Utility: build micro-block bars
 function blocks(count, emoji) {
-    let out = "";
-    for (let i = 0; i < count; i++) out += emoji;
-    return out;
+    return emoji.repeat(count);
 }
 
 function renderBars(positive, neutral, negative) {
@@ -319,14 +223,14 @@ function renderBars(positive, neutral, negative) {
 fetch(`${WORKER_URL}/google`)
     .then(r => r.json())
     .then(data => {
-        let rating = data.result.rating;
-        let total = data.result.user_ratings_total;
+        const rating = data.result.rating;
+        const total = data.result.user_ratings_total;
 
-        let positive = Math.round(total * 0.85);
-        let neutral = Math.round(total * 0.10);
-        let negative = total - positive - neutral;
+        const positive = Math.round(total * 0.85);
+        const neutral = Math.round(total * 0.1);
+        const negative = total - positive - neutral;
 
-        document.getElementById("google-rating").innerHTML =
+        document.getElementById("google-rating").innerText =
             `⭐ ${rating} (${total} reviews)`;
 
         document.getElementById("google-bars").innerHTML =
@@ -337,14 +241,14 @@ fetch(`${WORKER_URL}/google`)
 fetch(`${WORKER_URL}/yelp`)
     .then(r => r.json())
     .then(data => {
-        let rating = data.rating;
-        let total = data.review_count;
+        const rating = data.rating;
+        const total = data.review_count;
 
-        let positive = Math.round(total * (rating / 5));
-        let negative = Math.round(total * ((5-rating)/5));
-        let neutral = total - positive - negative;
+        const positive = Math.round(total * (rating/5));
+        const negative = Math.round(total * ((5-rating)/5));
+        const neutral = total - positive - negative;
 
-        document.getElementById("yelp-rating").innerHTML =
+        document.getElementById("yelp-rating").innerText =
             `⭐ ${rating} (${total} reviews)`;
 
         document.getElementById("yelp-bars").innerHTML =
@@ -355,14 +259,14 @@ fetch(`${WORKER_URL}/yelp`)
 fetch(`${WORKER_URL}/facebook`)
     .then(r => r.json())
     .then(data => {
-        let rating = data.overall_star_rating;
-        let total = data.rating_count;
+        const rating = data.overall_star_rating;
+        const total = data.rating_count;
 
-        let positive = Math.round(total * (rating/5));
-        let negative = Math.round(total * ((5-rating)/5));
-        let neutral = total - positive - negative;
+        const positive = Math.round((rating/5) * total);
+        const negative = Math.round(((5-rating)/5) * total);
+        const neutral = total - positive - negative;
 
-        document.getElementById("facebook-rating").innerHTML =
+        document.getElementById("facebook-rating").innerText =
             `⭐ ${rating} (${total} reviews)`;
 
         document.getElementById("facebook-bars").innerHTML =
