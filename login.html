@@ -24,14 +24,31 @@ body {
     border-radius: 12px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);
     text-align: center;
+    transition: transform 0.15s;
 }
 
-h2 {
-    margin: 0;
-    margin-bottom: 10px;
+/* ✨ SHAKE animation when password is wrong */
+.shake {
+    animation: shakeAnim 0.3s ease-in-out;
 }
 
-input[type="password"] {
+@keyframes shakeAnim {
+    0% { transform: translateX(0); }
+    20% { transform: translateX(-10px); }
+    40% { transform: translateX(10px); }
+    60% { transform: translateX(-8px); }
+    80% { transform: translateX(8px); }
+    100% { transform: translateX(0); }
+}
+
+h2 { margin: 0 0 10px 0; }
+
+.input-wrap {
+    position: relative;
+    width: 100%;
+}
+input[type="password"],
+input[type="text"] {
     padding: 12px;
     width: 100%;
     margin-top: 15px;
@@ -41,7 +58,17 @@ input[type="password"] {
     box-sizing: border-box;
 }
 
-input[type="password"]:focus {
+/* Eye toggle icon */
+.toggle-eye {
+    position: absolute;
+    right: 12px;
+    top: 25px;
+    cursor: pointer;
+    font-size: 18px;
+    color: #666;
+}
+
+input:focus {
     border-color: #0a75ff;
     outline: none;
     box-shadow: 0 0 4px rgba(10,117,255,0.4);
@@ -58,20 +85,14 @@ button {
     font-size: 1rem;
     cursor: pointer;
 }
-
-button:hover {
-    background: #005fe0;
-}
+button:hover { background: #005fe0; }
 
 .cancel-btn {
     margin-top: 10px;
     background: #ddd;
     color: #333;
 }
-
-.cancel-btn:hover {
-    background: #ccc;
-}
+.cancel-btn:hover { background: #ccc; }
 
 .error {
     margin-top: 10px;
@@ -83,11 +104,14 @@ button:hover {
 </head>
 <body>
 
-<div class="login-box">
+<div class="login-box" id="loginBox">
     <h2>Top Cleaners Intranet</h2>
     <p>Please enter the password:</p>
 
-    <input type="password" id="pwInput" placeholder="Password">
+    <div class="input-wrap">
+        <input type="password" id="pwInput" placeholder="Password">
+        <span class="toggle-eye" onclick="togglePassword()">👁️</span>
+    </div>
 
     <button onclick="checkPassword()">Login</button>
 
@@ -99,18 +123,26 @@ button:hover {
 </div>
 
 <script>
-// SHA-256 hash of password: "mypassword123"
+// Password = "mypassword123"
 const correctHash = "8cad11cc10285aa0d88aa8c1d3c0a0a5a03923b625d05f6b1c38d5733630b215";
 
+/* Hash function (SHA-256) */
 async function hash(text) {
-    const msgUint8 = new TextEncoder().encode(text);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    const msg = new TextEncoder().encode(text);
+    const buffer = await crypto.subtle.digest("SHA-256", msg);
+    return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
+/* ✨ SHOW PASSWORD TOGGLE */
+function togglePassword() {
+    const pw = document.getElementById("pwInput");
+    pw.type = (pw.type === "password") ? "text" : "password";
+}
+
+/* ✨ Login + Shake animation on wrong password */
 async function checkPassword() {
     const input = document.getElementById("pwInput").value;
+    const box = document.getElementById("loginBox");
     const inputHash = await hash(input);
 
     if (inputHash === correctHash) {
@@ -118,6 +150,11 @@ async function checkPassword() {
         window.location.href = "index.html";
     } else {
         document.getElementById("errorMsg").style.display = "block";
+        
+        // Shake animation
+        box.classList.remove("shake");
+        void box.offsetWidth; // force reflow to restart animation
+        box.classList.add("shake");
     }
 }
 </script>
