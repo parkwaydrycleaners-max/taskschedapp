@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Secure Login</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
 body {
     margin: 0; 
@@ -12,53 +13,93 @@ body {
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background: #f1f1f1;
+    background: #efefef;
     font-family: Arial, sans-serif;
 }
+
 .login-box {
     background: white;
-    padding: 25px;
-    width: 320px;
-    border-radius: 10px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+    padding: 30px;
+    width: 360px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
     text-align: center;
 }
+
+h2 {
+    margin: 0;
+    margin-bottom: 10px;
+}
+
 input[type="password"] {
-    padding: 10px;
+    padding: 12px;
     width: 100%;
     margin-top: 15px;
-    border-radius: 5px;
-    border: 1px solid #aaa;
+    border-radius: 6px;
+    border: 1px solid #bbb;
+    font-size: 1rem;
+    box-sizing: border-box;
 }
+
+input[type="password"]:focus {
+    border-color: #0a75ff;
+    outline: none;
+    box-shadow: 0 0 4px rgba(10,117,255,0.4);
+}
+
 button {
     margin-top: 20px;
-    padding: 10px;
+    padding: 12px;
     width: 100%;
     background: #0a75ff;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
+    font-size: 1rem;
     cursor: pointer;
 }
+
+button:hover {
+    background: #005fe0;
+}
+
+.cancel-btn {
+    margin-top: 10px;
+    background: #ddd;
+    color: #333;
+}
+
+.cancel-btn:hover {
+    background: #ccc;
+}
+
 .error {
     margin-top: 10px;
     color: red;
     display:none;
 }
 </style>
+
 </head>
 <body>
 
 <div class="login-box">
     <h2>Top Cleaners Intranet</h2>
     <p>Please enter the password:</p>
-    <input type="password" id="pwInput">
+
+    <input type="password" id="pwInput" placeholder="Password">
+
     <button onclick="checkPassword()">Login</button>
+
+    <button class="cancel-btn" onclick="window.location.href='https://626topcleaners.com'">
+        Cancel
+    </button>
+
     <div class="error" id="errorMsg">Password incorrect</div>
 </div>
 
 <script>
-// SHA-256 hash of the login password "mypassword123"
+// SHA-256 hash of password: "mypassword123"
 const correctHash = "8cad11cc10285aa0d88aa8c1d3c0a0a5a03923b625d05f6b1c38d5733630b215";
 
 async function hash(text) {
@@ -74,7 +115,7 @@ async function checkPassword() {
 
     if (inputHash === correctHash) {
         sessionStorage.setItem("authorized", "yes");
-        window.location.href = "index.html"; 
+        window.location.href = "index.html";
     } else {
         document.getElementById("errorMsg").style.display = "block";
     }
