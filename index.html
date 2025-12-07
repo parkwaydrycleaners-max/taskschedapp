@@ -5,6 +5,13 @@
 <title>Top Cleaners & Alterations – Intranet</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- PASSWORD PROTECTION -->
+<script>
+if (sessionStorage.getItem("authorized") !== "yes") {
+    window.location.href = "login.html";
+}
+</script>
+
 <style>
     body {
         font-family: Arial, sans-serif;
@@ -36,7 +43,7 @@
     .nav-item a { text-decoration: none; color: #333; }
     .nav-item a:hover { color: #0a75ff; }
 
-    /* Tiles */
+    /* Tile Grid */
     .tile-section { padding: 20px; }
     .tiles {
         display: grid;
@@ -55,28 +62,18 @@
     .tile:hover { transform: translateY(-3px); }
     .tile svg { width: 40px; height: 40px; stroke-width: 2; margin-bottom: 12px; }
 
-    /* Rating Tiles (Left-aligned) */
-    .rating-tile { text-align: left !important; padding: 15px; }
+    /* Rating tile styles */
+    .rating-tile { text-align:left !important; padding:15px; }
 
-    .rating-header {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 6px;
-    }
-    .rating-header svg { width: 22px; height: 22px; }
+    .rating-header { display:flex; align-items:center; gap:10px; }
+    .rating-header svg { width:22px; height:22px; }
 
-    .rating-title { font-weight: bold; font-size: 1rem; }
-    .rating-line { font-size: 0.9rem; margin: 2px 0; }
-    .rating-bars { margin-top: 6px; line-height: 1.2rem; font-size: 1.1rem; }
+    .rating-title { font-weight: bold; font-size:1rem; }
+    .rating-line { font-size:0.9rem; margin:3px 0; }
+    .rating-bars { margin-top:6px; font-size:1.1rem; line-height:1.2rem; }
 
     /* Footer */
-    .footer {
-        text-align: center;
-        color: #444;
-        padding: 30px 15px;
-        font-size: 0.9rem;
-    }
+    .footer { text-align:center; padding:30px 15px; color:#444; }
 </style>
 
 </head>
@@ -98,13 +95,14 @@
 <div class="tile-section" id="tools">
     <div class="tiles">
 
-        <!-- Alterations Scheduler Desktop -->
+        <!-- ALL EXISTING TILES -->
+        <!-- Desktop Alterations -->
         <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html')">
             <svg><path d="M4 4h16v16H4z"/></svg>
             Alterations Scheduler (Desktop)
         </div>
 
-        <!-- Alterations Scheduler Mobile -->
+        <!-- Mobile Alterations -->
         <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html')">
             <svg><rect x="7" y="3" width="10" height="18"/></svg>
             Alterations Scheduler (Mobile)
@@ -128,11 +126,11 @@
             Directory of Contacts
         </div>
 
-        <!-- NEW: Alterations Pricing -->
+        <!-- ALTERATIONS PRICING (NEW) -->
         <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1035596463&single=true')">
             <svg viewBox="0 0 24 24">
-                <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="#0a75ff" stroke-width="2"/>
-                <path d="M3 10h18M3 14h18M3 18h18" stroke="#0a75ff" stroke-width="2"/>
+                <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="#0a75ff"/>
+                <path d="M3 10h18M3 14h18M3 18h18" stroke="#0a75ff"/>
             </svg>
             Alterations Pricing
         </div>
@@ -149,7 +147,7 @@
             WhatsApp Group
         </div>
 
-        <!-- CleanChat -->
+        <!-- CleanChat AI -->
         <div class="tile" onclick="window.open('https://www.facebook.com/messages/t/2083730355435395')">
             <svg><rect x="4" y="4" width="16" height="12"/></svg>
             CleanChat AI
@@ -215,11 +213,11 @@
     1016 W West Covina Parkway<br>
     West Covina, CA 91790<br>
     Phone: (626) 480-9200<br>
-    Website: <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
+    Website: <a href="https://626topcleaners.com">626topcleaners.com</a><br><br>
     Internal Access Only
 </div>
 
-<!-- LIVE SCRIPT -->
+<!-- LIVE RATING SCRIPT -->
 <script>
 const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 
@@ -227,54 +225,38 @@ function blocks(count, emoji) { return emoji.repeat(count); }
 
 function sentimentBars(p,n,neg) {
     return `
-        <div class="rating-line">Positive: ${p}</div>
+        <div class='rating-line'>Positive: ${p}</div>
         ${blocks(Math.min(20, Math.floor(p/5)), "🟩")}
-        <div class="rating-line">Neutral: ${n}</div>
+        <div class='rating-line'>Neutral: ${n}</div>
         ${blocks(Math.min(20, Math.floor(n/5)), "🟨")}
-        <div class="rating-line">Negative: ${neg}</div>
+        <div class='rating-line'>Negative: ${neg}</div>
         ${blocks(Math.min(20, Math.floor(neg/5)), "🟥")}
     `;
 }
 
 // GOOGLE
-fetch(`${WORKER_URL}/google`)
-    .then(r=>r.json())
-    .then(d=>{
-        let r = d.result.rating;
-        let t = d.result.user_ratings_total;
-        let p = Math.round(t*.85), n = Math.round(t*.10), neg = t-p-n;
-
-        document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
-        document.getElementById("google-bars").innerHTML = sentimentBars(p,n,neg);
-    });
+fetch(`${WORKER_URL}/google`).then(r=>r.json()).then(d=>{
+    const r=d.result.rating, t=d.result.user_ratings_total;
+    const p=Math.round(t*.85), n=Math.round(t*.1), neg=t-p-n;
+    document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("google-bars").innerHTML = sentimentBars(p,n,neg);
+});
 
 // YELP
-fetch(`${WORKER_URL}/yelp`)
-    .then(r=>r.json())
-    .then(d=>{
-        let r = d.rating;
-        let t = d.review_count;
-        let p = Math.round(t*(r/5));
-        let neg = Math.round(t*((5-r)/5));
-        let n = t-p-neg;
-
-        document.getElementById("yelp-rating").innerText = `⭐ ${r} (${t})`;
-        document.getElementById("yelp-bars").innerHTML = sentimentBars(p,n,neg);
-    });
+fetch(`${WORKER_URL}/yelp`).then(r=>r.json()).then(d=>{
+    const r=d.rating, t=d.review_count;
+    const p=Math.round(t*(r/5)), neg=Math.round(t*((5-r)/5)), n=t-p-neg;
+    document.getElementById("yelp-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("yelp-bars").innerHTML = sentimentBars(p,n,neg);
+});
 
 // FACEBOOK
-fetch(`${WORKER_URL}/facebook`)
-    .then(r=>r.json())
-    .then(d=>{
-        let r = d.overall_star_rating;
-        let t = d.rating_count;
-        let p = Math.round(t*(r/5));
-        let neg = Math.round(t*((5-r)/5));
-        let n = t-p-neg;
-
-        document.getElementById("facebook-rating").innerText = `⭐ ${r} (${t})`;
-        document.getElementById("facebook-bars").innerHTML = sentimentBars(p,n,neg);
-    });
+fetch(`${WORKER_URL}/facebook`).then(r=>r.json()).then(d=>{
+    const r=d.overall_star_rating, t=d.rating_count;
+    const p=Math.round(t*(r/5)), neg=Math.round(t*((5-r)/5)), n=t-p-neg;
+    document.getElementById("facebook-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("facebook-bars").innerHTML = sentimentBars(p,n,neg);
+});
 </script>
 
 </body>
