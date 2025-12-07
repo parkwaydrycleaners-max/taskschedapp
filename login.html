@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Secure Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+    margin: 0; 
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: #f1f1f1;
+    font-family: Arial, sans-serif;
+}
+.login-box {
+    background: white;
+    padding: 25px;
+    width: 320px;
+    border-radius: 10px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+    text-align: center;
+}
+input[type="password"] {
+    padding: 10px;
+    width: 100%;
+    margin-top: 15px;
+    border-radius: 5px;
+    border: 1px solid #aaa;
+}
+button {
+    margin-top: 20px;
+    padding: 10px;
+    width: 100%;
+    background: #0a75ff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.error {
+    margin-top: 10px;
+    color: red;
+    display:none;
+}
+</style>
+</head>
+<body>
+
+<div class="login-box">
+    <h2>Top Cleaners Intranet</h2>
+    <p>Please enter the password:</p>
+    <input type="password" id="pwInput">
+    <button onclick="checkPassword()">Login</button>
+    <div class="error" id="errorMsg">Password incorrect</div>
+</div>
+
+<script>
+// SHA-256 hash of the login password "mypassword123"
+const correctHash = "c008e1efc9ad957a0b64cc8b7f1d05089c9b8bce26f1d8cf0235e251665fb692";
+
+async function hash(text) {
+    const msgUint8 = new TextEncoder().encode(text);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function checkPassword() {
+    const input = document.getElementById("pwInput").value;
+    const inputHash = await hash(input);
+
+    if (inputHash === correctHash) {
+        sessionStorage.setItem("authorized", "yes");
+        window.location.href = "index.html"; 
+    } else {
+        document.getElementById("errorMsg").style.display = "block";
+    }
+}
+</script>
+
+</body>
+</html>
