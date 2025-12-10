@@ -607,17 +607,16 @@ async loadTasksDataParallel() {
     console.log('🚀 Starting parallel task loading...');
     
     const startDate = new Date(this.currentDate);
-    startDate.setDate(this.currentDate.getDate() - (this.weeksBack * 7));
+    startDate.setDate(this.currentDate.getDate() - (this.dataLoadSettings.weeksBack * 7));
     
     const endDate = new Date(this.currentDate);
-    endDate.setDate(this.currentDate.getDate() + (this.weeksForward * 7));
+    endDate.setDate(this.currentDate.getDate() + (this.dataLoadSettings.weeksForward * 7));
     
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
     
     console.log(`📅 Loading tasks from ${startDateStr} to ${endDateStr} (parallel)`);
     
-    // Use your existing pagination logic but in parallel
     return await this.loadAllTaskPages(startDateStr, endDateStr);
 }
 
@@ -7317,3 +7316,4 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
