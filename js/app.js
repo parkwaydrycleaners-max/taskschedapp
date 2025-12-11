@@ -617,7 +617,9 @@ async loadTasksDataParallel() {
     
     console.log(`📅 Loading tasks from ${startDateStr} to ${endDateStr} (parallel)`);
     
-    return await this.loadAllTaskPages(startDateStr, endDateStr);
+    // Use existing loadTasksFromAirtable method instead of non-existent loadAllTaskPages
+    await this.loadTasksFromAirtable();
+    return this.tasks;
 }
 
 // Parallel capacity loading
@@ -7496,4 +7498,5 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
