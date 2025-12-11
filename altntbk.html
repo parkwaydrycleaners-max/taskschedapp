@@ -437,6 +437,30 @@
                             </select>
                         </div>
                     </div>
+                    <div>
+                            <span class="block text-xs font-medium mb-1">Weeks Forward:</span>
+                            <select id="weeksForwardSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <option value="2">2 weeks</option>
+                                <option value="3">3 weeks</option>
+                                <option value="4" selected>4 weeks</option>
+                                <option value="6">6 weeks</option>
+                                <option value="8">8 weeks</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- DUE DATE OFFSET -->
+                    <div>
+                        <span for="dueDateOffsetSetting" class="block text-sm font-medium mb-2">Default Due Date Offset:</span>
+                        <div class="flex items-center space-x-2">
+                            <input type="number" id="dueDateOffsetSetting" min="0" max="365" value="0" 
+                                   class="w-20 p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <span class="text-sm text-gray-600">days from today</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">Set to 0 for today's date, 7 for one week ahead, etc.</p>
+                    </div>
+                    
+                    <p class="text-xs text-gray-500 mb-2">Smaller ranges load faster but may not include all your data. You can load more data anytime using the "Load More Historical Data" button in Reports.</p>
                     <p class="text-xs text-gray-500 mb-2">Smaller ranges load faster but may not include all your data. You can load more data anytime using the "Load More Historical Data" button in Reports.</p>
                     <div id="dataLoadingStatus" class="text-xs text-gray-500">
                         <!-- Data loading status will appear here -->
@@ -816,5 +840,6 @@
     <script src="js/app.js"></script>
 </body>
 </html>
+
 
 
