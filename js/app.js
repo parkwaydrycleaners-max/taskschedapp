@@ -1306,7 +1306,7 @@ validateOrderNumber(orderNumber) {
     
     return { 
         isValid: false, 
-        error: 'Order number must be "NEW" or 6 digits (123456) or 1 letter + 6 digits (A123456)' 
+        error: 'Order number must be "NEW" or 6 digits (123456) or 1 letter + 6 digits (P123456)' 
     };
 }
 
@@ -7496,3 +7496,4 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
