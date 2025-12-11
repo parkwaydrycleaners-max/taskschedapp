@@ -1,4 +1,4 @@
-        // Task Scheduler Application
+// Task Scheduler Application
         class TaskSchedulerApp {
             constructor() {
                 // Core state
@@ -1308,6 +1308,73 @@ validateOrderNumber(orderNumber) {
         isValid: false, 
         error: 'Order number must be "NEW" or 6 digits (123456) or 1 letter + 6 digits (A123456)' 
     };
+}
+
+			checkForDuplicateOrderNumber(orderNumber, excludeTaskId = null) {
+    const duplicates = [];
+    
+    // Search through all tasks
+    Object.keys(this.tasks).forEach(dateKey => {
+        Object.keys(this.tasks[dateKey]).forEach(person => {
+            this.tasks[dateKey][person].forEach(task => {
+                // Skip the current task if editing
+                if (excludeTaskId && task.id === excludeTaskId) return;
+                
+                if (task.orderNumber.toLowerCase() === orderNumber.toLowerCase()) {
+                    duplicates.push({
+                        orderNumber: task.orderNumber,
+                        person: person,
+                        workDate: dateKey,
+                        workDateDisplay: this.formatDateForDisplay(dateKey),
+                        description: task.description
+                    });
+                }
+            });
+        });
+    });
+    
+    return duplicates;
+}
+
+			showDuplicateOrderConfirmation(duplicates, onConfirm) {
+    const duplicatesList = duplicates.map(dup => 
+        `• ${dup.person} on ${dup.workDateDisplay} - "${dup.description}"`
+    ).join('<br>');
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div class="flex items-center mb-4">
+                <svg class="w-6 h-6 text-yellow-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.996-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                </svg>
+                <h3 class="text-lg font-semibold text-gray-800">⚠️ Duplicate Order Number</h3>
+            </div>
+            <div class="text-gray-700 mb-4">
+                <p class="mb-3">This order number already exists:</p>
+                <div class="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">
+                    ${duplicatesList}
+                </div>
+            </div>
+            <p class="text-sm text-gray-600 mb-6">Are you sure you want to create another order with the same number?</p>
+            <div class="flex justify-end space-x-3">
+                <button class="cancel-duplicate px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+                <button class="confirm-duplicate px-4 py-2 bg-yellow-500 text-white hover:bg-yellow-600 rounded-lg transition-colors">Yes, Create Duplicate</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.querySelector('.cancel-duplicate').addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
+    
+    modal.querySelector('.confirm-duplicate').addEventListener('click', () => {
+        document.body.removeChild(modal);
+        onConfirm();
+    });
 }
 			
 createTaskCard(task, person, date) {
@@ -2876,7 +2943,25 @@ async saveOrder() {
         targetDateKey = this.getElement('workDateInput').value;
     }
 
-    // Use performance tracking
+    // Check for duplicates (skip if editing the same task)
+    const excludeTaskId = this.isEditingTask ? this.editingTaskId : null;
+    const duplicates = this.checkForDuplicateOrderNumber(orderNumber, excludeTaskId);
+    
+    if (duplicates.length > 0) {
+        // Show confirmation dialog and wait for user response
+        this.showDuplicateOrderConfirmation(duplicates, () => {
+            // User confirmed - proceed with original save logic
+            this.proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey);
+        });
+        return; // Stop here until user confirms
+    }
+
+    // No duplicates - proceed with original save logic
+    this.proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey);
+}
+
+async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey) {
+    // Use performance tracking (original logic preserved)
     try {
         if (this.isEditingTask) {
             await this.performAsyncOperation('updateOrder', 
