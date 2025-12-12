@@ -46,7 +46,7 @@ body {
 .nav-item a { text-decoration: none; color: #333; }
 .nav-item a:hover { color: #0a75ff; }
 
-/* Tiles */
+/* Tile Grid */
 .tile-section { padding: 20px; }
 .tiles {
     display: grid;
@@ -65,7 +65,7 @@ body {
 .tile:hover { transform: translateY(-3px); }
 .tile svg { width: 40px; height: 40px; stroke-width: 2; margin-bottom: 12px; }
 
-/* Rating tiles */
+/* Rating Tiles */
 .rating-tile { text-align: left; padding: 15px; }
 .rating-header { display: flex; align-items: center; gap: 10px; }
 .rating-header svg { width: 22px; height: 22px; }
@@ -73,53 +73,54 @@ body {
 .rating-line { margin: 3px 0; font-size: 0.9rem; }
 .rating-bars { margin-top: 6px; font-size: 1.1rem; line-height: 1.2rem; }
 
-/* Modal overlay */
+/* Modal */
 .modal-overlay {
     position: fixed;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0,0,0,0.45);
     display: none;
     justify-content: center;
     align-items: center;
-    z-index: 9999;
     padding: 15px;
+    z-index: 9999;
 }
-
-/* Modal box */
 .modal-box {
     background: white;
     width: 100%;
-    max-width: 420px;
+    max-width: 440px;
     border-radius: 12px;
     padding: 22px;
+    box-shadow: 0px 6px 18px rgba(0,0,0,0.2);
     animation: modalIn 0.25s ease-out;
-    box-shadow: 0px 6px 18px rgba(0,0,0,0.25);
 }
-
 @keyframes modalIn {
-    from { transform: translateY(40px); opacity: 0; }
-    to   { transform: translateY(0); opacity: 1; }
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-.modal-box input {
-    width: 100%;
-    padding: 10px;
-    margin-top: 6px;
-    margin-bottom: 12px;
-    box-sizing: border-box;
+/* Layout A table */
+.calc-row {
+    display: grid;
+    grid-template-columns: 70px 1fr 65px;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 0;
 }
-
-.modal-box label {
-    display: block;
-    margin-top: 10px;
+.calc-header {
     font-weight: bold;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
 }
-
-.modal-box .addon {
-    margin-left: 4px;
-    font-weight: normal;
+.qty-input {
+    width: 60px;
+    padding: 6px;
+    text-align: center;
+    font-size: 1rem;
 }
+.seq-col { text-align: center; }
+.service-col { font-size: 0.95rem; }
 
 /* Buttons */
 .modal-box button {
@@ -128,13 +129,11 @@ body {
     margin-top: 12px;
     font-size: 1.1rem;
 }
-.close-btn {
-    background: #bbb;
-    color: black;
-}
-.close-btn:hover {
-    background: #aaa;
-}
+.close-btn { background: #bbb; color: black; }
+.close-btn:hover { background: #aaa; }
+
+/* Total */
+.total { text-align: center; font-size: 1.3rem; margin-top: 15px; }
 
 /* Footer */
 .footer {
@@ -142,81 +141,31 @@ body {
     padding: 30px 15px;
     color: #444;
 }
-    /* ======== HEM TABLE LAYOUT (Layout C) ======== */
-
-.calc-row {
-    display: grid;
-    grid-template-columns: 70px 1fr 40px;
-    align-items: center;
-    margin: 6px 0;
-    gap: 5px;
-}
-
-.calc-header {
-    font-weight: bold;
-    margin-bottom: 8px;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 5px;
-}
-
-.calc-col {
-    font-size: 0.95rem;
-}
-
-.qty-col {
-    text-align: center;
-}
-
-.qty-input {
-    width: 55px;
-    padding: 6px;
-    text-align: center;
-    font-size: 1rem;
-}
-
-.service-col {
-    text-align: left;
-}
-
-.seq-col {
-    text-align: center;
-}
 </style>
 </head>
 <body>
-    <!-- LOGO -->
+
+<!-- LOGO -->
 <div class="logo-wrap">
-    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png" alt="Top Cleaners Logo">
+    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png">
 </div>
 
-<!-- NAVIGATION -->
+<!-- NAVBAR -->
 <div class="navbar">
     <div class="nav-item">
-        <a href="#">
-            <svg><circle cx="12" cy="12" r="9"/></svg>
-            Home
-        </a>
+        <a href="#"><svg><circle cx="12" cy="12" r="9"/></svg>Home</a>
     </div>
-
     <div class="nav-item">
-        <a href="#tools">
-            <svg><rect x="4" y="4" width="16" height="16"/></svg>
-            Tools
-        </a>
+        <a href="#tools"><svg><rect x="4" y="4" width="16" height="16"/></svg>Tools</a>
     </div>
-
     <div class="nav-item">
-        <a href="#contact">
-            <svg><path d="M4 4h16v12H4z"/></svg>
-            Contact
-        </a>
+        <a href="#contact"><svg><path d="M4 4h16v12H4z"/></svg>Contact</a>
     </div>
 </div>
 
 <!-- TILE GRID -->
 <div class="tile-section" id="tools">
     <div class="tiles">
-
         <!-- Desktop Scheduler -->
         <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html')">
             <svg><path d="M4 4h16v16H4z"/></svg>
@@ -256,19 +205,19 @@ body {
             Alterations Pricing
         </div>
 
-        <!-- Payroll -->
+        <!-- Payroll Calculator -->
         <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html')">
             <svg><circle cx="12" cy="12" r="9"/></svg>
             Payroll Calculator
         </div>
 
-        <!-- WhatsApp -->
+        <!-- WhatsApp Group -->
         <div class="tile" onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG')">
             <svg><circle cx="12" cy="12" r="9"/></svg>
             WhatsApp Group
         </div>
 
-        <!-- CleanChat -->
+        <!-- CleanChat AI -->
         <div class="tile" onclick="window.open('https://www.facebook.com/messages/t/2083730355435395')">
             <svg><rect x="4" y="4" width="16" height="12"/></svg>
             CleanChat AI
@@ -280,13 +229,13 @@ body {
             Call Logs
         </div>
 
-        <!-- ⭐ Dress Hem Calculator Tile (opens modal) -->
+        <!-- ⭐ Dress Hem Estimator -->
         <div class="tile" onclick="openHemModal()">
             <svg viewBox="0 0 24 24">
                 <path d="M4 4h16v16H4z" fill="none" stroke="#0a75ff" stroke-width="2"/>
                 <path d="M8 4v16M16 4v16M4 10h16M4 16h16" stroke="#0a75ff" stroke-width="2"/>
             </svg>
-            Dress Hem Calculator
+            Dress Hem Estimator
         </div>
         <!-- ⭐ GOOGLE RATING TILE -->
         <div class="tile rating-tile"
@@ -333,16 +282,15 @@ body {
             <div id="facebook-bars" class="rating-bars"></div>
         </div>
 
-    </div> <!-- END tiles -->
-</div> <!-- END tile-section -->
-    <!-- ⭐ DRESS HEM CALCULATOR MODAL -->
-<!-- ⭐ DRESS HEM CALCULATOR MODAL (LAYOUT C) -->
+    </div> <!-- end .tiles -->
+</div> <!-- end .tile-section -->
+    <!-- ⭐ DRESS HEM ESTIMATOR MODAL -->
 <div id="hemModal" class="modal-overlay" onclick="closeHemModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
 
-        <h2>Dress Hem Calculator</h2>
+        <h2>Dress Hem Estimator</h2>
 
-        <!-- TABLE HEADER -->
+        <!-- HEADER -->
         <div class="calc-row calc-header">
             <div class="calc-col qty-col">Qty</div>
             <div class="calc-col service-col">Service</div>
@@ -354,12 +302,8 @@ body {
             <div class="calc-col qty-col">
                 <input type="number" id="hemYards" class="qty-input" min="0" step="0.1">
             </div>
-            <div class="calc-col service-col">
-                Dress Hems @ $12.50/yd
-            </div>
-            <div class="calc-col seq-col">
-                <input type="checkbox" id="seqHem">
-            </div>
+            <div class="calc-col service-col">Dress Hems @ $12.50/yd</div>
+            <div class="calc-col seq-col"><input type="checkbox" id="seqHem"></div>
         </div>
 
         <!-- Cut Hems -->
@@ -367,12 +311,8 @@ body {
             <div class="calc-col qty-col">
                 <input type="number" id="cutHemYards" class="qty-input" min="0" step="0.1">
             </div>
-            <div class="calc-col service-col">
-                Cut Hems @ $6.25/yd
-            </div>
-            <div class="calc-col seq-col">
-                <input type="checkbox" id="seqCut">
-            </div>
+            <div class="calc-col service-col">Cut Hems @ $6.25/yd</div>
+            <div class="calc-col seq-col"><input type="checkbox" id="seqCut"></div>
         </div>
 
         <!-- Horsehair -->
@@ -380,36 +320,29 @@ body {
             <div class="calc-col qty-col">
                 <input type="number" id="horsehairYards" class="qty-input" min="0" step="0.1">
             </div>
-            <div class="calc-col service-col">
-                Horsehair Hems @ $25.00/yd
-            </div>
-            <div class="calc-col seq-col">
-                <input type="checkbox" id="seqHorse">
-            </div>
+            <div class="calc-col service-col">Horsehair Hems @ $25.00/yd</div>
+            <div class="calc-col seq-col"><input type="checkbox" id="seqHorse"></div>
         </div>
 
         <hr>
 
-<!-- Glitter Row (aligned with 3-column grid) -->
-<div class="calc-row">
-    <div class="calc-col qty-col"></div>
+        <!-- Glitter Row -->
+        <div class="calc-row">
+            <div class="calc-col qty-col"></div>
+            <div class="calc-col service-col">Add Glitter (+ $10 flat)</div>
+            <div class="calc-col seq-col"><input type="checkbox" id="glitterCheck"></div>
+        </div>
 
-    <div class="calc-col service-col">
-        Add Glitter (+ $10 flat)
-    </div>
-
-    <div class="calc-col seq-col">
-        <input type="checkbox" id="glitterCheck">
-    </div>
-</div>
         <!-- BUTTONS -->
         <button onclick="calculateHemTotal()">Calculate</button>
+
         <div class="total" id="hemTotal">Total: $0.00</div>
 
         <button class="close-btn" onclick="closeHemModal()">Close</button>
 
     </div>
 </div>
+
 <!-- FOOTER -->
 <div class="footer" id="contact">
     <strong>Top Cleaners & Alterations</strong><br>
@@ -447,51 +380,51 @@ function sentimentBars(p, n, neg) {
 
 /* GOOGLE REVIEWS */
 fetch(`${WORKER_URL}/google`)
-.then(res => res.json())
-.then(data => {
-    const r = data.result.rating;
-    const t = data.result.user_ratings_total;
+    .then(res => res.json())
+    .then(data => {
+        const r = data.result.rating;
+        const t = data.result.user_ratings_total;
 
-    const p = Math.round(t * 0.85);
-    const n = Math.round(t * 0.10);
-    const neg = t - p - n;
+        const p = Math.round(t * 0.85);
+        const n = Math.round(t * 0.10);
+        const neg = t - p - n;
 
-    document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
-    document.getElementById("google-bars").innerHTML = sentimentBars(p, n, neg);
-});
+        document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
+        document.getElementById("google-bars").innerHTML = sentimentBars(p, n, neg);
+    });
 
 /* YELP REVIEWS */
 fetch(`${WORKER_URL}/yelp`)
-.then(res => res.json())
-.then(data => {
-    const r = data.rating;
-    const t = data.review_count;
+    .then(res => res.json())
+    .then(data => {
+        const r = data.rating;
+        const t = data.review_count;
 
-    const p = Math.round(t * (r/5));
-    const neg = Math.round(t * ((5-r)/5));
-    const n = t - p - neg;
+        const p = Math.round(t * (r/5));
+        const neg = Math.round(t * ((5 - r)/5));
+        const n = t - p - neg;
 
-    document.getElementById("yelp-rating").innerText = `⭐ ${r} (${t})`;
-    document.getElementById("yelp-bars").innerHTML = sentimentBars(p, n, neg);
-});
+        document.getElementById("yelp-rating").innerText = `⭐ ${r} (${t})`;
+        document.getElementById("yelp-bars").innerHTML = sentimentBars(p, n, neg);
+    });
 
 /* FACEBOOK REVIEWS */
 fetch(`${WORKER_URL}/facebook`)
-.then(res => res.json())
-.then(data => {
-    const r = data.overall_star_rating;
-    const t = data.rating_count;
+    .then(res => res.json())
+    .then(data => {
+        const r = data.overall_star_rating;
+        const t = data.rating_count;
 
-    const p = Math.round(t * (r/5));
-    const neg = Math.round(t * ((5-r)/5));
-    const n = t - p - neg;
+        const p = Math.round(t * (r/5));
+        const neg = Math.round(t * ((5 - r)/5));
+        const n = t - p - neg;
 
-    document.getElementById("facebook-rating").innerText = `⭐ ${r} (${t})`;
-    document.getElementById("facebook-bars").innerHTML = sentimentBars(p, n, neg);
-});
+        document.getElementById("facebook-rating").innerText = `⭐ ${r} (${t})`;
+        document.getElementById("facebook-bars").innerHTML = sentimentBars(p, n, neg);
+    });
 
 /* -----------------------------------------
-   DRESS HEM MODAL BEHAVIOR
+   DRESS HEM MODAL FUNCTIONS
 -------------------------------------------- */
 
 function openHemModal() {
@@ -505,7 +438,7 @@ function closeHemModal(event) {
 }
 
 /* -----------------------------------------
-   DRESS HEM CALCULATOR LOGIC
+   DRESS HEM ESTIMATOR (Layout A)
 -------------------------------------------- */
 
 function calculateHemTotal() {
@@ -522,7 +455,6 @@ function calculateHemTotal() {
         cutYards   * cutRate +
         horseYards * horseRate;
 
-    // Sequins per row
     if (document.getElementById("seqHem").checked)
         total += hemYards * 5;
 
@@ -532,7 +464,6 @@ function calculateHemTotal() {
     if (document.getElementById("seqHorse").checked)
         total += horseYards * 5;
 
-    // Glitter flat fee
     if (document.getElementById("glitterCheck").checked)
         total += 10;
 
@@ -543,7 +474,3 @@ function calculateHemTotal() {
 
 </body>
 </html>
-
-
-
-
