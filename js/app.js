@@ -622,10 +622,12 @@ async loadTasksDataParallel() {
     return this.tasks;
 }
 
-// Parallel capacity loading
 async loadCapacityOverridesParallel() {
     console.log('🚀 Starting parallel capacity loading...');
-    return await this.loadAllCapacityPages();
+    
+    // Use existing loadCapacityOverridesFromAirtable method instead of non-existent loadAllCapacityPages
+    await this.loadCapacityOverridesFromAirtable();
+    return this.peopleSpecificCapacity;
 }
 
 // Parallel config loading
@@ -7498,5 +7500,6 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
 
