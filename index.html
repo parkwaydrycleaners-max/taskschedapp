@@ -142,6 +142,45 @@ body {
     padding: 30px 15px;
     color: #444;
 }
+    /* ======== HEM TABLE LAYOUT (Layout C) ======== */
+
+.calc-row {
+    display: grid;
+    grid-template-columns: 70px 1fr 40px;
+    align-items: center;
+    margin: 6px 0;
+    gap: 10px;
+}
+
+.calc-header {
+    font-weight: bold;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 5px;
+}
+
+.calc-col {
+    font-size: 0.95rem;
+}
+
+.qty-col {
+    text-align: center;
+}
+
+.qty-input {
+    width: 55px;
+    padding: 6px;
+    text-align: center;
+    font-size: 1rem;
+}
+
+.service-col {
+    text-align: left;
+}
+
+.seq-col {
+    text-align: center;
+}
 </style>
 </head>
 <body>
@@ -297,55 +336,74 @@ body {
     </div> <!-- END tiles -->
 </div> <!-- END tile-section -->
     <!-- ⭐ DRESS HEM CALCULATOR MODAL -->
+<!-- ⭐ DRESS HEM CALCULATOR MODAL (LAYOUT C) -->
 <div id="hemModal" class="modal-overlay" onclick="closeHemModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
 
         <h2>Dress Hem Calculator</h2>
 
-        <!-- HEM -->
-        <label>Dress Hems (12.50 per yard)</label>
-        <input type="number" id="hemYards" placeholder="Enter yards" min="0" step="0.1">
-        <label class="addon">
-            <input type="checkbox" id="seqHem"> Sequins on Dress Hems (+ $5 per yard)
-        </label>
+        <!-- TABLE HEADER -->
+        <div class="calc-row calc-header">
+            <div class="calc-col qty-col">Qty</div>
+            <div class="calc-col service-col">Service</div>
+            <div class="calc-col seq-col">Seq</div>
+        </div>
+
+        <!-- Dress Hems -->
+        <div class="calc-row">
+            <div class="calc-col qty-col">
+                <input type="number" id="hemYards" class="qty-input" min="0" step="0.1">
+            </div>
+            <div class="calc-col service-col">
+                Dress Hems @ $12.50/yd
+            </div>
+            <div class="calc-col seq-col">
+                <input type="checkbox" id="seqHem">
+            </div>
+        </div>
+
+        <!-- Cut Hems -->
+        <div class="calc-row">
+            <div class="calc-col qty-col">
+                <input type="number" id="cutHemYards" class="qty-input" min="0" step="0.1">
+            </div>
+            <div class="calc-col service-col">
+                Cut Hems @ $6.25/yd
+            </div>
+            <div class="calc-col seq-col">
+                <input type="checkbox" id="seqCut">
+            </div>
+        </div>
+
+        <!-- Horsehair -->
+        <div class="calc-row">
+            <div class="calc-col qty-col">
+                <input type="number" id="horsehairYards" class="qty-input" min="0" step="0.1">
+            </div>
+            <div class="calc-col service-col">
+                Horsehair Hems @ $25.00/yd
+            </div>
+            <div class="calc-col seq-col">
+                <input type="checkbox" id="seqHorse">
+            </div>
+        </div>
 
         <hr>
 
-        <!-- CUT HEM -->
-        <label>Dress Cut Hems (6.25 per yard)</label>
-        <input type="number" id="cutHemYards" placeholder="Enter yards" min="0" step="0.1">
-        <label class="addon">
-            <input type="checkbox" id="seqCut"> Sequins on Cut Hems (+ $5 per yard)
+        <!-- Glitter -->
+        <label class="addon" style="margin-bottom: 10px;">
+            <input type="checkbox" id="glitterCheck">
+            Add Glitter (+ $10 flat)
         </label>
 
-        <hr>
-
-        <!-- HORSEHAIR -->
-        <label>Dress Hems with Horsehair (25.00 per yard)</label>
-        <input type="number" id="horsehairYards" placeholder="Enter yards" min="0" step="0.1">
-        <label class="addon">
-            <input type="checkbox" id="seqHorse"> Sequins on Horsehair Hems (+ $5 per yard)
-        </label>
-
-        <hr>
-
-        <!-- GLITTER -->
-        <label class="addon">
-            <input type="checkbox" id="glitterCheck"> Add Glitter (+ $10 flat)
-        </label>
-
-        <!-- CALCULATE BUTTON -->
+        <!-- BUTTONS -->
         <button onclick="calculateHemTotal()">Calculate</button>
-
-        <!-- TOTAL -->
         <div class="total" id="hemTotal">Total: $0.00</div>
 
-        <!-- CLOSE BUTTON -->
         <button class="close-btn" onclick="closeHemModal()">Close</button>
 
     </div>
 </div>
-
 <!-- FOOTER -->
 <div class="footer" id="contact">
     <strong>Top Cleaners & Alterations</strong><br>
@@ -449,30 +507,28 @@ function calculateHemTotal() {
     const cutRate   = 6.25;
     const horseRate = 25.00;
 
-    const hemYards   = parseFloat(document.getElementById("hemYards").value) || 0;
+    const hemYards   = parseFloat(document.getElementById("hemYards").value)   || 0;
     const cutYards   = parseFloat(document.getElementById("cutHemYards").value) || 0;
     const horseYards = parseFloat(document.getElementById("horsehairYards").value) || 0;
 
-    let total = 
-        (hemYards * hemRate) +
-        (cutYards * cutRate) +
-        (horseYards * horseRate);
+    let total =
+        hemYards   * hemRate +
+        cutYards   * cutRate +
+        horseYards * horseRate;
 
-    // Glitter ($10 flat)
-    if (document.getElementById("glitterCheck").checked) {
-        total += 10;
-    }
-
-    // SEQUINS PER-YARD PER SERVICE
-    if (document.getElementById("seqHem").checked) {
+    // Sequins per row
+    if (document.getElementById("seqHem").checked)
         total += hemYards * 5;
-    }
-    if (document.getElementById("seqCut").checked) {
+
+    if (document.getElementById("seqCut").checked)
         total += cutYards * 5;
-    }
-    if (document.getElementById("seqHorse").checked) {
+
+    if (document.getElementById("seqHorse").checked)
         total += horseYards * 5;
-    }
+
+    // Glitter flat fee
+    if (document.getElementById("glitterCheck").checked)
+        total += 10;
 
     document.getElementById("hemTotal").innerText =
         "Total: $" + total.toFixed(2);
@@ -481,3 +537,4 @@ function calculateHemTotal() {
 
 </body>
 </html>
+
