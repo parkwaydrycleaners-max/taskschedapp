@@ -294,24 +294,34 @@ if (sessionStorage.getItem("authorized") !== "yes") {
 
         <h2>Dress Hem Calculator</h2>
 
+        <!-- HEM -->
         <label>Dress Hems (12.50 per yard)</label>
         <input type="number" id="hemYards" placeholder="Enter yards" min="0" step="0.1">
+        <label><input type="checkbox" id="seqHem"> Sequins on Dress Hems (+ $5 per yard)</label>
 
+        <!-- CUT HEM -->
         <label>Dress Cut Hems (6.25 per yard)</label>
         <input type="number" id="cutHemYards" placeholder="Enter yards" min="0" step="0.1">
+        <label><input type="checkbox" id="seqCut"> Sequins on Cut Hems (+ $5 per yard)</label>
 
+        <!-- HORSEHAIR -->
         <label>Dress Hems with Horsehair (25.00 per yard)</label>
         <input type="number" id="horsehairYards" placeholder="Enter yards" min="0" step="0.1">
+        <label><input type="checkbox" id="seqHorse"> Sequins on Horsehair Hems (+ $5 per yard)</label>
 
+        <!-- GLITTER -->
+        <label><input type="checkbox" id="glitterCheck"> Add Glitter (+ $10 flat)</label>
+
+        <!-- CALCULATE -->
         <button onclick="calculateHemTotal()">Calculate</button>
 
+        <!-- TOTAL -->
         <div class="total" id="hemTotal">Total: $0.00</div>
 
+        <!-- CLOSE -->
         <button class="close-btn" onclick="closeHemModal()">Close</button>
-
     </div>
 </div>
-
 <!-- FOOTER -->
 <div class="footer" id="contact">
     <strong>Top Cleaners & Alterations</strong><br>
@@ -414,13 +424,30 @@ function calculateHemTotal() {
     const cutRate = 6.25;
     const horseRate = 25.00;
 
-    const hemYards  = parseFloat(document.getElementById("hemYards").value) || 0;
-    const cutYards  = parseFloat(document.getElementById("cutHemYards").value) || 0;
-    const horseYards= parseFloat(document.getElementById("horsehairYards").value) || 0;
+    const hemYards   = parseFloat(document.getElementById("hemYards").value) || 0;
+    const cutYards   = parseFloat(document.getElementById("cutHemYards").value) || 0;
+    const horseYards = parseFloat(document.getElementById("horsehairYards").value) || 0;
 
-    const total = (hemYards * hemRate) +
-                  (cutYards * cutRate) +
-                  (horseYards * horseRate);
+    let total = 
+        (hemYards * hemRate) +
+        (cutYards * cutRate) +
+        (horseYards * horseRate);
+
+    // Glitter (flat +10)
+    if (document.getElementById("glitterCheck").checked) {
+        total += 10;
+    }
+
+    // Sequins (per-yard per service)
+    if (document.getElementById("seqHem").checked) {
+        total += hemYards * 5;
+    }
+    if (document.getElementById("seqCut").checked) {
+        total += cutYards * 5;
+    }
+    if (document.getElementById("seqHorse").checked) {
+        total += horseYards * 5;
+    }
 
     document.getElementById("hemTotal").innerText = "Total: $" + total.toFixed(2);
 }
@@ -428,3 +455,4 @@ function calculateHemTotal() {
 
 </body>
 </html>
+
