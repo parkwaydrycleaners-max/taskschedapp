@@ -13,148 +13,141 @@ if (sessionStorage.getItem("authorized") !== "yes") {
 </script>
 
 <style>
-    body {
-        font-family: Arial, sans-serif;
-        margin: 0;
-        background: #f7f7f7;
-        line-height: 1.4;
-    }
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    background: #f7f7f7;
+    line-height: 1.4;
+}
 
-    /* Logo */
-    .logo-wrap {
-        background: white;
-        padding: 25px 0;
-        border-bottom: 1px solid #e0e0e0;
-        text-align: center;
-    }
-    .logo-wrap img { width: 200px; height: auto; }
+/* Logo */
+.logo-wrap {
+    background: white;
+    padding: 25px 0;
+    border-bottom: 1px solid #e0e0e0;
+    text-align: center;
+}
+.logo-wrap img {
+    width: 200px;
+    height: auto;
+}
 
-    /* Navbar */
-    .navbar {
-        display: flex;
-        justify-content: center;
-        gap: 40px;
-        padding: 12px 0;
-        background: white;
-        border-bottom: 1px solid #e0e0e0;
-    }
-    .nav-item { text-align: center; font-size: 0.8rem; }
-    .nav-item svg { width: 24px; height: 24px; stroke: #333; fill: none; margin: 0 auto; display: block; }
-    .nav-item a { text-decoration: none; color: #333; }
-    .nav-item a:hover { color: #0a75ff; }
+/* Navbar */
+.navbar {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    padding: 12px 0;
+    background: white;
+    border-bottom: 1px solid #e0e0e0;
+}
+.nav-item { text-align: center; font-size: 0.8rem; }
+.nav-item svg { width: 24px; height: 24px; stroke: #333; fill: none; display: block; margin: 0 auto; }
+.nav-item a { text-decoration: none; color: #333; }
+.nav-item a:hover { color: #0a75ff; }
 
-    /* Tile Grid */
-    .tile-section { padding: 20px; }
-    .tiles {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 20px;
-    }
-    .tile {
-        background: white;
-        padding: 18px;
-        border-radius: 10px;
-        box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
-        cursor: pointer;
-        transition: 0.25s;
-        text-align: center;
-    }
-    .tile:hover { transform: translateY(-3px); }
-    .tile svg { width: 40px; height: 40px; stroke-width: 2; margin-bottom: 12px; }
+/* Tiles */
+.tile-section { padding: 20px; }
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+}
+.tile {
+    background: white;
+    padding: 18px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: 0.25s;
+}
+.tile:hover { transform: translateY(-3px); }
+.tile svg { width: 40px; height: 40px; stroke-width: 2; margin-bottom: 12px; }
 
-    /* Rating tile styles */
-    .rating-tile { text-align:left !important; padding:15px; }
+/* Rating tiles */
+.rating-tile { text-align: left; padding: 15px; }
+.rating-header { display: flex; align-items: center; gap: 10px; }
+.rating-header svg { width: 22px; height: 22px; }
+.rating-title { font-weight: bold; font-size: 1rem; }
+.rating-line { margin: 3px 0; font-size: 0.9rem; }
+.rating-bars { margin-top: 6px; font-size: 1.1rem; line-height: 1.2rem; }
 
-    .rating-header { display:flex; align-items:center; gap:10px; }
-    .rating-header svg { width:22px; height:22px; }
+/* Modal overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    padding: 15px;
+}
 
-    .rating-title { font-weight: bold; font-size:1rem; }
-    .rating-line { font-size:0.9rem; margin:3px 0; }
-    .rating-bars { margin-top:6px; font-size:1.1rem; line-height:1.2rem; }
+/* Modal box */
+.modal-box {
+    background: white;
+    width: 100%;
+    max-width: 420px;
+    border-radius: 12px;
+    padding: 22px;
+    animation: modalIn 0.25s ease-out;
+    box-shadow: 0px 6px 18px rgba(0,0,0,0.25);
+}
 
-    /* Modal Background */
-    .modal-overlay {
-        position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        background: rgba(0,0,0,0.45);
-        display: none;
-        justify-content: center;
-        align-items: center;
-        padding: 15px;
-        z-index: 9999;
-    }
+@keyframes modalIn {
+    from { transform: translateY(40px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
 
-    /* Modal Box */
-    .modal-box {
-        background: white;
-        width: 100%;
-        max-width: 420px;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.20);
-        animation: modalIn 0.25s ease-out;
-    }
-.modal-box hr {
-    margin: 15px 0;
-    border: none;
-    border-top: 1px solid #ddd;
+.modal-box input {
+    width: 100%;
+    padding: 10px;
+    margin-top: 6px;
+    margin-bottom: 12px;
+    box-sizing: border-box;
 }
 
 .modal-box label {
-    font-weight: bold;
     display: block;
     margin-top: 10px;
+    font-weight: bold;
 }
 
 .modal-box .addon {
+    margin-left: 4px;
     font-weight: normal;
-    margin-top: 8px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
 }
-    @keyframes modalIn {
-        from { transform: translateY(40px); opacity: 0; }
-        to   { transform: translateY(0); opacity: 1; }
-    }
 
-    .modal-box input {
-        width: 100%;
-        padding: 10px;
-        margin-top: 6px;
-        margin-bottom: 12px;
-        box-sizing: border-box;
-    }
+/* Buttons */
+.modal-box button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 12px;
+    font-size: 1.1rem;
+}
+.close-btn {
+    background: #bbb;
+    color: black;
+}
+.close-btn:hover {
+    background: #aaa;
+}
 
-    .modal-box button {
-        width: 100%;
-        padding: 10px;
-        margin-top: 12px;
-        font-size: 1.1rem;
-    }
-
-    .close-btn {
-        background: #bbb;
-        color: black;
-    }
-
-    .close-btn:hover { background: #aaa; }
-
-    .total {
-        text-align: center;
-        font-size: 1.3rem;
-        margin-top: 15px;
-    }
-
-    /* Footer */
-    .footer { text-align:center; padding:30px 15px; color:#444; }
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 30px 15px;
+    color: #444;
+}
 </style>
 </head>
 <body>
-<!-- LOGO -->
+    <!-- LOGO -->
 <div class="logo-wrap">
-    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png">
+    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png" alt="Top Cleaners Logo">
 </div>
 
 <!-- NAVIGATION -->
@@ -184,7 +177,8 @@ if (sessionStorage.getItem("authorized") !== "yes") {
 <!-- TILE GRID -->
 <div class="tile-section" id="tools">
     <div class="tiles">
-<!-- Desktop Scheduler -->
+
+        <!-- Desktop Scheduler -->
         <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html')">
             <svg><path d="M4 4h16v16H4z"/></svg>
             Alterations Scheduler (Desktop)
@@ -208,7 +202,7 @@ if (sessionStorage.getItem("authorized") !== "yes") {
             Weekly Work Schedule
         </div>
 
-        <!-- Directory of Contacts -->
+        <!-- Directory -->
         <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true')">
             <svg><path d="M4 4h16v16H4z"/></svg>
             Directory of Contacts
@@ -223,19 +217,19 @@ if (sessionStorage.getItem("authorized") !== "yes") {
             Alterations Pricing
         </div>
 
-        <!-- Payroll Calculator -->
+        <!-- Payroll -->
         <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html')">
             <svg><circle cx="12" cy="12" r="9"/></svg>
             Payroll Calculator
         </div>
 
-        <!-- WhatsApp Group -->
+        <!-- WhatsApp -->
         <div class="tile" onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG')">
             <svg><circle cx="12" cy="12" r="9"/></svg>
             WhatsApp Group
         </div>
 
-        <!-- CleanChat AI -->
+        <!-- CleanChat -->
         <div class="tile" onclick="window.open('https://www.facebook.com/messages/t/2083730355435395')">
             <svg><rect x="4" y="4" width="16" height="12"/></svg>
             CleanChat AI
@@ -247,16 +241,19 @@ if (sessionStorage.getItem("authorized") !== "yes") {
             Call Logs
         </div>
 
-        <!-- ⭐ DRESS HEM CALCULATOR MODAL (CLEAN FORMATTING) -->
-        <div id="hemModal" class="modal-overlay" onclick="closeHemModal(event)">
+        <!-- ⭐ Dress Hem Calculator Tile (opens modal) -->
+        <div class="tile" onclick="openHemModal()">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v16H4z" fill="none" stroke="#0a75ff" stroke-width="2"/>
+                <path d="M8 4v16M16 4v16M4 10h16M4 16h16" stroke="#0a75ff" stroke-width="2"/>
+            </svg>
+            Dress Hem Calculator
         </div>
-
         <!-- ⭐ GOOGLE RATING TILE -->
         <div class="tile rating-tile"
-             onclick="window.open('https://www.google.com/maps/place/West+Covina+Parkway+Top+Cleaners+and+Alterations')">
+             onclick="window.open('https://www.google.com/maps/place/West+Covina+Parkway+Top+Cleaners+and+Alterations','_blank')">
 
             <div class="rating-header">
-                <!-- Google Icon -->
                 <svg viewBox="0 0 24 24">
                     <path fill="#EA4335" d="M12 10.2v3.6h5.1c-.3 1.5-1.8 4.4-5.1 4.4a5.7 5.7 0 110-11.4c1.6 0 2.8.7 3.4 1.3l2.3-2.3C16.3 4.7 14.3 4 12 4a9 9 0 100 18c5.2 0 8.7-3.7 8.7-8.9 0-.6-.1-1-.2-1.5H12z"/>
                 </svg>
@@ -269,10 +266,9 @@ if (sessionStorage.getItem("authorized") !== "yes") {
 
         <!-- ⭐ YELP RATING TILE -->
         <div class="tile rating-tile"
-             onclick="window.open('https://www.yelp.com/biz/west-covina-parkway-top-cleaners-and-alterations-west-covina')">
+             onclick="window.open('https://www.yelp.com/biz/west-covina-parkway-top-cleaners-and-alterations-west-covina','_blank')">
 
             <div class="rating-header">
-                <!-- Yelp Icon -->
                 <svg viewBox="0 0 24 24">
                     <path fill="#D32323" d="M10.52 2.1c-.39-.7-1.36-.75-1.82-.1L6.38 4.92c-.25.35-.3.8-.14 1.19l1.75 4.2c.3.71 1.23.93 1.81.43l2.86-2.5c.46-.4.59-1.07.29-1.6l-2.43-4.54z"/>
                 </svg>
@@ -285,10 +281,9 @@ if (sessionStorage.getItem("authorized") !== "yes") {
 
         <!-- ⭐ FACEBOOK RATING TILE -->
         <div class="tile rating-tile"
-             onclick="window.open('https://www.facebook.com/1385716841487687/reviews')">
+             onclick="window.open('https://www.facebook.com/1385716841487687/reviews','_blank')">
 
             <div class="rating-header">
-                <!-- Facebook Icon -->
                 <svg viewBox="0 0 24 24">
                     <path fill="#1877F2" d="M22 12A10 10 0 1010.6 21.8v-6.6H8v-3.2h2.6V9.4c0-2.6 1.5-4.1 3.9-4.1 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.3 0-1.7.8-1.7 1.6v1.9H20l-.5 3.2h-3.3v6.6A10 10 0 0022 12z"/>
                 </svg>
@@ -298,10 +293,10 @@ if (sessionStorage.getItem("authorized") !== "yes") {
             <div id="facebook-rating" class="rating-line">Loading...</div>
             <div id="facebook-bars" class="rating-bars"></div>
         </div>
-</div> <!-- END OF .tiles -->
-</div> <!-- END OF .tile-section -->
 
-<!-- ⭐ DRESS HEM CALCULATOR MODAL -->
+    </div> <!-- END tiles -->
+</div> <!-- END tile-section -->
+    <!-- ⭐ DRESS HEM CALCULATOR MODAL -->
 <div id="hemModal" class="modal-overlay" onclick="closeHemModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
 
@@ -310,31 +305,47 @@ if (sessionStorage.getItem("authorized") !== "yes") {
         <!-- HEM -->
         <label>Dress Hems (12.50 per yard)</label>
         <input type="number" id="hemYards" placeholder="Enter yards" min="0" step="0.1">
-        <label><input type="checkbox" id="seqHem"> Sequins on Dress Hems (+ $5 per yard)</label>
+        <label class="addon">
+            <input type="checkbox" id="seqHem"> Sequins on Dress Hems (+ $5 per yard)
+        </label>
+
+        <hr>
 
         <!-- CUT HEM -->
         <label>Dress Cut Hems (6.25 per yard)</label>
         <input type="number" id="cutHemYards" placeholder="Enter yards" min="0" step="0.1">
-        <label><input type="checkbox" id="seqCut"> Sequins on Cut Hems (+ $5 per yard)</label>
+        <label class="addon">
+            <input type="checkbox" id="seqCut"> Sequins on Cut Hems (+ $5 per yard)
+        </label>
+
+        <hr>
 
         <!-- HORSEHAIR -->
         <label>Dress Hems with Horsehair (25.00 per yard)</label>
         <input type="number" id="horsehairYards" placeholder="Enter yards" min="0" step="0.1">
-        <label><input type="checkbox" id="seqHorse"> Sequins on Horsehair Hems (+ $5 per yard)</label>
+        <label class="addon">
+            <input type="checkbox" id="seqHorse"> Sequins on Horsehair Hems (+ $5 per yard)
+        </label>
+
+        <hr>
 
         <!-- GLITTER -->
-        <label><input type="checkbox" id="glitterCheck"> Add Glitter (+ $10 flat)</label>
+        <label class="addon">
+            <input type="checkbox" id="glitterCheck"> Add Glitter (+ $10 flat)
+        </label>
 
-        <!-- CALCULATE -->
+        <!-- CALCULATE BUTTON -->
         <button onclick="calculateHemTotal()">Calculate</button>
 
         <!-- TOTAL -->
         <div class="total" id="hemTotal">Total: $0.00</div>
 
-        <!-- CLOSE -->
+        <!-- CLOSE BUTTON -->
         <button class="close-btn" onclick="closeHemModal()">Close</button>
+
     </div>
 </div>
+
 <!-- FOOTER -->
 <div class="footer" id="contact">
     <strong>Top Cleaners & Alterations</strong><br>
@@ -344,82 +355,80 @@ if (sessionStorage.getItem("authorized") !== "yes") {
     Website: <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
     Internal Access Only
 </div>
-<!-- ⭐ JAVASCRIPT SECTION -->
 
+<!-- ⭐ JAVASCRIPT SECTION -->
 <script>
-/* -------------------------------
-   LIVE RATING DATA (Cloudflare Worker)
------------------------------------ */
+/* -----------------------------------------
+   CLOUDLFARE WORKER — LIVE RATINGS FETCH
+-------------------------------------------- */
 
 const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 
-/* build emoji bars */
 function blocks(count, emoji) {
     return emoji.repeat(count);
 }
 
-/* sentiment display */
 function sentimentBars(p, n, neg) {
     return `
-        <div class="rating-line">Positive: ${p}</div>
+        <div class='rating-line'>Positive: ${p}</div>
         ${blocks(Math.min(20, Math.floor(p/5)), "🟩")}
-        
-        <div class="rating-line">Neutral: ${n}</div>
+
+        <div class='rating-line'>Neutral: ${n}</div>
         ${blocks(Math.min(20, Math.floor(n/5)), "🟨")}
 
-        <div class="rating-line">Negative: ${neg}</div>
+        <div class='rating-line'>Negative: ${neg}</div>
         ${blocks(Math.min(20, Math.floor(neg/5)), "🟥")}
     `;
 }
 
 /* GOOGLE REVIEWS */
 fetch(`${WORKER_URL}/google`)
-    .then(res => res.json())
-    .then(data => {
-        let rating = data.result.rating;
-        let total  = data.result.user_ratings_total;
+.then(res => res.json())
+.then(data => {
+    const r = data.result.rating;
+    const t = data.result.user_ratings_total;
 
-        let p = Math.round(total * 0.85);
-        let n = Math.round(total * 0.10);
-        let neg = total - p - n;
+    const p = Math.round(t * 0.85);
+    const n = Math.round(t * 0.10);
+    const neg = t - p - n;
 
-        document.getElementById("google-rating").innerText = `⭐ ${rating} (${total})`;
-        document.getElementById("google-bars").innerHTML = sentimentBars(p, n, neg);
-    });
+    document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("google-bars").innerHTML = sentimentBars(p, n, neg);
+});
 
 /* YELP REVIEWS */
 fetch(`${WORKER_URL}/yelp`)
-    .then(res => res.json())
-    .then(data => {
-        let rating = data.rating;
-        let total  = data.review_count;
+.then(res => res.json())
+.then(data => {
+    const r = data.rating;
+    const t = data.review_count;
 
-        let p = Math.round(total * (rating / 5));
-        let neg = Math.round(total * ((5 - rating) / 5));
-        let n = total - p - neg;
+    const p = Math.round(t * (r/5));
+    const neg = Math.round(t * ((5-r)/5));
+    const n = t - p - neg;
 
-        document.getElementById("yelp-rating").innerText = `⭐ ${rating} (${total})`;
-        document.getElementById("yelp-bars").innerHTML = sentimentBars(p, n, neg);
-    });
+    document.getElementById("yelp-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("yelp-bars").innerHTML = sentimentBars(p, n, neg);
+});
 
 /* FACEBOOK REVIEWS */
 fetch(`${WORKER_URL}/facebook`)
-    .then(res => res.json())
-    .then(data => {
-        let rating = data.overall_star_rating;
-        let total  = data.rating_count;
+.then(res => res.json())
+.then(data => {
+    const r = data.overall_star_rating;
+    const t = data.rating_count;
 
-        let p = Math.round(total * (rating / 5));
-        let neg = Math.round(total * ((5 - rating) / 5));
-        let n = total - p - neg;
+    const p = Math.round(t * (r/5));
+    const neg = Math.round(t * ((5-r)/5));
+    const n = t - p - neg;
 
-        document.getElementById("facebook-rating").innerText = `⭐ ${rating} (${total})`;
-        document.getElementById("facebook-bars").innerHTML = sentimentBars(p, n, neg);
-    });
+    document.getElementById("facebook-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("facebook-bars").innerHTML = sentimentBars(p, n, neg);
+});
 
-/* -------------------------------
-   DRESS HEM CALCULATOR MODAL
------------------------------------ */
+/* -----------------------------------------
+   DRESS HEM MODAL BEHAVIOR
+-------------------------------------------- */
 
 function openHemModal() {
     document.getElementById("hemModal").style.display = "flex";
@@ -431,10 +440,13 @@ function closeHemModal(event) {
     }
 }
 
-/* CALCULATE HEM TOTAL */
+/* -----------------------------------------
+   DRESS HEM CALCULATOR LOGIC
+-------------------------------------------- */
+
 function calculateHemTotal() {
-    const hemRate = 12.50;
-    const cutRate = 6.25;
+    const hemRate   = 12.50;
+    const cutRate   = 6.25;
     const horseRate = 25.00;
 
     const hemYards   = parseFloat(document.getElementById("hemYards").value) || 0;
@@ -446,12 +458,12 @@ function calculateHemTotal() {
         (cutYards * cutRate) +
         (horseYards * horseRate);
 
-    // Glitter (flat +10)
+    // Glitter ($10 flat)
     if (document.getElementById("glitterCheck").checked) {
         total += 10;
     }
 
-    // Sequins (per-yard per service)
+    // SEQUINS PER-YARD PER SERVICE
     if (document.getElementById("seqHem").checked) {
         total += hemYards * 5;
     }
@@ -462,12 +474,10 @@ function calculateHemTotal() {
         total += horseYards * 5;
     }
 
-    document.getElementById("hemTotal").innerText = "Total: $" + total.toFixed(2);
+    document.getElementById("hemTotal").innerText =
+        "Total: $" + total.toFixed(2);
 }
 </script>
 
 </body>
 </html>
-
-
-
