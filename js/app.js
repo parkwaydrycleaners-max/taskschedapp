@@ -640,7 +640,7 @@ async loadAllDataParallel() {
         console.log('🚀 Starting parallel data loading...');
         
         // Execute all requests in parallel
-        const [peopleResult, tasksResult, capacityResult] = await Promise.all([
+        await Promise.all([
             this.loadPeopleFromAirtable(),
             this.loadTasksDataParallel(),
             this.loadCapacityOverridesParallel()
@@ -7492,6 +7492,7 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
 
 
