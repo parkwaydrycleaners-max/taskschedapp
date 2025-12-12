@@ -95,7 +95,25 @@ if (sessionStorage.getItem("authorized") !== "yes") {
         box-shadow: 0 6px 18px rgba(0,0,0,0.20);
         animation: modalIn 0.25s ease-out;
     }
+.modal-box hr {
+    margin: 15px 0;
+    border: none;
+    border-top: 1px solid #ddd;
+}
 
+.modal-box label {
+    font-weight: bold;
+    display: block;
+    margin-top: 10px;
+}
+
+.modal-box .addon {
+    font-weight: normal;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
     @keyframes modalIn {
         from { transform: translateY(40px); opacity: 0; }
         to   { transform: translateY(0); opacity: 1; }
@@ -229,14 +247,44 @@ if (sessionStorage.getItem("authorized") !== "yes") {
             Call Logs
         </div>
 
-        <!-- ⭐ Dress Hem Calculator (opens modal) -->
-        <div class="tile" onclick="openHemModal()">
-            <svg viewBox="0 0 24 24">
-                <path d="M4 4h16v16H4z" fill="none" stroke="#0a75ff" stroke-width="2"/>
-                <path d="M8 4v16M16 4v16M4 10h16M4 16h16" stroke="#0a75ff" stroke-width="2"/>
-            </svg>
-            Dress Hem Calculator
-        </div>
+<!-- ⭐ DRESS HEM CALCULATOR MODAL (CLEAN FORMATTING) -->
+<div id="hemModal" class="modal-overlay" onclick="closeHemModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+
+        <h2>Dress Hem Calculator</h2>
+
+        <!-- DRESS HEMS -->
+        <label>Dress Hems (12.50 per yard)</label>
+        <input type="number" id="hemYards" placeholder="Enter yards" min="0" step="0.1">
+        <label class="addon"><input type="checkbox" id="seqHem"> Sequins on Dress Hems (+ $5 per yard)</label>
+
+        <hr>
+
+        <!-- CUT HEMS -->
+        <label>Dress Cut Hems (6.25 per yard)</label>
+        <input type="number" id="cutHemYards" placeholder="Enter yards" min="0" step="0.1">
+        <label class="addon"><input type="checkbox" id="seqCut"> Sequins on Cut Hems (+ $5 per yard)</label>
+
+        <hr>
+
+        <!-- HORSEHAIR -->
+        <label>Dress Hems with Horsehair (25.00 per yard)</label>
+        <input type="number" id="horsehairYards" placeholder="Enter yards" min="0" step="0.1">
+        <label class="addon"><input type="checkbox" id="seqHorse"> Sequins on Horsehair Hems (+ $5 per yard)</label>
+
+        <hr>
+
+        <!-- GLITTER -->
+        <label class="addon"><input type="checkbox" id="glitterCheck"> Add Glitter (+ $10 flat)</label>
+
+        <button onclick="calculateHemTotal()">Calculate</button>
+
+        <div class="total" id="hemTotal">Total: $0.00</div>
+
+        <button class="close-btn" onclick="closeHemModal()">Close</button>
+
+    </div>
+</div>
 
         <!-- ⭐ GOOGLE RATING TILE -->
         <div class="tile rating-tile"
@@ -455,4 +503,5 @@ function calculateHemTotal() {
 
 </body>
 </html>
+
 
