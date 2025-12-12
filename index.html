@@ -390,12 +390,18 @@ body {
 
         <hr>
 
-        <!-- Glitter -->
-        <label class="addon" style="margin-bottom: 10px;">
-            <input type="checkbox" id="glitterCheck">
-            Add Glitter (+ $10 flat)
-        </label>
+<!-- Glitter Row (aligned with 3-column grid) -->
+<div class="calc-row">
+    <div class="calc-col qty-col"></div>
 
+    <div class="calc-col service-col">
+        Add Glitter (+ $10 flat)
+    </div>
+
+    <div class="calc-col seq-col">
+        <input type="checkbox" id="glitterCheck">
+    </div>
+</div>
         <!-- BUTTONS -->
         <button onclick="calculateHemTotal()">Calculate</button>
         <div class="total" id="hemTotal">Total: $0.00</div>
@@ -537,4 +543,5 @@ function calculateHemTotal() {
 
 </body>
 </html>
+
 
