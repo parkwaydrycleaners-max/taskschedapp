@@ -617,23 +617,18 @@ async loadTasksDataParallel() {
     
     console.log(`📅 Loading tasks from ${startDateStr} to ${endDateStr} (parallel)`);
     
-    // Use existing loadTasksFromAirtable method instead of non-existent loadAllTaskPages
+    // Use existing loadTasksFromAirtable method
     await this.loadTasksFromAirtable();
     return this.tasks;
 }
 
+// Parallel capacity loading
 async loadCapacityOverridesParallel() {
     console.log('🚀 Starting parallel capacity loading...');
     
-    // Use existing loadCapacityOverridesFromAirtable method instead of non-existent loadAllCapacityPages
+    // Use existing loadCapacityOverridesFromAirtable method
     await this.loadCapacityOverridesFromAirtable();
     return this.peopleSpecificCapacity;
-}
-
-// Parallel config loading
-async loadAirtableConfigParallel() {
-    console.log('🚀 Starting parallel config loading...');
-    return await this.loadAllConfigPages();
 }
 
 // Enhanced parallel loader with fallback
@@ -645,26 +640,23 @@ async loadAllDataParallel() {
         console.log('🚀 Starting parallel data loading...');
         
         // Execute all requests in parallel
-const [peopleResult, tasksResult, capacityResult] = await Promise.all([
-    this.loadPeopleFromAirtable(),    // ← ADD THIS LINE
-    this.loadTasksDataParallel(),
-    this.loadCapacityOverridesParallel()
-]);
+        const [peopleResult, tasksResult, capacityResult] = await Promise.all([
+            this.loadPeopleFromAirtable(),
+            this.loadTasksDataParallel(),
+            this.loadCapacityOverridesParallel()
+        ]);
         
         console.log('✅ All parallel requests completed');
         
-        // Process the results
-        this.processTasksResult(tasksResult);
-        this.processCapacityResult(capacityResult);
-        
-        // Re-render the whiteboard
+        // Re-render the whiteboard (results are already processed by individual methods)
         this.renderWhiteboard();
         
         performanceTracker.end();
         
     } catch (error) {
         console.error('❌ Parallel loading failed, falling back to sequential:', error);
-        await this.loadAllDataSequential(); // Fallback to your existing method
+        // Fallback to existing method
+        await this.loadAllDataFromAirtable();
     } finally {
         this.hideLoading();
     }
@@ -7500,6 +7492,7 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
 
 
