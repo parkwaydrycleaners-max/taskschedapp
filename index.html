@@ -132,6 +132,38 @@ body {
 .close-btn { background: #bbb; color: black; }
 .close-btn:hover { background: #aaa; }
 
+/* Close X button */
+.modal-close-x {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 20px;
+    cursor: pointer;
+    color: #555;
+}
+.modal-close-x:hover {
+    color: #000;
+}
+
+/* Prevent overlay click from closing */
+.modal-overlay {
+    pointer-events: auto;
+}
+
+.modal-box {
+    position: relative;
+}
+
+/* Remove spinner arrows for number inputs (if any browser forces them) */
+.qty-input {
+    -moz-appearance: textfield;
+}
+.qty-input::-webkit-inner-spin-button,
+.qty-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+    
 /* Total */
 .total { text-align: center; font-size: 1.3rem; margin-top: 15px; }
 
@@ -284,9 +316,12 @@ body {
 
     </div> <!-- end .tiles -->
 </div> <!-- end .tile-section -->
-    <!-- ⭐ DRESS HEM ESTIMATOR MODAL -->
-<div id="hemModal" class="modal-overlay" onclick="closeHemModal(event)">
-    <div class="modal-box" onclick="event.stopPropagation()">
+<!-- ⭐ DRESS HEM ESTIMATOR MODAL (UPDATED) -->
+<div id="hemModal" class="modal-overlay">
+    <div class="modal-box">
+
+        <!-- Close X button -->
+        <div class="modal-close-x" onclick="closeHemModal()">✕</div>
 
         <h2>Dress Hem Estimator</h2>
 
@@ -300,7 +335,7 @@ body {
         <!-- Dress Hems -->
         <div class="calc-row">
             <div class="calc-col qty-col">
-                <input type="number" id="hemYards" class="qty-input" min="0" step="0.1">
+                <input type="text" id="hemYards" class="qty-input">
             </div>
             <div class="calc-col service-col">Dress Hems @ $12.50/yd</div>
             <div class="calc-col seq-col"><input type="checkbox" id="seqHem"></div>
@@ -309,7 +344,7 @@ body {
         <!-- Cut Hems -->
         <div class="calc-row">
             <div class="calc-col qty-col">
-                <input type="number" id="cutHemYards" class="qty-input" min="0" step="0.1">
+                <input type="text" id="cutHemYards" class="qty-input">
             </div>
             <div class="calc-col service-col">Cut Hems @ $6.25/yd</div>
             <div class="calc-col seq-col"><input type="checkbox" id="seqCut"></div>
@@ -318,7 +353,7 @@ body {
         <!-- Horsehair -->
         <div class="calc-row">
             <div class="calc-col qty-col">
-                <input type="number" id="horsehairYards" class="qty-input" min="0" step="0.1">
+                <input type="text" id="horsehairYards" class="qty-input">
             </div>
             <div class="calc-col service-col">Horsehair Hems @ $25.00/yd</div>
             <div class="calc-col seq-col"><input type="checkbox" id="seqHorse"></div>
@@ -326,14 +361,13 @@ body {
 
         <hr>
 
-        <!-- Glitter Row -->
+        <!-- Glitter -->
         <div class="calc-row">
             <div class="calc-col qty-col"></div>
             <div class="calc-col service-col">Add Glitter (+ $10 flat)</div>
             <div class="calc-col seq-col"><input type="checkbox" id="glitterCheck"></div>
         </div>
 
-        <!-- BUTTONS -->
         <button onclick="calculateHemTotal()">Calculate</button>
 
         <div class="total" id="hemTotal">Total: $0.00</div>
@@ -431,10 +465,8 @@ function openHemModal() {
     document.getElementById("hemModal").style.display = "flex";
 }
 
-function closeHemModal(event) {
-    if (!event || event.target === document.getElementById("hemModal")) {
-        document.getElementById("hemModal").style.display = "none";
-    }
+function closeHemModal() {
+    document.getElementById("hemModal").style.display = "none";
 }
 
 /* -----------------------------------------
@@ -474,3 +506,4 @@ function calculateHemTotal() {
 
 </body>
 </html>
+
