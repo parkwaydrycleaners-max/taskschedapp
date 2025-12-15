@@ -2145,9 +2145,20 @@ validateOrderNumber(orderNumber) {
         error: 'Order number must be "NEW" or 6 digits (123456) or 1 letter + 6 digits (A123456)' 
     };
 }
-
-			checkForDuplicateOrderNumber(orderNumber, excludeTaskId = null) {
+normalizeOrderNumberForComparison(orderNumber) {
+    if (!orderNumber) return '';
+    const trimmed = orderNumber.trim().toLowerCase();
+    
+    // If it's "new", return as-is
+    if (trimmed === 'new') return trimmed;
+    
+    // Extract just the numeric part (remove any leading letters)
+    const numericPart = trimmed.match(/\d{6}$/);
+    return numericPart ? numericPart[0] : trimmed;
+}
+checkForDuplicateOrderNumber(orderNumber, excludeTaskId = null) {
     const duplicates = [];
+    const normalizedOrderNumber = this.normalizeOrderNumberForComparison(orderNumber);
     
     // Search through all tasks
     Object.keys(this.tasks).forEach(dateKey => {
@@ -2156,7 +2167,9 @@ validateOrderNumber(orderNumber) {
                 // Skip the current task if editing
                 if (excludeTaskId && task.id === excludeTaskId) return;
                 
-                if (task.orderNumber.toLowerCase() === orderNumber.toLowerCase()) {
+                const normalizedTaskOrderNumber = this.normalizeOrderNumberForComparison(task.orderNumber);
+                
+                if (normalizedTaskOrderNumber === normalizedOrderNumber) {
                     duplicates.push({
                         orderNumber: task.orderNumber,
                         person: person,
@@ -3386,7 +3399,7 @@ attachOrderModalListeners() {
 validateOrderData(orderNumber, dateDue, description, duration) {
     const validations = [];
     
-    // Order number validation
+    // Order number validation - this will block saving invalid formats
     const orderValidation = this.validateOrderNumber(orderNumber);
     if (!orderValidation.isValid) {
         validations.push(orderValidation.error);
@@ -8335,6 +8348,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
