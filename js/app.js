@@ -1,4 +1,5 @@
-// Task Scheduler Application
+
+        // Task Scheduler Application
         class TaskSchedulerApp {
             constructor() {
                 // Core state
@@ -617,7 +618,7 @@ async loadTasksDataParallel() {
     
     console.log(`📅 Loading tasks from ${startDateStr} to ${endDateStr} (parallel)`);
     
-    // Use existing loadTasksFromAirtable method
+    // Use existing loadTasksFromAirtable method instead of non-existent loadAllTaskPages
     await this.loadTasksFromAirtable();
     return this.tasks;
 }
@@ -625,10 +626,13 @@ async loadTasksDataParallel() {
 // Parallel capacity loading
 async loadCapacityOverridesParallel() {
     console.log('🚀 Starting parallel capacity loading...');
-    
-    // Use existing loadCapacityOverridesFromAirtable method
-    await this.loadCapacityOverridesFromAirtable();
-    return this.peopleSpecificCapacity;
+    return await this.loadAllCapacityPages();
+}
+
+// Parallel config loading
+async loadAirtableConfigParallel() {
+    console.log('🚀 Starting parallel config loading...');
+    return await this.loadAllConfigPages();
 }
 
 // Enhanced parallel loader with fallback
@@ -640,23 +644,26 @@ async loadAllDataParallel() {
         console.log('🚀 Starting parallel data loading...');
         
         // Execute all requests in parallel
-        await Promise.all([
-            this.loadPeopleFromAirtable(),
-            this.loadTasksDataParallel(),
-            this.loadCapacityOverridesParallel()
-        ]);
+const [peopleResult, tasksResult, capacityResult] = await Promise.all([
+    this.loadPeopleFromAirtable(),    // ← ADD THIS LINE
+    this.loadTasksDataParallel(),
+    this.loadCapacityOverridesParallel()
+]);
         
         console.log('✅ All parallel requests completed');
         
-        // Re-render the whiteboard (data is already processed by individual methods)
+        // Process the results
+        this.processTasksResult(tasksResult);
+        this.processCapacityResult(capacityResult);
+        
+        // Re-render the whiteboard
         this.renderWhiteboard();
         
         performanceTracker.end();
         
     } catch (error) {
         console.error('❌ Parallel loading failed, falling back to sequential:', error);
-        // Fallback to existing method
-        await this.loadAllDataFromAirtable();
+        await this.loadAllDataSequential(); // Fallback to your existing method
     } finally {
         this.hideLoading();
     }
@@ -1302,12 +1309,23 @@ validateOrderNumber(orderNumber) {
     
     return { 
         isValid: false, 
-        error: 'Order number must be "NEW" or 6 digits (123456) or 1 letter + 6 digits (P123456)' 
+        error: 'Order number must be "NEW" or 6 digits (123456) or 1 letter + 6 digits (A123456)' 
     };
 }
-
-			checkForDuplicateOrderNumber(orderNumber, excludeTaskId = null) {
+normalizeOrderNumberForComparison(orderNumber) {
+    if (!orderNumber) return '';
+    const trimmed = orderNumber.trim().toLowerCase();
+    
+    // If it's "new", return as-is
+    if (trimmed === 'new') return trimmed;
+    
+    // Extract just the numeric part (remove any leading letters)
+    const numericPart = trimmed.match(/\d{6}$/);
+    return numericPart ? numericPart[0] : trimmed;
+}
+checkForDuplicateOrderNumber(orderNumber, excludeTaskId = null) {
     const duplicates = [];
+    const normalizedOrderNumber = this.normalizeOrderNumberForComparison(orderNumber);
     
     // Search through all tasks
     Object.keys(this.tasks).forEach(dateKey => {
@@ -1316,7 +1334,9 @@ validateOrderNumber(orderNumber) {
                 // Skip the current task if editing
                 if (excludeTaskId && task.id === excludeTaskId) return;
                 
-                if (task.orderNumber.toLowerCase() === orderNumber.toLowerCase()) {
+                const normalizedTaskOrderNumber = this.normalizeOrderNumberForComparison(task.orderNumber);
+                
+                if (normalizedTaskOrderNumber === normalizedOrderNumber) {
                     duplicates.push({
                         orderNumber: task.orderNumber,
                         person: person,
@@ -2546,7 +2566,7 @@ attachOrderModalListeners() {
 validateOrderData(orderNumber, dateDue, description, duration) {
     const validations = [];
     
-    // Order number validation
+    // Order number validation - this will block saving invalid formats
     const orderValidation = this.validateOrderNumber(orderNumber);
     if (!orderValidation.isValid) {
         validations.push(orderValidation.error);
@@ -7462,7 +7482,6 @@ clearElementCache() {
     }
 }
 
-
 cleanup() {
     // Clear intervals
     if (this.autoRefreshInterval) {
@@ -7492,9 +7511,3 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
-
-
-
-
-
-
