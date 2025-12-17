@@ -1597,7 +1597,21 @@ trackLoadingPerformance() {
                     this.updateDataLoadingStatus();
                 }
             }
-
+updateSearchDataRangeDisplay() {
+    const currentRangeSpan = document.getElementById('searchCurrentRange');
+    const loadedRangeSpan = document.getElementById('searchLoadedRange');
+    
+    if (currentRangeSpan) {
+        const totalWeeks = this.dataLoadSettings.weeksBack + this.dataLoadSettings.weeksForward;
+        currentRangeSpan.textContent = `${totalWeeks} weeks total`;
+    }
+    
+    if (loadedRangeSpan && this.dataLoadSettings.currentLoadedRange) {
+        const { startDate, endDate } = this.dataLoadSettings.currentLoadedRange;
+        loadedRangeSpan.textContent = `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`;
+    }
+}
+			
 async loadMoreHistoricalDataForSearch() {
     if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
         this.showErrorToast('validation', 'Please connect to Airtable first');
@@ -8419,6 +8433,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
