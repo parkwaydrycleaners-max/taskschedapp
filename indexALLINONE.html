@@ -586,6 +586,23 @@
                     </div>
                 </div>
                 
+				<!-- Historical Data Loading Section (add after search filters) -->
+<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6" id="searchHistoricalDataSection">
+    <div class="flex items-center justify-between">
+        <div>
+            <h4 class="font-medium text-blue-800 mb-2">📚 Search Data Range</h4>
+            <div class="text-sm text-blue-700" id="searchDataRange">
+                Currently searching: <span id="searchCurrentRange"></span>
+            </div>
+            <div class="text-xs text-blue-600 mt-1">
+                Loaded range: <span id="searchLoadedRange"></span>
+            </div>
+        </div>
+        <button id="loadMoreSearchDataBtn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+            Load More Historical Data
+        </button>
+    </div>
+</div>
                 <!-- Date Range Filters -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
@@ -1558,8 +1575,8 @@ trackLoadingPerformance() {
                 
                 try {
                     //await this.loadTasksFromAirtable();
-await this.loadAllDataParallel();                    
-this.renderWhiteboard();
+				await this.loadAllDataParallel();                    
+				this.renderWhiteboard();
                     
                     const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
                         return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
@@ -1579,7 +1596,54 @@ this.renderWhiteboard();
                     this.updateDataLoadingStatus();
                 }
             }
-            
+
+async loadMoreHistoricalDataForSearch() {
+    if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
+        this.showErrorToast('validation', 'Please connect to Airtable first');
+        return;
+    }
+    
+    // Temporarily expand the date range to load more data
+    const originalWeeksBack = this.dataLoadSettings.weeksBack;
+    const originalWeeksForward = this.dataLoadSettings.weeksForward;
+    
+    // Expand to load all historical data (up to 52 weeks back)
+    this.dataLoadSettings.weeksBack = 52;
+    // Keep forward range the same
+    
+    this.showLoading('Loading historical data for search...');
+    
+    try {
+        await this.loadAllDataParallel();                    
+        
+        const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
+            return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
+                return dayTotal + personTasks.length;
+            }, 0);
+        }, 0);
+        
+        this.showToast(`✅ Historical data loaded for search (${totalTasks} total orders)`, 'success');
+        
+        // If there's an active search, refresh the results with expanded data
+        const searchTerm = document.getElementById('searchInput').value.trim();
+        if (searchTerm) {
+            this.performSearch();
+        }
+        
+        // Update search data range display
+        this.updateSearchDataRangeDisplay();
+        
+    } catch (error) {
+        this.showToast(`❌ Failed to load historical data: ${error.message}`, 'error');
+    } finally {
+        // Restore original settings (but keep the expanded data loaded)
+        this.dataLoadSettings.weeksBack = originalWeeksBack;
+        this.dataLoadSettings.weeksForward = originalWeeksForward;
+        this.hideLoading();
+        this.updateDataLoadingStatus();
+    }
+}
+			
             async syncAutoCapacityChangesToAirtable() {
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
                     return;
@@ -2721,23 +2785,28 @@ attachTaskCardListeners(card, task) {
                 this.setupPersonCapacityInputs();
             }
             
-            attachSearchListeners() {
-                const searchInput = document.getElementById('searchInput');
-                const performSearch = document.getElementById('performSearch');
+attachSearchListeners() {
+    const searchInput = document.getElementById('searchInput');
+    const performSearch = document.getElementById('performSearch');
 
-                searchInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        this.performSearch();
-                    }
-                });
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            this.performSearch();
+        }
+    });
 
-                performSearch.addEventListener('click', () => this.performSearch());
+    performSearch.addEventListener('click', () => this.performSearch());
 
-                document.getElementById('searchToday').addEventListener('click', () => this.setSearchDateRange('today'));
-                document.getElementById('searchThisWeek').addEventListener('click', () => this.setSearchDateRange('week'));
-                document.getElementById('searchAllTime').addEventListener('click', () => this.setSearchDateRange('all'));
-                document.getElementById('clearSearchFilters').addEventListener('click', () => this.clearSearchFilters());
-            }
+    document.getElementById('searchToday').addEventListener('click', () => this.setSearchDateRange('today'));
+    document.getElementById('searchThisWeek').addEventListener('click', () => this.setSearchDateRange('week'));
+    document.getElementById('searchAllTime').addEventListener('click', () => this.setSearchDateRange('all'));
+    document.getElementById('clearSearchFilters').addEventListener('click', () => this.clearSearchFilters());
+
+    // Load More Historical Data button for search
+    document.getElementById('loadMoreSearchDataBtn').addEventListener('click', () => {
+        this.loadMoreHistoricalDataForSearch();
+    });
+}
             
             attachReportsListeners() {
                 document.getElementById('reportToday').addEventListener('click', () => this.setReportDateRange('today'));
@@ -4421,11 +4490,12 @@ showSettingsModal() {
             }
             
             // Search Modal Functions
-            showSearchModal() {
-                this.populateSearchPersonFilter();
-                this.handleModalAction('searchModal', 'show');
-                document.getElementById('searchInput').focus();
-            }
+showSearchModal() {
+    this.populateSearchPersonFilter();
+    this.updateSearchDataRangeDisplay(); // Add this line
+    this.handleModalAction('searchModal', 'show');
+    document.getElementById('searchInput').focus();
+}
             
             populateSearchPersonFilter() {
                 this.populatePeopleDropdown('searchPersonFilter', true);
@@ -8348,6 +8418,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
