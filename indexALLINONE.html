@@ -5393,6 +5393,8 @@ displayReport(reportData, selectedPerson, startDate, endDate, filterType) {
 
 // Add this helper method to your class
 sortReportData(data, column, direction = 'asc') {
+    console.log(`🔄 Sorting by ${column} (${direction})`);
+    
     if (!column) return data;
     
     return data.sort((a, b) => {
@@ -5400,56 +5402,85 @@ sortReportData(data, column, direction = 'asc') {
         
         switch(column) {
             case 'orderNumber':
-                valueA = a.task.orderNumber.toLowerCase();
-                valueB = b.task.orderNumber.toLowerCase();
+                valueA = (a.task.orderNumber || '').toLowerCase();
+                valueB = (b.task.orderNumber || '').toLowerCase();
                 break;
+                
             case 'person':
-                valueA = a.person.toLowerCase();
-                valueB = b.person.toLowerCase();
+                valueA = (a.person || '').toLowerCase();
+                valueB = (b.person || '').toLowerCase();
                 break;
+                
             case 'description':
-                valueA = a.task.description.toLowerCase();
-                valueB = b.task.description.toLowerCase();
+                valueA = (a.task.description || '').toLowerCase();
+                valueB = (b.task.description || '').toLowerCase();
                 break;
+                
             case 'workDate':
-                valueA = new Date(a.workDate);
-                valueB = new Date(b.workDate);
+                valueA = new Date(a.workDate || a.dateKey || '1900-01-01');
+                valueB = new Date(b.workDate || b.dateKey || '1900-01-01');
                 break;
+                
             case 'dueDate':
-    			// Put tasks with no due date at the end
-			    valueA = a.task.dateDue ? new Date(a.task.dateDue) : new Date('2099-12-31');
-			    valueB = b.task.dateDue ? new Date(b.task.dateDue) : new Date('2099-12-31');
-			    break;
-            case 'duration':
-                valueA = a.task.duration;
-                valueB = b.task.duration;
+                // Tasks with no due date appear last
+                valueA = a.task.dateDue ? new Date(a.task.dateDue) : new Date('2099-12-31');
+                valueB = b.task.dateDue ? new Date(b.task.dateDue) : new Date('2099-12-31');
                 break;
+                
+            case 'duration':
+                valueA = parseInt(a.task.duration) || 0;
+                valueB = parseInt(b.task.duration) || 0;
+                break;
+                
             case 'status':
-                // Fix: Sort by actual status priority: Complete(0) < Incomplete(1) < Overdue(2)
+                console.log('📊 Status sorting triggered');
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
+                const todayStr = today.toISOString().split('T')[0];
                 
                 const getStatusValue = (item) => {
-                    if (item.task.completed) return 0; // Complete
-                    
-                    const taskDueDate = item.task.dateDue ? new Date(item.task.dateDue) : null;
-                    if (taskDueDate) {
-                        taskDueDate.setHours(0, 0, 0, 0);
-                        if (taskDueDate < today) return 2; // Overdue
+                    if (item.task.completed) {
+                        console.log(`✅ ${item.task.orderNumber}: Complete (0)`);
+                        return 0; // Complete
                     }
+                    
+                    if (!item.task.dateDue) {
+                        console.log(`⏳ ${item.task.orderNumber}: No due date - Incomplete (1)`);
+                        return 1; // Incomplete
+                    }
+                    
+                    let dueDateStr;
+                    if (item.task.dateDue instanceof Date) {
+                        dueDateStr = item.task.dateDue.toISOString().split('T')[0];
+                    } else if (typeof item.task.dateDue === 'string') {
+                        dueDateStr = item.task.dateDue.includes('T') ? item.task.dateDue.split('T')[0] : item.task.dateDue;
+                    } else {
+                        console.log(`⏳ ${item.task.orderNumber}: Invalid due date - Incomplete (1)`);
+                        return 1;
+                    }
+                    
+                    if (dueDateStr < todayStr) {
+                        console.log(`⚠️ ${item.task.orderNumber}: Overdue (2) - due ${dueDateStr}`);
+                        return 2; // Overdue
+                    }
+                    
+                    console.log(`⏳ ${item.task.orderNumber}: Incomplete (1) - due ${dueDateStr}`);
                     return 1; // Incomplete
                 };
                 
                 valueA = getStatusValue(a);
                 valueB = getStatusValue(b);
                 break;
+                
             default:
+                console.warn(`Unknown sort column: ${column}`);
                 return 0;
         }
         
-        if (valueA < valueB) return direction === 'asc' ? -1 : 1;
-        if (valueA > valueB) return direction === 'asc' ? 1 : -1;
-        return 0;
+        const result = valueA < valueB ? (direction === 'asc' ? -1 : 1) : 
+                      valueA > valueB ? (direction === 'asc' ? 1 : -1) : 0;
+        
+        return result;
     });
 }
             
@@ -8723,6 +8754,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
