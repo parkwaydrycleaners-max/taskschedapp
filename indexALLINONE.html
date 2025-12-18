@@ -3582,33 +3582,30 @@ attachOrderModalListeners() {
     this.updateCommonWords();
 }
 validateOrderData(orderNumber, dateDue, description, duration) {
-    const validations = [];
+    const errors = [];
     
-    // Order number validation
+    // Call individual validation methods
     const orderValidation = this.validateOrderNumber(orderNumber);
     if (!orderValidation.isValid) {
-        validations.push(orderValidation.error);
+        errors.push(orderValidation.error);
     }
     
-    // Due date validation - prevent past dates
     const dueDateValidation = this.validateDueDate(dateDue);
     if (!dueDateValidation.isValid) {
-        validations.push(dueDateValidation.error);
+        errors.push(dueDateValidation.error);
     }
     
-    // Description validation
-    if (!description || description.trim().length < 1) {
-        validations.push('Description must be at least 1 character');
+    if (!description || description.trim().length < 3) {
+        errors.push('Description must be at least 3 characters');
     }
     
-    // Duration validation
     if (!duration || duration < 1 || duration > 32) {
-        validations.push('Duration must be between 1 and 32 slots');
+        errors.push('Duration must be between 1 and 32 slots');
     }
 
     return {
-        isValid: validations.length === 0,
-        errors: validations
+        isValid: errors.length === 0,
+        errors: errors
     };
 }
            
@@ -8801,6 +8798,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
