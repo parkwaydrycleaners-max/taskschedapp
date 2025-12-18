@@ -1498,26 +1498,22 @@ async loadAllDataParallel() {
         console.log('🚀 Starting parallel data loading...');
         
         // Execute all requests in parallel
-const [peopleResult, tasksResult, capacityResult] = await Promise.all([
-    this.loadPeopleFromAirtable(),    // ← ADD THIS LINE
-    this.loadTasksDataParallel(),
-    this.loadCapacityOverridesParallel()
-]);
+        await Promise.all([
+            this.loadPeopleFromAirtable(),
+            this.loadTasksDataParallel(),
+            this.loadCapacityOverridesParallel()
+        ]);
         
         console.log('✅ All parallel requests completed');
         
-        // Process the results
-        this.processTasksResult(tasksResult);
-        this.processCapacityResult(capacityResult);
-        
-        // Re-render the whiteboard
+        // Re-render the whiteboard (data is already processed by individual methods)
         this.renderWhiteboard();
         
         performanceTracker.end();
         
     } catch (error) {
         console.error('❌ Parallel loading failed, falling back to sequential:', error);
-        await this.loadAllDataSequential(); // Fallback to your existing method
+        await this.loadAllDataFromAirtable();
     } finally {
         this.hideLoading();
     }
@@ -8436,6 +8432,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
