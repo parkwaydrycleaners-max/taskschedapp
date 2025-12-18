@@ -1,4 +1,3 @@
-
         // Task Scheduler Application
         class TaskSchedulerApp {
             constructor() {
@@ -626,7 +625,10 @@ async loadTasksDataParallel() {
 // Parallel capacity loading
 async loadCapacityOverridesParallel() {
     console.log('🚀 Starting parallel capacity loading...');
-    return await this.loadAllCapacityPages();
+    
+    // Use existing loadCapacityOverridesFromAirtable method instead of non-existent loadAllCapacityPages
+    await this.loadCapacityOverridesFromAirtable();
+    return this.peopleSpecificCapacity;
 }
 
 // Parallel config loading
@@ -644,26 +646,22 @@ async loadAllDataParallel() {
         console.log('🚀 Starting parallel data loading...');
         
         // Execute all requests in parallel
-const [peopleResult, tasksResult, capacityResult] = await Promise.all([
-    this.loadPeopleFromAirtable(),    // ← ADD THIS LINE
-    this.loadTasksDataParallel(),
-    this.loadCapacityOverridesParallel()
-]);
+        await Promise.all([
+            this.loadPeopleFromAirtable(),
+            this.loadTasksDataParallel(),
+            this.loadCapacityOverridesParallel()
+        ]);
         
         console.log('✅ All parallel requests completed');
         
-        // Process the results
-        this.processTasksResult(tasksResult);
-        this.processCapacityResult(capacityResult);
-        
-        // Re-render the whiteboard
+        // Re-render the whiteboard (data is already processed by individual methods)
         this.renderWhiteboard();
         
         performanceTracker.end();
         
     } catch (error) {
         console.error('❌ Parallel loading failed, falling back to sequential:', error);
-        await this.loadAllDataSequential(); // Fallback to your existing method
+        await this.loadAllDataFromAirtable();
     } finally {
         this.hideLoading();
     }
@@ -725,8 +723,8 @@ trackLoadingPerformance() {
                 
                 try {
                     //await this.loadTasksFromAirtable();
-await this.loadAllDataParallel();                    
-this.renderWhiteboard();
+				await this.loadAllDataParallel();                    
+				this.renderWhiteboard();
                     
                     const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
                         return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
@@ -746,7 +744,68 @@ this.renderWhiteboard();
                     this.updateDataLoadingStatus();
                 }
             }
-            
+updateSearchDataRangeDisplay() {
+    const currentRangeSpan = document.getElementById('searchCurrentRange');
+    const loadedRangeSpan = document.getElementById('searchLoadedRange');
+    
+    if (currentRangeSpan) {
+        const totalWeeks = this.dataLoadSettings.weeksBack + this.dataLoadSettings.weeksForward;
+        currentRangeSpan.textContent = `${totalWeeks} weeks total`;
+    }
+    
+    if (loadedRangeSpan && this.dataLoadSettings.currentLoadedRange) {
+        const { startDate, endDate } = this.dataLoadSettings.currentLoadedRange;
+        loadedRangeSpan.textContent = `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`;
+    }
+}
+			
+async loadMoreHistoricalDataForSearch() {
+    if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
+        this.showErrorToast('validation', 'Please connect to Airtable first');
+        return;
+    }
+    
+    // Temporarily expand the date range to load more data
+    const originalWeeksBack = this.dataLoadSettings.weeksBack;
+    const originalWeeksForward = this.dataLoadSettings.weeksForward;
+    
+    // Expand to load all historical data (up to 52 weeks back)
+    this.dataLoadSettings.weeksBack = 52;
+    // Keep forward range the same
+    
+    this.showLoading('Loading historical data for search...');
+    
+    try {
+        await this.loadAllDataParallel();                    
+        
+        const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
+            return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
+                return dayTotal + personTasks.length;
+            }, 0);
+        }, 0);
+        
+        this.showToast(`✅ Historical data loaded for search (${totalTasks} total orders)`, 'success');
+        
+        // If there's an active search, refresh the results with expanded data
+        const searchTerm = document.getElementById('searchInput').value.trim();
+        if (searchTerm) {
+            this.performSearch();
+        }
+        
+        // Update search data range display
+        this.updateSearchDataRangeDisplay();
+        
+    } catch (error) {
+        this.showToast(`❌ Failed to load historical data: ${error.message}`, 'error');
+    } finally {
+        // Restore original settings (but keep the expanded data loaded)
+        this.dataLoadSettings.weeksBack = originalWeeksBack;
+        this.dataLoadSettings.weeksForward = originalWeeksForward;
+        this.hideLoading();
+        this.updateDataLoadingStatus();
+    }
+}
+			
             async syncAutoCapacityChangesToAirtable() {
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
                     return;
@@ -1888,23 +1947,28 @@ attachTaskCardListeners(card, task) {
                 this.setupPersonCapacityInputs();
             }
             
-            attachSearchListeners() {
-                const searchInput = document.getElementById('searchInput');
-                const performSearch = document.getElementById('performSearch');
+attachSearchListeners() {
+    const searchInput = document.getElementById('searchInput');
+    const performSearch = document.getElementById('performSearch');
 
-                searchInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        this.performSearch();
-                    }
-                });
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            this.performSearch();
+        }
+    });
 
-                performSearch.addEventListener('click', () => this.performSearch());
+    performSearch.addEventListener('click', () => this.performSearch());
 
-                document.getElementById('searchToday').addEventListener('click', () => this.setSearchDateRange('today'));
-                document.getElementById('searchThisWeek').addEventListener('click', () => this.setSearchDateRange('week'));
-                document.getElementById('searchAllTime').addEventListener('click', () => this.setSearchDateRange('all'));
-                document.getElementById('clearSearchFilters').addEventListener('click', () => this.clearSearchFilters());
-            }
+    document.getElementById('searchToday').addEventListener('click', () => this.setSearchDateRange('today'));
+    document.getElementById('searchThisWeek').addEventListener('click', () => this.setSearchDateRange('week'));
+    document.getElementById('searchAllTime').addEventListener('click', () => this.setSearchDateRange('all'));
+    document.getElementById('clearSearchFilters').addEventListener('click', () => this.clearSearchFilters());
+
+    // Load More Historical Data button for search
+    document.getElementById('loadMoreSearchDataBtn').addEventListener('click', () => {
+        this.loadMoreHistoricalDataForSearch();
+    });
+}
             
             attachReportsListeners() {
                 document.getElementById('reportToday').addEventListener('click', () => this.setReportDateRange('today'));
@@ -3588,11 +3652,12 @@ showSettingsModal() {
             }
             
             // Search Modal Functions
-            showSearchModal() {
-                this.populateSearchPersonFilter();
-                this.handleModalAction('searchModal', 'show');
-                document.getElementById('searchInput').focus();
-            }
+showSearchModal() {
+    this.populateSearchPersonFilter();
+    this.updateSearchDataRangeDisplay(); // Add this line
+    this.handleModalAction('searchModal', 'show');
+    document.getElementById('searchInput').focus();
+}
             
             populateSearchPersonFilter() {
                 this.populatePeopleDropdown('searchPersonFilter', true);
@@ -7481,6 +7546,7 @@ clearElementCache() {
         this.elementCache.clear();
     }
 }
+
 
 cleanup() {
     // Clear intervals
