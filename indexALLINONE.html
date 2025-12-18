@@ -3486,11 +3486,9 @@ attachOrderModalListeners() {
     // Order Number Real-time Validation
     const orderNumberInput = document.getElementById('orderNumberInput');
     if (orderNumberInput) {
-        // Remove existing validation elements
         const existingError = orderNumberInput.parentNode.querySelector('.validation-error');
         if (existingError) existingError.remove();
         
-        // Create error message element
         const errorDiv = document.createElement('div');
         errorDiv.className = 'validation-error text-red-500 text-xs mt-1 hidden';
         orderNumberInput.parentNode.appendChild(errorDiv);
@@ -3500,20 +3498,17 @@ attachOrderModalListeners() {
             const validation = this.validateOrderNumber(value);
             
             if (!validation.isValid && value.trim() !== '') {
-                // Show error
                 errorDiv.textContent = validation.error;
                 errorDiv.classList.remove('hidden');
                 e.target.classList.add('border-red-500');
                 e.target.classList.remove('border-gray-300');
             } else {
-                // Hide error
                 errorDiv.classList.add('hidden');
                 e.target.classList.remove('border-red-500');
                 e.target.classList.add('border-gray-300');
             }
         });
         
-        // Validate on blur (when user leaves the field)
         orderNumberInput.addEventListener('blur', (e) => {
             const value = e.target.value;
             const validation = this.validateOrderNumber(value);
@@ -3525,6 +3520,106 @@ attachOrderModalListeners() {
             }
         });
     }
+
+    // Due Date Real-time Validation
+    const dueDateInput = document.getElementById('dueDateInput');
+    if (dueDateInput) {
+        const dueDateErrorDiv = document.createElement('div');
+        dueDateErrorDiv.className = 'validation-error text-red-500 text-xs mt-1 hidden';
+        dueDateInput.parentNode.appendChild(dueDateErrorDiv);
+        
+        dueDateInput.addEventListener('change', (e) => {
+            const value = e.target.value;
+            const validation = this.validateDueDate(value);
+            
+            if (!validation.isValid) {
+                dueDateErrorDiv.textContent = validation.error;
+                dueDateErrorDiv.classList.remove('hidden');
+                e.target.classList.add('border-red-500');
+                e.target.classList.remove('border-gray-300');
+            } else {
+                dueDateErrorDiv.classList.add('hidden');
+                e.target.classList.remove('border-red-500');
+                e.target.classList.add('border-gray-300');
+            }
+        });
+    }
+
+    // Description Real-time Validation
+    const descriptionInput = document.getElementById('descriptionInput');
+    if (descriptionInput) {
+        const descErrorDiv = document.createElement('div');
+        descErrorDiv.className = 'validation-error text-red-500 text-xs mt-1 hidden';
+        descriptionInput.parentNode.appendChild(descErrorDiv);
+        
+        descriptionInput.addEventListener('blur', (e) => {
+            const value = e.target.value.trim();
+            
+            if (value.length > 0 && value.length < 3) {
+                descErrorDiv.textContent = 'Description must be at least 3 characters';
+                descErrorDiv.classList.remove('hidden');
+                e.target.classList.add('border-red-500');
+                e.target.classList.remove('border-gray-300');
+            } else {
+                descErrorDiv.classList.add('hidden');
+                e.target.classList.remove('border-red-500');
+                e.target.classList.add('border-gray-300');
+            }
+        });
+    }
+
+    // Print Tags From Order button
+    document.getElementById('printTagsFromOrder').addEventListener('click', () => {
+        const orderNumber = document.getElementById('orderNumberInput').value.trim();
+        const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
+        
+        const orderValidation = this.validateOrderNumber(orderNumber);
+        if (!orderValidation.isValid) {
+            this.showErrorToast('validation', orderValidation.error);
+            return;
+        }
+        
+        const tempTaskData = {
+            orderNumber: orderNumber,
+            tagsQuantity: tagsQuantity,
+            dateDue: document.getElementById('dueDateInput').value,
+            description: document.getElementById('descriptionInput').value.trim()
+        };
+        
+        let person, dateKey;
+        if (document.getElementById('personDateFields').classList.contains('hidden')) {
+            person = this.currentOrderPerson;
+            dateKey = this.currentOrderDate;
+        } else {
+            person = document.getElementById('assignPersonSelect').value;
+            dateKey = document.getElementById('workDateInput').value;
+        }
+        
+        this.getElement('orderModal').classList.add('hidden');
+        this.showTagPrintingModalFromOrder(tempTaskData, person, dateKey);
+    });
+
+    // Duration Input Handler
+    const durationInput = document.getElementById('durationInput');
+    durationInput.addEventListener('input', () => {
+        const slots = parseInt(durationInput.value) || 2;
+        const minutes = slots * 15;
+        document.getElementById('durationMinutes').textContent = minutes;
+    });
+
+    // Duration Quick Buttons
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.duration-btn')) {
+            const btn = e.target.closest('.duration-btn');
+            const duration = btn.dataset.duration;
+            const durationInput = document.getElementById('durationInput');
+            durationInput.value = duration;
+            durationInput.dispatchEvent(new Event('input'));
+        }
+    });
+
+    this.updateCommonWords();
+}
 
     // Print Tags From Order button
     document.getElementById('printTagsFromOrder').addEventListener('click', () => {
@@ -3954,29 +4049,60 @@ showOrderModalForPerson(person, date = null) {
                 document.getElementById('durationInput').value = '2';
                 document.getElementById('durationMinutes').textContent = '30';
             }
-            
-async saveOrder() {
-    console.log('🔍 saveOrder() called');
+
+	showValidationSummary(errors) {
+    let summaryDiv = document.getElementById('validationSummary');
     
+    if (errors.length === 0) {
+        if (summaryDiv) summaryDiv.remove();
+        return;
+    }
+    
+    if (!summaryDiv) {
+        summaryDiv = document.createElement('div');
+        summaryDiv.id = 'validationSummary';
+        summaryDiv.className = 'bg-red-50 border border-red-200 rounded-lg p-4 mb-4';
+        
+        const modal = document.getElementById('orderModal');
+        const content = modal.querySelector('.grid');
+        content.parentNode.insertBefore(summaryDiv, content);
+    }
+    
+    summaryDiv.innerHTML = `
+        <div class="flex items-center mb-2">
+            <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.996-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+            </svg>
+            <h4 class="font-medium text-red-800">Please fix these issues:</h4>
+        </div>
+        <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
+            ${errors.map(error => `<li>${error}</li>`).join('')}
+        </ul>
+    `;
+}
+	
+async saveOrder() {
     const orderNumber = this.sanitizeInput(this.getElement('orderNumberInput').value.trim());
     const dateDue = this.getElement('dueDateInput').value;
     const description = this.sanitizeInput(this.getElement('descriptionInput').value.trim());
     const duration = parseInt(this.getElement('durationInput').value);
     const tagsQuantity = parseInt(this.getElement('tagsQuantityInput').value) || 1;
 
-    console.log('🔍 Input values:', { orderNumber, dateDue, description, duration });
-
-    // Enhanced validation
+    // Enhanced validation with user feedback
     const validation = this.validateOrderData(orderNumber, dateDue, description, duration);
-    console.log('🔍 Validation result:', validation);
-    
     if (!validation.isValid) {
-        console.log('❌ Validation failed, blocking save');
-        this.showErrorToast('validation', validation.errors[0]);
+        this.showValidationSummary(validation.errors);
+        
+        if (validation.errors.length === 1) {
+            this.showErrorToast('validation', validation.errors[0]);
+        } else {
+            const errorList = validation.errors.map((error, index) => `${index + 1}. ${error}`).join('\n');
+            this.showErrorToast('validation', `Please fix these issues:\n${errorList}`);
+        }
         return;
+    } else {
+        this.showValidationSummary([]); // Clear any existing errors
     }
-    
-    console.log('✅ Validation passed, proceeding with save');
 
     let targetPerson, targetDateKey;
     
@@ -3993,18 +4119,46 @@ async saveOrder() {
     const duplicates = this.checkForDuplicateOrderNumber(orderNumber, excludeTaskId);
     
     if (duplicates.length > 0) {
-        // Show confirmation dialog and wait for user response
         this.showDuplicateOrderConfirmation(duplicates, () => {
-            // User confirmed - proceed with original save logic
             this.proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey);
         });
-        return; // Stop here until user confirms
+        return;
     }
 
-    // No duplicates - proceed with original save logic
     this.proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey);
 }
 
+// Add this validation summary method to your class
+showValidationSummary(errors) {
+    let summaryDiv = document.getElementById('validationSummary');
+    
+    if (errors.length === 0) {
+        if (summaryDiv) summaryDiv.remove();
+        return;
+    }
+    
+    if (!summaryDiv) {
+        summaryDiv = document.createElement('div');
+        summaryDiv.id = 'validationSummary';
+        summaryDiv.className = 'bg-red-50 border border-red-200 rounded-lg p-4 mb-4';
+        
+        const modal = document.getElementById('orderModal');
+        const content = modal.querySelector('.grid');
+        content.parentNode.insertBefore(summaryDiv, content);
+    }
+    
+    summaryDiv.innerHTML = `
+        <div class="flex items-center mb-2">
+            <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.996-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+            </svg>
+            <h4 class="font-medium text-red-800">Please fix these issues:</h4>
+        </div>
+        <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
+            ${errors.map(error => `<li>${error}</li>`).join('')}
+        </ul>
+    `;
+}
 async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey) {
     // Use performance tracking (original logic preserved)
     try {
@@ -8751,6 +8905,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
