@@ -5401,8 +5401,23 @@ sortReportData(data, column, direction = 'asc') {
                 valueB = b.task.duration;
                 break;
             case 'status':
-                valueA = a.task.completed ? 0 : 1;
-                valueB = b.task.completed ? 0 : 1;
+                // Fix: Sort by actual status priority: Complete(0) < Incomplete(1) < Overdue(2)
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const getStatusValue = (item) => {
+                    if (item.task.completed) return 0; // Complete
+                    
+                    const taskDueDate = item.task.dateDue ? new Date(item.task.dateDue) : null;
+                    if (taskDueDate) {
+                        taskDueDate.setHours(0, 0, 0, 0);
+                        if (taskDueDate < today) return 2; // Overdue
+                    }
+                    return 1; // Incomplete
+                };
+                
+                valueA = getStatusValue(a);
+                valueB = getStatusValue(b);
                 break;
             default:
                 return 0;
@@ -8684,6 +8699,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
