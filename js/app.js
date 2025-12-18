@@ -1964,10 +1964,13 @@ attachSearchListeners() {
     document.getElementById('searchAllTime').addEventListener('click', () => this.setSearchDateRange('all'));
     document.getElementById('clearSearchFilters').addEventListener('click', () => this.clearSearchFilters());
 
-    // Load More Historical Data button for search
-    document.getElementById('loadMoreSearchDataBtn').addEventListener('click', () => {
-        this.loadMoreHistoricalDataForSearch();
-    });
+    // Load More Historical Data button for search (with null check)
+    const loadMoreSearchDataBtn = document.getElementById('loadMoreSearchDataBtn');
+    if (loadMoreSearchDataBtn) {
+        loadMoreSearchDataBtn.addEventListener('click', () => {
+            this.loadMoreHistoricalDataForSearch();
+        });
+    }
 }
             
             attachReportsListeners() {
@@ -7577,3 +7580,4 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
