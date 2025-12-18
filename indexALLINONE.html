@@ -3607,34 +3607,111 @@ attachOrderModalListeners() {
         document.getElementById('durationMinutes').textContent = minutes;
     });
 
-    // Duration Quick Buttons
-    document.addEventListener('click', (e) => {
-        if (e.target.closest('.duration-btn')) {
-            const btn = e.target.closest('.duration-btn');
-            const duration = btn.dataset.duration;
-            const durationInput = document.getElementById('durationInput');
-            durationInput.value = duration;
-            durationInput.dispatchEvent(new Event('input'));
-        }
+attachOrderModalListeners() {
+    // Save Order Button
+    document.getElementById('saveOrder').addEventListener('click', () => this.saveOrder());
+
+    // Work Date Change Handler
+    document.getElementById('workDateInput').addEventListener('change', (e) => {
+        this.updateWorkDateDisplay(e.target.value);
     });
 
-    this.updateCommonWords();
-}
+    // Order Number Real-time Validation
+    const orderNumberInput = document.getElementById('orderNumberInput');
+    if (orderNumberInput) {
+        const existingError = orderNumberInput.parentNode.querySelector('.validation-error');
+        if (existingError) existingError.remove();
+        
+        const orderErrorDiv = document.createElement('div');
+        orderErrorDiv.className = 'validation-error text-red-500 text-xs mt-1 hidden';
+        orderNumberInput.parentNode.appendChild(orderErrorDiv);
+        
+        orderNumberInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            const validation = this.validateOrderNumber(value);
+            
+            if (!validation.isValid && value.trim() !== '') {
+                orderErrorDiv.textContent = validation.error;
+                orderErrorDiv.classList.remove('hidden');
+                e.target.classList.add('border-red-500');
+                e.target.classList.remove('border-gray-300');
+            } else {
+                orderErrorDiv.classList.add('hidden');
+                e.target.classList.remove('border-red-500');
+                e.target.classList.add('border-gray-300');
+            }
+        });
+        
+        orderNumberInput.addEventListener('blur', (e) => {
+            const value = e.target.value;
+            const validation = this.validateOrderNumber(value);
+            
+            if (!validation.isValid) {
+                orderErrorDiv.textContent = validation.error;
+                orderErrorDiv.classList.remove('hidden');
+                e.target.classList.add('border-red-500');
+            }
+        });
+    }
 
-    // Print Tags From Order button
+    // Due Date Real-time Validation
+    const dueDateInput = document.getElementById('dueDateInput');
+    if (dueDateInput) {
+        const dueDateErrorDiv = document.createElement('div');
+        dueDateErrorDiv.className = 'validation-error text-red-500 text-xs mt-1 hidden';
+        dueDateInput.parentNode.appendChild(dueDateErrorDiv);
+        
+        dueDateInput.addEventListener('change', (e) => {
+            const value = e.target.value;
+            const validation = this.validateDueDate(value);
+            
+            if (!validation.isValid) {
+                dueDateErrorDiv.textContent = validation.error;
+                dueDateErrorDiv.classList.remove('hidden');
+                e.target.classList.add('border-red-500');
+                e.target.classList.remove('border-gray-300');
+            } else {
+                dueDateErrorDiv.classList.add('hidden');
+                e.target.classList.remove('border-red-500');
+                e.target.classList.add('border-gray-300');
+            }
+        });
+    }
+
+    // Description Real-time Validation
+    const descriptionInput = document.getElementById('descriptionInput');
+    if (descriptionInput) {
+        const descErrorDiv = document.createElement('div');
+        descErrorDiv.className = 'validation-error text-red-500 text-xs mt-1 hidden';
+        descriptionInput.parentNode.appendChild(descErrorDiv);
+        
+        descriptionInput.addEventListener('blur', (e) => {
+            const value = e.target.value.trim();
+            
+            if (value.length > 0 && value.length < 3) {
+                descErrorDiv.textContent = 'Description must be at least 3 characters';
+                descErrorDiv.classList.remove('hidden');
+                e.target.classList.add('border-red-500');
+                e.target.classList.remove('border-gray-300');
+            } else {
+                descErrorDiv.classList.add('hidden');
+                e.target.classList.remove('border-red-500');
+                e.target.classList.add('border-gray-300');
+            }
+        });
+    }
+
+    // Print Tags From Order Button
     document.getElementById('printTagsFromOrder').addEventListener('click', () => {
-        // Get current order data from modal
         const orderNumber = document.getElementById('orderNumberInput').value.trim();
         const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
         
-        // Validate order number before proceeding
         const orderValidation = this.validateOrderNumber(orderNumber);
         if (!orderValidation.isValid) {
             this.showErrorToast('validation', orderValidation.error);
             return;
         }
         
-        // Create a temporary task data for printing
         const tempTaskData = {
             orderNumber: orderNumber,
             tagsQuantity: tagsQuantity,
@@ -3642,7 +3719,6 @@ attachOrderModalListeners() {
             description: document.getElementById('descriptionInput').value.trim()
         };
         
-        // Determine person and date
         let person, dateKey;
         if (document.getElementById('personDateFields').classList.contains('hidden')) {
             person = this.currentOrderPerson;
@@ -3652,11 +3728,11 @@ attachOrderModalListeners() {
             dateKey = document.getElementById('workDateInput').value;
         }
         
-        // Close order modal and show tag printing modal
         this.getElement('orderModal').classList.add('hidden');
         this.showTagPrintingModalFromOrder(tempTaskData, person, dateKey);
     });
 
+    // Duration Input Handler
     const durationInput = document.getElementById('durationInput');
     durationInput.addEventListener('input', () => {
         const slots = parseInt(durationInput.value) || 2;
@@ -3664,6 +3740,7 @@ attachOrderModalListeners() {
         document.getElementById('durationMinutes').textContent = minutes;
     });
 
+    // Duration Quick Buttons Handler
     document.addEventListener('click', (e) => {
         if (e.target.closest('.duration-btn')) {
             const btn = e.target.closest('.duration-btn');
@@ -3674,8 +3751,10 @@ attachOrderModalListeners() {
         }
     });
 
+    // Initialize common words
     this.updateCommonWords();
 }
+	
 validateOrderData(orderNumber, dateDue, description, duration) {
     const errors = [];
     
@@ -8905,6 +8984,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
