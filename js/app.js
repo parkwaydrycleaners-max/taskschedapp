@@ -1,4 +1,4 @@
-       // Task Scheduler Application
+        // Task Scheduler Application
         class TaskSchedulerApp {
             constructor() {
                 // Core state
@@ -17,22 +17,22 @@
                 this.currentOrderPerson = null;
                 this.currentOrderDate = null;
 
-// Initialize caches and performance tracking
-this.elementCache = new Map();
-this.performanceMetrics = {
-    renderCount: 0,
-    averageRenderTime: 0,
-    lastRenderTime: 0
-};
+				// Initialize caches and performance tracking
+				this.elementCache = new Map();
+				this.performanceMetrics = {
+				    renderCount: 0,
+				    averageRenderTime: 0,
+				    lastRenderTime: 0
+				};
 
-this.cachedCommonWords = null;
-this.lastCommonWordsUpdate = 0;
-
-// Initialize on page load
-window.addEventListener('beforeunload', () => {
-    this.cleanup();
-    this.clearElementCache();
-});
+				this.cachedCommonWords = null;
+				this.lastCommonWordsUpdate = 0;
+				
+				// Initialize on page load
+				window.addEventListener('beforeunload', () => {
+				    this.cleanup();
+				    this.clearElementCache();
+				});
                 
                 // Configuration
                 this.airtableConfig = {
@@ -43,7 +43,7 @@ window.addEventListener('beforeunload', () => {
                         tasks: 'Tasks',
                         capacityOverrides: 'CapacityOverrides'
                     }
-		};
+				};
                 
                 // Auto-refresh settings
                 this.autoRefreshInterval = null;
@@ -70,32 +70,34 @@ window.addEventListener('beforeunload', () => {
                 this.DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 
                 // Performance tracking
-		this.errorCount = 0;
-		this.retryQueue = [];
+				this.errorCount = 0;
+				this.retryQueue = [];
 
-// State management
-this.state = {
-    isLoading: false,
-    isOffline: !navigator.onLine,
-    errorCount: 0,
-    lastSync: null
-};
+				// State management
+				this.state = {
+				    isLoading: false,
+				    isOffline: !navigator.onLine,
+				    errorCount: 0,
+				    lastSync: null
+				};
+				
+				// Configuration constants
+				this.config = {
+				    MAX_RETRIES: 3,
+				    DEBOUNCE_DELAY: 100,
+				    TOAST_DURATION: 4000,
+				    AUTO_SAVE_DELAY: 2000
+				};
 
-// Configuration constants
-this.config = {
-    MAX_RETRIES: 3,
-    DEBOUNCE_DELAY: 100,
-    TOAST_DURATION: 4000,
-    AUTO_SAVE_DELAY: 2000
-};
-
-
+				// Table Sort
+				this.tableSortState = {
+				    column: null,
+				    direction: 'asc'
+				};
                 
                 // Initialize
                 this.init();
             }
-            
-
             
             // User-friendly error messages
             getFriendlyErrorMessage(errorMessage) {
@@ -369,45 +371,45 @@ this.config = {
                 }
             }
 
-// Due Date Offset Methods - ADD THESE TO YOUR CLASS
-getDueDateOffset() {
-    return parseInt(localStorage.getItem('dueDateOffset')) || 0;
-}
-
-saveDueDateOffset(days) {
-    localStorage.setItem('dueDateOffset', days.toString());
-}
-
-getDefaultDueDate() {
-    const offset = this.getDueDateOffset();
-    const today = new Date();
-    const dueDate = new Date(today);
-    dueDate.setDate(today.getDate() + offset);
-    return dueDate.toISOString().split('T')[0];
-}
-
-// Add this method for better performance monitoring
-async performAsyncOperation(name, operation) {
-    const startTime = performance.now();
-    this.state.isLoading = true;
-    
-    try {
-        console.log(`🚀 Starting ${name}...`);
-        const result = await operation();
-        
-        const duration = performance.now() - startTime;
-        console.log(`✅ ${name} completed in ${duration.toFixed(2)}ms`);
-        
-        return result;
-    } catch (error) {
-        const duration = performance.now() - startTime;
-        console.error(`❌ ${name} failed after ${duration.toFixed(2)}ms:`, error);
-        this.handleProductionError(error, name);
-        throw error;
-    } finally {
-        this.state.isLoading = false;
-    }
-}
+			// Due Date Offset Methods - ADD THESE TO YOUR CLASS
+			getDueDateOffset() {
+			    return parseInt(localStorage.getItem('dueDateOffset')) || 0;
+			}
+			
+			saveDueDateOffset(days) {
+			    localStorage.setItem('dueDateOffset', days.toString());
+			}
+			
+			getDefaultDueDate() {
+			    const offset = this.getDueDateOffset();
+			    const today = new Date();
+			    const dueDate = new Date(today);
+			    dueDate.setDate(today.getDate() + offset);
+			    return dueDate.toISOString().split('T')[0];
+			}
+			
+			// Add this method for better performance monitoring
+			async performAsyncOperation(name, operation) {
+			    const startTime = performance.now();
+			    this.state.isLoading = true;
+			    
+			    try {
+			        console.log(`🚀 Starting ${name}...`);
+			        const result = await operation();
+			        
+			        const duration = performance.now() - startTime;
+			        console.log(`✅ ${name} completed in ${duration.toFixed(2)}ms`);
+			        
+			        return result;
+			    } catch (error) {
+			        const duration = performance.now() - startTime;
+			        console.error(`❌ ${name} failed after ${duration.toFixed(2)}ms:`, error);
+			        this.handleProductionError(error, name);
+			        throw error;
+			    } finally {
+			        this.state.isLoading = false;
+			    }
+			}
             
             async saveAutoRefreshSettings() {
                 try {
@@ -600,86 +602,164 @@ async performAsyncOperation(name, operation) {
                 this.updateCurrentDataRangeDisplay();
             }
 
-// Add these methods to your TaskSchedulerApp class
+			// Parallel task loading
+			async loadTasksDataParallel() {
+			    console.log('🚀 Starting parallel task loading...');
+			    
+			    const startDate = new Date(this.currentDate);
+			    startDate.setDate(this.currentDate.getDate() - (this.dataLoadSettings.weeksBack * 7));
+			    
+			    const endDate = new Date(this.currentDate);
+			    endDate.setDate(this.currentDate.getDate() + (this.dataLoadSettings.weeksForward * 7));
+			    
+			    const startDateStr = startDate.toISOString().split('T')[0];
+			    const endDateStr = endDate.toISOString().split('T')[0];
+			    
+			    console.log(`📅 Loading tasks from ${startDateStr} to ${endDateStr} (parallel)`);
+			    
+			    // Use existing loadTasksFromAirtable method instead of non-existent loadAllTaskPages
+			    await this.loadTasksFromAirtable();
+			    return this.tasks;
+			}
+			
+			// Parallel capacity loading
+			async loadCapacityOverridesParallel() {
+			    console.log('🚀 Starting parallel capacity loading...');
+			    
+			    // Use existing loadCapacityOverridesFromAirtable method instead of non-existent loadAllCapacityPages
+			    await this.loadCapacityOverridesFromAirtable();
+			    return this.peopleSpecificCapacity;
+			}
+			
+			// Parallel config loading
+			async loadAirtableConfigParallel() {
+			    console.log('🚀 Starting parallel config loading...');
+			    return await this.loadAllConfigPages();
+			}
+			
+			// Enhanced parallel loader with fallback
+			async loadAllDataParallel() {
+			    const performanceTracker = this.trackLoadingPerformance();
+			    
+			    try {
+			        this.showLoading('🚀 Loading data (parallel mode)...');
+			        console.log('🚀 Starting parallel data loading...');
+			        
+			        // Execute all requests in parallel
+			        await Promise.all([
+			            this.loadPeopleFromAirtable(),
+			            this.loadTasksDataParallel(),
+			            this.loadCapacityOverridesParallel()
+			        ]);
+			        
+			        console.log('✅ All parallel requests completed');
+			        
+			        // Re-render the whiteboard (data is already processed by individual methods)
+			        this.renderWhiteboard();
+			        
+			        performanceTracker.end();
+			        
+			    } catch (error) {
+			        console.error('❌ Parallel loading failed, falling back to sequential:', error);
+			        await this.loadAllDataFromAirtable();
+			    } finally {
+			        this.hideLoading();
+			    }
+			}
+			
+			// Performance tracking
+			trackLoadingPerformance() {
+			    const startTime = performance.now();
+			    return {
+			        end: () => {
+			            const endTime = performance.now();
+			            const duration = endTime - startTime;
+			            console.log(`⚡ Loading completed in ${duration.toFixed(2)}ms`);
+			            return duration;
+			        }
+			    };
+			}
 
-// Parallel task loading
-async loadTasksDataParallel() {
-    console.log('🚀 Starting parallel task loading...');
+			sortTableData(data, column, direction = 'asc') {
+			    return data.sort((a, b) => {
+			        let valueA, valueB;
+			        
+			        switch(column) {
+			            case 'orderNumber':
+			                valueA = a.task.orderNumber;
+			                valueB = b.task.orderNumber;
+			                break;
+			            case 'person':
+			                valueA = a.person;
+			                valueB = b.person;
+			                break;
+			            case 'description':
+			                valueA = a.task.description;
+			                valueB = b.task.description;
+			                break;
+			            case 'workDate':
+			                valueA = new Date(a.workDate || a.dateKey);
+			                valueB = new Date(b.workDate || b.dateKey);
+			                break;
+			            case 'dueDate':
+			                valueA = new Date(a.task.dateDue || '1900-01-01');
+			                valueB = new Date(b.task.dateDue || '1900-01-01');
+			                break;
+			            case 'duration':
+			                valueA = a.task.duration;
+			                valueB = b.task.duration;
+			                break;
+			            case 'status':
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayString = today.toISOString().split('T')[0];
     
-    const startDate = new Date(this.currentDate);
-    startDate.setDate(this.currentDate.getDate() - (this.dataLoadSettings.weeksBack * 7));
-    
-    const endDate = new Date(this.currentDate);
-    endDate.setDate(this.currentDate.getDate() + (this.dataLoadSettings.weeksForward * 7));
-    
-    const startDateStr = startDate.toISOString().split('T')[0];
-    const endDateStr = endDate.toISOString().split('T')[0];
-    
-    console.log(`📅 Loading tasks from ${startDateStr} to ${endDateStr} (parallel)`);
-    
-    // Use existing loadTasksFromAirtable method instead of non-existent loadAllTaskPages
-    await this.loadTasksFromAirtable();
-    return this.tasks;
-}
-
-// Parallel capacity loading
-async loadCapacityOverridesParallel() {
-    console.log('🚀 Starting parallel capacity loading...');
-    
-    // Use existing loadCapacityOverridesFromAirtable method instead of non-existent loadAllCapacityPages
-    await this.loadCapacityOverridesFromAirtable();
-    return this.peopleSpecificCapacity;
-}
-
-// Parallel config loading
-async loadAirtableConfigParallel() {
-    console.log('🚀 Starting parallel config loading...');
-    return await this.loadAllConfigPages();
-}
-
-// Enhanced parallel loader with fallback
-async loadAllDataParallel() {
-    const performanceTracker = this.trackLoadingPerformance();
-    
-    try {
-        this.showLoading('🚀 Loading data (parallel mode)...');
-        console.log('🚀 Starting parallel data loading...');
+    const getStatusValue = (item) => {
+        if (item.task.completed) return 0; // Complete
         
-        // Execute all requests in parallel
-        await Promise.all([
-            this.loadPeopleFromAirtable(),
-            this.loadTasksDataParallel(),
-            this.loadCapacityOverridesParallel()
-        ]);
-        
-        console.log('✅ All parallel requests completed');
-        
-        // Re-render the whiteboard (data is already processed by individual methods)
-        this.renderWhiteboard();
-        
-        performanceTracker.end();
-        
-    } catch (error) {
-        console.error('❌ Parallel loading failed, falling back to sequential:', error);
-        await this.loadAllDataFromAirtable();
-    } finally {
-        this.hideLoading();
-    }
-}
-
-// Performance tracking
-trackLoadingPerformance() {
-    const startTime = performance.now();
-    return {
-        end: () => {
-            const endTime = performance.now();
-            const duration = endTime - startTime;
-            console.log(`⚡ Loading completed in ${duration.toFixed(2)}ms`);
-            return duration;
+        let dueDateString;
+        if (item.task.dateDue instanceof Date) {
+            dueDateString = item.task.dateDue.toISOString().split('T')[0];
+        } else if (typeof item.task.dateDue === 'string') {
+            dueDateString = item.task.dateDue.includes('T') ? item.task.dateDue.split('T')[0] : item.task.dateDue;
+        } else {
+            return 1; // No due date = Incomplete
         }
+        
+        if (dueDateString < todayString) return 2; // Overdue
+        return 1; // Incomplete
     };
-}
-            
+    
+    valueA = getStatusValue(a);
+    valueB = getStatusValue(b);
+    
+    // Debug log to see actual values
+    console.log(`Status sort: ${a.task.orderNumber}=${valueA}, ${b.task.orderNumber}=${valueB}`);
+    break;
+			            default:
+			                return 0;
+			        }
+			        
+			        if (valueA < valueB) return direction === 'asc' ? -1 : 1;
+			        if (valueA > valueB) return direction === 'asc' ? 1 : -1;
+			        return 0;
+			    });
+			}
+			
+			createSortableTableHeader(columns, currentSortColumn, currentSortDirection) {
+			    return columns.map(col => {
+			        const sortIcon = currentSortColumn === col.key ? 
+			            (currentSortDirection === 'asc' ? '↑' : '↓') : '↕';
+			        
+			        return `
+			            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition-colors sortable-header" 
+			                data-sort="${col.key}">
+			                ${col.label} <span class="sort-icon text-gray-400">${sortIcon}</span>
+			            </th>
+			        `;
+			    }).join('');
+			}
+			
             updateCurrentDataRangeDisplay() {
                 const currentRangeDiv = document.getElementById('currentDataRange');
                 const weeksRangeSpan = document.getElementById('currentWeeksRange');
@@ -744,67 +824,67 @@ trackLoadingPerformance() {
                     this.updateDataLoadingStatus();
                 }
             }
-updateSearchDataRangeDisplay() {
-    const currentRangeSpan = document.getElementById('searchCurrentRange');
-    const loadedRangeSpan = document.getElementById('searchLoadedRange');
-    
-    if (currentRangeSpan) {
-        const totalWeeks = this.dataLoadSettings.weeksBack + this.dataLoadSettings.weeksForward;
-        currentRangeSpan.textContent = `${totalWeeks} weeks total`;
-    }
-    
-    if (loadedRangeSpan && this.dataLoadSettings.currentLoadedRange) {
-        const { startDate, endDate } = this.dataLoadSettings.currentLoadedRange;
-        loadedRangeSpan.textContent = `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`;
-    }
-}
-			
-async loadMoreHistoricalDataForSearch() {
-    if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
-        this.showErrorToast('validation', 'Please connect to Airtable first');
-        return;
-    }
-    
-    // Temporarily expand the date range to load more data
-    const originalWeeksBack = this.dataLoadSettings.weeksBack;
-    const originalWeeksForward = this.dataLoadSettings.weeksForward;
-    
-    // Expand to load all historical data (up to 52 weeks back)
-    this.dataLoadSettings.weeksBack = 52;
-    // Keep forward range the same
-    
-    this.showLoading('Loading historical data for search...');
-    
-    try {
-        await this.loadAllDataParallel();                    
-        
-        const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
-            return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
-                return dayTotal + personTasks.length;
-            }, 0);
-        }, 0);
-        
-        this.showToast(`✅ Historical data loaded for search (${totalTasks} total orders)`, 'success');
-        
-        // If there's an active search, refresh the results with expanded data
-        const searchTerm = document.getElementById('searchInput').value.trim();
-        if (searchTerm) {
-            this.performSearch();
-        }
-        
-        // Update search data range display
-        this.updateSearchDataRangeDisplay();
-        
-    } catch (error) {
-        this.showToast(`❌ Failed to load historical data: ${error.message}`, 'error');
-    } finally {
-        // Restore original settings (but keep the expanded data loaded)
-        this.dataLoadSettings.weeksBack = originalWeeksBack;
-        this.dataLoadSettings.weeksForward = originalWeeksForward;
-        this.hideLoading();
-        this.updateDataLoadingStatus();
-    }
-}
+			updateSearchDataRangeDisplay() {
+			    const currentRangeSpan = document.getElementById('searchCurrentRange');
+			    const loadedRangeSpan = document.getElementById('searchLoadedRange');
+			    
+			    if (currentRangeSpan) {
+			        const totalWeeks = this.dataLoadSettings.weeksBack + this.dataLoadSettings.weeksForward;
+			        currentRangeSpan.textContent = `${totalWeeks} weeks total`;
+			    }
+			    
+			    if (loadedRangeSpan && this.dataLoadSettings.currentLoadedRange) {
+			        const { startDate, endDate } = this.dataLoadSettings.currentLoadedRange;
+			        loadedRangeSpan.textContent = `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`;
+			    }
+			}
+						
+			async loadMoreHistoricalDataForSearch() {
+			    if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
+			        this.showErrorToast('validation', 'Please connect to Airtable first');
+			        return;
+			    }
+			    
+			    // Temporarily expand the date range to load more data
+			    const originalWeeksBack = this.dataLoadSettings.weeksBack;
+			    const originalWeeksForward = this.dataLoadSettings.weeksForward;
+			    
+			    // Expand to load all historical data (up to 52 weeks back)
+			    this.dataLoadSettings.weeksBack = 52;
+			    // Keep forward range the same
+			    
+			    this.showLoading('Loading historical data for search...');
+			    
+			    try {
+			        await this.loadAllDataParallel();                    
+			        
+			        const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
+			            return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
+			                return dayTotal + personTasks.length;
+			            }, 0);
+			        }, 0);
+			        
+			        this.showToast(`✅ Historical data loaded for search (${totalTasks} total orders)`, 'success');
+			        
+			        // If there's an active search, refresh the results with expanded data
+			        const searchTerm = document.getElementById('searchInput').value.trim();
+			        if (searchTerm) {
+			            this.performSearch();
+			        }
+			        
+			        // Update search data range display
+			        this.updateSearchDataRangeDisplay();
+			        
+			    } catch (error) {
+			        this.showToast(`❌ Failed to load historical data: ${error.message}`, 'error');
+			    } finally {
+			        // Restore original settings (but keep the expanded data loaded)
+			        this.dataLoadSettings.weeksBack = originalWeeksBack;
+			        this.dataLoadSettings.weeksForward = originalWeeksForward;
+			        this.hideLoading();
+			        this.updateDataLoadingStatus();
+			    }
+			}
 			
             async syncAutoCapacityChangesToAirtable() {
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
@@ -1964,13 +2044,10 @@ attachSearchListeners() {
     document.getElementById('searchAllTime').addEventListener('click', () => this.setSearchDateRange('all'));
     document.getElementById('clearSearchFilters').addEventListener('click', () => this.clearSearchFilters());
 
-    // Load More Historical Data button for search (with null check)
-    const loadMoreSearchDataBtn = document.getElementById('loadMoreSearchDataBtn');
-    if (loadMoreSearchDataBtn) {
-        loadMoreSearchDataBtn.addEventListener('click', () => {
-            this.loadMoreHistoricalDataForSearch();
-        });
-    }
+    // Load More Historical Data button for search
+    document.getElementById('loadMoreSearchDataBtn').addEventListener('click', () => {
+        this.loadMoreHistoricalDataForSearch();
+    });
 }
             
             attachReportsListeners() {
@@ -3751,32 +3828,155 @@ showSearchModal() {
                 return true;
             }
             
-            displaySearchResults(results, container) {
-                if (results.length === 0) {
-                    container.innerHTML = `
-                        <div class="text-center py-8 text-gray-500 ">
-                            <p class="text-lg font-medium">No orders found</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                const scrollContainer = document.createElement('div');
-                scrollContainer.className = 'space-y-2 max-h-96 overflow-y-auto';
-                
-                results.forEach(result => {
-                    const item = this.createSearchResultItem(result);
-                    scrollContainer.appendChild(item);
-                });
-                
-                container.innerHTML = '';
-                container.appendChild(scrollContainer);
-                
-                const statsDiv = document.createElement('div');
-                statsDiv.className = 'text-center py-2 text-sm text-gray-500  border-t border-gray-200  mt-4';
-                statsDiv.textContent = `Found ${results.length} order${results.length !== 1 ? 's' : ''}`;
-                container.appendChild(statsDiv);
+displaySearchResults(results, container) {
+    if (results.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+                <p class="text-lg font-medium">No orders found</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Store data for sorting
+    this.currentSearchResults = results;
+    
+    // Render sortable table
+    this.renderSortableSearchTable(results, container);
+    
+    const statsDiv = document.createElement('div');
+    statsDiv.className = 'text-center py-2 text-sm text-gray-500 border-t border-gray-200 mt-4';
+    statsDiv.textContent = `Found ${results.length} order${results.length !== 1 ? 's' : ''}`;
+    container.appendChild(statsDiv);
+}
+
+renderSortableSearchTable(searchResults, container) {
+    const tableContainer = document.createElement('div');
+    tableContainer.className = 'overflow-x-auto bg-white rounded-lg border border-gray-200 mb-4';
+    
+    const table = document.createElement('table');
+    table.className = 'min-w-full divide-y divide-gray-200';
+    
+    const columns = [
+        { key: 'orderNumber', label: 'Order #' },
+        { key: 'person', label: 'Person' },
+        { key: 'description', label: 'Description' },
+        { key: 'workDate', label: 'Work Date' },
+        { key: 'dueDate', label: 'Due Date' },
+        { key: 'duration', label: 'Duration' },
+        { key: 'status', label: 'Status' }
+    ];
+
+    table.innerHTML = `
+        <thead class="bg-gray-50">
+            <tr>
+                ${this.createSortableTableHeader(columns, this.tableSortState.column, this.tableSortState.direction)}
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200" id="searchTableBody">
+        </tbody>
+    `;
+
+    // Add sort click listeners
+    table.querySelectorAll('.sortable-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const sortColumn = header.dataset.sort;
+            
+            if (this.tableSortState.column === sortColumn) {
+                this.tableSortState.direction = this.tableSortState.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.tableSortState.column = sortColumn;
+                this.tableSortState.direction = 'asc';
             }
+            
+            this.renderSortableSearchTable(this.currentSearchResults, container);
+        });
+    });
+
+    // Sort and populate data
+    const sortedResults = this.sortTableData([...searchResults], this.tableSortState.column, this.tableSortState.direction);
+    const tbody = table.querySelector('#searchTableBody');
+    
+    sortedResults.forEach((result, index) => {
+        const { task, person, dateKey } = result;
+        const dueDateDisplay = this.formatDateForDisplay(task.dateDue);
+        const dueDateColor = new Date(task.dateDue) < new Date() ? 'text-red-500' : 'text-green-500';
+        const workDate = this.parseDateString(dateKey);
+        const correctWorkDateDisplay = workDate ? this.formatDateForDisplay(workDate) : result.dateDisplay;
+        
+        let status, statusClass;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const taskDueDate = new Date(task.dateDue);
+        taskDueDate.setHours(0, 0, 0, 0);
+        
+        if (task.completed) {
+            status = '✅ Complete';
+            statusClass = 'text-green-600';
+        } else if (taskDueDate < today) {
+            status = '⚠️ Overdue';
+            statusClass = 'text-red-600';
+        } else {
+            status = '⏳ Incomplete';
+            statusClass = 'text-blue-600';
+        }
+        
+        const row = document.createElement('tr');
+        row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">#${task.orderNumber}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${person}</td>
+            <td class="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title="${task.description}">${task.description}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${correctWorkDateDisplay}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm ${dueDateColor}">${dueDateDisplay}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${task.duration * 15} min</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <span class="flex items-center cursor-pointer">
+                    <input type="checkbox" class="search-result-checkbox w-4 h-4 text-primary border border-gray-300 rounded focus:ring-2 focus:ring-primary mr-2" 
+                           data-task-id="${task.id}" 
+                           data-person="${person}" 
+                           data-date="${dateKey}"
+                           ${task.completed ? 'checked' : ''}>
+                    <span class="text-sm font-medium ${statusClass}">${status}</span>
+                </span>
+            </td>
+        `;
+        
+        // Add checkbox and navigation listeners
+        const checkbox = row.querySelector('.search-result-checkbox');
+        checkbox.addEventListener('change', async (e) => {
+            e.stopPropagation();
+            const taskId = checkbox.dataset.taskId;
+            const person = checkbox.dataset.person;
+            const dateKey = checkbox.dataset.date;
+            let foundTask = null;
+            if (this.tasks[dateKey] && this.tasks[dateKey][person]) {
+                foundTask = this.tasks[dateKey][person].find(t => t.id == taskId);
+                if (foundTask) {
+                    await this.toggleTaskCompletion(foundTask);
+                    this.performSearch();
+                }
+            }
+        });
+        
+        row.addEventListener('dblclick', () => {
+            this.handleModalAction('searchModal', 'hide');
+            const [year, month, day] = dateKey.split('-');
+            this.currentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            this.updateDateDisplay();
+            this.renderWhiteboard();
+            setTimeout(() => this.highlightOrder(task.orderNumber, person), 200);
+        });
+        row.style.cursor = 'pointer';
+        row.title = 'Double-click to navigate';
+        
+        tbody.appendChild(row);
+    });
+
+    container.innerHTML = '';
+    container.appendChild(tableContainer);
+}
             
 createSearchResultItem(result) {
     const { task, person, dateKey, dateDisplay } = result;
@@ -4129,189 +4329,319 @@ if (task.completed) {
                 return '9999-12-31';
             }
             
-            displayReport(reportData, selectedPerson, startDate, endDate, filterType) {
-                const resultsContainer = document.getElementById('reportResults');
-                
-                if (reportData.length === 0) {
-                    resultsContainer.innerHTML = `
-                        <div class="text-center py-8 text-gray-500 ">
-                            <p class="text-lg font-medium">No orders found</p>
-                        </div>
-                    `;
-                    document.getElementById('exportReport').classList.add('hidden');
-                    return;
-                }
-
-const totalOrders = reportData.length;
-const incompleteOrders = reportData.filter(item => !item.task.completed).length;
-// Calculate overdue directly: incomplete orders that are past due date
-const today = new Date();
-today.setHours(0, 0, 0, 0);
-const overdueOrders = reportData.filter(item => {
-    if (item.task.completed) return false; // Skip completed orders
+displayReport(reportData, selectedPerson, startDate, endDate, filterType) {
+    const resultsContainer = document.getElementById('reportResults');
     
-    // Get due date string
-    let dueDateString;
-    if (item.task.dateDue instanceof Date) {
-        dueDateString = item.task.dateDue.toISOString().split('T')[0];
-    } else if (typeof item.task.dateDue === 'string') {
-        dueDateString = item.task.dateDue.includes('T') ? item.task.dateDue.split('T')[0] : item.task.dateDue;
-    } else {
-        return false;
+    if (reportData.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+                <p class="text-lg font-medium">No orders found</p>
+            </div>
+        `;
+        document.getElementById('exportReport').classList.add('hidden');
+        return;
     }
-    
-    const todayString = today.toISOString().split('T')[0];
-    return dueDateString < todayString; // Due before today
-}).length;
-const totalDuration = reportData.reduce((sum, item) => sum + item.task.duration, 0);
-const totalHours = Math.floor(totalDuration * 15 / 60);
-const totalMins = (totalDuration * 15) % 60;
 
-const summaryDiv = document.createElement('div');
-summaryDiv.className = 'bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6';
-summaryDiv.innerHTML = `
-    <h4 class="font-semibold text-blue-800 mb-4">📊 Report Summary</h4>
-    <div class="grid grid-cols-4 gap-4 text-sm">
-        <div class="text-center">
-            <button class="report-filter-btn hover:bg-blue-100 p-2 rounded transition-colors w-full" data-filter="all">
-                <div class="text-2xl font-bold text-blue-600">${totalOrders}</div>
-                <div class="text-blue-700">Total Orders</div>
-            </button>
-        </div>
-        <div class="text-center">
-            <button class="report-filter-btn hover:bg-yellow-100 p-2 rounded transition-colors w-full" data-filter="incomplete">
-                <div class="text-2xl font-bold ${incompleteOrders > 0 ? 'text-yellow-600' : 'text-green-600 '}">${incompleteOrders}</div>
-                <div class="text-blue-700">Incomplete</div>
-            </button>
-        </div>
-        <div class="text-center">
-            <button class="report-filter-btn hover:bg-red-100 p-2 rounded transition-colors w-full" data-filter="overdue">
-                <div class="text-2xl font-bold ${overdueOrders > 0 ? 'text-red-600' : 'text-green-600'}">${overdueOrders}</div>
-                <div class="text-blue-700">Overdue</div>
-            </button>
-        </div>
-        <div class="text-center">
-            <div class="p-2">
-                <div class="text-2xl font-bold text-blue-600">${totalHours}h ${totalMins}m</div>
-                <div class="text-blue-700">Total Time</div>
+    // Store data for sorting
+    this.currentReportData = reportData;
+
+    const totalOrders = reportData.length;
+    const incompleteOrders = reportData.filter(item => !item.task.completed).length;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const overdueOrders = reportData.filter(item => {
+        if (item.task.completed) return false;
+        let dueDateString;
+        if (item.task.dateDue instanceof Date) {
+            dueDateString = item.task.dateDue.toISOString().split('T')[0];
+        } else if (typeof item.task.dateDue === 'string') {
+            dueDateString = item.task.dateDue.includes('T') ? item.task.dateDue.split('T')[0] : item.task.dateDue;
+        } else {
+            return false;
+        }
+        const todayString = today.toISOString().split('T')[0];
+        return dueDateString < todayString;
+    }).length;
+    const totalDuration = reportData.reduce((sum, item) => sum + item.task.duration, 0);
+    const totalHours = Math.floor(totalDuration * 15 / 60);
+    const totalMins = (totalDuration * 15) % 60;
+
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6';
+    summaryDiv.innerHTML = `
+        <h4 class="font-semibold text-blue-800 mb-4">📊 Report Summary</h4>
+        <div class="grid grid-cols-4 gap-4 text-sm">
+            <div class="text-center">
+                <button class="report-filter-btn hover:bg-blue-100 p-2 rounded transition-colors w-full" data-filter="all">
+                    <div class="text-2xl font-bold text-blue-600">${totalOrders}</div>
+                    <div class="text-blue-700">Total Orders</div>
+                </button>
+            </div>
+            <div class="text-center">
+                <button class="report-filter-btn hover:bg-yellow-100 p-2 rounded transition-colors w-full" data-filter="incomplete">
+                    <div class="text-2xl font-bold ${incompleteOrders > 0 ? 'text-yellow-600' : 'text-green-600'}">${incompleteOrders}</div>
+                    <div class="text-blue-700">Incomplete</div>
+                </button>
+            </div>
+            <div class="text-center">
+                <button class="report-filter-btn hover:bg-red-100 p-2 rounded transition-colors w-full" data-filter="overdue">
+                    <div class="text-2xl font-bold ${overdueOrders > 0 ? 'text-red-600' : 'text-green-600'}">${overdueOrders}</div>
+                    <div class="text-blue-700">Overdue</div>
+                </button>
+            </div>
+            <div class="text-center">
+                <div class="p-2">
+                    <div class="text-2xl font-bold text-blue-600">${totalHours}h ${totalMins}m</div>
+                    <div class="text-blue-700">Total Time</div>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="mt-3 text-sm text-blue-700">
-        <strong>Period:</strong> ${this.formatDateForDisplay(startDate)} - ${this.formatDateForDisplay(endDate)}
-        ${selectedPerson !== 'all' ? ` • <strong>Person:</strong> ${selectedPerson}` : ''}
-        • <strong>Filter:</strong> ${filterType === 'incomplete' ? 'Incomplete Orders Only' : filterType === 'overdue' ? 'Overdue Orders Only' : filterType === 'completed' ? 'Completed Orders Only' : 'All Orders'}
-    </div>
-                `;
-// Add click handlers for the filter buttons
-resultsContainer.appendChild(summaryDiv);
+        <div class="mt-3 text-sm text-blue-700">
+            <strong>Period:</strong> ${this.formatDateForDisplay(startDate)} - ${this.formatDateForDisplay(endDate)}
+            ${selectedPerson !== 'all' ? ` • <strong>Person:</strong> ${selectedPerson}` : ''}
+            • <strong>Filter:</strong> ${filterType === 'incomplete' ? 'Incomplete Orders Only' : filterType === 'overdue' ? 'Overdue Orders Only' : filterType === 'completed' ? 'Completed Orders Only' : 'All Orders'}
+        </div>
+    `;
 
-summaryDiv.querySelectorAll('.report-filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const filter = btn.dataset.filter;
-        this.generateReport(filter);
+    resultsContainer.innerHTML = '';
+    resultsContainer.appendChild(summaryDiv);
+
+    // Add filter button listeners
+    summaryDiv.querySelectorAll('.report-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const filter = btn.dataset.filter;
+            this.generateReport(filter);
+        });
     });
-});
 
-resultsContainer.innerHTML = '';
-resultsContainer.appendChild(summaryDiv);
+    // Create sortable table
+    const tableContainer = document.createElement('div');
+    tableContainer.className = 'overflow-x-auto bg-white rounded-lg border border-gray-200';
+    
+    const table = document.createElement('table');
+    table.className = 'min-w-full divide-y divide-gray-200';
+    
+    // Initialize sort state if not exists
+    if (!this.reportSortState) {
+        this.reportSortState = { column: null, direction: 'asc' };
+    }
+    
+    // Define sortable columns
+    const columns = [
+        { key: 'orderNumber', label: 'Order #' },
+        { key: 'person', label: 'Person' },
+        { key: 'description', label: 'Description' },
+        { key: 'workDate', label: 'Work Date' },
+        { key: 'dueDate', label: 'Due Date' },
+        { key: 'duration', label: 'Duration' },
+        { key: 'status', label: 'Status' }
+    ];
 
-                const tableContainer = document.createElement('div');
-                tableContainer.className = 'overflow-x-auto bg-white rounded-lg border border-gray-200';
-                
-                const table = document.createElement('table');
-                table.className = 'min-w-full divide-y divide-gray-200';
-                
-                table.innerHTML = `
-                    <thead class="bg-gray-50 ">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Order #</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Person</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Description</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Work Date</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Due Date</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Duration</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500  uppercase">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                    </tbody>
-                `;
+    // Create sortable header
+    const headerHtml = columns.map(col => {
+        const isCurrentSort = this.reportSortState.column === col.key;
+        const sortIcon = isCurrentSort ? 
+            (this.reportSortState.direction === 'asc' ? '↑' : '↓') : '↕';
+        
+        return `
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition-colors sortable-header" 
+                data-sort="${col.key}">
+                ${col.label} <span class="sort-icon text-gray-400 ml-1">${sortIcon}</span>
+            </th>
+        `;
+    }).join('');
 
-                const tbody = table.querySelector('tbody');
-                
-                reportData.forEach((item, index) => {
-                    const row = document.createElement('tr');
-                    row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50 ';
-                    
-                    row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">#${item.task.orderNumber}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 ">${item.person}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900  max-w-xs truncate" title="${item.task.description}">${item.task.description}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 ">${item.workDateDisplay}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 ">${item.dueDateDisplay}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 ">${item.durationDisplay}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <span class="flex items-center cursor-pointer">
-                                <input type="checkbox" class="report-checkbox w-4 h-4 text-primary border border-gray-300 rounded focus:ring-2 focus:ring-primary mr-2" 
-                                       data-task-id="${item.task.id}" 
-                                       data-person="${item.person}" 
-                                       data-date="${item.workDate}"
-                                       ${item.task.completed ? 'checked' : ''}>
-                                <span class="font-medium ${item.statusClass}">${item.status}</span>
-                            </span>
-                        </td>
-                    `;
-                    
-                    row.addEventListener('dblclick', () => {
-                        this.handleModalAction('reportsModal', 'hide');
-                        
-                        const [year, month, day] = item.workDate.split('-');
-                        this.currentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                        this.updateDateDisplay();
-                        this.renderWhiteboard();
-                        
-                        setTimeout(() => this.highlightOrder(item.task.orderNumber, item.person), 200);
-                    });
-                    row.style.cursor = 'pointer';
-                    row.title = 'Double-click to navigate';
-                    
-                    tbody.appendChild(row);
-                });
+    table.innerHTML = `
+        <thead class="bg-gray-50">
+            <tr>${headerHtml}</tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200" id="reportTableBody"></tbody>
+    `;
 
-                // Add event listeners to checkboxes in the report
-                const checkboxes = tbody.querySelectorAll('.report-checkbox');
-                checkboxes.forEach(checkbox => {
-                    checkbox.addEventListener('change', async (e) => {
-                        e.stopPropagation();
-                        
-                        const taskId = checkbox.dataset.taskId;
-                        const person = checkbox.dataset.person;
-                        const dateKey = checkbox.dataset.date;
-                        
-                        // Find the task and toggle its completion
-                        let foundTask = null;
-                        if (this.tasks[dateKey] && this.tasks[dateKey][person]) {
-                            foundTask = this.tasks[dateKey][person].find(t => t.id == taskId);
-                            if (foundTask) {
-                                await this.toggleTaskCompletion(foundTask);
-                                
-                                // Refresh the report to show updated status
-                                this.generateReport(filterType);
-                            }
-                        }
-                    });
-                });
-
-                tableContainer.appendChild(table);
-                
-                resultsContainer.innerHTML = '';
-                resultsContainer.appendChild(summaryDiv);
-                resultsContainer.appendChild(tableContainer);
-
-                document.getElementById('exportReport').classList.remove('hidden');
-                this.currentReportData = reportData;
+    // Add sort click listeners
+    table.querySelectorAll('.sortable-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const sortColumn = header.dataset.sort;
+            
+            if (this.reportSortState.column === sortColumn) {
+                this.reportSortState.direction = this.reportSortState.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.reportSortState.column = sortColumn;
+                this.reportSortState.direction = 'asc';
             }
+            
+            this.displayReport(this.currentReportData, selectedPerson, startDate, endDate, filterType);
+        });
+    });
+
+    // Sort the data
+    const sortedData = this.sortReportData([...reportData], this.reportSortState.column, this.reportSortState.direction);
+
+	// Add this debug log:
+console.log('🔍 First 5 sorted items:', sortedData.slice(0, 5).map(item => ({
+    orderNumber: item.task.orderNumber,
+    person: item.person,
+    completed: item.task.completed,
+    dateDue: item.task.dateDue,
+    status: item.task.completed ? 'Complete' : 
+           (item.task.dateDue && new Date(item.task.dateDue) < new Date() ? 'Overdue' : 'Incomplete')
+})));
+	
+    const tbody = table.querySelector('#reportTableBody');
+    
+    sortedData.forEach((item, index) => {
+        const row = document.createElement('tr');
+        row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">#${item.task.orderNumber}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.person}</td>
+            <td class="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title="${item.task.description}">${item.task.description}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.workDateDisplay}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.dueDateDisplay}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.durationDisplay}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <span class="flex items-center cursor-pointer">
+                    <input type="checkbox" class="report-checkbox w-4 h-4 text-primary border border-gray-300 rounded focus:ring-2 focus:ring-primary mr-2" 
+                           data-task-id="${item.task.id}" 
+                           data-person="${item.person}" 
+                           data-date="${item.workDate}"
+                           ${item.task.completed ? 'checked' : ''}>
+                    <span class="font-medium ${item.statusClass}">${item.status}</span>
+                </span>
+            </td>
+        `;
+        
+        row.addEventListener('dblclick', () => {
+            this.handleModalAction('reportsModal', 'hide');
+            const [year, month, day] = item.workDate.split('-');
+            this.currentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            this.updateDateDisplay();
+            this.renderWhiteboard();
+            setTimeout(() => this.highlightOrder(item.task.orderNumber, item.person), 200);
+        });
+        row.style.cursor = 'pointer';
+        row.title = 'Double-click to navigate';
+        
+        tbody.appendChild(row);
+    });
+
+    // Add checkbox listeners
+    const checkboxes = tbody.querySelectorAll('.report-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', async (e) => {
+            e.stopPropagation();
+            const taskId = checkbox.dataset.taskId;
+            const person = checkbox.dataset.person;
+            const dateKey = checkbox.dataset.date;
+            let foundTask = null;
+            if (this.tasks[dateKey] && this.tasks[dateKey][person]) {
+                foundTask = this.tasks[dateKey][person].find(t => t.id == taskId);
+                if (foundTask) {
+                    await this.toggleTaskCompletion(foundTask);
+                    this.generateReport(filterType);
+                }
+            }
+        });
+    });
+
+    tableContainer.appendChild(table);
+    resultsContainer.appendChild(tableContainer);
+    document.getElementById('exportReport').classList.remove('hidden');
+}
+
+// Add this helper method to your class
+sortReportData(data, column, direction = 'asc') {
+    console.log(`🔄 Sorting by ${column} (${direction})`);
+    
+    if (!column) return data;
+    
+    return data.sort((a, b) => {
+        let valueA, valueB;
+        
+        switch(column) {
+            case 'orderNumber':
+                valueA = (a.task.orderNumber || '').toLowerCase();
+                valueB = (b.task.orderNumber || '').toLowerCase();
+                break;
+                
+            case 'person':
+                valueA = (a.person || '').toLowerCase();
+                valueB = (b.person || '').toLowerCase();
+                break;
+                
+            case 'description':
+                valueA = (a.task.description || '').toLowerCase();
+                valueB = (b.task.description || '').toLowerCase();
+                break;
+                
+            case 'workDate':
+                valueA = new Date(a.workDate || a.dateKey || '1900-01-01');
+                valueB = new Date(b.workDate || b.dateKey || '1900-01-01');
+                break;
+                
+            case 'dueDate':
+                // Tasks with no due date appear last
+                valueA = a.task.dateDue ? new Date(a.task.dateDue) : new Date('2099-12-31');
+                valueB = b.task.dateDue ? new Date(b.task.dateDue) : new Date('2099-12-31');
+                break;
+                
+            case 'duration':
+                valueA = parseInt(a.task.duration) || 0;
+                valueB = parseInt(b.task.duration) || 0;
+                break;
+                
+            case 'status':
+                console.log('📊 Status sorting triggered');
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const todayStr = today.toISOString().split('T')[0];
+                
+                const getStatusValue = (item) => {
+                    if (item.task.completed) {
+                        console.log(`✅ ${item.task.orderNumber}: Complete (0)`);
+                        return 0; // Complete
+                    }
+                    
+                    if (!item.task.dateDue) {
+                        console.log(`⏳ ${item.task.orderNumber}: No due date - Incomplete (1)`);
+                        return 1; // Incomplete
+                    }
+                    
+                    let dueDateStr;
+                    if (item.task.dateDue instanceof Date) {
+                        dueDateStr = item.task.dateDue.toISOString().split('T')[0];
+                    } else if (typeof item.task.dateDue === 'string') {
+                        dueDateStr = item.task.dateDue.includes('T') ? item.task.dateDue.split('T')[0] : item.task.dateDue;
+                    } else {
+                        console.log(`⏳ ${item.task.orderNumber}: Invalid due date - Incomplete (1)`);
+                        return 1;
+                    }
+                    
+                    if (dueDateStr < todayStr) {
+                        console.log(`⚠️ ${item.task.orderNumber}: Overdue (2) - due ${dueDateStr}`);
+                        return 2; // Overdue
+                    }
+                    
+                    console.log(`⏳ ${item.task.orderNumber}: Incomplete (1) - due ${dueDateStr}`);
+                    return 1; // Incomplete
+                };
+                
+                valueA = getStatusValue(a);
+                valueB = getStatusValue(b);
+                break;
+                
+            default:
+                console.warn(`Unknown sort column: ${column}`);
+                return 0;
+        }
+        
+        const result = valueA < valueB ? (direction === 'asc' ? -1 : 1) : 
+                      valueA > valueB ? (direction === 'asc' ? 1 : -1) : 0;
+        
+        return result;
+    });
+}
             
             exportReport() {
                 if (!this.currentReportData || this.currentReportData.length === 0) {
@@ -6429,8 +6759,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                     }
                 }
             }
-            
-          
+              
  async loadPeopleFromAirtable() {
     const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
     const response = await this.makeAirtableRequest(tableName);
@@ -7008,9 +7337,6 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
                 console.error('💥 ALL SAVE ATTEMPTS FAILED after trying all field sets and retries');
                 throw new Error(`Failed to save after all attempts: ${lastError?.message || 'Unknown error'}`);
             }
-            
-
-
 
             async verifyTaskCreation(recordId, orderNumber) {
                 try {
@@ -7550,7 +7876,6 @@ clearElementCache() {
     }
 }
 
-
 cleanup() {
     // Clear intervals
     if (this.autoRefreshInterval) {
@@ -7573,11 +7898,8 @@ cleanup() {
         });
         this.eventListeners.clear();
     }
-    
     console.log('🧹 App cleanup completed');
 }
         }
-
         // Initialize the application
         const app = new TaskSchedulerApp();
-
