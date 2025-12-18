@@ -2275,7 +2275,29 @@ const remainingMins = (remainingSlots * 15) % 60;
                 }
                 return '#' + orderNumber;
             }
-
+validateDueDate(dueDateValue) {
+    // Allow blank/empty due dates
+    if (!dueDateValue || dueDateValue.trim() === '') {
+        return { isValid: true };
+    }
+    
+    const dueDate = new Date(dueDateValue);
+    const today = new Date();
+    
+    // Normalize both dates to start of day to avoid time comparison issues
+    dueDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    if (dueDate < today) {
+        return { 
+            isValid: false, 
+            error: 'Due date cannot be in the past. Please select today or a future date.' 
+        };
+    }
+    
+    return { isValid: true };
+}
+			
 validateOrderNumber(orderNumber) {
     if (!orderNumber || orderNumber.trim() === '') {
         return { isValid: false, error: 'Order number is required' };
@@ -3562,10 +3584,16 @@ attachOrderModalListeners() {
 validateOrderData(orderNumber, dateDue, description, duration) {
     const validations = [];
     
-    // Order number validation - this will block saving invalid formats
+    // Order number validation
     const orderValidation = this.validateOrderNumber(orderNumber);
     if (!orderValidation.isValid) {
         validations.push(orderValidation.error);
+    }
+    
+    // Due date validation - prevent past dates
+    const dueDateValidation = this.validateDueDate(dateDue);
+    if (!dueDateValidation.isValid) {
+        validations.push(dueDateValidation.error);
     }
     
     // Description validation
@@ -3583,8 +3611,7 @@ validateOrderData(orderNumber, dateDue, description, duration) {
         errors: validations
     };
 }
-
-            
+           
             // Drag and Drop
             handleDragStart(e) {
                 this.draggedElement = e.target;
@@ -8765,3 +8792,4 @@ cleanup() {
     </script>
 </body>
 </html>
+
