@@ -3959,18 +3959,27 @@ showOrderModalForPerson(person, date = null) {
             }
             
 async saveOrder() {
+    console.log('🔍 saveOrder() called');
+    
     const orderNumber = this.sanitizeInput(this.getElement('orderNumberInput').value.trim());
     const dateDue = this.getElement('dueDateInput').value;
     const description = this.sanitizeInput(this.getElement('descriptionInput').value.trim());
     const duration = parseInt(this.getElement('durationInput').value);
     const tagsQuantity = parseInt(this.getElement('tagsQuantityInput').value) || 1;
 
+    console.log('🔍 Input values:', { orderNumber, dateDue, description, duration });
+
     // Enhanced validation
     const validation = this.validateOrderData(orderNumber, dateDue, description, duration);
+    console.log('🔍 Validation result:', validation);
+    
     if (!validation.isValid) {
+        console.log('❌ Validation failed, blocking save');
         this.showErrorToast('validation', validation.errors[0]);
         return;
     }
+    
+    console.log('✅ Validation passed, proceeding with save');
 
     let targetPerson, targetDateKey;
     
@@ -8792,4 +8801,5 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
