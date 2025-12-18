@@ -5393,9 +5393,10 @@ sortReportData(data, column, direction = 'asc') {
                 valueB = new Date(b.workDate);
                 break;
             case 'dueDate':
-                valueA = new Date(a.task.dateDue || '1900-01-01');
-                valueB = new Date(b.task.dateDue || '1900-01-01');
-                break;
+    			// Put tasks with no due date at the end
+			    valueA = a.task.dateDue ? new Date(a.task.dateDue) : new Date('2099-12-31');
+			    valueB = b.task.dateDue ? new Date(b.task.dateDue) : new Date('2099-12-31');
+			    break;
             case 'duration':
                 valueA = a.task.duration;
                 valueB = b.task.duration;
@@ -8699,6 +8700,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
