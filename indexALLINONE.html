@@ -3597,8 +3597,8 @@ validateOrderData(orderNumber, dateDue, description, duration) {
     }
     
     // Description validation
-    if (!description || description.trim().length < 3) {
-        validations.push('Description must be at least 3 characters');
+    if (!description || description.trim().length < 1) {
+        validations.push('Description must be at least 1 character');
     }
     
     // Duration validation
@@ -8801,5 +8801,6 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
