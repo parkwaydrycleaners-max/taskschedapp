@@ -5328,6 +5328,17 @@ displayReport(reportData, selectedPerson, startDate, endDate, filterType) {
 
     // Sort the data
     const sortedData = this.sortReportData([...reportData], this.reportSortState.column, this.reportSortState.direction);
+
+	// Add this debug log:
+console.log('🔍 First 5 sorted items:', sortedData.slice(0, 5).map(item => ({
+    orderNumber: item.task.orderNumber,
+    person: item.person,
+    completed: item.task.completed,
+    dateDue: item.task.dateDue,
+    status: item.task.completed ? 'Complete' : 
+           (item.task.dateDue && new Date(item.task.dateDue) < new Date() ? 'Overdue' : 'Incomplete')
+})));
+	
     const tbody = table.querySelector('#reportTableBody');
     
     sortedData.forEach((item, index) => {
@@ -8754,6 +8765,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
