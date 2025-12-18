@@ -6759,7 +6759,8 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                     }
                 }
             }
-              
+            
+          
  async loadPeopleFromAirtable() {
     const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
     const response = await this.makeAirtableRequest(tableName);
@@ -7337,6 +7338,9 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
                 console.error('💥 ALL SAVE ATTEMPTS FAILED after trying all field sets and retries');
                 throw new Error(`Failed to save after all attempts: ${lastError?.message || 'Unknown error'}`);
             }
+            
+
+
 
             async verifyTaskCreation(recordId, orderNumber) {
                 try {
@@ -7876,6 +7880,7 @@ clearElementCache() {
     }
 }
 
+
 cleanup() {
     // Clear intervals
     if (this.autoRefreshInterval) {
@@ -7898,8 +7903,10 @@ cleanup() {
         });
         this.eventListeners.clear();
     }
+    
     console.log('🧹 App cleanup completed');
 }
         }
+
         // Initialize the application
         const app = new TaskSchedulerApp();
