@@ -8657,53 +8657,6 @@ performanceTrack(name, operation) {
     }
 }
 
-validateOrderData(orderNumber, dateDue, description, duration) {
-    const validations = [
-        {
-            value: orderNumber,
-            rules: [
-                { type: 'required', message: 'Order number is required' },
-                { type: 'minLength', value: 2 },
-                { type: 'maxLength', value: 50 }
-            ]
-        },
-     //   {
-     //       value: dateDue,
-     //       rules: [
-     //           { type: 'required', message: 'Due date is required' }
-     //       ]
-     //   },
-        {
-            value: description,
-            rules: [
-                { type: 'required', message: 'Description is required' },
-                { type: 'minLength', value: 3 },
-                { type: 'maxLength', value: 500 }
-            ]
-        },
-        {
-            value: duration,
-            rules: [
-                { type: 'range', min: 1, max: 32, message: 'Duration must be between 1 and 32 slots' }
-            ]
-        }
-    ];
-
-    const allErrors = [];
-    
-    validations.forEach(validation => {
-        const result = this.validateField(validation.value, validation.rules);
-        if (!result.isValid) {
-            allErrors.push(...result.errors);
-        }
-    });
-
-    return {
-        isValid: allErrors.length === 0,
-        errors: allErrors
-    };
-}
-
 initOfflineDetection() {
     window.addEventListener('online', () => {
         this.showToast('Connection restored! Syncing data...', 'success');
@@ -8798,6 +8751,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
