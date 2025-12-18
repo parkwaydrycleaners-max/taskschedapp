@@ -1562,9 +1562,32 @@
 			                valueB = b.task.duration;
 			                break;
 			            case 'status':
-			                valueA = a.task.completed ? 0 : 1; // Completed first
-			                valueB = b.task.completed ? 0 : 1;
-			                break;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayString = today.toISOString().split('T')[0];
+    
+    const getStatusValue = (item) => {
+        if (item.task.completed) return 0; // Complete
+        
+        let dueDateString;
+        if (item.task.dateDue instanceof Date) {
+            dueDateString = item.task.dateDue.toISOString().split('T')[0];
+        } else if (typeof item.task.dateDue === 'string') {
+            dueDateString = item.task.dateDue.includes('T') ? item.task.dateDue.split('T')[0] : item.task.dateDue;
+        } else {
+            return 1; // No due date = Incomplete
+        }
+        
+        if (dueDateString < todayString) return 2; // Overdue
+        return 1; // Incomplete
+    };
+    
+    valueA = getStatusValue(a);
+    valueB = getStatusValue(b);
+    
+    // Debug log to see actual values
+    console.log(`Status sort: ${a.task.orderNumber}=${valueA}, ${b.task.orderNumber}=${valueB}`);
+    break;
 			            default:
 			                return 0;
 			        }
@@ -8700,6 +8723,7 @@ cleanup() {
     </script>
 </body>
 </html>
+
 
 
 
