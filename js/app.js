@@ -1429,13 +1429,14 @@ validateDueDate(dueDateValue) {
         return { isValid: true };
     }
     
-    const dueDate = new Date(dueDateValue);
+    const dueDate = new Date(dueDateValue + 'T00:00:00');
     const today = new Date();
     
-    // Normalize both dates to start of day to avoid time comparison issues
+    // Set both to start of day for proper comparison
     dueDate.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
     
+    // Allow today's date (>= instead of >)
     if (dueDate < today) {
         return { 
             isValid: false, 
@@ -7998,3 +7999,4 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
