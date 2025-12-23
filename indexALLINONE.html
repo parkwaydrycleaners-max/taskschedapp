@@ -7,16 +7,28 @@
     <meta name="description" content="Professional task scheduling and order management whiteboard application">
     <meta name="theme-color" content="#5D5CDE">
 
-    <!-- Critical inline CSS to prevent FOUC -->
+    <!-- Load Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                        'primary-dark': '#4A49B8'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Critical inline CSS -->
     <style>
-        /* Hide content until CSS loads */
-        html { visibility: hidden; }
-        
         /* Basic reset and structure */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
-        
-        /* Loading spinner (optional) */
+
+        /* Loading spinner */
         .loading-spinner {
             position: fixed;
             top: 50%;
@@ -34,26 +46,73 @@
             100% { transform: translate(-50%, -50%) rotate(360deg); }
         }
 
-.modal-base { 
-    position: fixed; inset: 0; background: rgba(0,0,0,0.5); 
-    display: flex; align-items: center; justify-content: center; z-index: 50; 
-}
-.modal-content { 
-    background: white; padding: 1.5rem; border-radius: 0.5rem; 
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); width: 100%; 
-    margin: 1rem; max-height: 80vh; overflow-y: auto; 
-}
+        .modal-base {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center; z-index: 50;
+        }
+        .modal-content {
+            background: white; padding: 1.5rem; border-radius: 0.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); width: 100%;
+            margin: 1rem; max-height: 80vh; overflow-y: auto;
+        }
+
+        /* Fade-in animation */
+        .fade-in {
+            animation: fadeIn 0.2s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Task card styles */
+        .task-card {
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+        .task-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Capacity indicators */
+        .over-capacity-zone {
+            position: absolute;
+            left: 0;
+            right: 0;
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(239, 68, 68, 0.1),
+                rgba(239, 68, 68, 0.1) 10px,
+                rgba(239, 68, 68, 0.05) 10px,
+                rgba(239, 68, 68, 0.05) 20px
+            );
+            pointer-events: none;
+            z-index: 1;
+        }
+        .capacity-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #ef4444;
+            z-index: 2;
+        }
+
+        /* Drag and drop */
+        .drag-over {
+            background-color: rgba(93, 92, 222, 0.1);
+            border: 2px dashed #5D5CDE;
+        }
+
+        /* Time slots */
+        .time-slot {
+            height: 32px;
+            border-bottom: 1px dashed #e5e7eb;
+        }
     </style>
-    
+
     <!-- Preconnect links -->
-    <link rel="preconnect" href="https://cdn.tailwindcss.com">
     <link rel="preconnect" href="https://api.airtable.com">
-    
-    <!-- Load Tailwind setup (which will then load styles.css) -->
-    <script src="css/tailwind.js"></script>
-    
-    <!-- Remove this line - styles.css will be loaded by tailwind.js -->
-    <!-- <link rel="stylesheet" href="css/styles.css"> -->
 </head>
 <body class="bg-white text-gray-900 min-h-screen">
     <!-- Header -->
@@ -1223,23 +1282,6 @@
                 }
             }
 
-			// Due Date Offset Methods - ADD THESE TO YOUR CLASS
-			getDueDateOffset() {
-			    return parseInt(localStorage.getItem('dueDateOffset')) || 0;
-			}
-			
-			saveDueDateOffset(days) {
-			    localStorage.setItem('dueDateOffset', days.toString());
-			}
-			
-			getDefaultDueDate() {
-			    const offset = this.getDueDateOffset();
-			    const today = new Date();
-			    const dueDate = new Date(today);
-			    dueDate.setDate(today.getDate() + offset);
-			    return dueDate.toISOString().split('T')[0];
-			}
-			
 			// Add this method for better performance monitoring
 			async performAsyncOperation(name, operation) {
 			    const startTime = performance.now();
@@ -2021,14 +2063,16 @@ updateWorkDateDisplay(dateStr) {
             }
 
 // Due Date Offset Functions
+// Use instance variable instead of localStorage (not available in iframe)
 saveDueDateOffset(days) {
-    localStorage.setItem('dueDateOffset', days.toString());
+    this._dueDateOffset = days;
     console.log(`💾 Due date offset saved: ${days} days`);
+    // Also persist to IndexedDB
+    this.saveDueDateOffsetSettings();
 }
 
 getDueDateOffset() {
-    const saved = localStorage.getItem('dueDateOffset');
-    return saved ? parseInt(saved) : 0;
+    return this._dueDateOffset || 0;
 }
 
 getDefaultDueDate() {
@@ -2072,7 +2116,8 @@ async loadDueDateOffsetSettings() {
             request.onsuccess = () => {
                 const result = request.result;
                 if (result && result.offsetDays !== undefined) {
-                    localStorage.setItem('dueDateOffset', result.offsetDays.toString());
+                    // Use instance variable instead of localStorage
+                    this._dueDateOffset = result.offsetDays;
                     const settingInput = document.getElementById('dueDateOffsetSetting');
                     if (settingInput) {
                         settingInput.value = result.offsetDays;
@@ -2893,7 +2938,7 @@ attachTaskCardListeners(card, task) {
                     Monday: 8, Tuesday: 8, Wednesday: 8, Thursday: 8, Friday: 8, Saturday: 0, Sunday: 0
                 }));
                 document.getElementById('presetWeekends').addEventListener('click', () => this.applyCapacityPreset({
-                    Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0, Saturday: 0, Sunday: 16, Saturday: 16
+                    Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0, Saturday: 16, Sunday: 16
                 }));
                 document.getElementById('presetClear').addEventListener('click', () => this.applyCapacityPreset({
                     Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0, Saturday: 0, Sunday: 0
@@ -4962,6 +5007,7 @@ renderSortableSearchTable(searchResults, container) {
         tbody.appendChild(row);
     });
 
+    tableContainer.appendChild(table);
     container.innerHTML = '';
     container.appendChild(tableContainer);
 }
@@ -6711,9 +6757,12 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
                     // Parse dates consistently to avoid timezone issues
                     const start = this.parseDateString(startDate);
                     const end = this.parseDateString(endDate);
-                    
-                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                        dates.push(this.dateToLocalDateString(d));
+
+                    const endTime = end.getTime();
+                    const currentDate = new Date(start);
+                    while (currentDate.getTime() <= endTime) {
+                        dates.push(this.dateToLocalDateString(currentDate));
+                        currentDate.setDate(currentDate.getDate() + 1);
                     }
                 } else {
                     // For single dates, ensure we use the exact date string format
@@ -8854,12 +8903,3 @@ cleanup() {
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
