@@ -1,4 +1,4 @@
-        // Task Scheduler Application
+       // Task Scheduler Application
         class TaskSchedulerApp {
             constructor() {
                 // Core state
@@ -371,23 +371,6 @@
                 }
             }
 
-			// Due Date Offset Methods - ADD THESE TO YOUR CLASS
-			getDueDateOffset() {
-			    return parseInt(localStorage.getItem('dueDateOffset')) || 0;
-			}
-			
-			saveDueDateOffset(days) {
-			    localStorage.setItem('dueDateOffset', days.toString());
-			}
-			
-			getDefaultDueDate() {
-			    const offset = this.getDueDateOffset();
-			    const today = new Date();
-			    const dueDate = new Date(today);
-			    dueDate.setDate(today.getDate() + offset);
-			    return dueDate.toISOString().split('T')[0];
-			}
-			
 			// Add this method for better performance monitoring
 			async performAsyncOperation(name, operation) {
 			    const startTime = performance.now();
@@ -1169,14 +1152,16 @@ updateWorkDateDisplay(dateStr) {
             }
 
 // Due Date Offset Functions
+// Use instance variable instead of localStorage (not available in iframe)
 saveDueDateOffset(days) {
-    localStorage.setItem('dueDateOffset', days.toString());
+    this._dueDateOffset = days;
     console.log(`💾 Due date offset saved: ${days} days`);
+    // Also persist to IndexedDB
+    this.saveDueDateOffsetSettings();
 }
 
 getDueDateOffset() {
-    const saved = localStorage.getItem('dueDateOffset');
-    return saved ? parseInt(saved) : 0;
+    return this._dueDateOffset || 0;
 }
 
 getDefaultDueDate() {
@@ -1220,7 +1205,8 @@ async loadDueDateOffsetSettings() {
             request.onsuccess = () => {
                 const result = request.result;
                 if (result && result.offsetDays !== undefined) {
-                    localStorage.setItem('dueDateOffset', result.offsetDays.toString());
+                    // Use instance variable instead of localStorage
+                    this._dueDateOffset = result.offsetDays;
                     const settingInput = document.getElementById('dueDateOffsetSetting');
                     if (settingInput) {
                         settingInput.value = result.offsetDays;
@@ -2041,7 +2027,7 @@ attachTaskCardListeners(card, task) {
                     Monday: 8, Tuesday: 8, Wednesday: 8, Thursday: 8, Friday: 8, Saturday: 0, Sunday: 0
                 }));
                 document.getElementById('presetWeekends').addEventListener('click', () => this.applyCapacityPreset({
-                    Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0, Saturday: 0, Sunday: 16, Saturday: 16
+                    Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0, Saturday: 16, Sunday: 16
                 }));
                 document.getElementById('presetClear').addEventListener('click', () => this.applyCapacityPreset({
                     Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0, Saturday: 0, Sunday: 0
@@ -4110,6 +4096,7 @@ renderSortableSearchTable(searchResults, container) {
         tbody.appendChild(row);
     });
 
+    tableContainer.appendChild(table);
     container.innerHTML = '';
     container.appendChild(tableContainer);
 }
@@ -5859,9 +5846,12 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
                     // Parse dates consistently to avoid timezone issues
                     const start = this.parseDateString(startDate);
                     const end = this.parseDateString(endDate);
-                    
-                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                        dates.push(this.dateToLocalDateString(d));
+
+                    const endTime = end.getTime();
+                    const currentDate = new Date(start);
+                    while (currentDate.getTime() <= endTime) {
+                        dates.push(this.dateToLocalDateString(currentDate));
+                        currentDate.setDate(currentDate.getDate() + 1);
                     }
                 } else {
                     // For single dates, ensure we use the exact date string format
@@ -7999,4 +7989,3 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
-
