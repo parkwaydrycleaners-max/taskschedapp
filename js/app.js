@@ -1,101 +1,123 @@
-       // Task Scheduler Application
-        class TaskSchedulerApp {
-            constructor() {
-                // Core state
-                this.currentDate = new Date();
-                this.viewDays = 2;
-                this.people = [];
-                this.peopleCapacity = {};
-                this.peopleSpecificCapacity = {};
-                this.tasks = {};
-                
-                // UI state
-                this.draggedElement = null;
-                this.isEditingTask = false;
-                this.editingTaskId = null;
-                this.originalTaskData = null;
-                this.currentOrderPerson = null;
-                this.currentOrderDate = null;
+    class TaskSchedulerApp {
+        constructor() {
+            // -----------------------------------------------------------------
+            // CORE STATE
+            // -----------------------------------------------------------------
+            this.currentDate = new Date();
+            this.viewDays = 2;
+            this.people = [];
+            this.peopleCapacity = {};
+            this.peopleSpecificCapacity = {};
+            this.tasks = {};
 
-				// Initialize caches and performance tracking
-				this.elementCache = new Map();
-				this.performanceMetrics = {
-				    renderCount: 0,
-				    averageRenderTime: 0,
-				    lastRenderTime: 0
-				};
+            // -----------------------------------------------------------------
+            // UI STATE
+            // -----------------------------------------------------------------
+            this.draggedElement = null;
+            this.isEditingTask = false;
+            this.editingTaskId = null;
+            this.originalTaskData = null;
+            this.currentOrderPerson = null;
+            this.currentOrderDate = null;
 
-				this.cachedCommonWords = null;
-				this.lastCommonWordsUpdate = 0;
-				
-				// Initialize on page load
-				window.addEventListener('beforeunload', () => {
-				    this.cleanup();
-				    this.clearElementCache();
-				});
-                
-                // Configuration
-                this.airtableConfig = {
-                    apiKey: '',
-                    baseId: '',
-                    tablesConfig: {
-                        people: 'People',
-                        tasks: 'Tasks',
-                        capacityOverrides: 'CapacityOverrides'
-                    }
-				};
-                
-                // Auto-refresh settings
-                this.autoRefreshInterval = null;
-                this.autoRefreshSettings = {
-                    intervalSeconds: 'off',
-                    isRefreshing: false
-                };
-                
-                // Auto-capacity rule settings
-                this.autoCapacityRule = {
-                    enabled: false,
-                    mode: 'today-tomorrow-past',
-                    lastApplied: null
-                };
-                
-                // Data loading settings
-                this.dataLoadSettings = {
-                    weeksBack: 2,
-                    weeksForward: 4,
-                    currentLoadedRange: null
-                };
-                
-                // Constants
-                this.DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                
-                // Performance tracking
-				this.errorCount = 0;
-				this.retryQueue = [];
+            // -----------------------------------------------------------------
+            // CACHE & PERFORMANCE
+            // -----------------------------------------------------------------
+            this.elementCache = new Map();
+            this.performanceMetrics = {
+                renderCount: 0,
+                averageRenderTime: 0,
+                lastRenderTime: 0
+            };
+            this.cachedCommonWords = null;
+            this.lastCommonWordsUpdate = 0;
 
-				// State management
-				this.state = {
-				    isLoading: false,
-				    isOffline: !navigator.onLine,
-				    errorCount: 0,
-				    lastSync: null
-				};
-				
-				// Configuration constants
-				this.config = {
-				    MAX_RETRIES: 3,
-				    DEBOUNCE_DELAY: 100,
-				    TOAST_DURATION: 4000,
-				    AUTO_SAVE_DELAY: 2000
-				};
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', () => {
+                this.cleanup();
+                this.clearElementCache();
+            });
 
-				// Table Sort
-				this.tableSortState = {
-				    column: null,
-				    direction: 'asc'
-				};
-                
-                // Initialize
+            // -----------------------------------------------------------------
+            // AIRTABLE CONFIGURATION
+            // -----------------------------------------------------------------
+            this.airtableConfig = {
+                apiKey: '',
+                baseId: '',
+                tablesConfig: {
+                    people: 'People',
+                    tasks: 'Tasks',
+                    capacityOverrides: 'CapacityOverrides'
+                }
+            };
+
+            // -----------------------------------------------------------------
+            // AUTO-REFRESH SETTINGS
+            // -----------------------------------------------------------------
+            this.autoRefreshInterval = null;
+            this.autoRefreshSettings = {
+                intervalSeconds: 'off',
+                isRefreshing: false
+            };
+
+            // -----------------------------------------------------------------
+            // AUTO-CAPACITY SETTINGS
+            // -----------------------------------------------------------------
+            this.autoCapacityRule = {
+                enabled: false,
+                mode: 'today-tomorrow-past',
+                lastApplied: null
+            };
+
+            // -----------------------------------------------------------------
+            // DATA LOADING SETTINGS
+            // -----------------------------------------------------------------
+            this.dataLoadSettings = {
+                weeksBack: APP_CONSTANTS.DEFAULT_WEEKS_BACK,
+                weeksForward: APP_CONSTANTS.DEFAULT_WEEKS_FORWARD,
+                currentLoadedRange: null
+            };
+
+            // -----------------------------------------------------------------
+            // CONSTANTS (instance reference)
+            // -----------------------------------------------------------------
+            this.DAYS_OF_WEEK = APP_CONSTANTS.DAYS_OF_WEEK;
+            this.MAX_SLOTS = APP_CONSTANTS.MAX_SLOTS_PER_DAY;
+            this.MINUTES_PER_SLOT = APP_CONSTANTS.MINUTES_PER_SLOT;
+
+            // -----------------------------------------------------------------
+            // ERROR TRACKING & STATE
+            // -----------------------------------------------------------------
+            this.errorCount = 0;
+            this.retryQueue = [];
+            this.state = {
+                isLoading: false,
+                isOffline: !navigator.onLine,
+                errorCount: 0,
+                lastSync: null
+            };
+
+            // -----------------------------------------------------------------
+            // CONFIGURATION
+            // -----------------------------------------------------------------
+            this.config = {
+                MAX_RETRIES: APP_CONSTANTS.MAX_RETRIES,
+                DEBOUNCE_DELAY: APP_CONSTANTS.DEBOUNCE_DELAY_MS,
+                TOAST_DURATION: APP_CONSTANTS.TOAST_DURATION_MS,
+                AUTO_SAVE_DELAY: APP_CONSTANTS.AUTO_SAVE_DELAY_MS
+            };
+
+            // -----------------------------------------------------------------
+            // TABLE SORT STATE
+            // -----------------------------------------------------------------
+            this.tableSortState = {
+                column: null,
+                direction: 'asc'
+            };
+
+            // -----------------------------------------------------------------
+            // INITIALIZE APPLICATION
+            // -----------------------------------------------------------------
                 this.init();
             }
             
@@ -285,9 +307,7 @@
                         if (newCapacity !== null && newCapacity !== currentCapacity) {
                             this.peopleSpecificCapacity[person][dateStr] = newCapacity;
                             appliedCount++;
-                            console.log(`✅ Auto-capacity applied: ${person} on ${dateStr} - ${reason}`);
                         } else {
-                            console.log(`ℹ️ Auto-capacity skipped: ${person} on ${dateStr} - ${reason}`);
                         }
                     });
                 };
@@ -304,7 +324,6 @@
                     }
                 }
                 
-                console.log('🔍 Auto-capacity rule debug log:', debugLog);
                 
                 if (appliedCount > 0) {
                     this.saveCapacityOverridesToLocal();
@@ -377,11 +396,9 @@
 			    this.state.isLoading = true;
 			    
 			    try {
-			        console.log(`🚀 Starting ${name}...`);
 			        const result = await operation();
 			        
 			        const duration = performance.now() - startTime;
-			        console.log(`✅ ${name} completed in ${duration.toFixed(2)}ms`);
 			        
 			        return result;
 			    } catch (error) {
@@ -587,7 +604,6 @@
 
 			// Parallel task loading
 			async loadTasksDataParallel() {
-			    console.log('🚀 Starting parallel task loading...');
 			    
 			    const startDate = new Date(this.currentDate);
 			    startDate.setDate(this.currentDate.getDate() - (this.dataLoadSettings.weeksBack * 7));
@@ -598,7 +614,6 @@
 			    const startDateStr = startDate.toISOString().split('T')[0];
 			    const endDateStr = endDate.toISOString().split('T')[0];
 			    
-			    console.log(`📅 Loading tasks from ${startDateStr} to ${endDateStr} (parallel)`);
 			    
 			    // Use existing loadTasksFromAirtable method instead of non-existent loadAllTaskPages
 			    await this.loadTasksFromAirtable();
@@ -607,7 +622,6 @@
 			
 			// Parallel capacity loading
 			async loadCapacityOverridesParallel() {
-			    console.log('🚀 Starting parallel capacity loading...');
 			    
 			    // Use existing loadCapacityOverridesFromAirtable method instead of non-existent loadAllCapacityPages
 			    await this.loadCapacityOverridesFromAirtable();
@@ -616,7 +630,6 @@
 			
 			// Parallel config loading
 			async loadAirtableConfigParallel() {
-			    console.log('🚀 Starting parallel config loading...');
 			    return await this.loadAllConfigPages();
 			}
 			
@@ -626,7 +639,6 @@
 			    
 			    try {
 			        this.showLoading('🚀 Loading data (parallel mode)...');
-			        console.log('🚀 Starting parallel data loading...');
 			        
 			        // Execute all requests in parallel
 			        await Promise.all([
@@ -635,7 +647,6 @@
 			            this.loadCapacityOverridesParallel()
 			        ]);
 			        
-			        console.log('✅ All parallel requests completed');
 			        
 			        // Re-render the whiteboard (data is already processed by individual methods)
 			        this.renderWhiteboard();
@@ -657,7 +668,6 @@
 			        end: () => {
 			            const endTime = performance.now();
 			            const duration = endTime - startTime;
-			            console.log(`⚡ Loading completed in ${duration.toFixed(2)}ms`);
 			            return duration;
 			        }
 			    };
@@ -717,7 +727,6 @@
     valueB = getStatusValue(b);
     
     // Debug log to see actual values
-    console.log(`Status sort: ${a.task.orderNumber}=${valueA}, ${b.task.orderNumber}=${valueB}`);
     break;
 			            default:
 			                return 0;
@@ -876,7 +885,6 @@
                 
                 // Prevent multiple simultaneous sync operations
                 if (this.isSyncingAutoCapacity) {
-                    console.log('🔄 Auto-capacity sync already in progress, skipping...');
                     return;
                 }
                 
@@ -884,7 +892,6 @@
                 
                 try {
                     const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
-                    console.log('🔄 Starting auto-capacity sync to Airtable...');
                     
                     // Get ALL current records with proper pagination
                     let allRecords = [];
@@ -895,10 +902,8 @@
                         const response = await this.makeAirtableRequest(url);
                         allRecords = allRecords.concat(response.records);
                         offset = response.offset;
-                        console.log(`📄 Loaded ${response.records.length} records (total: ${allRecords.length})`);
                     } while (offset);
                     
-                    console.log(`📊 Total existing capacity override records: ${allRecords.length}`);
                     
                     // Create a map for fast lookup of existing records
                     const existingRecordsMap = new Map();
@@ -924,7 +929,6 @@
                             if (existingRecord) {
                                 // Update existing record if capacity is different
                                 if (existingRecord.fields.Capacity !== capacity) {
-                                    console.log(`🔄 Updating capacity override: ${person} on ${date} from ${existingRecord.fields.Capacity} to ${capacity}`);
                                     const updateData = {
                                         records: [{
                                             id: existingRecord.id,
@@ -938,12 +942,10 @@
                                     await this.makeAirtableRequest(tableName, 'PATCH', updateData);
                                     updatedCount++;
                                 } else {
-                                    console.log(`✅ Capacity override already correct: ${person} on ${date} = ${capacity}`);
                                     skippedCount++;
                                 }
                             } else {
                                 // Create new record only if it doesn't exist
-                                console.log(`➕ Creating new capacity override: ${person} on ${date} = ${capacity}`);
                                 const createData = {
                                     records: [{
                                         fields: {
@@ -961,14 +963,7 @@
                             await new Promise(resolve => setTimeout(resolve, 50));
                         }
                     }
-                    
-                    console.log(`✅ Auto-capacity sync completed:`, {
-                        created: createdCount,
-                        updated: updatedCount,
-                        skipped: skippedCount,
-                        total: createdCount + updatedCount + skippedCount
-                    });
-                    
+
                 } catch (error) {
                     console.error('❌ Auto-capacity sync failed:', error);
                     // Don't show error to user since auto-capacity is a background operation
@@ -987,7 +982,6 @@ init() {
     // Initialize production features
     this.initOfflineDetection();
     
-    console.log('🚀 Alterations Pro initialized');
 }
             
             // Timezone and Date Utility Functions
@@ -1155,7 +1149,6 @@ updateWorkDateDisplay(dateStr) {
 // Use instance variable instead of localStorage (not available in iframe)
 saveDueDateOffset(days) {
     this._dueDateOffset = days;
-    console.log(`💾 Due date offset saved: ${days} days`);
     // Also persist to IndexedDB
     this.saveDueDateOffsetSettings();
 }
@@ -1223,22 +1216,12 @@ async loadDueDateOffsetSettings() {
             
 // Whiteboard Rendering
 renderWhiteboard() {
-    console.log('🎨 renderWhiteboard() started');
-    console.log('👥 this.people:', this.people);
-    console.log('📏 this.people.length:', this.people ? this.people.length : 'undefined');
-    console.log('🗓️ this.viewDays:', this.viewDays);
-    console.log('📅 this.currentDate:', this.currentDate);
-    console.log('📊 this.tasks keys:', Object.keys(this.tasks));
     
     const whiteboard = document.getElementById('whiteboard');
     const emptyState = document.getElementById('emptyState');
     
-    console.log('📦 Whiteboard element found:', !!whiteboard);
-    console.log('📝 EmptyState element found:', !!emptyState);
     
     if (!this.people || this.people.length === 0) {
-        console.log('❌ EARLY RETURN: people array is empty or undefined');
-        console.log('❌ this.people:', this.people);
         whiteboard.innerHTML = '';
         if (emptyState) {
             whiteboard.appendChild(emptyState);
@@ -1246,7 +1229,6 @@ renderWhiteboard() {
         return;
     }
     
-    console.log('✅ Proceeding with rendering...');
     
     // Rest of your existing code...
     whiteboard.innerHTML = '';
@@ -1262,7 +1244,6 @@ renderWhiteboard() {
         whiteboard.appendChild(dayContainer);
     }
     
-    console.log('✅ renderWhiteboard() completed');
 }
             
             createDayContainer(date, dayOffset) {
@@ -1854,13 +1835,10 @@ attachTaskCardListeners(card, task) {
                         const date = btn.dataset.date;
                         this.showQuickCapacityModal(person, date);
                     } else if (e.target.closest('.print-tags-btn')) {
-                        console.log('Print tags button clicked');
                         const btn = e.target.closest('.print-tags-btn');
                         const taskCard = btn.closest('.task-card');
-                        console.log('Found task card:', taskCard);
                         if (taskCard) {
                             const taskId = taskCard.dataset.taskId;
-                            console.log('Task ID:', taskId);
                             this.showTagPrintingModal(taskId);
                         }
                     }
@@ -2127,7 +2105,6 @@ attachSearchListeners() {
             
             // Tag Printing Functionality
             showTagPrintingModal(taskId) {
-                console.log('showTagPrintingModal called with taskId:', taskId);
                 
                 // Find the task data
                 let foundTask = null;
@@ -2147,7 +2124,6 @@ attachSearchListeners() {
                     if (foundTask) break;
                 }
                 
-                console.log('Found task:', foundTask);
                 
                 if (!foundTask) {
                     this.showToast('Task not found', 'error');
@@ -2162,7 +2138,6 @@ attachSearchListeners() {
                     quantity: foundTask.tagsQuantity || 1
                 };
                 
-                console.log('Current tag data:', this.currentTagData);
                 
                 // Show the modal
                 this.handleModalAction('tagPrintingModal', 'show');
@@ -2177,7 +2152,6 @@ attachSearchListeners() {
             }
             
             showTagPrintingModalFromOrder(tempTaskData, person, dateKey) {
-                console.log('showTagPrintingModalFromOrder called with:', tempTaskData, person, dateKey);
                 
                 // Store current tag data for printing from order modal
                 this.currentTagData = {
@@ -2187,7 +2161,6 @@ attachSearchListeners() {
                     quantity: tempTaskData.tagsQuantity || 1
                 };
                 
-                console.log('Current tag data from order:', this.currentTagData);
                 
                 // Show the modal
                 this.handleModalAction('tagPrintingModal', 'show');
@@ -2568,7 +2541,6 @@ printContent += `
                                 document.dispatchEvent(event);
                             } catch (e) {
                                 // Silently fail if not supported
-                                console.log('Auto-confirm not supported in this browser');
                             }
                             
                             setTimeout(() => printWindow.close(), 1000);
@@ -3345,18 +3317,8 @@ if (dateDue && dateDue.trim() !== '') {
             async createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, targetPerson, targetDateKey) {
                 const workDate = this.parseDateString(targetDateKey);
                 const correctedDateKey = this.dateToLocalDateString(workDate);
-                
-                console.log('Creating new task:', {
-                    orderNumber,
-                    dateDue,
-                    description,
-                    duration,
-                    tagsQuantity,
-                    targetPerson,
-                    correctedDateKey
-                });
-                
-const task = {
+
+                const task = {
     id: Date.now() + Math.random(),
     orderNumber,
     dateDue: (dateDue && dateDue.trim()) ? dateDue : null,  // ✅ Send null instead of empty string
@@ -3374,9 +3336,7 @@ const task = {
                 if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
                     this.showLoading('Saving to Airtable...');
                     try {
-                        console.log('Sending task to Airtable:', task);
                         const recordId = await this.createTaskInAirtable(task, targetPerson, correctedDateKey);
-                        console.log('Task created in Airtable with ID:', recordId);
                         
                         // Update the task ID to the Airtable record ID
                         task.id = recordId;
@@ -3403,8 +3363,6 @@ const task = {
                     this.showToast('✅ Order added successfully!', 'success');
                 }
                 
-                console.log('Final task state:', task);
-                console.log('Current tasks for person:', this.tasks[correctedDateKey]?.[targetPerson]);
             }
             
             addTaskToSpecificDate(person, task, dateKey) {
@@ -4600,16 +4558,6 @@ displayReport(reportData, selectedPerson, startDate, endDate, filterType) {
     // Sort the data
     const sortedData = this.sortReportData([...reportData], this.reportSortState.column, this.reportSortState.direction);
 
-	// Add this debug log:
-console.log('🔍 First 5 sorted items:', sortedData.slice(0, 5).map(item => ({
-    orderNumber: item.task.orderNumber,
-    person: item.person,
-    completed: item.task.completed,
-    dateDue: item.task.dateDue,
-    status: item.task.completed ? 'Complete' : 
-           (item.task.dateDue && new Date(item.task.dateDue) < new Date() ? 'Overdue' : 'Incomplete')
-})));
-	
     const tbody = table.querySelector('#reportTableBody');
     
     sortedData.forEach((item, index) => {
@@ -4675,7 +4623,6 @@ console.log('🔍 First 5 sorted items:', sortedData.slice(0, 5).map(item => ({
 
 // Add this helper method to your class
 sortReportData(data, column, direction = 'asc') {
-    console.log(`🔄 Sorting by ${column} (${direction})`);
     
     if (!column) return data;
     
@@ -4715,19 +4662,16 @@ sortReportData(data, column, direction = 'asc') {
                 break;
                 
             case 'status':
-                console.log('📊 Status sorting triggered');
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const todayStr = today.toISOString().split('T')[0];
                 
                 const getStatusValue = (item) => {
                     if (item.task.completed) {
-                        console.log(`✅ ${item.task.orderNumber}: Complete (0)`);
                         return 0; // Complete
                     }
                     
                     if (!item.task.dateDue) {
-                        console.log(`⏳ ${item.task.orderNumber}: No due date - Incomplete (1)`);
                         return 1; // Incomplete
                     }
                     
@@ -4737,16 +4681,13 @@ sortReportData(data, column, direction = 'asc') {
                     } else if (typeof item.task.dateDue === 'string') {
                         dueDateStr = item.task.dateDue.includes('T') ? item.task.dateDue.split('T')[0] : item.task.dateDue;
                     } else {
-                        console.log(`⏳ ${item.task.orderNumber}: Invalid due date - Incomplete (1)`);
                         return 1;
                     }
                     
                     if (dueDateStr < todayStr) {
-                        console.log(`⚠️ ${item.task.orderNumber}: Overdue (2) - due ${dueDateStr}`);
                         return 2; // Overdue
                     }
                     
-                    console.log(`⏳ ${item.task.orderNumber}: Incomplete (1) - due ${dueDateStr}`);
                     return 1; // Incomplete
                 };
                 
@@ -5384,7 +5325,6 @@ showExportOptionsModal() {
                         this.showLoading('Preserving historical data and updating capacity...');
                         try {
                             // Step 1: Preserve historical capacity FIRST
-                            console.log(`🔒 FORCING historical preservation for ${person} before weekly capacity update`);
                             await this.preserveHistoricalCapacity(person);
                             
                             // Step 2: Update weekly capacity in Airtable
@@ -5882,30 +5822,23 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
             }
             
             async removeCapacityOverride(person, date) {
-                console.log('🗑️ Removing capacity override:', { person, date });
-                console.log('🔍 Before removal - peopleSpecificCapacity:', this.peopleSpecificCapacity);
                 
                 if (this.peopleSpecificCapacity[person]) {
                     delete this.peopleSpecificCapacity[person][date];
-                    console.log(`✅ Deleted override for ${person} on ${date}`);
                     
                     if (Object.keys(this.peopleSpecificCapacity[person]).length === 0) {
                         delete this.peopleSpecificCapacity[person];
-                        console.log(`✅ Deleted entire person entry for ${person} (no more overrides)`);
                     }
                 }
                 
-                console.log('🔍 After removal - peopleSpecificCapacity:', this.peopleSpecificCapacity);
                 
                 // FORCE save to local storage immediately
                 await this.saveCapacityOverridesToLocal();
-                console.log('💾 Forced save to local storage completed');
                 
                 if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
                     this.showLoading('Removing capacity override...');
                     try {
                         await this.deleteCapacityOverrideFromAirtable(person, date);
-                        console.log('✅ Successfully removed from Airtable');
                         this.showSuccessToast('sync', 'Capacity override');
                     } catch (error) {
                         console.error('❌ Failed to remove from Airtable:', error);
@@ -5919,7 +5852,6 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
                 
                 // Force re-render
                 this.renderWhiteboard();
-                console.log('🎨 Forced whiteboard re-render completed');
             }
             
             async upsertCapacityOverridesInAirtable(person, dates, capacity) {
@@ -6055,7 +5987,6 @@ initActivityBasedRefresh() {
         
         // If user was idle for more than 5 minutes and now becomes active
         if (wasIdle && timeSinceLastActivity > IDLE_TIME && this.airtableConfig.apiKey && this.airtableConfig.baseId) {
-            console.log('🔄 User returned after being idle - refreshing data');
             this.showToast('Welcome back! Refreshing data...', 'info');
             
             try {
@@ -6095,7 +6026,6 @@ document.addEventListener('DOMContentLoaded', () => {
         wasIdle = timeSinceLastActivity > IDLE_TIME;
     }, 60 * 1000);
     
-    console.log('🎯 Activity-based refresh initialized');
 }
             
             // Auto-load functionality
@@ -6130,7 +6060,6 @@ if (savedConfig) {
         this.showLoading('Loading data from Airtable...');
         await this.loadAllDataFromAirtable();
         this.renderWhiteboard();
-        console.log('✅ Auto-loaded from saved Airtable config');
     } catch (error) {
         console.warn('Failed to auto-load from Airtable:', error);
         // Fallback to local storage if Airtable fails
@@ -6778,20 +6707,9 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
 
             if (data) {
                 options.body = JSON.stringify(data);
-                if (!silent) {
-                    console.log('🚀 FORCE AIRTABLE REQUEST:', {
-                        url,
-                        method,
-                        data,
-                        force: 'BYPASSING ALL VALIDATION'
-                    });
-                }
             }
 
             const response = await fetch(url, options);
-            if (!silent) {
-                console.log('📡 Airtable response status:', response.status);
-            }
             
             if (!response.ok) {
                 const error = await response.json();
@@ -6803,7 +6721,6 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
 
             const result = await response.json();
             if (!silent) {
-                console.log('✅ Airtable success response:', result);
             }
             
             // Reset error count on success
@@ -6852,7 +6769,6 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                         }
                     }
                     
-                    console.log('✅ Task verification successful:', taskId);
                     return true;
                 } catch (error) {
                     console.error('❌ Task verification failed:', error);
@@ -6876,7 +6792,6 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                         error.message.includes('Invalid permissions')) {
                         // These responses indicate the record was deleted successfully
                         // 404 = Not Found, 403 = Forbidden (common after deletion)
-                        console.log('✅ Task deletion verification successful:', taskId);
                         return true;
                     } else {
                         // Some other unexpected error occurred
@@ -6923,7 +6838,6 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
 }
             
             async loadTasksFromAirtable() {
-                console.log('🔄 Loading tasks from Airtable...');
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
                 
                 this.tasks = {};
@@ -6940,7 +6854,6 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                 const startDateStr = this.dateToLocalDateString(startDate);
                 const endDateStr = this.dateToLocalDateString(endDate);
                 
-                console.log(`📅 Loading tasks from ${startDateStr} to ${endDateStr} (${this.dataLoadSettings.weeksBack} weeks back, ${this.dataLoadSettings.weeksForward} weeks forward)`);
                 
                 // Create filter formula for date range
                 const filterFormula = `AND({Date}>='${startDateStr}',{Date}<='${endDateStr}')`;
@@ -6954,19 +6867,11 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                         `${tableName}?filterByFormula=${encodedFilter}`;
                     
                     const response = await this.makeAirtableRequest(url);
-                    
-                    console.log(`📦 Page ${pageCount} response:`, {
-                        recordsInPage: response.records.length,
-                        hasOffset: !!response.offset,
-                        totalRecordsSoFar: allRecords.length + response.records.length
-                    });
-                    
                     allRecords = allRecords.concat(response.records);
                     offset = response.offset;
                     
                 } while (offset);
 
-                console.log(`📊 Total records loaded across ${pageCount} pages:`, allRecords.length);
 
                 // Store the current loaded range
                 this.dataLoadSettings.currentLoadedRange = {
@@ -6975,14 +6880,9 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                     loadedAt: new Date().toISOString()
                 };
 
-                allRecords.forEach((record, index) => {
+                allRecords.forEach((record) => {
                     const fields = record.fields;
-                    console.log(`📋 Processing record ${index + 1}/${allRecords.length}:`, {
-                        id: record.id,
-                        orderNumber: fields.OrderNumber,
-                        hasRequiredFields: !!(fields.Person && fields.Date && fields.OrderNumber)
-                    });
-                    
+
                     if (fields.Person && fields.Date && fields.OrderNumber) {
                         const dateKey = fields.Date;
                         if (!this.tasks[dateKey]) this.tasks[dateKey] = {};
@@ -6999,7 +6899,6 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                             completed: fields.Completed || false
                         };
                         
-                        console.log(`✅ Adding task to local state:`, task);
                         this.tasks[dateKey][fields.Person].push(task);
                     } else {
                         console.warn(`⚠️ Skipping record ${record.id} - missing required fields:`, {
@@ -7009,20 +6908,8 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                         });
                     }
                 });
-                
-                console.log('🎯 Final loaded tasks state:', this.tasks);
-                console.log('📈 Summary:', {
-                    totalRecords: allRecords.length,
-                    totalDates: Object.keys(this.tasks).length,
-                    dateRange: `${startDateStr} to ${endDateStr}`,
-                    tasksByDate: Object.keys(this.tasks).map(date => ({
-                        date,
-                        people: Object.keys(this.tasks[date]),
-                        totalTasks: Object.values(this.tasks[date]).flat().length
-                    }))
-                });
             }
-            
+
             async loadCapacityOverridesFromAirtable() {
                 try {
                     const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
@@ -7036,10 +6923,8 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                         const response = await this.makeAirtableRequest(url);
                         allRecords = allRecords.concat(response.records);
                         offset = response.offset;
-                        console.log(`📄 Loaded ${response.records.length} capacity override records (total: ${allRecords.length})`);
                     } while (offset);
                     
-                    console.log(`📊 Total capacity override records loaded: ${allRecords.length}`);
                     
                     if (!this.peopleSpecificCapacity) {
                         this.peopleSpecificCapacity = {};
@@ -7059,16 +6944,13 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
                             const dateKey = this.normalizeDate(fields.Date);
                             this.peopleSpecificCapacity[fields.Person][dateKey] = fields.Capacity;
                             
-                            console.log(`✅ Loaded capacity override: ${fields.Person} on ${dateKey} = ${fields.Capacity} slots`);
                         }
                     });
 
-                    console.log('📋 Final peopleSpecificCapacity state:', this.peopleSpecificCapacity);
                     await this.saveCapacityOverridesToLocal();
                     
                     // Force whiteboard re-render to show updated capacities
                     if (allRecords.length > 0) {
-                        console.log('🎨 Re-rendering whiteboard to show capacity overrides...');
                         this.renderWhiteboard();
                     }
                     
@@ -7086,7 +6968,6 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
 async loadAllDataFromAirtable() {
     const performanceTracker = performance.now();
     this.showLoading('🚀 Loading all data in parallel...');
-    console.log('🚀 Starting parallel data loading...');
     
     try {
         // Execute ALL THREE loads in parallel - including people data!
@@ -7097,15 +6978,11 @@ async loadAllDataFromAirtable() {
         ]);
         
         const duration = performance.now() - performanceTracker;
-        console.log(`⚡ Parallel loading completed in ${duration.toFixed(2)}ms`);
         
         // Performance feedback
         if (duration < 3000) {
-            console.log('🚀 Excellent performance - under 3 seconds!');
         } else if (duration < 5000) {
-            console.log('👍 Good performance - under 5 seconds');
         } else {
-            console.log('⚠️ Slow performance - over 5 seconds, check network');
         }
         
         // CRITICAL FIX: Save fresh Airtable people capacity to local storage
@@ -7113,10 +6990,6 @@ async loadAllDataFromAirtable() {
         await this.loadTextContentFromAirtable();
         
         // Re-render whiteboard after all loads complete
-        console.log('🎨 Starting final whiteboard render...');
-        console.log('📊 Tasks data check:', Object.keys(this.tasks).length, 'dates loaded');
-        console.log('📊 People data check:', this.people.length, 'people loaded');
-        console.log('📊 Sample people capacity:', this.peopleCapacity);
 
         // 🎯 DYNAMIC FIX: Extract people from loaded tasks if needed
         if (this.people.length === 0 && Object.keys(this.tasks).length > 0) {
@@ -7127,7 +7000,6 @@ async loadAllDataFromAirtable() {
                 });
             });
             this.people = Array.from(peopleSet);
-            console.log('✅ Dynamically extracted people:', this.people);
         }
         
         if (this.autoCapacityRule && this.autoCapacityRule.enabled) {
@@ -7253,11 +7125,9 @@ async loadAllDataFromAirtable() {
                     });
                     
                     if (pastDates.size === 0) {
-                        console.log(`ℹ️ No past dates found for ${personName} - no historical preservation needed`);
                         return;
                     }
                     
-                    console.log(`📅 Found ${pastDates.size} past dates to preserve for ${personName}:`, Array.from(pastDates).sort());
                     
                     // Step 3: For each past date, check if there's already a capacity override
                     const overridesTableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
@@ -7270,7 +7140,6 @@ async loadAllDataFromAirtable() {
                                 existingOverrides.add(record.fields.Date);
                             }
                         });
-                        console.log(`📋 Found ${existingOverrides.size} existing capacity overrides for ${personName}`);
                     } catch (error) {
                         console.warn('⚠️ Could not load existing capacity overrides (table may not exist):', error.message);
                     }
@@ -7295,10 +7164,8 @@ const historicalCapacity = oldWeeklyCapacity?.[dayName] || this.peopleCapacity[p
                                 }
                             });
                             
-                            console.log(`🔒 Preserving capacity for ${personName} on ${dateStr}: ${historicalCapacity} slots`);
                             preservedCount++;
                         } else {
-                            console.log(`✅ Capacity already preserved for ${personName} on ${dateStr}`);
                         }
                     }
                     
@@ -7312,16 +7179,13 @@ const historicalCapacity = oldWeeklyCapacity?.[dayName] || this.peopleCapacity[p
                             
                             try {
                                 await this.makeAirtableRequest(overridesTableName, 'POST', batchData);
-                                console.log(`✅ Created batch of ${batch.length} capacity overrides`);
                             } catch (error) {
                                 console.error(`❌ Failed to create capacity override batch:`, error);
                                 throw error;
                             }
                         }
                         
-                        console.log(`🎯 Successfully preserved historical capacity for ${preservedCount} dates`);
                     } else {
-                        console.log(`ℹ️ All historical dates already have capacity overrides - no preservation needed`);
                     }
                     
                 } catch (error) {
@@ -7331,7 +7195,6 @@ const historicalCapacity = oldWeeklyCapacity?.[dayName] || this.peopleCapacity[p
             }
 
 async updatePersonWeeklyCapacity(name, weeklyCapacity) {
-    console.log(`🔄 Starting weekly capacity update for ${name}...`);
     
     // STEP 1: Get OLD weekly capacity before making any changes
     const oldWeeklyCapacity = { ...this.peopleCapacity[name] };
@@ -7344,7 +7207,6 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
 }
             
             async updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity) {
-                console.log(`📝 Updating weekly capacity in Airtable for ${name}...`);
                 
                 const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
                 const response = await this.makeAirtableRequest(`${tableName}?filterByFormula={Name}='${name}'`);
@@ -7365,7 +7227,6 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
                     };
 
                     await this.makeAirtableRequest(tableName, 'PATCH', data);
-                    console.log(`✅ Weekly capacity updated in Airtable for ${name}`);
                 } else {
                     throw new Error(`Person ${name} not found in Airtable`);
                 }
@@ -7415,17 +7276,14 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
                 // Try each field set with retry logic
                 for (let fieldSetIndex = 0; fieldSetIndex < fieldSets.length; fieldSetIndex++) {
                     const fields = fieldSets[fieldSetIndex];
-                    console.log(`🚀 Attempt ${fieldSetIndex + 1}: Trying with field set:`, Object.keys(fields));
                     
                     // Retry each field set up to 3 times for network/temporary errors
                     for (let attempt = 1; attempt <= 3; attempt++) {
                         try {
                             const data = { records: [{ fields }] };
-                            console.log(`🚀 ATTEMPT ${attempt}/3 for field set ${fieldSetIndex + 1}:`, data);
                             
                             const response = await this.makeAirtableRequest(tableName, 'POST', data);
                             const recordId = response.records[0].id;
-                            console.log(`✅ FORCE SAVE SUCCESS - Record ID: ${recordId} (Field set ${fieldSetIndex + 1}, Attempt ${attempt})`);
                             
                             // Optional verification - don't fail the save if verification fails
                             try {
@@ -7434,7 +7292,6 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
                                     Person: person,
                                     Date: date
                                 });
-                                console.log('✅ Verification passed');
                             } catch (verificationError) {
                                 console.warn('⚠️ Verification failed but save was successful:', verificationError.message);
                             }
@@ -7447,13 +7304,11 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
                             
                             // If it's a field error, don't retry this field set - try the next one
                             if (error.message.includes('Unknown field') || error.message.includes('field')) {
-                                console.log(`🔄 Field error detected, trying next field set...`);
                                 break; // Break out of retry loop, try next field set
                             }
                             
                             // For network/temporary errors, wait before retrying
                             if (attempt < 3) {
-                                console.log(`⏰ Waiting 1 second before retry...`);
                                 await new Promise(resolve => setTimeout(resolve, 1000));
                             }
                         }
@@ -7470,10 +7325,8 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
 
             async verifyTaskCreation(recordId, orderNumber) {
                 try {
-                    console.log('Verifying task creation for record ID:', recordId);
                     const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
                     const response = await this.makeAirtableRequest(`${tableName}/${recordId}`);
-                    console.log('Verification successful - task found in Airtable:', response.fields);
                     
                     if (response.fields.OrderNumber !== orderNumber) {
                         console.warn('Order number mismatch!', {
@@ -7862,7 +7715,6 @@ validateField(value, rules) {
 
 handleBackOnline() {
     if (this.retryQueue && this.retryQueue.length > 0) {
-        console.log(`Attempting to sync ${this.retryQueue.length} pending changes`);
         this.retryQueue.forEach(operation => {
             this.safeExecute(operation);
         });
@@ -7889,7 +7741,6 @@ performanceTrack(name, operation) {
         const result = operation();
         const endTime = performance.now();
         if (endTime - startTime > 100) {
-            console.log(`⚡ ${name}: ${(endTime - startTime).toFixed(2)}ms`);
         }
         return result;
     } catch (error) {
@@ -7983,7 +7834,6 @@ cleanup() {
         this.eventListeners.clear();
     }
     
-    console.log('🧹 App cleanup completed');
 }
         }
 
