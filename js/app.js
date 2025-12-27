@@ -1,4 +1,36 @@
-    class TaskSchedulerApp {
+// =========================================================================
+// CONSTANTS
+// =========================================================================
+const APP_CONSTANTS = {
+    // Time slots
+    MAX_SLOTS_PER_DAY: 32,
+    MINUTES_PER_SLOT: 15,
+    MAX_HOURS_PER_DAY: 8,
+
+    // Data loading
+    DEFAULT_WEEKS_BACK: 2,
+    DEFAULT_WEEKS_FORWARD: 4,
+    MAX_WEEKS_HISTORICAL: 52,
+
+    // UI
+    SLOT_HEIGHT_PX: 32,
+    COLUMN_WIDTH_PX: 268,
+    TOAST_DURATION_MS: 4000,
+    DEBOUNCE_DELAY_MS: 100,
+    AUTO_SAVE_DELAY_MS: 2000,
+
+    // API
+    MAX_RETRIES: 3,
+    RETRY_DELAY_MS: 1000,
+    AIRTABLE_BATCH_SIZE: 10,
+
+    // Days
+    DAYS_OF_WEEK: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+};
+// =========================================================================
+// TASK SCHEDULER APPLICATION CLASS
+// =========================================================================
+class TaskSchedulerApp {
         constructor() {
             // -----------------------------------------------------------------
             // CORE STATE
@@ -7839,3 +7871,4 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
