@@ -669,19 +669,43 @@
         
         <!-- Historical Data Loading Section -->
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6" id="searchHistoricalDataSection">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h4 class="font-medium text-blue-800 mb-2">📚 Search Data Range</h4>
-                    <div class="text-sm text-blue-700" id="searchDataRange">
-                        Currently searching: <span id="searchCurrentRange"></span>
+            <div class="flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="font-medium text-blue-800 mb-2">📚 Search Data Range</h4>
+                        <div class="text-sm text-blue-700" id="searchDataRange">
+                            Currently searching: <span id="searchCurrentRange"></span>
+                        </div>
+                        <div class="text-xs text-blue-600 mt-1">
+                            Loaded range: <span id="searchLoadedRange"></span>
+                        </div>
                     </div>
-                    <div class="text-xs text-blue-600 mt-1">
-                        Loaded range: <span id="searchLoadedRange"></span>
-                    </div>
+                    <button id="toggleCustomRangeBtn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                        Load Custom Range
+                    </button>
                 </div>
-                <button id="loadMoreSearchDataBtn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                    Load More Historical Data
-                </button>
+                <!-- Custom Date Range Picker (hidden by default) -->
+                <div id="customDateRangeSection" class="hidden border-t border-blue-200 pt-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-800 mb-1">Start Date</label>
+                            <input type="date" id="historicalStartDate" class="w-full p-2 border border-blue-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-800 mb-1">End Date</label>
+                            <input type="date" id="historicalEndDate" class="w-full p-2 border border-blue-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="loadCustomRangeBtn" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
+                                Load Data
+                            </button>
+                            <button id="cancelCustomRangeBtn" class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-blue-600 mt-2">⚠️ Loading large date ranges may take longer. Data will be added to the current search.</p>
+                </div>
             </div>
         </div>
         
@@ -1779,52 +1803,152 @@
 			    }
 			}
 						
-			async loadMoreHistoricalDataForSearch() {
-			    if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
-			        this.showErrorToast('validation', 'Please connect to Airtable first');
-			        return;
-			    }
-			    
-			    // Temporarily expand the date range to load more data
-			    const originalWeeksBack = this.dataLoadSettings.weeksBack;
-			    const originalWeeksForward = this.dataLoadSettings.weeksForward;
-			    
-			    // Expand to load all historical data (up to 52 weeks back)
-			    this.dataLoadSettings.weeksBack = 52;
-			    // Keep forward range the same
-			    
-			    this.showLoading('Loading historical data for search...');
-			    
-			    try {
-			        await this.loadAllDataParallel();                    
-			        
-			        const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
-			            return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
-			                return dayTotal + personTasks.length;
-			            }, 0);
-			        }, 0);
-			        
-			        this.showToast(`✅ Historical data loaded for search (${totalTasks} total orders)`, 'success');
-			        
-			        // If there's an active search, refresh the results with expanded data
-			        const searchTerm = document.getElementById('searchInput').value.trim();
-			        if (searchTerm) {
-			            this.performSearch();
-			        }
-			        
-			        // Update search data range display
-			        this.updateSearchDataRangeDisplay();
-			        
-			    } catch (error) {
-			        this.showToast(`❌ Failed to load historical data: ${error.message}`, 'error');
-			    } finally {
-			        // Restore original settings (but keep the expanded data loaded)
-			        this.dataLoadSettings.weeksBack = originalWeeksBack;
-			        this.dataLoadSettings.weeksForward = originalWeeksForward;
-			        this.hideLoading();
-			        this.updateDataLoadingStatus();
-			    }
-			}
+            // =========================================================
+            // CUSTOM DATE RANGE LOADING FOR SEARCH
+            // =========================================================
+
+            toggleCustomDateRangeSection() {
+                const section = document.getElementById('customDateRangeSection');
+                const isHidden = section.classList.contains('hidden');
+
+                if (isHidden) {
+                    // Set default dates (1 year back to today)
+                    const today = new Date();
+                    const oneYearAgo = new Date(today);
+                    oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+                    document.getElementById('historicalStartDate').value = this.dateToLocalDateString(oneYearAgo);
+                    document.getElementById('historicalEndDate').value = this.dateToLocalDateString(today);
+
+                    section.classList.remove('hidden');
+                } else {
+                    section.classList.add('hidden');
+                }
+            }
+
+            hideCustomDateRangeSection() {
+                document.getElementById('customDateRangeSection').classList.add('hidden');
+            }
+
+            async loadCustomDateRange() {
+                if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
+                    this.showErrorToast('validation', 'Please connect to Airtable first');
+                    return;
+                }
+
+                const startDate = document.getElementById('historicalStartDate').value;
+                const endDate = document.getElementById('historicalEndDate').value;
+
+                if (!startDate || !endDate) {
+                    this.showToast('Please select both start and end dates', 'error');
+                    return;
+                }
+
+                if (new Date(startDate) > new Date(endDate)) {
+                    this.showToast('Start date must be before end date', 'error');
+                    return;
+                }
+
+                this.showLoading(`Loading data from ${startDate} to ${endDate}...`);
+
+                try {
+                    // Load tasks for the specific date range
+                    await this.loadTasksForDateRange(startDate, endDate);
+
+                    const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
+                        return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
+                            return dayTotal + personTasks.length;
+                        }, 0);
+                    }, 0);
+
+                    this.showToast(`✅ Loaded ${totalTasks} total orders`, 'success');
+
+                    // Hide the custom range section
+                    this.hideCustomDateRangeSection();
+
+                    // If there's an active search, refresh the results
+                    const searchTerm = document.getElementById('searchInput').value.trim();
+                    if (searchTerm) {
+                        this.performSearch();
+                    }
+
+                    // Update search data range display
+                    this.updateSearchDataRangeDisplay();
+
+                } catch (error) {
+                    this.showToast(`❌ Failed to load data: ${error.message}`, 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async loadTasksForDateRange(startDateStr, endDateStr) {
+                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks || 'Tasks');
+
+                // Build filter for date range
+                const filter = `AND({Date} >= '${startDateStr}', {Date} <= '${endDateStr}')`;
+                const encodedFilter = encodeURIComponent(filter);
+
+                let allRecords = [];
+                let offset = null;
+
+                do {
+                    const url = offset ?
+                        `${tableName}?filterByFormula=${encodedFilter}&offset=${offset}` :
+                        `${tableName}?filterByFormula=${encodedFilter}`;
+
+                    const response = await this.makeAirtableRequest(url);
+                    allRecords = allRecords.concat(response.records);
+                    offset = response.offset;
+                } while (offset);
+
+                // Update the loaded range info
+                const currentRange = this.dataLoadSettings.currentLoadedRange;
+                if (currentRange) {
+                    // Expand the range if needed
+                    if (startDateStr < currentRange.startDate) {
+                        currentRange.startDate = startDateStr;
+                    }
+                    if (endDateStr > currentRange.endDate) {
+                        currentRange.endDate = endDateStr;
+                    }
+                } else {
+                    this.dataLoadSettings.currentLoadedRange = {
+                        startDate: startDateStr,
+                        endDate: endDateStr,
+                        loadedAt: new Date().toISOString()
+                    };
+                }
+
+                // Add records to tasks (merge with existing)
+                allRecords.forEach((record) => {
+                    const fields = record.fields;
+
+                    if (fields.Person && fields.Date && fields.OrderNumber) {
+                        const dateKey = fields.Date;
+                        if (!this.tasks[dateKey]) this.tasks[dateKey] = {};
+                        if (!this.tasks[dateKey][fields.Person]) this.tasks[dateKey][fields.Person] = [];
+
+                        // Check if task already exists
+                        const existingTask = this.tasks[dateKey][fields.Person].find(t => t.id === record.id);
+                        if (!existingTask) {
+                            const task = {
+                                id: record.id,
+                                orderNumber: fields.OrderNumber,
+                                dateDue: fields.DueDate || fields.DateDue || null,
+                                description: fields.Description || '',
+                                duration: fields.Duration || 2,
+                                position: fields.Position || 0,
+                                completed: fields.Completed || false,
+                                tagsQuantity: fields.TagsQuantity || 1
+                            };
+                            this.tasks[dateKey][fields.Person].push(task);
+                        }
+                    }
+                });
+
+                return allRecords.length;
+            }
 			
             async syncAutoCapacityChangesToAirtable() {
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
@@ -2979,9 +3103,15 @@ attachSearchListeners() {
     document.getElementById('searchAllTime').addEventListener('click', () => this.setSearchDateRange('all'));
     document.getElementById('clearSearchFilters').addEventListener('click', () => this.clearSearchFilters());
 
-    // Load More Historical Data button for search
-    document.getElementById('loadMoreSearchDataBtn').addEventListener('click', () => {
-        this.loadMoreHistoricalDataForSearch();
+    // Custom Date Range buttons for search
+    document.getElementById('toggleCustomRangeBtn').addEventListener('click', () => {
+        this.toggleCustomDateRangeSection();
+    });
+    document.getElementById('loadCustomRangeBtn').addEventListener('click', () => {
+        this.loadCustomDateRange();
+    });
+    document.getElementById('cancelCustomRangeBtn').addEventListener('click', () => {
+        this.hideCustomDateRangeSection();
     });
 }
             
