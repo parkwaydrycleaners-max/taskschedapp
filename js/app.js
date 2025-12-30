@@ -895,6 +895,67 @@
                 document.getElementById('customDateRangeSection').classList.add('hidden');
             }
 
+            // ==========================================
+            // Reports Modal Custom Date Range Methods
+            // ==========================================
+
+            toggleReportsCustomDateRangeSection() {
+                const section = document.getElementById('reportsCustomDateRangeSection');
+                const isHidden = section.classList.contains('hidden');
+
+                if (isHidden) {
+                    // Set default dates (1 year back to today)
+                    const today = new Date();
+                    const oneYearAgo = new Date(today);
+                    oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+                    document.getElementById('reportsHistoricalStartDate').value = this.dateToLocalDateString(oneYearAgo);
+                    document.getElementById('reportsHistoricalEndDate').value = this.dateToLocalDateString(today);
+
+                    section.classList.remove('hidden');
+                } else {
+                    section.classList.add('hidden');
+                }
+            }
+
+            hideReportsCustomDateRangeSection() {
+                document.getElementById('reportsCustomDateRangeSection').classList.add('hidden');
+            }
+
+            async loadReportsCustomDateRange() {
+                if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
+                    this.showErrorToast('validation', 'Please connect to Airtable first');
+                    return;
+                }
+
+                const startDate = document.getElementById('reportsHistoricalStartDate').value;
+                const endDate = document.getElementById('reportsHistoricalEndDate').value;
+
+                if (!startDate || !endDate) {
+                    this.showErrorToast('validation', 'Please select both start and end dates');
+                    return;
+                }
+
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+
+                if (start > end) {
+                    this.showErrorToast('validation', 'Start date must be before end date');
+                    return;
+                }
+
+                // Hide the date range picker
+                this.hideReportsCustomDateRangeSection();
+
+                // Use the existing loadTasksForDateRange method
+                await this.loadTasksForDateRange(startDate, endDate);
+
+                // Update the data loading status display
+                this.updateDataLoadingStatus();
+
+                this.showSuccessToast(`Loaded data from ${startDate} to ${endDate}`);
+            }
+
             async loadCustomDateRange() {
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
                     this.showErrorToast('validation', 'Please connect to Airtable first');
@@ -2129,7 +2190,15 @@ attachTaskCardListeners(card, task) {
 
                 // Load More Historical Data button
                 document.getElementById('loadMoreDataBtn').addEventListener('click', () => {
-                    this.loadMoreHistoricalData();
+                    this.toggleReportsCustomDateRangeSection();
+                });
+
+                document.getElementById('loadReportsCustomRangeBtn').addEventListener('click', () => {
+                    this.loadReportsCustomDateRange();
+                });
+
+                document.getElementById('cancelReportsCustomRangeBtn').addEventListener('click', () => {
+                    this.hideReportsCustomDateRangeSection();
                 });
 
                 document.getElementById('addPersonBtn').addEventListener('click', () => this.addPerson());
