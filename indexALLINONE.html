@@ -779,8 +779,31 @@
                             </div>
                         </div>
                         <button id="loadMoreDataBtn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                            Load More Historical Data
+                            Load Custom Date Range
                         </button>
+                    </div>
+
+                    <!-- Custom Date Range Picker for Reports -->
+                    <div id="reportsCustomDateRangeSection" class="hidden border-t border-blue-200 pt-4 mt-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                            <div>
+                                <label class="block text-sm font-medium text-blue-800 mb-1">Start Date</label>
+                                <input type="date" id="reportsHistoricalStartDate" class="w-full p-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-blue-800 mb-1">End Date</label>
+                                <input type="date" id="reportsHistoricalEndDate" class="w-full p-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="loadReportsCustomRangeBtn" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                                    Load Data
+                                </button>
+                                <button id="cancelReportsCustomRangeBtn" class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition-colors">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-blue-600 mt-2">Select a date range to load historical data for reports.</p>
                     </div>
                 </div>
             </div>
@@ -1828,6 +1851,67 @@
 
             hideCustomDateRangeSection() {
                 document.getElementById('customDateRangeSection').classList.add('hidden');
+            }
+
+            // ==========================================
+            // Reports Modal Custom Date Range Methods
+            // ==========================================
+
+            toggleReportsCustomDateRangeSection() {
+                const section = document.getElementById('reportsCustomDateRangeSection');
+                const isHidden = section.classList.contains('hidden');
+
+                if (isHidden) {
+                    // Set default dates (1 year back to today)
+                    const today = new Date();
+                    const oneYearAgo = new Date(today);
+                    oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+                    document.getElementById('reportsHistoricalStartDate').value = this.dateToLocalDateString(oneYearAgo);
+                    document.getElementById('reportsHistoricalEndDate').value = this.dateToLocalDateString(today);
+
+                    section.classList.remove('hidden');
+                } else {
+                    section.classList.add('hidden');
+                }
+            }
+
+            hideReportsCustomDateRangeSection() {
+                document.getElementById('reportsCustomDateRangeSection').classList.add('hidden');
+            }
+
+            async loadReportsCustomDateRange() {
+                if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
+                    this.showErrorToast('validation', 'Please connect to Airtable first');
+                    return;
+                }
+
+                const startDate = document.getElementById('reportsHistoricalStartDate').value;
+                const endDate = document.getElementById('reportsHistoricalEndDate').value;
+
+                if (!startDate || !endDate) {
+                    this.showErrorToast('validation', 'Please select both start and end dates');
+                    return;
+                }
+
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+
+                if (start > end) {
+                    this.showErrorToast('validation', 'Start date must be before end date');
+                    return;
+                }
+
+                // Hide the date range picker
+                this.hideReportsCustomDateRangeSection();
+
+                // Use the existing loadTasksForDateRange method
+                await this.loadTasksForDateRange(startDate, endDate);
+
+                // Update the data loading status display
+                this.updateDataLoadingStatus();
+
+                this.showSuccessToast(`Loaded data from ${startDate} to ${endDate}`);
             }
 
             async loadCustomDateRange() {
@@ -3064,7 +3148,15 @@ attachTaskCardListeners(card, task) {
 
                 // Load More Historical Data button
                 document.getElementById('loadMoreDataBtn').addEventListener('click', () => {
-                    this.loadMoreHistoricalData();
+                    this.toggleReportsCustomDateRangeSection();
+                });
+
+                document.getElementById('loadReportsCustomRangeBtn').addEventListener('click', () => {
+                    this.loadReportsCustomDateRange();
+                });
+
+                document.getElementById('cancelReportsCustomRangeBtn').addEventListener('click', () => {
+                    this.hideReportsCustomDateRangeSection();
                 });
 
                 document.getElementById('addPersonBtn').addEventListener('click', () => this.addPerson());
