@@ -1,36 +1,41 @@
-// =========================================================================
-// CONSTANTS
-// =========================================================================
-const APP_CONSTANTS = {
-    // Time slots
-    MAX_SLOTS_PER_DAY: 32,
-    MINUTES_PER_SLOT: 15,
-    MAX_HOURS_PER_DAY: 8,
+    // =========================================================================
+    // ALTERATIONS PRO - ORDER MANAGEMENT WHITEBOARD
+    // =========================================================================
 
-    // Data loading
-    DEFAULT_WEEKS_BACK: 2,
-    DEFAULT_WEEKS_FORWARD: 4,
-    MAX_WEEKS_HISTORICAL: 52,
+    // =========================================================================
+    // CONSTANTS
+    // =========================================================================
+    const APP_CONSTANTS = {
+        // Time slots
+        MAX_SLOTS_PER_DAY: 32,
+        MINUTES_PER_SLOT: 15,
+        MAX_HOURS_PER_DAY: 8,
 
-    // UI
-    SLOT_HEIGHT_PX: 32,
-    COLUMN_WIDTH_PX: 268,
-    TOAST_DURATION_MS: 4000,
-    DEBOUNCE_DELAY_MS: 100,
-    AUTO_SAVE_DELAY_MS: 2000,
+        // Data loading
+        DEFAULT_WEEKS_BACK: 2,
+        DEFAULT_WEEKS_FORWARD: 4,
+        MAX_WEEKS_HISTORICAL: 52,
 
-    // API
-    MAX_RETRIES: 3,
-    RETRY_DELAY_MS: 1000,
-    AIRTABLE_BATCH_SIZE: 10,
+        // UI
+        SLOT_HEIGHT_PX: 32,
+        COLUMN_WIDTH_PX: 268,
+        TOAST_DURATION_MS: 4000,
+        DEBOUNCE_DELAY_MS: 100,
+        AUTO_SAVE_DELAY_MS: 2000,
 
-    // Days
-    DAYS_OF_WEEK: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-};
-// =========================================================================
-// TASK SCHEDULER APPLICATION CLASS
-// =========================================================================
-class TaskSchedulerApp {
+        // API
+        MAX_RETRIES: 3,
+        RETRY_DELAY_MS: 1000,
+        AIRTABLE_BATCH_SIZE: 10,
+
+        // Days
+        DAYS_OF_WEEK: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    };
+
+    // =========================================================================
+    // TASK SCHEDULER APPLICATION CLASS
+    // =========================================================================
+    class TaskSchedulerApp {
         constructor() {
             // -----------------------------------------------------------------
             // CORE STATE
@@ -863,52 +868,152 @@ class TaskSchedulerApp {
 			    }
 			}
 						
-			async loadMoreHistoricalDataForSearch() {
-			    if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
-			        this.showErrorToast('validation', 'Please connect to Airtable first');
-			        return;
-			    }
-			    
-			    // Temporarily expand the date range to load more data
-			    const originalWeeksBack = this.dataLoadSettings.weeksBack;
-			    const originalWeeksForward = this.dataLoadSettings.weeksForward;
-			    
-			    // Expand to load all historical data (up to 52 weeks back)
-			    this.dataLoadSettings.weeksBack = 52;
-			    // Keep forward range the same
-			    
-			    this.showLoading('Loading historical data for search...');
-			    
-			    try {
-			        await this.loadAllDataParallel();                    
-			        
-			        const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
-			            return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
-			                return dayTotal + personTasks.length;
-			            }, 0);
-			        }, 0);
-			        
-			        this.showToast(`✅ Historical data loaded for search (${totalTasks} total orders)`, 'success');
-			        
-			        // If there's an active search, refresh the results with expanded data
-			        const searchTerm = document.getElementById('searchInput').value.trim();
-			        if (searchTerm) {
-			            this.performSearch();
-			        }
-			        
-			        // Update search data range display
-			        this.updateSearchDataRangeDisplay();
-			        
-			    } catch (error) {
-			        this.showToast(`❌ Failed to load historical data: ${error.message}`, 'error');
-			    } finally {
-			        // Restore original settings (but keep the expanded data loaded)
-			        this.dataLoadSettings.weeksBack = originalWeeksBack;
-			        this.dataLoadSettings.weeksForward = originalWeeksForward;
-			        this.hideLoading();
-			        this.updateDataLoadingStatus();
-			    }
-			}
+            // =========================================================
+            // CUSTOM DATE RANGE LOADING FOR SEARCH
+            // =========================================================
+
+            toggleCustomDateRangeSection() {
+                const section = document.getElementById('customDateRangeSection');
+                const isHidden = section.classList.contains('hidden');
+
+                if (isHidden) {
+                    // Set default dates (1 year back to today)
+                    const today = new Date();
+                    const oneYearAgo = new Date(today);
+                    oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+                    document.getElementById('historicalStartDate').value = this.dateToLocalDateString(oneYearAgo);
+                    document.getElementById('historicalEndDate').value = this.dateToLocalDateString(today);
+
+                    section.classList.remove('hidden');
+                } else {
+                    section.classList.add('hidden');
+                }
+            }
+
+            hideCustomDateRangeSection() {
+                document.getElementById('customDateRangeSection').classList.add('hidden');
+            }
+
+            async loadCustomDateRange() {
+                if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
+                    this.showErrorToast('validation', 'Please connect to Airtable first');
+                    return;
+                }
+
+                const startDate = document.getElementById('historicalStartDate').value;
+                const endDate = document.getElementById('historicalEndDate').value;
+
+                if (!startDate || !endDate) {
+                    this.showToast('Please select both start and end dates', 'error');
+                    return;
+                }
+
+                if (new Date(startDate) > new Date(endDate)) {
+                    this.showToast('Start date must be before end date', 'error');
+                    return;
+                }
+
+                this.showLoading(`Loading data from ${startDate} to ${endDate}...`);
+
+                try {
+                    // Load tasks for the specific date range
+                    await this.loadTasksForDateRange(startDate, endDate);
+
+                    const totalTasks = Object.values(this.tasks).reduce((total, dateData) => {
+                        return total + Object.values(dateData).reduce((dayTotal, personTasks) => {
+                            return dayTotal + personTasks.length;
+                        }, 0);
+                    }, 0);
+
+                    this.showToast(`✅ Loaded ${totalTasks} total orders`, 'success');
+
+                    // Hide the custom range section
+                    this.hideCustomDateRangeSection();
+
+                    // If there's an active search, refresh the results
+                    const searchTerm = document.getElementById('searchInput').value.trim();
+                    if (searchTerm) {
+                        this.performSearch();
+                    }
+
+                    // Update search data range display
+                    this.updateSearchDataRangeDisplay();
+
+                } catch (error) {
+                    this.showToast(`❌ Failed to load data: ${error.message}`, 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async loadTasksForDateRange(startDateStr, endDateStr) {
+                const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks || 'Tasks');
+
+                // Build filter for date range
+                const filter = `AND({Date} >= '${startDateStr}', {Date} <= '${endDateStr}')`;
+                const encodedFilter = encodeURIComponent(filter);
+
+                let allRecords = [];
+                let offset = null;
+
+                do {
+                    const url = offset ?
+                        `${tableName}?filterByFormula=${encodedFilter}&offset=${offset}` :
+                        `${tableName}?filterByFormula=${encodedFilter}`;
+
+                    const response = await this.makeAirtableRequest(url);
+                    allRecords = allRecords.concat(response.records);
+                    offset = response.offset;
+                } while (offset);
+
+                // Update the loaded range info
+                const currentRange = this.dataLoadSettings.currentLoadedRange;
+                if (currentRange) {
+                    // Expand the range if needed
+                    if (startDateStr < currentRange.startDate) {
+                        currentRange.startDate = startDateStr;
+                    }
+                    if (endDateStr > currentRange.endDate) {
+                        currentRange.endDate = endDateStr;
+                    }
+                } else {
+                    this.dataLoadSettings.currentLoadedRange = {
+                        startDate: startDateStr,
+                        endDate: endDateStr,
+                        loadedAt: new Date().toISOString()
+                    };
+                }
+
+                // Add records to tasks (merge with existing)
+                allRecords.forEach((record) => {
+                    const fields = record.fields;
+
+                    if (fields.Person && fields.Date && fields.OrderNumber) {
+                        const dateKey = fields.Date;
+                        if (!this.tasks[dateKey]) this.tasks[dateKey] = {};
+                        if (!this.tasks[dateKey][fields.Person]) this.tasks[dateKey][fields.Person] = [];
+
+                        // Check if task already exists
+                        const existingTask = this.tasks[dateKey][fields.Person].find(t => t.id === record.id);
+                        if (!existingTask) {
+                            const task = {
+                                id: record.id,
+                                orderNumber: fields.OrderNumber,
+                                dateDue: fields.DueDate || fields.DateDue || null,
+                                description: fields.Description || '',
+                                duration: fields.Duration || 2,
+                                position: fields.Position || 0,
+                                completed: fields.Completed || false,
+                                tagsQuantity: fields.TagsQuantity || 1
+                            };
+                            this.tasks[dateKey][fields.Person].push(task);
+                        }
+                    }
+                });
+
+                return allRecords.length;
+            }
 			
             async syncAutoCapacityChangesToAirtable() {
                 if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
@@ -2063,9 +2168,15 @@ attachSearchListeners() {
     document.getElementById('searchAllTime').addEventListener('click', () => this.setSearchDateRange('all'));
     document.getElementById('clearSearchFilters').addEventListener('click', () => this.clearSearchFilters());
 
-    // Load More Historical Data button for search
-    document.getElementById('loadMoreSearchDataBtn').addEventListener('click', () => {
-        this.loadMoreHistoricalDataForSearch();
+    // Custom Date Range buttons for search
+    document.getElementById('toggleCustomRangeBtn').addEventListener('click', () => {
+        this.toggleCustomDateRangeSection();
+    });
+    document.getElementById('loadCustomRangeBtn').addEventListener('click', () => {
+        this.loadCustomDateRange();
+    });
+    document.getElementById('cancelCustomRangeBtn').addEventListener('click', () => {
+        this.hideCustomDateRangeSection();
     });
 }
             
@@ -7871,4 +7982,3 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
-
