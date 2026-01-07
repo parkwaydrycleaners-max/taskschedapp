@@ -13,223 +13,305 @@ if (sessionStorage.getItem("authorized") !== "yes") {
 </script>
 
 <style>
+/* =====================
+   GLOBAL / MOBILE FIRST
+===================== */
+
+* {
+    box-sizing: border-box;
+}
+
 body {
-    font-family: Arial, sans-serif;
     margin: 0;
+    font-family: Arial, sans-serif;
     background: #f7f7f7;
     line-height: 1.4;
 }
 
-/* Logo */
+/* =====================
+   HEADER / LOGO
+===================== */
+
 .logo-wrap {
-    background: white;
-    padding: 25px 0;
-    border-bottom: 1px solid #e0e0e0;
+    background: #fff;
+    padding: 16px;
+    border-bottom: 1px solid #ddd;
     text-align: center;
 }
+
 .logo-wrap img {
-    width: 200px;
-    height: auto;
+    max-width: 180px;
+    width: 100%;
 }
 
-/* Navbar */
+/* =====================
+   NAVIGATION
+===================== */
+
 .navbar {
     display: flex;
-    justify-content: center;
-    gap: 40px;
-    padding: 12px 0;
-    background: white;
-    border-bottom: 1px solid #e0e0e0;
+    justify-content: space-around;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    padding: 10px 0;
 }
-.nav-item { text-align: center; font-size: 0.8rem; }
-.nav-item svg { width: 24px; height: 24px; stroke: #333; fill: none; display: block; margin: 0 auto; }
-.nav-item a { text-decoration: none; color: #333; }
-.nav-item a:hover { color: #0a75ff; }
 
-/* Tile Grid */
-.tile-section { padding: 20px; }
+.nav-item {
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+.nav-item svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+    margin: 0 auto 4px;
+}
+
+.nav-item a {
+    color: #333;
+    text-decoration: none;
+}
+
+/* =====================
+   TILE GRID
+===================== */
+
+.tile-section {
+    padding: 14px;
+}
+
 .tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(1, 1fr);
+    gap: 14px;
 }
+
+/* Tablet */
+@media (min-width: 600px) {
+    .tiles {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Desktop */
+@media (min-width: 900px) {
+    .tiles {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
 .tile {
-    background: white;
-    padding: 18px;
+    background: #fff;
     border-radius: 10px;
+    padding: 16px;
     text-align: center;
-    box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     cursor: pointer;
-    transition: 0.25s;
+    transition: transform 0.2s;
 }
-.tile:hover { transform: translateY(-3px); }
-.tile svg { width: 40px; height: 40px; stroke-width: 2; margin-bottom: 12px; }
 
-/* Rating Tiles */
-.rating-tile { text-align: left; padding: 15px; }
-.rating-header { display: flex; align-items: center; gap: 10px; }
-.rating-header svg { width: 22px; height: 22px; }
-.rating-title { font-weight: bold; font-size: 1rem; }
-.rating-line { margin: 3px 0; font-size: 0.9rem; }
-.rating-bars { margin-top: 6px; font-size: 1.1rem; line-height: 1.2rem; }
+.tile:hover {
+    transform: translateY(-3px);
+}
 
-/* Modal */
+.tile svg {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 10px;
+}
+
+/* =====================
+   RATING TILES
+===================== */
+
+.rating-tile {
+    text-align: left;
+}
+
+.rating-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rating-header svg {
+    width: 20px;
+    height: 20px;
+}
+
+.rating-title {
+    font-weight: bold;
+    font-size: 0.95rem;
+}
+
+.rating-line {
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.rating-bars {
+    margin-top: 6px;
+    font-size: 1rem;
+}
+
+/* =====================
+   MODAL (MOBILE FRIENDLY)
+===================== */
+
 .modal-overlay {
     position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+    inset: 0;
     background: rgba(0,0,0,0.45);
     display: none;
-    justify-content: center;
     align-items: center;
-    padding: 15px;
+    justify-content: center;
+    padding: 12px;
     z-index: 9999;
 }
+
 .modal-box {
-    background: white;
+    background: #fff;
     width: 100%;
-    max-width: 440px;
+    max-width: 420px;
     border-radius: 12px;
-    padding: 22px;
-    box-shadow: 0px 6px 18px rgba(0,0,0,0.2);
-    animation: modalIn 0.25s ease-out;
-}
-@keyframes modalIn {
-    from { opacity: 0; transform: translateY(30px); }
-    to   { opacity: 1; transform: translateY(0); }
+    padding: 16px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
 }
 
-/* Layout A table */
+/* Close X */
+.modal-close-x {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+/* =====================
+   ESTIMATOR TABLE
+===================== */
+
 .calc-row {
     display: grid;
-    grid-template-columns: 70px 1fr 65px;
+    grid-template-columns: 60px 1fr 60px;
+    gap: 8px;
     align-items: center;
-    gap: 10px;
     margin: 6px 0;
 }
+
 .calc-header {
     font-weight: bold;
     border-bottom: 1px solid #ddd;
     padding-bottom: 6px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
+
 .qty-input {
-    width: 60px;
+    width: 55px;
     padding: 6px;
     text-align: center;
-    font-size: 1rem;
 }
-.seq-col { text-align: center; }
-.service-col { font-size: 0.95rem; }
 
-/* Buttons */
-.modal-box button {
+.seq-col {
+    text-align: center;
+}
+
+/* =====================
+   BUTTONS / FOOTER
+===================== */
+
+button {
     width: 100%;
-    padding: 10px;
-    margin-top: 12px;
-    font-size: 1.1rem;
-}
-.close-btn { background: #bbb; color: black; }
-.close-btn:hover { background: #aaa; }
-
-/* Close X button */
-.modal-close-x {
-    position: absolute;
-    top: 12px;
-    right: 16px;
-    font-size: 20px;
-    cursor: pointer;
-    color: #555;
-}
-.modal-close-x:hover {
-    color: #000;
+    padding: 12px;
+    font-size: 1rem;
+    margin-top: 10px;
 }
 
-/* Prevent overlay click from closing */
-.modal-overlay {
-    pointer-events: auto;
+.close-btn {
+    background: #ccc;
 }
 
-.modal-box {
-    position: relative;
+.total {
+    text-align: center;
+    font-weight: bold;
+    margin-top: 10px;
 }
 
-/* Remove spinner arrows for number inputs (if any browser forces them) */
-.qty-input {
-    -moz-appearance: textfield;
-}
-.qty-input::-webkit-inner-spin-button,
-.qty-input::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-    
-/* Total */
-.total { text-align: center; font-size: 1.3rem; margin-top: 15px; }
-
-/* Footer */
 .footer {
     text-align: center;
-    padding: 30px 15px;
-    color: #444;
+    font-size: 0.85rem;
+    padding: 20px 10px;
+    color: #555;
 }
 </style>
 </head>
 <body>
-
 <!-- LOGO -->
 <div class="logo-wrap">
-    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png">
+    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png" alt="Top Cleaners & Alterations">
 </div>
 
-<!-- NAVBAR -->
+<!-- NAVIGATION -->
 <div class="navbar">
     <div class="nav-item">
-        <a href="#"><svg><circle cx="12" cy="12" r="9"/></svg>Home</a>
+        <a href="#">
+            <svg><circle cx="12" cy="12" r="9"/></svg>
+            Home
+        </a>
     </div>
     <div class="nav-item">
-        <a href="#tools"><svg><rect x="4" y="4" width="16" height="16"/></svg>Tools</a>
+        <a href="#tools">
+            <svg><rect x="4" y="4" width="16" height="16"/></svg>
+            Tools
+        </a>
     </div>
     <div class="nav-item">
-        <a href="#contact"><svg><path d="M4 4h16v12H4z"/></svg>Contact</a>
+        <a href="#contact">
+            <svg><path d="M4 4h16v12H4z"/></svg>
+            Contact
+        </a>
     </div>
 </div>
 
 <!-- TILE GRID -->
 <div class="tile-section" id="tools">
     <div class="tiles">
-        <!-- Desktop Scheduler -->
-        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html')">
+
+        <!-- Alterations Scheduler (Desktop) -->
+        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html','_blank')">
             <svg><path d="M4 4h16v16H4z"/></svg>
             Alterations Scheduler (Desktop)
         </div>
 
-        <!-- Mobile Scheduler -->
-        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html')">
+        <!-- Alterations Scheduler (Mobile) -->
+        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html','_blank')">
             <svg><rect x="7" y="3" width="10" height="18"/></svg>
             Alterations Scheduler (Mobile)
         </div>
 
         <!-- Daily Reconciliation -->
-        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html')">
+        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html','_blank')">
             <svg><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             Daily Reconciliation
         </div>
 
-        <!-- Weekly Schedule -->
-        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true')">
+        <!-- Weekly Work Schedule -->
+        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true','_blank')">
             <svg><rect x="3" y="4" width="18" height="18"/></svg>
             Weekly Work Schedule
         </div>
 
-        <!-- Directory -->
-        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true')">
+        <!-- Directory of Contacts -->
+        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true','_blank')">
             <svg><path d="M4 4h16v16H4z"/></svg>
             Directory of Contacts
         </div>
 
         <!-- Alterations Pricing -->
-        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1035596463&single=true')">
+        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1035596463&single=true','_blank')">
             <svg viewBox="0 0 24 24">
                 <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="#0a75ff"/>
                 <path d="M3 10h18M3 14h18M3 18h18" stroke="#0a75ff"/>
@@ -237,26 +319,38 @@ body {
             Alterations Pricing
         </div>
 
-        <!-- Payroll Calculator -->
-        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html')">
-            <svg><circle cx="12" cy="12" r="9"/></svg>
-            Payroll Calculator
+        <!-- Bookkeeping (Wave) -->
+        <div class="tile" onclick="window.open('https://my.waveapps.com/login/','_blank')">
+            <svg viewBox="0 0 24 24">
+                <path d="M3 12h4l2-6 3 12 3-9 2 3h4"
+                      fill="none" stroke="#0a75ff" stroke-width="2"/>
+            </svg>
+            Bookkeeping (Wave)
+        </div>
+
+        <!-- Gmail Inbox -->
+        <div class="tile" onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 6h16v12H4z" fill="none" stroke="#0a75ff" stroke-width="2"/>
+                <path d="M4 6l8 6 8-6" fill="none" stroke="#0a75ff" stroke-width="2"/>
+            </svg>
+            Gmail Inbox
         </div>
 
         <!-- WhatsApp Group -->
-        <div class="tile" onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG')">
+        <div class="tile" onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
             <svg><circle cx="12" cy="12" r="9"/></svg>
             WhatsApp Group
         </div>
 
         <!-- CleanChat AI -->
-        <div class="tile" onclick="window.open('https://www.facebook.com/messages/t/2083730355435395')">
+        <div class="tile" onclick="window.open('https://www.facebook.com/messages/t/2083730355435395','_blank')">
             <svg><rect x="4" y="4" width="16" height="12"/></svg>
             CleanChat AI
         </div>
 
         <!-- Call Logs -->
-        <div class="tile" onclick="window.open('https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6')">
+        <div class="tile" onclick="window.open('https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6','_blank')">
             <svg><rect x="6" y="2" width="12" height="20"/></svg>
             Call Logs
         </div>
@@ -268,14 +362,15 @@ body {
                 <path d="M8 4v16M16 4v16M4 10h16M4 16h16" stroke="#0a75ff" stroke-width="2"/>
             </svg>
             Dress Hem Estimator
-        </div>
-        <!-- ⭐ GOOGLE RATING TILE -->
+        </div> 
+        <!-- ⭐ GOOGLE REVIEWS -->
         <div class="tile rating-tile"
              onclick="window.open('https://www.google.com/maps/place/West+Covina+Parkway+Top+Cleaners+and+Alterations','_blank')">
 
             <div class="rating-header">
                 <svg viewBox="0 0 24 24">
-                    <path fill="#EA4335" d="M12 10.2v3.6h5.1c-.3 1.5-1.8 4.4-5.1 4.4a5.7 5.7 0 110-11.4c1.6 0 2.8.7 3.4 1.3l2.3-2.3C16.3 4.7 14.3 4 12 4a9 9 0 100 18c5.2 0 8.7-3.7 8.7-8.9 0-.6-.1-1-.2-1.5H12z"/>
+                    <path fill="#EA4335"
+                          d="M12 10.2v3.6h5.1c-.3 1.5-1.8 4.4-5.1 4.4a5.7 5.7 0 110-11.4c1.6 0 2.8.7 3.4 1.3l2.3-2.3C16.3 4.7 14.3 4 12 4a9 9 0 100 18c5.2 0 8.7-3.7 8.7-8.9 0-.6-.1-1-.2-1.5H12z"/>
                 </svg>
                 <div class="rating-title">Google Reviews</div>
             </div>
@@ -284,28 +379,30 @@ body {
             <div id="google-bars" class="rating-bars"></div>
         </div>
 
-<!-- ⭐ YELP RATING TILE (Admin Access) -->
-<div class="tile rating-tile"
-     onclick="window.open('https://biz.yelp.com/home/Eb36giK3cXwlb6Bj9Vs-6w/?fwp=true','_blank')">
+        <!-- ⭐ YELP BUSINESS ADMIN -->
+        <div class="tile rating-tile"
+             onclick="window.open('https://biz.yelp.com/home/Eb36giK3cXwlb6Bj9Vs-6w/?fwp=true','_blank')">
 
-    <div class="rating-header">
-        <svg viewBox="0 0 24 24">
-            <path fill="#D32323" d="M10.52 2.1c-.39-.7-1.36-.75-1.82-.1L6.38 4.92c-.25.35-.3.8-.14 1.19l1.75 4.2c.3.71 1.23.93 1.81.43l2.86-2.5c.46-.4.59-1.07.29-1.6l-2.43-4.54z"/>
-        </svg>
-        <div class="rating-title">Yelp Reviews</div>
-    </div>
+            <div class="rating-header">
+                <svg viewBox="0 0 24 24">
+                    <path fill="#D32323"
+                          d="M10.52 2.1c-.39-.7-1.36-.75-1.82-.1L6.38 4.92c-.25.35-.3.8-.14 1.19l1.75 4.2c.3.71 1.23.93 1.81.43l2.86-2.5c.46-.4.59-1.07.29-1.6l-2.43-4.54z"/>
+                </svg>
+                <div class="rating-title">Yelp (Admin)</div>
+            </div>
 
-    <div id="yelp-rating" class="rating-line">Loading...</div>
-    <div id="yelp-bars" class="rating-bars"></div>
-</div>
+            <div id="yelp-rating" class="rating-line">Loading...</div>
+            <div id="yelp-bars" class="rating-bars"></div>
+        </div>
 
-        <!-- ⭐ FACEBOOK RATING TILE -->
+        <!-- ⭐ FACEBOOK REVIEWS -->
         <div class="tile rating-tile"
              onclick="window.open('https://www.facebook.com/1385716841487687/reviews','_blank')">
 
             <div class="rating-header">
                 <svg viewBox="0 0 24 24">
-                    <path fill="#1877F2" d="M22 12A10 10 0 1010.6 21.8v-6.6H8v-3.2h2.6V9.4c0-2.6 1.5-4.1 3.9-4.1 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.3 0-1.7.8-1.7 1.6v1.9H20l-.5 3.2h-3.3v6.6A10 10 0 0022 12z"/>
+                    <path fill="#1877F2"
+                          d="M22 12A10 10 0 1010.6 21.8v-6.6H8v-3.2h2.6V9.4c0-2.6 1.5-4.1 3.9-4.1 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.3 0-1.7.8-1.7 1.6v1.9H20l-.5 3.2h-3.3v6.6A10 10 0 0022 12z"/>
                 </svg>
                 <div class="rating-title">Facebook Reviews</div>
             </div>
@@ -316,56 +413,50 @@ body {
 
     </div> <!-- end .tiles -->
 </div> <!-- end .tile-section -->
-<!-- ⭐ DRESS HEM ESTIMATOR MODAL (UPDATED) -->
+<!-- ⭐ DRESS HEM ESTIMATOR MODAL -->
 <div id="hemModal" class="modal-overlay">
     <div class="modal-box">
 
-        <!-- Close X button -->
+        <!-- Close X -->
         <div class="modal-close-x" onclick="closeHemModal()">✕</div>
 
         <h2>Dress Hem Estimator</h2>
 
         <!-- HEADER -->
         <div class="calc-row calc-header">
-            <div class="calc-col qty-col">Qty</div>
-            <div class="calc-col service-col">Service</div>
-            <div class="calc-col seq-col">Sequins?</div>
+            <div>Qty</div>
+            <div>Service</div>
+            <div class="seq-col">Sequins?</div>
         </div>
 
         <!-- Dress Hems -->
         <div class="calc-row">
-            <div class="calc-col qty-col">
-                <input type="text" id="hemYards" class="qty-input">
-            </div>
-            <div class="calc-col service-col">Dress Hems @ $12.50/yd</div>
-            <div class="calc-col seq-col"><input type="checkbox" id="seqHem"></div>
+            <input type="text" id="hemYards" class="qty-input">
+            <div class="service-col">Dress Hems @ $12.50/yd</div>
+            <div class="seq-col"><input type="checkbox" id="seqHem"></div>
         </div>
 
         <!-- Cut Hems -->
         <div class="calc-row">
-            <div class="calc-col qty-col">
-                <input type="text" id="cutHemYards" class="qty-input">
-            </div>
-            <div class="calc-col service-col">Cut Hems @ $6.25/yd</div>
-            <div class="calc-col seq-col"><input type="checkbox" id="seqCut"></div>
+            <input type="text" id="cutHemYards" class="qty-input">
+            <div class="service-col">Cut Hems @ $6.25/yd</div>
+            <div class="seq-col"><input type="checkbox" id="seqCut"></div>
         </div>
 
         <!-- Horsehair -->
         <div class="calc-row">
-            <div class="calc-col qty-col">
-                <input type="text" id="horsehairYards" class="qty-input">
-            </div>
-            <div class="calc-col service-col">Horsehair Hems @ $25.00/yd</div>
-            <div class="calc-col seq-col"><input type="checkbox" id="seqHorse"></div>
+            <input type="text" id="horsehairYards" class="qty-input">
+            <div class="service-col">Horsehair Hems @ $25.00/yd</div>
+            <div class="seq-col"><input type="checkbox" id="seqHorse"></div>
         </div>
 
         <hr>
 
         <!-- Glitter -->
         <div class="calc-row">
-            <div class="calc-col qty-col"></div>
-            <div class="calc-col service-col">Add Glitter (+ $10 flat)</div>
-            <div class="calc-col seq-col"><input type="checkbox" id="glitterCheck"></div>
+            <div></div>
+            <div class="service-col">Add Glitter (+ $10 flat)</div>
+            <div class="seq-col"><input type="checkbox" id="glitterCheck"></div>
         </div>
 
         <button onclick="calculateHemTotal()">Calculate</button>
@@ -382,16 +473,15 @@ body {
     <strong>Top Cleaners & Alterations</strong><br>
     1016 W West Covina Parkway<br>
     West Covina, CA 91790<br>
-    Phone: (626) 480-9200<br>
-    Website: <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
+    Phone: (626) 480‑9200<br>
+    Website:
+    <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
     Internal Access Only
 </div>
 
-<!-- ⭐ JAVASCRIPT SECTION -->
+<!-- ⭐ JAVASCRIPT -->
 <script>
-/* -----------------------------------------
-   CLOUDLFARE WORKER — LIVE RATINGS FETCH
--------------------------------------------- */
+/* ===== RATINGS (Cloudflare Worker) ===== */
 
 const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 
@@ -401,110 +491,69 @@ function blocks(count, emoji) {
 
 function sentimentBars(p, n, neg) {
     return `
-        <div class='rating-line'>Positive: ${p}</div>
-        ${blocks(Math.min(20, Math.floor(p/5)), "🟩")}
-
-        <div class='rating-line'>Neutral: ${n}</div>
-        ${blocks(Math.min(20, Math.floor(n/5)), "🟨")}
-
-        <div class='rating-line'>Negative: ${neg}</div>
-        ${blocks(Math.min(20, Math.floor(neg/5)), "🟥")}
+        <div class="rating-line">Positive: ${p}</div>${blocks(Math.min(20,p/5),"🟩")}
+        <div class="rating-line">Neutral: ${n}</div>${blocks(Math.min(20,n/5),"🟨")}
+        <div class="rating-line">Negative: ${neg}</div>${blocks(Math.min(20,neg/5),"🟥")}
     `;
 }
 
-/* GOOGLE REVIEWS */
+/* Google */
 fetch(`${WORKER_URL}/google`)
-    .then(res => res.json())
-    .then(data => {
-        const r = data.result.rating;
-        const t = data.result.user_ratings_total;
+.then(r=>r.json())
+.then(d=>{
+    const t=d.result.user_ratings_total,r=d.result.rating;
+    const p=Math.round(t*.85),n=Math.round(t*.1),neg=t-p-n;
+    google-rating.innerText=`⭐ ${r} (${t})`;
+    google-bars.innerHTML=sentimentBars(p,n,neg);
+});
 
-        const p = Math.round(t * 0.85);
-        const n = Math.round(t * 0.10);
-        const neg = t - p - n;
-
-        document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
-        document.getElementById("google-bars").innerHTML = sentimentBars(p, n, neg);
-    });
-
-/* YELP REVIEWS */
+/* Yelp */
 fetch(`${WORKER_URL}/yelp`)
-    .then(res => res.json())
-    .then(data => {
-        const r = data.rating;
-        const t = data.review_count;
+.then(r=>r.json())
+.then(d=>{
+    const t=d.review_count,r=d.rating;
+    const p=Math.round(t*(r/5)),neg=Math.round(t*((5-r)/5)),n=t-p-neg;
+    yelp-rating.innerText=`⭐ ${r} (${t})`;
+    yelp-bars.innerHTML=sentimentBars(p,n,neg);
+});
 
-        const p = Math.round(t * (r/5));
-        const neg = Math.round(t * ((5 - r)/5));
-        const n = t - p - neg;
-
-        document.getElementById("yelp-rating").innerText = `⭐ ${r} (${t})`;
-        document.getElementById("yelp-bars").innerHTML = sentimentBars(p, n, neg);
-    });
-
-/* FACEBOOK REVIEWS */
+/* Facebook */
 fetch(`${WORKER_URL}/facebook`)
-    .then(res => res.json())
-    .then(data => {
-        const r = data.overall_star_rating;
-        const t = data.rating_count;
+.then(r=>r.json())
+.then(d=>{
+    const t=d.rating_count,r=d.overall_star_rating;
+    const p=Math.round(t*(r/5)),neg=Math.round(t*((5-r)/5)),n=t-p-neg;
+    facebook-rating.innerText=`⭐ ${r} (${t})`;
+    facebook-bars.innerHTML=sentimentBars(p,n,neg);
+});
 
-        const p = Math.round(t * (r/5));
-        const neg = Math.round(t * ((5 - r)/5));
-        const n = t - p - neg;
-
-        document.getElementById("facebook-rating").innerText = `⭐ ${r} (${t})`;
-        document.getElementById("facebook-bars").innerHTML = sentimentBars(p, n, neg);
-    });
-
-/* -----------------------------------------
-   DRESS HEM MODAL FUNCTIONS
--------------------------------------------- */
+/* ===== MODAL CONTROL ===== */
 
 function openHemModal() {
-    document.getElementById("hemModal").style.display = "flex";
+    document.getElementById("hemModal").style.display="flex";
 }
-
 function closeHemModal() {
-    document.getElementById("hemModal").style.display = "none";
+    document.getElementById("hemModal").style.display="none";
 }
 
-/* -----------------------------------------
-   DRESS HEM ESTIMATOR (Layout A)
--------------------------------------------- */
+/* ===== DRESS HEM ESTIMATOR ===== */
 
 function calculateHemTotal() {
-    const hemRate   = 12.50;
-    const cutRate   = 6.25;
-    const horseRate = 25.00;
+    const hem=12.5,cut=6.25,horse=25;
+    const h=parseFloat(hemYards.value)||0;
+    const c=parseFloat(cutHemYards.value)||0;
+    const ho=parseFloat(horsehairYards.value)||0;
 
-    const hemYards   = parseFloat(document.getElementById("hemYards").value)   || 0;
-    const cutYards   = parseFloat(document.getElementById("cutHemYards").value) || 0;
-    const horseYards = parseFloat(document.getElementById("horsehairYards").value) || 0;
+    let total=h*hem+c*cut+ho*horse;
 
-    let total =
-        hemYards   * hemRate +
-        cutYards   * cutRate +
-        horseYards * horseRate;
+    if(seqHem.checked) total+=h*5;
+    if(seqCut.checked) total+=c*5;
+    if(seqHorse.checked) total+=ho*5;
+    if(glitterCheck.checked) total+=10;
 
-    if (document.getElementById("seqHem").checked)
-        total += hemYards * 5;
-
-    if (document.getElementById("seqCut").checked)
-        total += cutYards * 5;
-
-    if (document.getElementById("seqHorse").checked)
-        total += horseYards * 5;
-
-    if (document.getElementById("glitterCheck").checked)
-        total += 10;
-
-    document.getElementById("hemTotal").innerText =
-        "Total: $" + total.toFixed(2);
+    hemTotal.innerText=`Total: $${total.toFixed(2)}`;
 }
 </script>
 
 </body>
-</html>
-
-
+</html>    
