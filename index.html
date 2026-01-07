@@ -481,51 +481,13 @@ button {
 
 <!-- ⭐ JAVASCRIPT -->
 <script>
-/* ===== RATINGS (Cloudflare Worker) ===== */
-
-const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
-
-function blocks(count, emoji) {
-    return emoji.repeat(count);
+function openHemModal() {
+    document.getElementById("hemModal").style.display = "flex";
 }
 
-function sentimentBars(p, n, neg) {
-    return `
-        <div class="rating-line">Positive: ${p}</div>${blocks(Math.min(20,p/5),"🟩")}
-        <div class="rating-line">Neutral: ${n}</div>${blocks(Math.min(20,n/5),"🟨")}
-        <div class="rating-line">Negative: ${neg}</div>${blocks(Math.min(20,neg/5),"🟥")}
-    `;
+function closeHemModal() {
+    document.getElementById("hemModal").style.display = "none";
 }
-
-/* Google */
-fetch(`${WORKER_URL}/google`)
-.then(r=>r.json())
-.then(d=>{
-    const t=d.result.user_ratings_total,r=d.result.rating;
-    const p=Math.round(t*.85),n=Math.round(t*.1),neg=t-p-n;
-    google-rating.innerText=`⭐ ${r} (${t})`;
-    google-bars.innerHTML=sentimentBars(p,n,neg);
-});
-
-/* Yelp */
-fetch(`${WORKER_URL}/yelp`)
-.then(r=>r.json())
-.then(d=>{
-    const t=d.review_count,r=d.rating;
-    const p=Math.round(t*(r/5)),neg=Math.round(t*((5-r)/5)),n=t-p-neg;
-    yelp-rating.innerText=`⭐ ${r} (${t})`;
-    yelp-bars.innerHTML=sentimentBars(p,n,neg);
-});
-
-/* Facebook */
-fetch(`${WORKER_URL}/facebook`)
-.then(r=>r.json())
-.then(d=>{
-    const t=d.rating_count,r=d.overall_star_rating;
-    const p=Math.round(t*(r/5)),neg=Math.round(t*((5-r)/5)),n=t-p-neg;
-    facebook-rating.innerText=`⭐ ${r} (${t})`;
-    facebook-bars.innerHTML=sentimentBars(p,n,neg);
-});
 
 /* ===== MODAL CONTROL ===== */
 
@@ -553,7 +515,76 @@ function calculateHemTotal() {
 
     hemTotal.innerText=`Total: $${total.toFixed(2)}`;
 }
+
+    const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
+
+function blocks(count, emoji) {
+    return emoji.repeat(Math.min(20, Math.floor(count)));
+}
+
+function sentimentBars(p, n, neg) {
+    return `
+        <div class="rating-line">Positive: ${p}</div>${blocks(p/5,"🟩")}
+        <div class="rating-line">Neutral: ${n}</div>${blocks(n/5,"🟨")}
+        <div class="rating-line">Negative: ${neg}</div>${blocks(neg/5,"🟥")}
+    `;
+}
+
+/* GOOGLE */
+fetch(`${WORKER_URL}/google`)
+.then(r => r.json())
+.then(d => {
+    const rating = d.result.rating;
+    const total = d.result.user_ratings_total;
+
+    const pos = Math.round(total * 0.85);
+    const neu = Math.round(total * 0.10);
+    const neg = total - pos - neu;
+
+    document.getElementById("google-rating").innerText =
+        `⭐ ${rating} (${total})`;
+
+    document.getElementById("google-bars").innerHTML =
+        sentimentBars(pos, neu, neg);
+});
+
+/* YELP */
+fetch(`${WORKER_URL}/yelp`)
+.then(r => r.json())
+.then(d => {
+    const rating = d.rating;
+    const total = d.review_count;
+
+    const pos = Math.round(total * (rating / 5));
+    const neg = Math.round(total * ((5 - rating) / 5));
+    const neu = total - pos - neg;
+
+    document.getElementById("yelp-rating").innerText =
+        `⭐ ${rating} (${total})`;
+
+    document.getElementById("yelp-bars").innerHTML =
+        sentimentBars(pos, neu, neg);
+});
+
+/* FACEBOOK */
+fetch(`${WORKER_URL}/facebook`)
+.then(r => r.json())
+.then(d => {
+    const rating = d.overall_star_rating;
+    const total = d.rating_count;
+
+    const pos = Math.round(total * (rating / 5));
+    const neg = Math.round(total * ((5 - rating) / 5));
+    const neu = total - pos - neg;
+
+    document.getElementById("facebook-rating").innerText =
+        `⭐ ${rating} (${total})`;
+
+    document.getElementById("facebook-bars").innerHTML =
+        sentimentBars(pos, neu, neg);
+});
 </script>
 
 </body>
 </html>    
+
