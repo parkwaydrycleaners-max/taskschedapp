@@ -1181,7 +1181,38 @@ init() {
     this.initOfflineDetection();
     
 }
+
+// ==========================================
+// Navigate to Oldest Incomplete Order
+// ==========================================
+
+goToOldestIncomplete() {
+    // Get all tasks from the tasks Map
+    let oldestDate = null;
+    let oldestTask = null;
+
+    this.tasks.forEach((task) => {
+        // Check if task is incomplete (not completed)
+        if (!task.completed && task.workDate) {
+            const taskDate = new Date(task.workDate);
             
+            // Find the oldest (earliest) date
+            if (!oldestDate || taskDate < oldestDate) {
+                oldestDate = taskDate;
+                oldestTask = task;
+            }
+        }
+    });
+
+    if (oldestDate && oldestTask) {
+        // Navigate to that date
+        this.currentDate = oldestDate;
+        this.renderWhiteboard();
+        this.showSuccessToast(`Navigated to oldest incomplete order: ${oldestTask.orderNumber || 'Untitled'} (${this.formatDisplayDate(oldestDate)})`);
+    } else {
+        this.showInfoToast('No incomplete orders found!');
+    }
+}
             // Timezone and Date Utility Functions
             getConfiguredTimezone() {
                 const timezoneSelect = document.getElementById('timezoneSelect');
@@ -1978,6 +2009,10 @@ attachTaskCardListeners(card, task) {
                     this.showToast('Today: ' + this.currentDate.toLocaleDateString(), 'info');
                 });
 
+				document.getElementById('oldestIncompleteBtn').addEventListener('click', () => {
+   				this.goToOldestIncomplete();
+				});
+				
                 document.getElementById('currentDate').addEventListener('click', () => {
                     this.showDatePicker();
                 });
@@ -8051,3 +8086,4 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
