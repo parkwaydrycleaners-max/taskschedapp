@@ -1212,7 +1212,8 @@ goToOldestIncomplete() {
         this.renderWhiteboard();
         this.showSuccessToast(`Navigated to oldest incomplete order: ${oldestTask.orderNumber || 'Untitled'} (${this.formatDisplayDate(oldestDate)})`);
     } else {
-        this.showInfoToast('No incomplete orders found!');
+        // Use showSuccessToast instead of showInfoToast
+        this.showSuccessToast('No incomplete orders found!');
     }
 }
             // Timezone and Date Utility Functions
@@ -8088,5 +8089,6 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
 
