@@ -1187,54 +1187,46 @@ init() {
 // ==========================================
 
 goToOldestIncomplete() {
+    let oldestDateKey = null;
     let oldestDate = null;
     let oldestTask = null;
 
-    // Debug: log first task to see completion property
-    const firstDateKey = Object.keys(this.tasks)[0];
-    if (firstDateKey) {
-        const firstTask = Object.values(this.tasks[firstDateKey])[0];
-        console.log('Sample task properties:', Object.keys(firstTask));
-        console.log('Sample task completed value:', firstTask.completed, typeof firstTask.completed);
-    }
-
-    // Tasks structure is: { 'YYYY-MM-DD': { taskId: task, ... }, ... }
-    for (const [dateKey, tasksForDate] of Object.entries(this.tasks)) {
-        const workDate = new Date(dateKey);
+    // Tasks structure is: { 'YYYY-MM-DD': { 'PersonName': [tasks], ... }, ... }
+    for (const [dateKey, personTasks] of Object.entries(this.tasks)) {
         
-        // Get all tasks for this date
-        const tasksArray = Object.values(tasksForDate);
-        
-        for (const task of tasksArray) {
-            if (!task) continue;
+        // Loop through each person's tasks for this date
+        for (const [personName, tasksArray] of Object.entries(personTasks)) {
+            // tasksArray is an array of tasks for this person on this date
+            if (!Array.isArray(tasksArray) || tasksArray.length === 0) continue;
             
-            // Check if task is incomplete - try different property names and values
-            const isCompleted = task.completed === true || 
-                               task.completed === 'true' || 
-                               task.completed === 1 ||
-                               task.isCompleted === true || 
-                               task.status === 'completed' ||
-                               task.status === 'complete';
-            
-            if (!isCompleted) {
-                // Find the oldest (earliest) date
+            for (const task of tasksArray) {
+                if (!task || !task.id) continue;
+                
+                // Check if task is incomplete (completed is falsy or false)
+                if (task.completed === true) continue; // Skip completed tasks
+                
+                // Parse date without timezone issues by using date parts
+                const [year, month, day] = dateKey.split('-').map(Number);
+                const workDate = new Date(year, month - 1, day); // month is 0-indexed
+                
+                // Find the oldest (earliest) date with an incomplete task
                 if (!oldestDate || workDate < oldestDate) {
                     oldestDate = workDate;
+                    oldestDateKey = dateKey;
                     oldestTask = task;
-                    // Store the date key for reference
-                    oldestTask._workDateKey = dateKey;
                 }
             }
         }
     }
 
     if (oldestDate && oldestTask) {
-        // Navigate to that date
-        this.currentDate = oldestDate;
+        // Navigate to that date - parse without timezone issues
+        const [year, month, day] = oldestDateKey.split('-').map(Number);
+        this.currentDate = new Date(year, month - 1, day);
         this.renderWhiteboard();
         
         // Format date simply
-        const dateStr = oldestDate.toLocaleDateString('en-US', { 
+        const dateStr = this.currentDate.toLocaleDateString('en-US', { 
             weekday: 'short', 
             month: 'short', 
             day: 'numeric' 
@@ -8118,6 +8110,7 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
 
 
