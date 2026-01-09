@@ -1190,6 +1190,14 @@ goToOldestIncomplete() {
     let oldestDate = null;
     let oldestTask = null;
 
+    // Debug: log first task to see completion property
+    const firstDateKey = Object.keys(this.tasks)[0];
+    if (firstDateKey) {
+        const firstTask = Object.values(this.tasks[firstDateKey])[0];
+        console.log('Sample task properties:', Object.keys(firstTask));
+        console.log('Sample task completed value:', firstTask.completed, typeof firstTask.completed);
+    }
+
     // Tasks structure is: { 'YYYY-MM-DD': { taskId: task, ... }, ... }
     for (const [dateKey, tasksForDate] of Object.entries(this.tasks)) {
         const workDate = new Date(dateKey);
@@ -1200,15 +1208,21 @@ goToOldestIncomplete() {
         for (const task of tasksArray) {
             if (!task) continue;
             
-            // Check if task is incomplete (not completed)
-            // Check various possible property names
-            const isCompleted = task.completed === true || task.isCompleted === true || task.status === 'completed';
+            // Check if task is incomplete - try different property names and values
+            const isCompleted = task.completed === true || 
+                               task.completed === 'true' || 
+                               task.completed === 1 ||
+                               task.isCompleted === true || 
+                               task.status === 'completed' ||
+                               task.status === 'complete';
             
             if (!isCompleted) {
                 // Find the oldest (earliest) date
                 if (!oldestDate || workDate < oldestDate) {
                     oldestDate = workDate;
                     oldestTask = task;
+                    // Store the date key for reference
+                    oldestTask._workDateKey = dateKey;
                 }
             }
         }
@@ -1218,7 +1232,15 @@ goToOldestIncomplete() {
         // Navigate to that date
         this.currentDate = oldestDate;
         this.renderWhiteboard();
-        this.showSuccessToast(`Navigated to: ${oldestTask.orderNumber || 'Order'} (${this.formatDisplayDate(oldestDate)})`);
+        
+        // Format date simply
+        const dateStr = oldestDate.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+        });
+        
+        this.showSuccessToast(`Navigated to: #${oldestTask.orderNumber || 'Order'} (${dateStr})`);
     } else {
         this.showErrorToast('No incomplete orders found!');
     }
@@ -8096,6 +8118,7 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
 
 
