@@ -1189,67 +1189,27 @@ init() {
 goToOldestIncomplete() {
     let oldestDate = null;
     let oldestTask = null;
-    let allTasks = [];
 
-    // Try different possible task storage structures
-    if (this.tasks) {
-        if (this.tasks instanceof Map) {
-            // If tasks is a Map
-            this.tasks.forEach((task) => allTasks.push(task));
-        } else if (Array.isArray(this.tasks)) {
-            // If tasks is an Array
-            allTasks = this.tasks;
-        } else if (typeof this.tasks === 'object') {
-            // If tasks is an object, it might be nested by person/date
-            // First try flat object
-            const values = Object.values(this.tasks);
-            if (values.length > 0 && typeof values[0] === 'object' && !Array.isArray(values[0]) && values[0] !== null) {
-                // Could be nested: { personName: { dateKey: [tasks] } }
-                for (const personData of values) {
-                    if (typeof personData === 'object' && personData !== null) {
-                        for (const dateData of Object.values(personData)) {
-                            if (Array.isArray(dateData)) {
-                                allTasks.push(...dateData);
-                            } else if (typeof dateData === 'object' && dateData !== null && dateData.id) {
-                                allTasks.push(dateData);
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Flat object with task IDs as keys
-                allTasks = values;
-            }
-        }
-    }
-
-    // Also check if there's a separate allTasks property
-    if (allTasks.length === 0 && this.allTasks) {
-        if (Array.isArray(this.allTasks)) {
-            allTasks = this.allTasks;
-        } else {
-            allTasks = Object.values(this.allTasks);
-        }
-    }
-
-    console.log('Total tasks found:', allTasks.length);
-    console.log('Sample task:', allTasks[0]);
-
-    for (const task of allTasks) {
-        if (!task) continue;
+    // Tasks structure is: { 'YYYY-MM-DD': { taskId: task, ... }, ... }
+    for (const [dateKey, tasksForDate] of Object.entries(this.tasks)) {
+        const workDate = new Date(dateKey);
         
-        // Check if task is incomplete (not completed)
-        const isIncomplete = !task.completed && task.completed !== true;
-        const hasWorkDate = task.workDate || task.WorkDate || task.date;
+        // Get all tasks for this date
+        const tasksArray = Object.values(tasksForDate);
         
-        if (isIncomplete && hasWorkDate) {
-            const dateValue = task.workDate || task.WorkDate || task.date;
-            const taskDate = new Date(dateValue);
+        for (const task of tasksArray) {
+            if (!task) continue;
             
-            // Find the oldest (earliest) date
-            if (!oldestDate || taskDate < oldestDate) {
-                oldestDate = taskDate;
-                oldestTask = task;
+            // Check if task is incomplete (not completed)
+            // Check various possible property names
+            const isCompleted = task.completed === true || task.isCompleted === true || task.status === 'completed';
+            
+            if (!isCompleted) {
+                // Find the oldest (earliest) date
+                if (!oldestDate || workDate < oldestDate) {
+                    oldestDate = workDate;
+                    oldestTask = task;
+                }
             }
         }
     }
@@ -1258,10 +1218,9 @@ goToOldestIncomplete() {
         // Navigate to that date
         this.currentDate = oldestDate;
         this.renderWhiteboard();
-        this.showSuccessToast(`Navigated to: ${oldestTask.orderNumber || oldestTask.OrderNumber || 'Order'} (${this.formatDisplayDate(oldestDate)})`);
+        this.showSuccessToast(`Navigated to: ${oldestTask.orderNumber || 'Order'} (${this.formatDisplayDate(oldestDate)})`);
     } else {
-        console.log('Tasks structure:', this.tasks);
-        this.showErrorToast('No incomplete orders found - check console for debug info');
+        this.showErrorToast('No incomplete orders found!');
     }
 }
             // Timezone and Date Utility Functions
@@ -8137,6 +8096,7 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
 
 
