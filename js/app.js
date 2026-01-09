@@ -1187,11 +1187,13 @@ init() {
 // ==========================================
 
 goToOldestIncomplete() {
-    // Get all tasks from the tasks Map
     let oldestDate = null;
     let oldestTask = null;
 
-    this.tasks.forEach((task) => {
+    // Handle tasks as an object (iterate over values)
+    const tasksArray = Object.values(this.tasks);
+
+    for (const task of tasksArray) {
         // Check if task is incomplete (not completed)
         if (!task.completed && task.workDate) {
             const taskDate = new Date(task.workDate);
@@ -1202,7 +1204,7 @@ goToOldestIncomplete() {
                 oldestTask = task;
             }
         }
-    });
+    }
 
     if (oldestDate && oldestTask) {
         // Navigate to that date
@@ -8086,4 +8088,5 @@ cleanup() {
 
         // Initialize the application
         const app = new TaskSchedulerApp();
+
 
