@@ -7,181 +7,130 @@
 
 <!-- PASSWORD PROTECTION -->
 <script>
-if (sessionStorage.getItem("authorized") !== "yes") {
-    window.location.href = "login.html";
-}
+(function () {
+    if (sessionStorage.getItem("authorized") !== "yes") {
+        window.location.href = "login.html";
+    }
+})();
 </script>
 
 <style>
-/* =====================
-   GLOBAL / MOBILE FIRST
-===================== */
-
-* {
-    box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
     margin: 0;
     font-family: Arial, sans-serif;
     background: #f7f7f7;
-    line-height: 1.4;
 }
 
-/* =====================
-   HEADER / LOGO
-===================== */
-
+/* HEADER */
 .logo-wrap {
     background: #fff;
     padding: 16px;
     border-bottom: 1px solid #ddd;
     text-align: center;
 }
-
 .logo-wrap img {
     max-width: 180px;
     width: 100%;
 }
 
-/* =====================
-   NAVIGATION
-===================== */
-
+/* NAV */
 .navbar {
     display: flex;
     justify-content: space-around;
+    padding: 10px 0;
     background: #fff;
     border-bottom: 1px solid #ddd;
-    padding: 10px 0;
 }
-
 .nav-item {
     font-size: 0.75rem;
     text-align: center;
 }
-
 .nav-item svg {
     width: 22px;
     height: 22px;
     display: block;
     margin: 0 auto 4px;
 }
-
 .nav-item a {
     color: #333;
     text-decoration: none;
 }
 
-/* =====================
-   TILE GRID
-===================== */
-
+/* GRID */
 .tile-section {
     padding: 14px;
 }
-
 .tiles {
     display: grid;
-    grid-template-columns: repeat(1, 1fr);
+    grid-template-columns: 1fr;
     gap: 14px;
 }
-
-/* Tablet */
 @media (min-width: 600px) {
-    .tiles {
-        grid-template-columns: repeat(2, 1fr);
-    }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
 }
-
-/* Desktop */
 @media (min-width: 900px) {
-    .tiles {
-        grid-template-columns: repeat(4, 1fr);
-    }
+    .tiles { grid-template-columns: repeat(4, 1fr); }
 }
-
 .tile {
     background: #fff;
     border-radius: 10px;
     padding: 16px;
     text-align: center;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 6px rgba(0,0,0,.1);
     cursor: pointer;
-    transition: transform 0.2s;
 }
-
-.tile:hover {
-    transform: translateY(-3px);
-}
-
 .tile svg {
     width: 36px;
     height: 36px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 
-/* =====================
-   RATING TILES
-===================== */
-
-.rating-tile {
-    text-align: left;
-}
-
+/* RATINGS */
+.rating-tile { text-align: left; }
 .rating-header {
     display: flex;
     align-items: center;
     gap: 8px;
 }
-
 .rating-header svg {
     width: 20px;
     height: 20px;
 }
-
 .rating-title {
     font-weight: bold;
-    font-size: 0.95rem;
+    font-size: .9rem;
 }
-
 .rating-line {
-    font-size: 0.85rem;
+    font-size: .85rem;
     margin-top: 4px;
 }
-
 .rating-bars {
-    margin-top: 6px;
     font-size: 1rem;
+    margin-top: 6px;
 }
 
-/* =====================
-   MODAL (MOBILE FRIENDLY)
-===================== */
-
+/* MODAL */
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.45);
+    background: rgba(0,0,0,.45);
     display: none;
     align-items: center;
     justify-content: center;
-    padding: 12px;
     z-index: 9999;
 }
-
 .modal-box {
     background: #fff;
     width: 100%;
     max-width: 420px;
-    border-radius: 12px;
     padding: 16px;
+    border-radius: 12px;
+    position: relative;
     max-height: 90vh;
     overflow-y: auto;
-    position: relative;
 }
-
-/* Close X */
 .modal-close-x {
     position: absolute;
     top: 10px;
@@ -190,10 +139,7 @@ body {
     cursor: pointer;
 }
 
-/* =====================
-   ESTIMATOR TABLE
-===================== */
-
+/* ESTIMATOR TABLE */
 .calc-row {
     display: grid;
     grid-template-columns: 60px 1fr 60px;
@@ -201,48 +147,40 @@ body {
     align-items: center;
     margin: 6px 0;
 }
-
 .calc-header {
     font-weight: bold;
     border-bottom: 1px solid #ddd;
     padding-bottom: 6px;
     margin-bottom: 8px;
 }
-
 .qty-input {
     width: 55px;
     padding: 6px;
     text-align: center;
 }
-
 .seq-col {
     text-align: center;
 }
 
-/* =====================
-   BUTTONS / FOOTER
-===================== */
-
+/* BUTTONS */
 button {
     width: 100%;
     padding: 12px;
-    font-size: 1rem;
     margin-top: 10px;
 }
-
 .close-btn {
     background: #ccc;
 }
-
 .total {
     text-align: center;
     font-weight: bold;
     margin-top: 10px;
 }
 
+/* FOOTER */
 .footer {
     text-align: center;
-    font-size: 0.85rem;
+    font-size: .85rem;
     padding: 20px 10px;
     color: #555;
 }
@@ -304,7 +242,7 @@ button {
             Weekly Work Schedule
         </div>
 
-        <!-- Directory of Contacts -->
+        <!-- Directory -->
         <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true','_blank')">
             <svg><path d="M4 4h16v16H4z"/></svg>
             Directory of Contacts
@@ -328,6 +266,22 @@ button {
             Bookkeeping (Wave)
         </div>
 
+<!-- Payroll Calculator -->
+<div class="tile"
+     onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html','_blank')">
+    <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9"
+                fill="none"
+                stroke="#0a75ff"
+                stroke-width="2"/>
+        <path d="M12 7v10M9 10h6M9 14h6"
+              fill="none"
+              stroke="#0a75ff"
+              stroke-width="2"/>
+    </svg>
+    Payroll Calculator
+</div>
+
         <!-- Gmail Inbox -->
         <div class="tile" onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
             <svg viewBox="0 0 24 24">
@@ -337,7 +291,7 @@ button {
             Gmail Inbox
         </div>
 
-        <!-- WhatsApp Group -->
+        <!-- WhatsApp -->
         <div class="tile" onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
             <svg><circle cx="12" cy="12" r="9"/></svg>
             WhatsApp Group
@@ -362,8 +316,8 @@ button {
                 <path d="M8 4v16M16 4v16M4 10h16M4 16h16" stroke="#0a75ff" stroke-width="2"/>
             </svg>
             Dress Hem Estimator
-        </div> 
-        <!-- ⭐ GOOGLE REVIEWS -->
+        </div>
+<!-- ⭐ GOOGLE REVIEWS -->
         <div class="tile rating-tile"
              onclick="window.open('https://www.google.com/maps/place/West+Covina+Parkway+Top+Cleaners+and+Alterations','_blank')">
 
@@ -375,11 +329,11 @@ button {
                 <div class="rating-title">Google Reviews</div>
             </div>
 
-            <div id="google-rating" class="rating-line">Loading...</div>
+            <div id="google-rating" class="rating-line">Loading…</div>
             <div id="google-bars" class="rating-bars"></div>
         </div>
 
-        <!-- ⭐ YELP BUSINESS ADMIN -->
+        <!-- ⭐ YELP (BUSINESS ADMIN) -->
         <div class="tile rating-tile"
              onclick="window.open('https://biz.yelp.com/home/Eb36giK3cXwlb6Bj9Vs-6w/?fwp=true','_blank')">
 
@@ -391,7 +345,7 @@ button {
                 <div class="rating-title">Yelp (Admin)</div>
             </div>
 
-            <div id="yelp-rating" class="rating-line">Loading...</div>
+            <div id="yelp-rating" class="rating-line">Loading…</div>
             <div id="yelp-bars" class="rating-bars"></div>
         </div>
 
@@ -407,7 +361,7 @@ button {
                 <div class="rating-title">Facebook Reviews</div>
             </div>
 
-            <div id="facebook-rating" class="rating-line">Loading...</div>
+            <div id="facebook-rating" class="rating-line">Loading…</div>
             <div id="facebook-bars" class="rating-bars"></div>
         </div>
 
@@ -464,7 +418,6 @@ button {
         <div class="total" id="hemTotal">Total: $0.00</div>
 
         <button class="close-btn" onclick="closeHemModal()">Close</button>
-
     </div>
 </div>
 
@@ -479,49 +432,43 @@ button {
     Internal Access Only
 </div>
 
-<!-- ⭐ JAVASCRIPT -->
+<!-- ⭐ JAVASCRIPT (SAFE, NO ERRORS) -->
 <script>
+/* ===== MODAL CONTROL ===== */
 function openHemModal() {
     document.getElementById("hemModal").style.display = "flex";
 }
-
 function closeHemModal() {
     document.getElementById("hemModal").style.display = "none";
 }
 
-/* ===== MODAL CONTROL ===== */
-
-function openHemModal() {
-    document.getElementById("hemModal").style.display="flex";
-}
-function closeHemModal() {
-    document.getElementById("hemModal").style.display="none";
-}
-
 /* ===== DRESS HEM ESTIMATOR ===== */
-
 function calculateHemTotal() {
-    const hem=12.5,cut=6.25,horse=25;
-    const h=parseFloat(hemYards.value)||0;
-    const c=parseFloat(cutHemYards.value)||0;
-    const ho=parseFloat(horsehairYards.value)||0;
+    const hemRate = 12.5;
+    const cutRate = 6.25;
+    const horseRate = 25;
 
-    let total=h*hem+c*cut+ho*horse;
+    const hem = parseFloat(document.getElementById("hemYards").value) || 0;
+    const cut = parseFloat(document.getElementById("cutHemYards").value) || 0;
+    const horse = parseFloat(document.getElementById("horsehairYards").value) || 0;
 
-    if(seqHem.checked) total+=h*5;
-    if(seqCut.checked) total+=c*5;
-    if(seqHorse.checked) total+=ho*5;
-    if(glitterCheck.checked) total+=10;
+    let total = hem * hemRate + cut * cutRate + horse * horseRate;
 
-    hemTotal.innerText=`Total: $${total.toFixed(2)}`;
+    if (document.getElementById("seqHem").checked) total += hem * 5;
+    if (document.getElementById("seqCut").checked) total += cut * 5;
+    if (document.getElementById("seqHorse").checked) total += horse * 5;
+    if (document.getElementById("glitterCheck").checked) total += 10;
+
+    document.getElementById("hemTotal").innerText =
+        "Total: $" + total.toFixed(2);
 }
 
-    const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
+/* ===== REVIEW TILES (CLOUDFLARE WORKER) ===== */
+const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 
 function blocks(count, emoji) {
     return emoji.repeat(Math.min(20, Math.floor(count)));
 }
-
 function sentimentBars(p, n, neg) {
     return `
         <div class="rating-line">Positive: ${p}</div>${blocks(p/5,"🟩")}
@@ -530,61 +477,45 @@ function sentimentBars(p, n, neg) {
     `;
 }
 
-/* GOOGLE */
-fetch(`${WORKER_URL}/google`)
+/* Google */
+fetch(WORKER_URL + "/google")
 .then(r => r.json())
 .then(d => {
-    const rating = d.result.rating;
-    const total = d.result.user_ratings_total;
-
-    const pos = Math.round(total * 0.85);
-    const neu = Math.round(total * 0.10);
-    const neg = total - pos - neu;
-
-    document.getElementById("google-rating").innerText =
-        `⭐ ${rating} (${total})`;
-
-    document.getElementById("google-bars").innerHTML =
-        sentimentBars(pos, neu, neg);
+    const t = d.result.user_ratings_total;
+    const r = d.result.rating;
+    const p = Math.round(t * 0.85);
+    const n = Math.round(t * 0.10);
+    const neg = t - p - n;
+    document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("google-bars").innerHTML = sentimentBars(p,n,neg);
 });
 
-/* YELP */
-fetch(`${WORKER_URL}/yelp`)
+/* Yelp */
+fetch(WORKER_URL + "/yelp")
 .then(r => r.json())
 .then(d => {
-    const rating = d.rating;
-    const total = d.review_count;
-
-    const pos = Math.round(total * (rating / 5));
-    const neg = Math.round(total * ((5 - rating) / 5));
-    const neu = total - pos - neg;
-
-    document.getElementById("yelp-rating").innerText =
-        `⭐ ${rating} (${total})`;
-
-    document.getElementById("yelp-bars").innerHTML =
-        sentimentBars(pos, neu, neg);
+    const t = d.review_count;
+    const r = d.rating;
+    const p = Math.round(t * (r / 5));
+    const neg = Math.round(t * ((5 - r) / 5));
+    const n = t - p - neg;
+    document.getElementById("yelp-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("yelp-bars").innerHTML = sentimentBars(p,n,neg);
 });
 
-/* FACEBOOK */
-fetch(`${WORKER_URL}/facebook`)
+/* Facebook */
+fetch(WORKER_URL + "/facebook")
 .then(r => r.json())
 .then(d => {
-    const rating = d.overall_star_rating;
-    const total = d.rating_count;
-
-    const pos = Math.round(total * (rating / 5));
-    const neg = Math.round(total * ((5 - rating) / 5));
-    const neu = total - pos - neg;
-
-    document.getElementById("facebook-rating").innerText =
-        `⭐ ${rating} (${total})`;
-
-    document.getElementById("facebook-bars").innerHTML =
-        sentimentBars(pos, neu, neg);
+    const t = d.rating_count;
+    const r = d.overall_star_rating;
+    const p = Math.round(t * (r / 5));
+    const neg = Math.round(t * ((5 - r) / 5));
+    const n = t - p - neg;
+    document.getElementById("facebook-rating").innerText = `⭐ ${r} (${t})`;
+    document.getElementById("facebook-bars").innerHTML = sentimentBars(p,n,neg);
 });
 </script>
 
 </body>
-</html>    
-
+</html>
