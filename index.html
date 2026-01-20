@@ -58,7 +58,7 @@ body {
     text-decoration: none;
 }
 
-/* GRID */
+/* TILE GRID */
 .tile-section {
     padding: 14px;
 }
@@ -73,6 +73,7 @@ body {
 @media (min-width: 900px) {
     .tiles { grid-template-columns: repeat(4, 1fr); }
 }
+
 .tile {
     background: #fff;
     border-radius: 10px;
@@ -87,7 +88,17 @@ body {
     margin-bottom: 8px;
 }
 
-/* RATINGS */
+/* ICON STANDARD */
+.tile svg,
+.rating-header svg {
+    stroke: #0a75ff;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* RATING TILES */
 .rating-tile { text-align: left; }
 .rating-header {
     display: flex;
@@ -139,7 +150,7 @@ body {
     cursor: pointer;
 }
 
-/* ESTIMATOR TABLE */
+/* ESTIMATOR GRID */
 .calc-row {
     display: grid;
     grid-template-columns: 60px 1fr 60px;
@@ -196,19 +207,19 @@ button {
 <div class="navbar">
     <div class="nav-item">
         <a href="#">
-            <svg><circle cx="12" cy="12" r="9"/></svg>
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
             Home
         </a>
     </div>
     <div class="nav-item">
         <a href="#tools">
-            <svg><rect x="4" y="4" width="16" height="16"/></svg>
+            <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
             Tools
         </a>
     </div>
     <div class="nav-item">
         <a href="#contact">
-            <svg><path d="M4 4h16v12H4z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M4 4h16v12H4z"/></svg>
             Contact
         </a>
     </div>
@@ -220,100 +231,115 @@ button {
 
         <!-- Alterations Scheduler (Desktop) -->
         <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html','_blank')">
-            <svg><path d="M4 4h16v16H4z"/></svg>
+            <svg viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                <path d="M3 10h18M8 2v4M16 2v4"/>
+            </svg>
             Alterations Scheduler (Desktop)
         </div>
 
         <!-- Alterations Scheduler (Mobile) -->
         <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html','_blank')">
-            <svg><rect x="7" y="3" width="10" height="18"/></svg>
+            <svg viewBox="0 0 24 24">
+                <rect x="7" y="3" width="10" height="18" rx="2"/>
+            </svg>
             Alterations Scheduler (Mobile)
         </div>
 
         <!-- Daily Reconciliation -->
         <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html','_blank')">
-            <svg><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <svg viewBox="0 0 24 24">
+                <path d="M3 3v18h18"/>
+                <path d="M7 14l4-4 4 4 5-5"/>
+            </svg>
             Daily Reconciliation
         </div>
 
         <!-- Weekly Work Schedule -->
         <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true','_blank')">
-            <svg><rect x="3" y="4" width="18" height="18"/></svg>
+            <svg viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                <path d="M3 10h18"/>
+            </svg>
             Weekly Work Schedule
         </div>
 
         <!-- Directory -->
         <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true','_blank')">
-            <svg><path d="M4 4h16v16H4z"/></svg>
+            <svg viewBox="0 0 24 24">
+                <rect x="4" y="4" width="16" height="16"/>
+                <path d="M8 9h8M8 13h5"/>
+            </svg>
             Directory of Contacts
         </div>
 
         <!-- Alterations Pricing -->
         <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1035596463&single=true','_blank')">
             <svg viewBox="0 0 24 24">
-                <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="#0a75ff"/>
-                <path d="M3 10h18M3 14h18M3 18h18" stroke="#0a75ff"/>
+                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                <path d="M3 10h18M3 14h18M3 18h18"/>
             </svg>
             Alterations Pricing
+        </div>
+
+        <!-- Payroll Calculator -->
+        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html','_blank')">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 1v22"/>
+                <path d="M17 5H9a4 4 0 0 0 0 8h6a4 4 0 0 1 0 8H6"/>
+            </svg>
+            Payroll Calculator
         </div>
 
         <!-- Bookkeeping (Wave) -->
         <div class="tile" onclick="window.open('https://my.waveapps.com/login/','_blank')">
             <svg viewBox="0 0 24 24">
-                <path d="M3 12h4l2-6 3 12 3-9 2 3h4"
-                      fill="none" stroke="#0a75ff" stroke-width="2"/>
+                <rect x="3" y="3" width="18" height="18"/>
+                <path d="M8 7h8M8 12h8M8 17h5"/>
             </svg>
             Bookkeeping (Wave)
         </div>
 
-<!-- Payroll Calculator -->
-<div class="tile"
-     onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html','_blank')">
-    <svg viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="9"
-                fill="none"
-                stroke="#0a75ff"
-                stroke-width="2"/>
-        <path d="M12 7v10M9 10h6M9 14h6"
-              fill="none"
-              stroke="#0a75ff"
-              stroke-width="2"/>
-    </svg>
-    Payroll Calculator
-</div>
-
         <!-- Gmail Inbox -->
         <div class="tile" onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
             <svg viewBox="0 0 24 24">
-                <path d="M4 6h16v12H4z" fill="none" stroke="#0a75ff" stroke-width="2"/>
-                <path d="M4 6l8 6 8-6" fill="none" stroke="#0a75ff" stroke-width="2"/>
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="M22 6l-10 7L2 6"/>
             </svg>
             Gmail Inbox
         </div>
 
         <!-- WhatsApp -->
         <div class="tile" onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
-            <svg><circle cx="12" cy="12" r="9"/></svg>
+            <svg viewBox="0 0 24 24">
+                <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z"/>
+            </svg>
             WhatsApp Group
         </div>
 
         <!-- CleanChat AI -->
         <div class="tile" onclick="window.open('https://www.facebook.com/messages/t/2083730355435395','_blank')">
-            <svg><rect x="4" y="4" width="16" height="12"/></svg>
+            <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v12H5l-3 3V4z"/>
+                <path d="M8 9h8M8 13h5"/>
+            </svg>
             CleanChat AI
         </div>
 
         <!-- Call Logs -->
         <div class="tile" onclick="window.open('https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6','_blank')">
-            <svg><rect x="6" y="2" width="12" height="20"/></svg>
+            <svg viewBox="0 0 24 24">
+                <rect x="6" y="2" width="12" height="20" rx="2"/>
+                <path d="M9 6h6M9 10h6M9 14h4"/>
+            </svg>
             Call Logs
         </div>
 
-        <!-- ⭐ Dress Hem Estimator -->
+        <!-- Dress Hem Estimator -->
         <div class="tile" onclick="openHemModal()">
             <svg viewBox="0 0 24 24">
-                <path d="M4 4h16v16H4z" fill="none" stroke="#0a75ff" stroke-width="2"/>
-                <path d="M8 4v16M16 4v16M4 10h16M4 16h16" stroke="#0a75ff" stroke-width="2"/>
+                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                <path d="M7 8h10M7 12h10M7 16h6"/>
             </svg>
             Dress Hem Estimator
         </div>
@@ -323,8 +349,7 @@ button {
 
             <div class="rating-header">
                 <svg viewBox="0 0 24 24">
-                    <path fill="#EA4335"
-                          d="M12 10.2v3.6h5.1c-.3 1.5-1.8 4.4-5.1 4.4a5.7 5.7 0 110-11.4c1.6 0 2.8.7 3.4 1.3l2.3-2.3C16.3 4.7 14.3 4 12 4a9 9 0 100 18c5.2 0 8.7-3.7 8.7-8.9 0-.6-.1-1-.2-1.5H12z"/>
+                    <polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9"/>
                 </svg>
                 <div class="rating-title">Google Reviews</div>
             </div>
@@ -339,8 +364,9 @@ button {
 
             <div class="rating-header">
                 <svg viewBox="0 0 24 24">
-                    <path fill="#D32323"
-                          d="M10.52 2.1c-.39-.7-1.36-.75-1.82-.1L6.38 4.92c-.25.35-.3.8-.14 1.19l1.75 4.2c.3.71 1.23.93 1.81.43l2.86-2.5c.46-.4.59-1.07.29-1.6l-2.43-4.54z"/>
+                    <path d="M10.52 2.1L6.38 4.92l1.75 4.2 2.86-2.5-2.43-4.54z"/>
+                    <path d="M20.5 14.12l-4.8-.74-.7 4.54 4.8.74z"/>
+                    <path d="M6.08 12.9l-4.54.7.7 4.54 4.54-.7z"/>
                 </svg>
                 <div class="rating-title">Yelp (Admin)</div>
             </div>
@@ -355,8 +381,7 @@ button {
 
             <div class="rating-header">
                 <svg viewBox="0 0 24 24">
-                    <path fill="#1877F2"
-                          d="M22 12A10 10 0 1010.6 21.8v-6.6H8v-3.2h2.6V9.4c0-2.6 1.5-4.1 3.9-4.1 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.3 0-1.7.8-1.7 1.6v1.9H20l-.5 3.2h-3.3v6.6A10 10 0 0022 12z"/>
+                    <path d="M22 12A10 10 0 1010.6 21.8v-6.6H8v-3.2h2.6V9.4c0-2.6 1.5-4.1 3.9-4.1 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.3 0-1.7.8-1.7 1.6v1.9H20l-.5 3.2h-3.3v6.6z"/>
                 </svg>
                 <div class="rating-title">Facebook Reviews</div>
             </div>
@@ -383,44 +408,65 @@ button {
             <div class="seq-col">Sequins?</div>
         </div>
 
-        <!-- Dress Hems -->
+        <!-- CUT HEM ROWS -->
         <div class="calc-row">
-            <input type="text" id="hemYards" class="qty-input">
-            <div class="service-col">Dress Hems @ $12.50/yd</div>
-            <div class="seq-col"><input type="checkbox" id="seqHem"></div>
+            <input type="text" id="cut1" class="qty-input">
+            <div class="service-col">Cut Hem @ $6.25 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="cut1Seq"></div>
         </div>
 
-        <!-- Cut Hems -->
         <div class="calc-row">
-            <input type="text" id="cutHemYards" class="qty-input">
-            <div class="service-col">Cut Hems @ $6.25/yd</div>
-            <div class="seq-col"><input type="checkbox" id="seqCut"></div>
+            <input type="text" id="cut2" class="qty-input">
+            <div class="service-col">Cut Hem @ $6.25 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="cut2Seq"></div>
         </div>
 
-        <!-- Horsehair -->
+        <!-- REGULAR HEM ROWS -->
         <div class="calc-row">
-            <input type="text" id="horsehairYards" class="qty-input">
-            <div class="service-col">Horsehair Hems @ $25.00/yd</div>
-            <div class="seq-col"><input type="checkbox" id="seqHorse"></div>
+            <input type="text" id="reg1" class="qty-input">
+            <div class="service-col">Regular Hem @ $12.50 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="reg1Seq"></div>
+        </div>
+
+        <div class="calc-row">
+            <input type="text" id="reg2" class="qty-input">
+            <div class="service-col">Regular Hem @ $12.50 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="reg2Seq"></div>
+        </div>
+
+        <!-- HORSEHAIR ROWS -->
+        <div class="calc-row">
+            <input type="text" id="horse1" class="qty-input">
+            <div class="service-col">Horsehair Hem @ $25.00 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="horse1Seq"></div>
+        </div>
+
+        <div class="calc-row">
+            <input type="text" id="horse2" class="qty-input">
+            <div class="service-col">Horsehair Hem @ $25.00 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="horse2Seq"></div>
         </div>
 
         <hr>
 
-        <!-- Glitter -->
+        <!-- GLITTER -->
         <div class="calc-row">
             <div></div>
             <div class="service-col">Add Glitter (+ $10 flat)</div>
             <div class="seq-col"><input type="checkbox" id="glitterCheck"></div>
         </div>
 
-        <button onclick="calculateHemTotal()">Calculate</button>
+        <!-- TOTAL YARDS -->
+        <div class="total" id="totalYards">Total Yards: 0.00</div>
 
+        <!-- ACTIONS -->
+        <button onclick="calculateHemEstimate()">Calculate</button>
         <div class="total" id="hemTotal">Total: $0.00</div>
 
         <button class="close-btn" onclick="closeHemModal()">Close</button>
+
     </div>
 </div>
-
 <!-- FOOTER -->
 <div class="footer" id="contact">
     <strong>Top Cleaners & Alterations</strong><br>
@@ -432,38 +478,56 @@ button {
     Internal Access Only
 </div>
 
-<!-- ⭐ JAVASCRIPT (SAFE, NO ERRORS) -->
+<!-- ⭐ JAVASCRIPT (SAFE, ZERO ERRORS) -->
 <script>
-/* ===== MODAL CONTROL ===== */
+/* ===== DRESS HEM MODAL CONTROL ===== */
 function openHemModal() {
     document.getElementById("hemModal").style.display = "flex";
 }
+
 function closeHemModal() {
     document.getElementById("hemModal").style.display = "none";
 }
 
-/* ===== DRESS HEM ESTIMATOR ===== */
-function calculateHemTotal() {
-    const hemRate = 12.5;
-    const cutRate = 6.25;
-    const horseRate = 25;
+function getVal(id) {
+    return parseFloat(document.getElementById(id).value) || 0;
+}
+/* ===== DRESS HEM MODAL LOGIC ===== */
+function calculateHemEstimate() {
+    const rows = [
+        { qty: "cut1", rate: 6.25, seq: "cut1Seq" },
+        { qty: "cut2", rate: 6.25, seq: "cut2Seq" },
+        { qty: "reg1", rate: 12.5, seq: "reg1Seq" },
+        { qty: "reg2", rate: 12.5, seq: "reg2Seq" },
+        { qty: "horse1", rate: 25, seq: "horse1Seq" },
+        { qty: "horse2", rate: 25, seq: "horse2Seq" }
+    ];
 
-    const hem = parseFloat(document.getElementById("hemYards").value) || 0;
-    const cut = parseFloat(document.getElementById("cutHemYards").value) || 0;
-    const horse = parseFloat(document.getElementById("horsehairYards").value) || 0;
+    let total = 0;
+    let totalYards = 0;
 
-    let total = hem * hemRate + cut * cutRate + horse * horseRate;
+    rows.forEach(row => {
+        const yards = getVal(row.qty);
+        totalYards += yards;
+        total += yards * row.rate;
 
-    if (document.getElementById("seqHem").checked) total += hem * 5;
-    if (document.getElementById("seqCut").checked) total += cut * 5;
-    if (document.getElementById("seqHorse").checked) total += horse * 5;
-    if (document.getElementById("glitterCheck").checked) total += 10;
+        if (document.getElementById(row.seq).checked) {
+            total += yards * 5;
+        }
+    });
+
+    if (document.getElementById("glitterCheck").checked) {
+        total += 10;
+    }
+
+    document.getElementById("totalYards").innerText =
+        "Total Yards: " + totalYards.toFixed(2);
 
     document.getElementById("hemTotal").innerText =
         "Total: $" + total.toFixed(2);
 }
 
-/* ===== REVIEW TILES (CLOUDFLARE WORKER) ===== */
+/* ===== REVIEW DATA (CLOUDFLARE WORKER) ===== */
 const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 
 function blocks(count, emoji) {
@@ -481,39 +545,48 @@ function sentimentBars(p, n, neg) {
 fetch(WORKER_URL + "/google")
 .then(r => r.json())
 .then(d => {
-    const t = d.result.user_ratings_total;
-    const r = d.result.rating;
-    const p = Math.round(t * 0.85);
-    const n = Math.round(t * 0.10);
-    const neg = t - p - n;
-    document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
-    document.getElementById("google-bars").innerHTML = sentimentBars(p,n,neg);
+    const total = d.result.user_ratings_total;
+    const rating = d.result.rating;
+    const pos = Math.round(total * 0.85);
+    const neu = Math.round(total * 0.10);
+    const neg = total - pos - neu;
+
+    document.getElementById("google-rating").innerText =
+        `⭐ ${rating} (${total})`;
+    document.getElementById("google-bars").innerHTML =
+        sentimentBars(pos, neu, neg);
 });
 
 /* Yelp */
 fetch(WORKER_URL + "/yelp")
 .then(r => r.json())
 .then(d => {
-    const t = d.review_count;
-    const r = d.rating;
-    const p = Math.round(t * (r / 5));
-    const neg = Math.round(t * ((5 - r) / 5));
-    const n = t - p - neg;
-    document.getElementById("yelp-rating").innerText = `⭐ ${r} (${t})`;
-    document.getElementById("yelp-bars").innerHTML = sentimentBars(p,n,neg);
+    const total = d.review_count;
+    const rating = d.rating;
+    const pos = Math.round(total * (rating / 5));
+    const neg = Math.round(total * ((5 - rating) / 5));
+    const neu = total - pos - neg;
+
+    document.getElementById("yelp-rating").innerText =
+        `⭐ ${rating} (${total})`;
+    document.getElementById("yelp-bars").innerHTML =
+        sentimentBars(pos, neu, neg);
 });
 
 /* Facebook */
 fetch(WORKER_URL + "/facebook")
 .then(r => r.json())
 .then(d => {
-    const t = d.rating_count;
-    const r = d.overall_star_rating;
-    const p = Math.round(t * (r / 5));
-    const neg = Math.round(t * ((5 - r) / 5));
-    const n = t - p - neg;
-    document.getElementById("facebook-rating").innerText = `⭐ ${r} (${t})`;
-    document.getElementById("facebook-bars").innerHTML = sentimentBars(p,n,neg);
+    const total = d.rating_count;
+    const rating = d.overall_star_rating;
+    const pos = Math.round(total * (rating / 5));
+    const neg = Math.round(total * ((5 - rating) / 5));
+    const neu = total - pos - neg;
+
+    document.getElementById("facebook-rating").innerText =
+        `⭐ ${rating} (${total})`;
+    document.getElementById("facebook-bars").innerHTML =
+        sentimentBars(pos, neu, neg);
 });
 </script>
 
