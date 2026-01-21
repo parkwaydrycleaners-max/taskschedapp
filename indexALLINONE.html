@@ -308,8 +308,8 @@
                 
                 <!-- Description -->
                 <div>
-                    <span class="block text-sm font-medium mb-2">Description:</span>
-                    <textarea id="descriptionInput" placeholder="Type: Quantity, Item Name/s, Alteration, and if Rush." rows="3" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+                    <span class="block text-sm font-medium mb-2">Description: Quantity, Item Name, Alterations, and if RUSH</span>
+                    <textarea id="descriptionInput" placeholder="Example: 1 pants hem RUSH." rows="3" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
                     <!-- Quick Numbers -->
 <div class="mt-2">
     <span class="block text-xs text-gray-500 mb-1">Quick numbers:</span>
@@ -2139,7 +2139,62 @@ init() {
     this.initOfflineDetection();
     
 }
+
+// ==========================================
+// Navigate to Oldest Incomplete Order
+// ==========================================
+
+goToOldestIncomplete() {
+    let oldestDateKey = null;
+    let oldestDate = null;
+    let oldestTask = null;
+
+    // Tasks structure is: { 'YYYY-MM-DD': { 'PersonName': [tasks], ... }, ... }
+    for (const [dateKey, personTasks] of Object.entries(this.tasks)) {
+        
+        // Loop through each person's tasks for this date
+        for (const [personName, tasksArray] of Object.entries(personTasks)) {
+            // tasksArray is an array of tasks for this person on this date
+            if (!Array.isArray(tasksArray) || tasksArray.length === 0) continue;
             
+            for (const task of tasksArray) {
+                if (!task || !task.id) continue;
+                
+                // Check if task is incomplete (completed is falsy or false)
+                if (task.completed === true) continue; // Skip completed tasks
+                
+                // Parse date without timezone issues by using date parts
+                const [year, month, day] = dateKey.split('-').map(Number);
+                const workDate = new Date(year, month - 1, day); // month is 0-indexed
+                
+                // Find the oldest (earliest) date with an incomplete task
+                if (!oldestDate || workDate < oldestDate) {
+                    oldestDate = workDate;
+                    oldestDateKey = dateKey;
+                    oldestTask = task;
+                }
+            }
+        }
+    }
+
+    if (oldestDate && oldestTask) {
+        // Navigate to that date - parse without timezone issues
+        const [year, month, day] = oldestDateKey.split('-').map(Number);
+        this.currentDate = new Date(year, month - 1, day);
+        this.renderWhiteboard();
+        
+        // Format date simply
+        const dateStr = this.currentDate.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+        });
+        
+        this.showSuccessToast(`Navigated to: #${oldestTask.orderNumber || 'Order'} (${dateStr})`);
+    } else {
+        this.showErrorToast('No incomplete orders found!');
+    }
+}
             // Timezone and Date Utility Functions
             getConfiguredTimezone() {
                 const timezoneSelect = document.getElementById('timezoneSelect');
@@ -2936,6 +2991,10 @@ attachTaskCardListeners(card, task) {
                     this.showToast('Today: ' + this.currentDate.toLocaleDateString(), 'info');
                 });
 
+				document.getElementById('oldestIncompleteBtn').addEventListener('click', () => {
+   				this.goToOldestIncomplete();
+				});
+				
                 document.getElementById('currentDate').addEventListener('click', () => {
                     this.showDatePicker();
                 });
@@ -9012,3 +9071,4 @@ cleanup() {
     </script>
 </body>
 </html>
+
