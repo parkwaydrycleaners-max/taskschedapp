@@ -94,7 +94,7 @@ body {
 /* LEFT COLUMN */
 .dashboard-left {
     height: 100%;
-    margin-right: -2px;
+    margin-right: -3px;
 }
 
 /* RIGHT COLUMN */
@@ -143,7 +143,7 @@ body {
     grid-template-columns: repeat(3, var(--tile-size));
     gap: 16px;
 
-    justify-content: center;  /* ✅ centers the grid as a block */
+    justify-content: start;   /* ✅ THIS is the key fix */
 }
 
 .tile {
@@ -679,4 +679,5 @@ fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
