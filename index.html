@@ -22,6 +22,11 @@
     box-sizing: border-box;
 }
 
+:root {
+    --left-panel-width: 360px;
+    --tile-size: calc(var(--left-panel-width) / 2);
+}
+    
 body {
     margin: 0;
     font-family: Arial, sans-serif;
@@ -70,11 +75,11 @@ body {
 =============================== */
 .dashboard-layout {
     display: grid;
-    grid-template-columns: 360px 1fr;
+    grid-template-columns: var(--left-panel-width) 1fr;
     gap: 16px;
     padding: 16px;
 
-    height: calc(100vh - 100px); /* accounts for logo area */
+    height: calc(100vh - 100px);
 }
 
 .staff-app-wrapper {
@@ -91,8 +96,7 @@ body {
 /* RIGHT COLUMN */
 .dashboard-right {
     height: 100%;
-    overflow-y: auto;
-    padding-right: 6px; /* avoids scrollbar overlap */
+    overflow-y: auto; /* ONE scrollbar only */
 }
 
 /* Prevent tiles from stretching on large screens */
@@ -132,16 +136,27 @@ body {
 }
 
 .tiles {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 200px));
+    display: grid;
+    grid-template-columns: repeat(3, var(--tile-size));
+    gap: 16px;
+
+    justify-content: start; /* left-aligned grid */
 }
 
 .tile {
+    width: var(--tile-size);
+    height: var(--tile-size);
+
     background: #fff;
-    border-radius: 10px;
-    padding: 16px;
-    text-align: center;
+    border-radius: 12px;
+    padding: 12px;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
     box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    cursor: pointer;
 }
 
 .tile svg {
@@ -656,6 +671,7 @@ fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
