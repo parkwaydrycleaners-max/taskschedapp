@@ -73,18 +73,26 @@ body {
     grid-template-columns: 360px 1fr;
     gap: 16px;
     padding: 16px;
+
+    height: calc(100vh - 100px); /* accounts for logo area */
 }
 
+.staff-app-wrapper {
+    height: 100%;
+    overflow: hidden;
+}
+   
+    
 /* LEFT COLUMN */
 .dashboard-left {
-    position: sticky;
-    top: 16px;
-    height: calc(100vh - 32px);
+    height: 100%;
 }
 
 /* RIGHT COLUMN */
 .dashboard-right {
-    min-width: 0;
+    height: 100%;
+    overflow-y: auto;
+    padding-right: 6px; /* avoids scrollbar overlap */
 }
 
 /* ===============================
@@ -279,28 +287,6 @@ button {
 <!-- LOGO -->
 <div class="logo-wrap">
     <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png" alt="Top Cleaners & Alterations">
-</div>
-
-<!-- NAVIGATION -->
-<div class="navbar">
-    <div class="nav-item">
-        <a href="#">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
-            Home
-        </a>
-    </div>
-    <div class="nav-item">
-        <a href="#tools">
-            <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
-            Tools
-        </a>
-    </div>
-    <div class="nav-item">
-        <a href="#contact">
-            <svg viewBox="0 0 24 24"><path d="M4 4h16v12H4z"/></svg>
-            Contact
-        </a>
-    </div>
 </div>
 
 <!-- DASHBOARD -->
@@ -665,4 +651,5 @@ fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
