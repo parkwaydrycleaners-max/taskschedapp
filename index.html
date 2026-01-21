@@ -79,7 +79,7 @@ body {
     gap: 6px;
     padding: 8px;
 
-    height: calc(100vh - 100px);
+    min-height: calc(100vh - 160px); /* logo + footer space */
 
     max-width: 1400px;   /* controls overall dashboard width */
     margin: 0 auto;      /* ✅ centers dashboard horizontally */
@@ -679,3 +679,4 @@ fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
