@@ -80,6 +80,9 @@ body {
     padding: 16px;
 
     height: calc(100vh - 100px);
+
+    max-width: 1400px;   /* controls overall dashboard width */
+    margin: 0 auto;      /* ✅ centers dashboard horizontally */
 }
 
 .staff-app-wrapper {
@@ -96,7 +99,6 @@ body {
 /* RIGHT COLUMN */
 .dashboard-right {
     height: 100%;
-    overflow-y: auto; /* ONE scrollbar only */
 }
 
 /* Prevent tiles from stretching on large screens */
@@ -140,7 +142,7 @@ body {
     grid-template-columns: repeat(3, var(--tile-size));
     gap: 16px;
 
-    justify-content: start; /* left-aligned grid */
+    justify-content: center;  /* ✅ centers the grid as a block */
 }
 
 .tile {
@@ -154,9 +156,10 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    align-items: center;
+    align-items: center;   /* ✅ centers icon + text */
 
     box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    text-align: center;
 }
 
 .tile svg {
@@ -170,6 +173,10 @@ body {
     stroke-linejoin: round;
 }
 
+.section-title {
+    text-align: center;
+}
+    
 /* ===============================
    REVIEW TILES
 =============================== */
@@ -671,6 +678,7 @@ fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
