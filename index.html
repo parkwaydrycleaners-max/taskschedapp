@@ -95,6 +95,17 @@ body {
     padding-right: 6px; /* avoids scrollbar overlap */
 }
 
+/* Prevent tiles from stretching on large screens */
+.dashboard-right-inner {
+    max-width: 1200px;   /* adjust if you want slightly wider/narrower */
+    margin: 0 auto;      /* center within available space */
+}
+
+/* Keep tiles a consistent size */
+.tiles {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 260px));
+}
+    
 /* ===============================
    STAFF APP (LEFT)
 =============================== */
@@ -651,5 +662,6 @@ fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
