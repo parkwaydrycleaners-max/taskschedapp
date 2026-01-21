@@ -76,8 +76,8 @@ body {
 .dashboard-layout {
     display: grid;
     grid-template-columns: var(--left-panel-width) 1fr;
-    gap: 16px;
-    padding: 16px;
+    gap: 6px;
+    padding: 8px;
 
     height: calc(100vh - 100px);
 
@@ -94,6 +94,7 @@ body {
 /* LEFT COLUMN */
 .dashboard-left {
     height: 100%;
+    margin-right: -2px;
 }
 
 /* RIGHT COLUMN */
@@ -678,6 +679,7 @@ fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
