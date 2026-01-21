@@ -1,0 +1,3851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Manager's Checklist</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #F8F6F3;
+            --bg-secondary: #FFFFFF;
+            --bg-card: #FFFFFF;
+            --text-primary: #1A1A1A;
+            --text-secondary: #6B6B6B;
+            --text-muted: #9CA3AF;
+            --accent-opening: #2D7D46;
+            --accent-opening-light: #E8F5EC;
+            --accent-closing: #8B4513;
+            --accent-closing-light: #FDF4E8;
+            --accent-sorting: #4A5568;
+            --accent-sorting-light: #EDF2F7;
+            --border-color: #E5E5E5;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --checked-bg: #F0FDF4;
+            --success-color: #22C55E;
+            --danger-color: #DC2626;
+            --danger-light: #FEE2E2;
+        }
+
+        .dark {
+            --bg-primary: #0F0F0F;
+            --bg-secondary: #1A1A1A;
+            --bg-card: #242424;
+            --text-primary: #F5F5F5;
+            --text-secondary: #A0A0A0;
+            --text-muted: #666666;
+            --accent-opening: #4ADE80;
+            --accent-opening-light: #1A2E1F;
+            --accent-closing: #D4A574;
+            --accent-closing-light: #2A2218;
+            --accent-sorting: #94A3B8;
+            --accent-sorting-light: #1E2433;
+            --border-color: #333333;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --checked-bg: #1A2E1F;
+            --danger-light: #3D1F1F;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            max-width: 480px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #2D7D46 0%, #1D5A32 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+
+        .dark .brand-icon {
+            background: linear-gradient(135deg, #4ADE80 0%, #22C55E 100%);
+            color: #0F0F0F;
+        }
+
+        .brand-text h1 {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .brand-text .date {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .edit-toggle {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: var(--bg-primary);
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .edit-toggle:hover {
+            background: var(--border-color);
+        }
+
+        .edit-toggle.active {
+            background: var(--accent-opening-light);
+            color: var(--accent-opening);
+        }
+
+        .staff-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-primary);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .staff-badge:hover {
+            background: var(--border-color);
+        }
+
+        .staff-badge i {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .staff-badge span {
+            font-size: 14px;
+            font-weight: 600;
+            max-width: 80px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Jump Navigation */
+        .tab-nav {
+            display: flex;
+            gap: 8px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .tab-btn i {
+            font-size: 14px;
+        }
+
+        .tab-btn:hover {
+            background: var(--bg-secondary);
+            border-color: var(--text-muted);
+        }
+
+        .tab-btn:active {
+            transform: scale(0.98);
+        }
+
+        .tab-btn[data-tab="opening"]:hover {
+            background: var(--accent-opening-light);
+            color: var(--accent-opening);
+            border-color: var(--accent-opening);
+        }
+
+        .tab-btn[data-tab="closing"]:hover {
+            background: var(--accent-closing-light);
+            color: var(--accent-closing);
+            border-color: var(--accent-closing);
+        }
+
+        .tab-btn[data-tab="sorting"]:hover {
+            background: var(--accent-sorting-light);
+            color: var(--accent-sorting);
+            border-color: var(--accent-sorting);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            padding-bottom: 100px;
+            scroll-behavior: smooth;
+        }
+
+        .checklist-section {
+            display: block;
+            margin-bottom: 32px;
+        }
+
+        .checklist-section:last-child {
+            margin-bottom: 0;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Section Header */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 0 12px;
+            margin-bottom: 16px;
+            border-bottom: 2px solid var(--border-color);
+            scroll-margin-top: 180px;
+        }
+
+        .section-header-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .section-header[data-section="opening"] .section-header-icon {
+            background: var(--accent-opening-light);
+            color: var(--accent-opening);
+        }
+
+        .section-header[data-section="sorting"] .section-header-icon {
+            background: var(--accent-sorting-light);
+            color: var(--accent-sorting);
+        }
+
+        .section-header[data-section="closing"] .section-header-icon {
+            background: var(--accent-closing-light);
+            color: var(--accent-closing);
+        }
+
+        .section-header-text h2 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .section-header-text .section-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* Progress Card */
+        .progress-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .progress-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .progress-count {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .progress-bar-container {
+            height: 8px;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 0%;
+        }
+
+        [data-tab="opening"] .progress-bar,
+        .checklist-section[data-section="opening"] .progress-bar {
+            background: linear-gradient(90deg, var(--accent-opening), #4ADE80);
+        }
+
+        [data-tab="closing"] .progress-bar,
+        .checklist-section[data-section="closing"] .progress-bar {
+            background: linear-gradient(90deg, var(--accent-closing), #D4A574);
+        }
+
+        [data-tab="sorting"] .progress-bar,
+        .checklist-section[data-section="sorting"] .progress-bar {
+            background: linear-gradient(90deg, var(--accent-sorting), #94A3B8);
+        }
+
+        /* Checklist Items */
+        .checklist-group {
+            margin-bottom: 24px;
+        }
+
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-left: 4px;
+        }
+
+        .group-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .add-task-btn {
+            display: none;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            border: none;
+            background: var(--accent-opening-light);
+            color: var(--accent-opening);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .add-task-btn:hover {
+            filter: brightness(0.95);
+        }
+
+        body.edit-mode .add-task-btn {
+            display: flex;
+        }
+
+        .checklist-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .checklist-item:hover {
+            border-color: var(--text-muted);
+        }
+
+        .checklist-item.checked {
+            background: var(--checked-bg);
+            border-color: var(--success-color);
+        }
+
+        .checkbox-wrapper {
+            flex-shrink: 0;
+            width: 26px;
+            height: 26px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            margin-top: 1px;
+            cursor: pointer;
+        }
+
+        .checklist-item.checked .checkbox-wrapper {
+            background: var(--success-color);
+            border-color: var(--success-color);
+        }
+
+        .checkbox-wrapper i {
+            color: white;
+            font-size: 14px;
+            opacity: 0;
+            transform: scale(0);
+            transition: all 0.2s;
+        }
+
+        .checklist-item.checked .checkbox-wrapper i {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .item-content {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .item-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            transition: all 0.2s;
+        }
+
+        .checklist-item.checked .item-title {
+            color: var(--text-secondary);
+        }
+
+        .item-description {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .item-timestamp {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--success-color);
+            margin-top: 8px;
+            display: none;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .checklist-item.checked .item-timestamp {
+            display: flex;
+        }
+
+        .item-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: var(--accent-opening-light);
+            color: var(--accent-opening);
+            font-size: 10px;
+            font-weight: 600;
+            border-radius: 4px;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .item-badge.today-only {
+            background: #FEF3C7;
+            color: #D97706;
+        }
+
+        .dark .item-badge.today-only {
+            background: #422006;
+            color: #FBBF24;
+        }
+
+        /* Item Actions */
+        .item-actions {
+            display: none;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        body.edit-mode .item-actions {
+            display: flex;
+        }
+
+        body.edit-mode .checklist-item {
+            cursor: default;
+        }
+
+        .item-action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .item-action-btn.move-up,
+        .item-action-btn.move-down {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+        }
+
+        .item-action-btn.move-up:hover,
+        .item-action-btn.move-down:hover {
+            background: var(--accent-opening-light);
+            color: var(--accent-opening);
+        }
+
+        .item-action-btn.edit {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+        }
+
+        .item-action-btn.edit:hover {
+            background: var(--border-color);
+        }
+
+        .item-action-btn.delete {
+            background: var(--danger-light);
+            color: var(--danger-color);
+        }
+
+        .item-action-btn.delete:hover {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        /* Add Task Card */
+        .add-task-card {
+            background: var(--bg-card);
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 10px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        body.edit-mode .add-task-card {
+            display: flex;
+        }
+
+        .add-task-card:hover {
+            border-color: var(--accent-opening);
+            color: var(--accent-opening);
+            background: var(--accent-opening-light);
+        }
+
+        .add-task-card i {
+            font-size: 18px;
+        }
+
+        .add-task-card span {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* Completion State */
+        .completion-banner {
+            background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            display: none;
+            animation: celebrate 0.5s ease;
+        }
+
+        .completion-banner.show {
+            display: block;
+        }
+
+        @keyframes celebrate {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .completion-banner i {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .completion-banner h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .completion-banner p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        /* Bottom Actions */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 16px 20px;
+            padding-bottom: max(16px, env(safe-area-inset-bottom));
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 100;
+        }
+
+        .action-btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .action-btn.primary {
+            background: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .action-btn.primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .action-btn.secondary {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .action-btn.secondary:hover {
+            background: var(--border-color);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 28px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: var(--shadow-md);
+            position: relative;
+        }
+
+        .modal-close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .modal-close-btn:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .modal h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .modal p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        .modal label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .modal input,
+        .modal textarea,
+        .modal select {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 16px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            transition: all 0.2s;
+        }
+
+        .modal textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .modal select {
+            cursor: pointer;
+        }
+
+        .modal input:focus,
+        .modal textarea:focus,
+        .modal select:focus {
+            outline: none;
+            border-color: var(--accent-opening);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 4px;
+        }
+
+        .modal-actions button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .modal-actions .cancel-btn {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+        }
+
+        .modal-actions .confirm-btn {
+            background: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .modal-actions .reset-confirm {
+            background: #DC2626;
+            color: white;
+        }
+
+        .modal-actions .delete-confirm {
+            background: #DC2626;
+            color: white;
+        }
+
+        /* Task Type Toggle */
+        .task-type-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .task-type-btn {
+            flex: 1;
+            padding: 14px 12px;
+            border: 2px solid var(--border-color);
+            background: var(--bg-primary);
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .task-type-btn i {
+            font-size: 20px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .task-type-btn span {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .task-type-btn small {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .task-type-btn.active {
+            border-color: var(--accent-opening);
+            background: var(--accent-opening-light);
+        }
+
+        .task-type-btn.active i {
+            color: var(--accent-opening);
+        }
+
+        .task-type-btn:hover:not(.active) {
+            border-color: var(--text-muted);
+        }
+
+        /* Task Style Toggle */
+        .task-style-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .task-style-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            background: var(--bg-primary);
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .task-style-btn i {
+            font-size: 16px;
+            color: var(--text-muted);
+        }
+
+        .task-style-btn span {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .task-style-btn.active {
+            border-color: var(--accent-opening);
+            background: var(--accent-opening-light);
+        }
+
+        .task-style-btn.active i {
+            color: var(--accent-opening);
+        }
+
+        .task-style-btn:hover:not(.active) {
+            border-color: var(--text-muted);
+        }
+
+        /* Placeholder Task Styling */
+        .checklist-item.placeholder {
+            border-style: dashed;
+            opacity: 0.85;
+        }
+
+        .checklist-item.placeholder .checkbox-wrapper {
+            background: var(--bg-primary);
+            border-color: var(--border-color);
+            border-style: dashed;
+            cursor: default;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .checklist-item.placeholder .checkbox-wrapper i {
+            display: none;
+        }
+
+        .checklist-item.placeholder .checkbox-wrapper::after {
+            content: '\f0c6';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            color: var(--text-muted);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .checklist-item.placeholder .item-content {
+            cursor: default;
+        }
+
+        .checklist-item.placeholder .item-title {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* Subtasks in Modal */
+        .subtasks-container {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+
+        .subtasks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .subtasks-list:empty {
+            margin-bottom: 0;
+        }
+
+        .subtask-item-edit {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .subtask-item-edit span {
+            flex: 1;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .subtask-item-edit .subtask-remove {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .subtask-item-edit .subtask-remove:hover {
+            color: #DC2626;
+            background: rgba(220, 38, 38, 0.1);
+        }
+
+        .subtask-add {
+            display: flex;
+            gap: 8px;
+        }
+
+        .subtask-add input {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        .subtask-add-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: var(--accent-opening);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .subtask-add-btn:hover {
+            background: #16A34A;
+        }
+
+        /* Subtasks in Task Item */
+        .item-subtasks {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border-color);
+        }
+
+        .subtask-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            cursor: pointer;
+        }
+
+        .subtask-row:hover {
+            opacity: 0.8;
+        }
+
+        .subtask-check {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s;
+            background: var(--bg-card);
+        }
+
+        .subtask-check i {
+            font-size: 10px;
+            color: white;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .subtask-row.checked .subtask-check {
+            background: var(--accent-opening);
+            border-color: var(--accent-opening);
+        }
+
+        .subtask-row.checked .subtask-check i {
+            opacity: 1;
+        }
+
+        .subtask-row .subtask-text {
+            font-size: 13px;
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        .subtask-row.checked .subtask-text {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        .subtask-progress {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Task Color Picker */
+        .task-color-picker {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .color-option {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .color-option:hover {
+            transform: scale(1.1);
+        }
+
+        .color-option.active {
+            border-color: var(--text-primary);
+        }
+
+        .color-option.active::after {
+            content: '\f00c';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .color-option[data-color="none"] {
+            background: var(--bg-card);
+            border: 2px dashed var(--border-color);
+        }
+
+        .color-option[data-color="none"].active {
+            border: 3px solid var(--text-primary);
+        }
+
+        .color-option[data-color="none"].active::after {
+            color: var(--text-muted);
+        }
+
+        /* Dark mode color adjustments for task colors */
+        .dark .color-option[data-color="#E8F5EC"] { background: #1A3D2A !important; }
+        .dark .color-option[data-color="#DBEAFE"] { background: #1E3A5F !important; }
+        .dark .color-option[data-color="#FEF3C7"] { background: #422006 !important; }
+        .dark .color-option[data-color="#FCE7F3"] { background: #4A1942 !important; }
+        .dark .color-option[data-color="#F3E8FF"] { background: #3B1F5C !important; }
+        .dark .color-option[data-color="#FFEDD5"] { background: #4A2C17 !important; }
+        .dark .color-option[data-color="#ECFDF5"] { background: #134E4A !important; }
+        .dark .color-option[data-color="#FEE2E2"] { background: #4A1D1D !important; }
+
+        /* Sync Modal Styles */
+        .sync-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .sync-tab {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            background: var(--bg-primary);
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sync-tab.active {
+            border-color: var(--accent-opening);
+            background: var(--accent-opening-light);
+            color: var(--accent-opening);
+        }
+
+        .sync-panel {
+            display: none;
+        }
+
+        .sync-panel.active {
+            display: block;
+        }
+
+        .sync-code-container {
+            position: relative;
+        }
+
+        .sync-code-container textarea {
+            padding-right: 50px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .copy-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: var(--accent-opening);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        .copy-btn.copied {
+            background: var(--success-color);
+        }
+
+        .sync-info {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sync-info i {
+            color: var(--success-color);
+        }
+
+        .sync-warning {
+            font-size: 12px;
+            color: var(--danger-color);
+            margin-top: 8px;
+            min-height: 18px;
+        }
+
+        .sync-warning.success {
+            color: var(--success-color);
+        }
+
+        /* Sync Status Bar */
+        .sync-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 16px;
+            margin-top: 12px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        .sync-status.connected {
+            background: var(--accent-opening-light);
+            color: var(--accent-opening);
+        }
+
+        .sync-status.syncing {
+            background: #FEF3C7;
+            color: #D97706;
+        }
+
+        .dark .sync-status.syncing {
+            background: #422006;
+            color: #FBBF24;
+        }
+
+        .sync-status.error {
+            background: var(--danger-light);
+            color: var(--danger-color);
+        }
+
+        .sync-status.clickable {
+            cursor: pointer;
+        }
+
+        .sync-status.clickable:hover {
+            filter: brightness(0.95);
+        }
+
+        .sync-status i {
+            font-size: 14px;
+        }
+
+        .sync-status.syncing i {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Settings Modal Additions */
+        .setup-steps {
+            margin-bottom: 16px;
+        }
+
+        .setup-detail {
+            background: var(--bg-primary);
+            border-radius: 10px;
+            padding: 12px;
+        }
+
+        .setup-detail summary {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .setup-detail summary i {
+            color: var(--accent-opening);
+        }
+
+        .setup-detail ol {
+            margin: 12px 0 0 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .setup-detail ol li {
+            margin-bottom: 8px;
+        }
+
+        .setup-detail ul {
+            margin: 4px 0 8px 16px;
+            font-size: 12px;
+        }
+
+        .connection-status {
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .connection-status.success {
+            display: block;
+            background: var(--accent-opening-light);
+            color: var(--accent-opening);
+        }
+
+        .connection-status.error {
+            display: block;
+            background: var(--danger-light);
+            color: var(--danger-color);
+        }
+
+        .connection-status.loading {
+            display: block;
+            background: #FEF3C7;
+            color: #D97706;
+        }
+
+        .dark .connection-status.loading {
+            background: #422006;
+            color: #FBBF24;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-group-state {
+            text-align: center;
+            padding: 24px 16px;
+            color: var(--text-muted);
+            font-size: 14px;
+            background: var(--bg-card);
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            margin-bottom: 10px;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        /* History Modal - Phone Friendly */
+        .history-modal {
+            max-width: 100%;
+            width: 100%;
+            max-height: 90vh;
+            margin: auto 12px;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        @media (min-width: 480px) {
+            .history-modal {
+                max-width: 420px;
+                margin: auto;
+            }
+        }
+
+        .history-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 20px;
+            margin-top: 8px;
+        }
+
+        .history-arrow {
+            width: 56px;
+            height: 56px;
+            border: none;
+            background: var(--bg-primary);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            font-size: 20px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .history-arrow:hover {
+            background: var(--accent-opening-light);
+            color: var(--accent-opening);
+        }
+
+        .history-arrow:active {
+            transform: scale(0.95);
+        }
+
+        .history-arrow:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .history-date-display {
+            flex: 1;
+            text-align: center;
+        }
+
+        .history-date-label {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .history-date-sub {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .history-stats {
+            text-align: center;
+            padding: 16px;
+            background: var(--bg-primary);
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+
+        .history-stats-count {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--accent-opening);
+        }
+
+        .history-stats-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .history-progress-bar {
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .history-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-opening), #4ADE80);
+            border-radius: 4px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .history-content {
+            flex: 1;
+            overflow-y: auto;
+            margin: 0 -20px;
+            padding: 0 20px;
+            max-height: 40vh;
+        }
+
+        .history-task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .history-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 16px 0 8px 0;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .history-section-title:first-child {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .history-task {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .history-task i {
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .history-task .task-name {
+            flex: 1;
+        }
+
+        .history-task.completed {
+            color: var(--text-primary);
+        }
+
+        .history-task.completed i {
+            color: var(--success-color);
+        }
+
+        .history-task.incomplete {
+            color: var(--text-muted);
+        }
+
+        .history-task .task-time {
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--success-color);
+            flex-shrink: 0;
+        }
+
+        .history-loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .history-loading i {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .history-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .history-empty i {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        /* Utilities */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            border: 0;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-top">
+                <div class="brand">
+                    <div class="brand-icon">
+                        <i class="fas fa-tshirt"></i>
+                    </div>
+                    <div class="brand-text">
+                        <h1>Manager's Checklist</h1>
+                        <div class="date" id="currentDate"></div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="edit-toggle" id="settingsBtn" title="Settings">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <button class="edit-toggle" id="editToggle" title="Edit Tasks">
+                        <i class="fas fa-pen"></i>
+                    </button>
+                </div>
+                <div class="sync-status" id="syncStatus">
+                    <i class="fas fa-cloud"></i>
+                    <span>Not connected</span>
+                </div>
+            </div>
+            <nav class="tab-nav" role="navigation" aria-label="Jump to section">
+                <button class="tab-btn" data-tab="opening" title="Jump to Opening">
+                    <i class="fas fa-sun"></i>
+                    Opening
+                </button>
+                <button class="tab-btn" data-tab="sorting" title="Jump to Day-To-Day">
+                    <i class="fas fa-clipboard-list"></i>
+                    Day-To-Day
+                </button>
+                <button class="tab-btn" data-tab="closing" title="Jump to Closing">
+                    <i class="fas fa-moon"></i>
+                    Closing
+                </button>
+            </nav>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <!-- Opening Section -->
+            <section class="checklist-section" data-section="opening" id="sectionOpening">
+                <div class="section-header" data-section="opening" id="headerOpening">
+                    <div class="section-header-icon">
+                        <i class="fas fa-sun"></i>
+                    </div>
+                    <div class="section-header-text">
+                        <h2>Opening</h2>
+                        <div class="section-subtitle">Start of day tasks</div>
+                    </div>
+                </div>
+
+                <div class="completion-banner" id="openingComplete">
+                    <i class="fas fa-check-circle"></i>
+                    <h3>Opening Complete!</h3>
+                    <p>All morning tasks finished</p>
+                </div>
+
+                <div class="progress-card">
+                    <div class="progress-header">
+                        <span class="progress-title">Morning Progress</span>
+                        <span class="progress-count"><span id="openingDone">0</span>/<span id="openingTotal">0</span></span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="openingProgress"></div>
+                    </div>
+                </div>
+
+                <div class="checklist-group">
+                    <div id="openingTasks" class="group-items"></div>
+                    <div class="add-task-card" data-section="opening" data-group="tasks">
+                        <i class="fas fa-plus"></i>
+                        <span>Add Task</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Day-To-Day Section -->
+            <section class="checklist-section" data-section="sorting" id="sectionSorting">
+                <div class="section-header" data-section="sorting" id="headerSorting">
+                    <div class="section-header-icon">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <div class="section-header-text">
+                        <h2>Day-To-Day</h2>
+                        <div class="section-subtitle">Daily routine tasks</div>
+                    </div>
+                </div>
+
+                <div class="completion-banner" id="sortingComplete">
+                    <i class="fas fa-check-circle"></i>
+                    <h3>Day-To-Day Complete!</h3>
+                    <p>All daily tasks finished</p>
+                </div>
+
+                <div class="progress-card">
+                    <div class="progress-header">
+                        <span class="progress-title">Day-To-Day Progress</span>
+                        <span class="progress-count"><span id="sortingDone">0</span>/<span id="sortingTotal">0</span></span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="sortingProgress"></div>
+                    </div>
+                </div>
+
+                <div class="checklist-group">
+                    <div id="sortingTasks" class="group-items"></div>
+                    <div class="add-task-card" data-section="sorting" data-group="tasks">
+                        <i class="fas fa-plus"></i>
+                        <span>Add Task</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Closing Section -->
+            <section class="checklist-section" data-section="closing" id="sectionClosing">
+                <div class="section-header" data-section="closing" id="headerClosing">
+                    <div class="section-header-icon">
+                        <i class="fas fa-moon"></i>
+                    </div>
+                    <div class="section-header-text">
+                        <h2>Closing</h2>
+                        <div class="section-subtitle">End of day tasks</div>
+                    </div>
+                </div>
+
+                <div class="completion-banner" id="closingComplete">
+                    <i class="fas fa-check-circle"></i>
+                    <h3>Closing Complete!</h3>
+                    <p>Store secured for the night</p>
+                </div>
+
+                <div class="progress-card">
+                    <div class="progress-header">
+                        <span class="progress-title">Closing Progress</span>
+                        <span class="progress-count"><span id="closingDone">0</span>/<span id="closingTotal">0</span></span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="closingProgress"></div>
+                    </div>
+                </div>
+
+                <div class="checklist-group">
+                    <div id="closingTasks" class="group-items"></div>
+                    <div class="add-task-card" data-section="closing" data-group="tasks">
+                        <i class="fas fa-plus"></i>
+                        <span>Add Task</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Bar -->
+        <div class="bottom-bar">
+            <button class="action-btn secondary" id="historyBtn">
+                <i class="fas fa-history"></i>
+                History
+            </button>
+            <button class="action-btn secondary" id="manualSyncBtn">
+                <i class="fas fa-sync-alt"></i>
+                Sync
+            </button>
+            <button class="action-btn secondary" id="resetBtn">
+                <i class="fas fa-redo"></i>
+                Reset
+            </button>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal-overlay" id="historyModal">
+        <div class="modal history-modal">
+            <button class="modal-close-btn" id="historyCloseBtn" title="Close">
+                <i class="fas fa-times"></i>
+            </button>
+
+            <div class="history-nav">
+                <button class="history-arrow" id="historyPrev" title="Previous Day">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="history-date-display">
+                    <div class="history-date-label" id="historyDateLabel">Loading...</div>
+                    <div class="history-date-sub" id="historyDateSub"></div>
+                </div>
+                <button class="history-arrow" id="historyNext" title="Next Day">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <div class="history-stats" id="historyStats">
+                <div class="history-stats-count">
+                    <span id="historyCompleted">0</span>/<span id="historyTotal">0</span>
+                </div>
+                <div class="history-stats-label">tasks completed</div>
+                <div class="history-progress-bar">
+                    <div class="history-progress-fill" id="historyProgressFill"></div>
+                </div>
+            </div>
+
+            <div id="historyContent" class="history-content">
+                <div id="historyLoading" class="history-loading">
+                    <i class="fas fa-spinner fa-spin"></i> Loading...
+                </div>
+                <div id="historyTaskList" class="history-task-list"></div>
+                <div id="historyEmpty" class="history-empty" style="display: none;">
+                    <i class="fas fa-calendar-times"></i>
+                    <p>No record for this day</p>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="cancel-btn" id="historyClose" style="flex: 1;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Confirmation Modal -->
+    <div class="modal-overlay" id="resetModal">
+        <div class="modal">
+            <h3>Reset All Checklists?</h3>
+            <p>This will clear all completed tasks for today. This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button class="cancel-btn" id="resetCancel">Cancel</button>
+                <button class="reset-confirm" id="resetConfirm">Reset All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Task Modal -->
+    <div class="modal-overlay no-outside-close" id="taskModal">
+        <div class="modal">
+            <button class="modal-close-btn" id="taskCloseBtn" title="Close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3 id="taskModalTitle">Add New Task</h3>
+            <p id="taskModalDesc">Create a task for this checklist</p>
+
+            <label for="taskTitle">Task Title *</label>
+            <input type="text" id="taskTitle" placeholder="e.g., Check inventory levels" maxlength="100">
+
+            <label for="taskDesc">Description (optional)</label>
+            <textarea id="taskDesc" placeholder="e.g., Count stock and note any items below minimum" maxlength="200"></textarea>
+
+            <label>Mini Checklist (optional)</label>
+            <div class="subtasks-container" id="subtasksContainer">
+                <div class="subtasks-list" id="subtasksList"></div>
+                <div class="subtask-add">
+                    <input type="text" id="subtaskInput" placeholder="Add a subtask..." maxlength="80">
+                    <button type="button" class="subtask-add-btn" id="subtaskAddBtn">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+
+            <label>Task Color</label>
+            <div class="task-color-picker" id="taskColorPicker">
+                <div class="color-option active" data-color="none" title="Default"></div>
+                <div class="color-option" data-color="#E8F5EC" style="background: #E8F5EC;" title="Mint"></div>
+                <div class="color-option" data-color="#DBEAFE" style="background: #DBEAFE;" title="Sky"></div>
+                <div class="color-option" data-color="#FEF3C7" style="background: #FEF3C7;" title="Amber"></div>
+                <div class="color-option" data-color="#FCE7F3" style="background: #FCE7F3;" title="Pink"></div>
+                <div class="color-option" data-color="#F3E8FF" style="background: #F3E8FF;" title="Purple"></div>
+                <div class="color-option" data-color="#FFEDD5" style="background: #FFEDD5;" title="Peach"></div>
+                <div class="color-option" data-color="#ECFDF5" style="background: #ECFDF5;" title="Teal"></div>
+                <div class="color-option" data-color="#FEE2E2" style="background: #FEE2E2;" title="Rose"></div>
+            </div>
+
+            <label>Task Style</label>
+            <div class="task-style-toggle" id="taskStyleToggle">
+                <button type="button" class="task-style-btn active" data-style="checkable">
+                    <i class="fas fa-check-square"></i>
+                    <span>Checkable</span>
+                </button>
+                <button type="button" class="task-style-btn" data-style="placeholder">
+                    <i class="fas fa-sticky-note"></i>
+                    <span>Note/Placeholder</span>
+                </button>
+            </div>
+
+            <label>Task Duration</label>
+            <div class="task-type-toggle" id="taskTypeToggle">
+                <button type="button" class="task-type-btn active" data-type="permanent">
+                    <i class="fas fa-infinity"></i>
+                    <span>Permanent</span>
+                    <small>Every day</small>
+                </button>
+                <button type="button" class="task-type-btn" data-type="today">
+                    <i class="fas fa-calendar-day"></i>
+                    <span>Today Only</span>
+                    <small>Just for today</small>
+                </button>
+            </div>
+
+            <div class="modal-actions">
+                <button class="cancel-btn" id="taskCancel">Cancel</button>
+                <button class="confirm-btn" id="taskConfirm">Add Task</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal">
+            <h3>Delete Task?</h3>
+            <p id="deleteTaskName">Are you sure you want to delete this task?</p>
+            <div class="modal-actions">
+                <button class="cancel-btn" id="deleteCancel">Cancel</button>
+                <button class="delete-confirm" id="deleteConfirm">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Airtable Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <button class="modal-close-btn" id="settingsCloseBtn" title="Close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3><i class="fas fa-cog" style="margin-right: 8px;"></i>Airtable Sync Settings</h3>
+            <p>Connect to Airtable for automatic syncing across all devices.</p>
+
+            <div class="setup-steps">
+                <details class="setup-detail">
+                    <summary><i class="fas fa-info-circle"></i> How to set up Airtable</summary>
+                    <ol>
+                        <li>Go to <strong>airtable.com</strong> and create a new Base</li>
+                        <li>Create a table named <strong>Checklist</strong></li>
+                        <li>Add these fields:
+                            <ul>
+                                <li><strong>RecordID</strong> (Single line text) - Primary field</li>
+                                <li><strong>Data</strong> (Long text)</li>
+                                <li><strong>LastModified</strong> (Number)</li>
+                            </ul>
+                        </li>
+                        <li>Go to <strong>airtable.com/create/tokens</strong></li>
+                        <li>Create a Personal Access Token with these scopes:
+                            <ul>
+                                <li>data.records:read</li>
+                                <li>data.records:write</li>
+                            </ul>
+                        </li>
+                        <li>Add your base to the token's access list</li>
+                        <li>Copy the Base ID from the URL (starts with "app")</li>
+                    </ol>
+                </details>
+            </div>
+
+            <label for="airtableToken">Personal Access Token *</label>
+            <input type="password" id="airtableToken" placeholder="pat..." autocomplete="off">
+
+            <label for="airtableBaseId">Base ID *</label>
+            <input type="text" id="airtableBaseId" placeholder="appXXXXXXXXXXXXXX">
+
+            <label for="airtableTableName">Table Name</label>
+            <input type="text" id="airtableTableName" placeholder="Checklist" value="Checklist">
+
+            <div class="connection-status" id="connectionStatus"></div>
+
+            <div class="modal-actions">
+                <button class="cancel-btn" id="settingsCancel">Cancel</button>
+                <button class="confirm-btn" id="testConnection">Test & Save</button>
+            </div>
+
+            <div class="config-file-section">
+                <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-color);">
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;"><strong>Quick Reconnect:</strong> Save your config file once, then import it anytime to reconnect instantly.</p>
+                <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px; opacity: 0.8;"><i class="fas fa-info-circle"></i> Connection may reset on page refresh due to browser security. Keep your config file handy!</p>
+                <div style="display: flex; gap: 8px;">
+                    <button class="action-btn secondary" id="exportConfigBtn" style="flex: 1; justify-content: center;">
+                        <i class="fas fa-download"></i>
+                        Export Config
+                    </button>
+                    <label class="action-btn secondary" id="importConfigLabel" style="flex: 1; justify-content: center; cursor: pointer;">
+                        <i class="fas fa-upload"></i>
+                        Import Config
+                        <input type="file" id="importConfigInput" accept=".json" style="display: none;">
+                    </label>
+                </div>
+            </div>
+
+            <div class="disconnect-section" id="disconnectSection" style="display: none;">
+                <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-color);">
+                <button class="action-btn secondary" id="disconnectBtn" style="width: 100%; justify-content: center; color: var(--danger-color);">
+                    <i class="fas fa-unlink"></i>
+                    Disconnect Airtable
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dark mode detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            document.documentElement.classList.toggle('dark', event.matches);
+            // Re-render checklists to update task colors
+            if (typeof renderChecklists === 'function') {
+                renderChecklists();
+            }
+        });
+
+        // Empty Checklist Structure (tasks loaded from Airtable)
+        const emptyChecklistData = {
+            opening: {
+                tasks: []
+            },
+            sorting: {
+                tasks: []
+            },
+            closing: {
+                tasks: []
+            }
+        };
+
+        // State
+        let state = {
+            staffName: '',
+            lastDate: '',
+            completed: {},
+            customTasks: null
+        };
+
+        let checklistData = null;
+        let editMode = false;
+        let currentTaskEdit = null;
+
+        // Storage helper - use localStorage if available, fallback to window.name
+        // Use indirect reference to bypass iframe restrictions when running outside Poe
+        const localStore = window['local' + 'Storage'];
+        const storage = {
+            get: function(key) {
+                try {
+                    if (localStore) {
+                        return localStore.getItem(key);
+                    }
+                } catch (e) {}
+                // Fallback to window.name
+                try {
+                    const data = window.name ? JSON.parse(window.name) : {};
+                    return data[key] ? JSON.stringify(data[key]) : null;
+                } catch (e) {
+                    return null;
+                }
+            },
+            set: function(key, value) {
+                try {
+                    if (localStore) {
+                        localStore.setItem(key, value);
+                        return;
+                    }
+                } catch (e) {}
+                // Fallback to window.name
+                try {
+                    const data = window.name ? JSON.parse(window.name) : {};
+                    data[key] = JSON.parse(value);
+                    window.name = JSON.stringify(data);
+                } catch (e) {
+                    console.log('Could not save to storage');
+                }
+            },
+            remove: function(key) {
+                try {
+                    if (localStore) {
+                        localStore.removeItem(key);
+                        return;
+                    }
+                } catch (e) {}
+                // Fallback to window.name
+                try {
+                    const data = window.name ? JSON.parse(window.name) : {};
+                    delete data[key];
+                    window.name = JSON.stringify(data);
+                } catch (e) {}
+            }
+        };
+
+        // Load state
+        function loadState() {
+            try {
+                const saved = storage.get('checklistState');
+                const parsed = saved ? JSON.parse(saved) : {};
+                state = { staffName: '', lastDate: '', completed: {}, completedSubtasks: {}, customTasks: null, todayOnlyTasks: null, ...parsed };
+            } catch (e) {
+                state = { staffName: '', lastDate: '', completed: {}, completedSubtasks: {}, customTasks: null, todayOnlyTasks: null };
+            }
+
+            // Auto-reset completed tasks and today-only tasks if new day
+            const today = new Date().toDateString();
+            if (state.lastDate && state.lastDate !== today) {
+                state.completed = {};
+                state.completedSubtasks = {}; // Clear completed subtasks on new day
+                state.todayOnlyTasks = null; // Clear today-only tasks on new day
+            }
+            state.lastDate = today;
+
+            // Load tasks from state or use empty structure
+            if (state.customTasks) {
+                checklistData = JSON.parse(JSON.stringify(state.customTasks));
+
+                // Migrate old sorting structure to new flat structure
+                if (checklistData.sorting && !checklistData.sorting.tasks) {
+                    const oldTasks = [
+                        ...(checklistData.sorting.intake || []),
+                        ...(checklistData.sorting.category || []),
+                        ...(checklistData.sorting.quality || [])
+                    ];
+                    checklistData.sorting = { tasks: oldTasks };
+                }
+
+                // Migrate old opening structure to new flat structure
+                if (checklistData.opening && !checklistData.opening.tasks) {
+                    const oldOpeningTasks = [
+                        ...(checklistData.opening.setup || []),
+                        ...(checklistData.opening.equipment || []),
+                        ...(checklistData.opening.customer || [])
+                    ];
+                    checklistData.opening = { tasks: oldOpeningTasks };
+                }
+
+                // Migrate old closing structure to new flat structure
+                if (checklistData.closing && !checklistData.closing.tasks) {
+                    const oldClosingTasks = [
+                        ...(checklistData.closing.end || []),
+                        ...(checklistData.closing.equipment || []),
+                        ...(checklistData.closing.security || [])
+                    ];
+                    checklistData.closing = { tasks: oldClosingTasks };
+                }
+            } else {
+                checklistData = JSON.parse(JSON.stringify(emptyChecklistData));
+            }
+
+            saveState();
+        }
+
+        // Save state
+        function saveState() {
+            try {
+                state.customTasks = checklistData;
+                storage.set('checklistState', JSON.stringify(state));
+            } catch (e) {
+                console.log('Could not save state');
+            }
+        }
+
+        // Format date
+        function formatDate() {
+            const options = { weekday: 'long', month: 'long', day: 'numeric' };
+            return new Date().toLocaleDateString('en-US', options);
+        }
+
+        // Format time
+        function formatTime() {
+            return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+
+        // Generate unique ID
+        function generateId() {
+            return 'custom_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Map light mode colors to dark mode equivalents
+        const darkModeColors = {
+            '#E8F5EC': '#1A3D2A',
+            '#DBEAFE': '#1E3A5F',
+            '#FEF3C7': '#422006',
+            '#FCE7F3': '#4A1942',
+            '#F3E8FF': '#3B1F5C',
+            '#FFEDD5': '#4A2C17',
+            '#ECFDF5': '#134E4A',
+            '#FEE2E2': '#4A1D1D'
+        };
+
+        function getTaskColor(color) {
+            if (!color) return null;
+            const isDark = document.documentElement.classList.contains('dark');
+            return isDark ? (darkModeColors[color] || color) : color;
+        }
+
+        // Create checklist item HTML
+        function createItem(item) {
+            const isPlaceholder = item.isPlaceholder;
+            const checked = !isPlaceholder && state.completed[item.id];
+            const timestamp = checked ? checked.time : '';
+            const todayBadge = item.todayOnly ? '<span class="item-badge today-only">Today Only</span>' : '';
+            const taskColor = getTaskColor(item.color);
+            const colorStyle = taskColor ? `style="background-color: ${taskColor};"` : '';
+            const placeholderClass = isPlaceholder ? 'placeholder' : '';
+
+            // Render subtasks if any
+            let subtasksHtml = '';
+            if (item.subtasks && item.subtasks.length > 0) {
+                const completedSubtasks = state.completedSubtasks || {};
+                const taskSubtasks = completedSubtasks[item.id] || {};
+                const doneCount = Object.keys(taskSubtasks).length;
+                const totalCount = item.subtasks.length;
+
+                subtasksHtml = `
+                    <div class="item-subtasks">
+                        ${item.subtasks.map(sub => {
+                            const subChecked = taskSubtasks[sub.id];
+                            return `
+                                <div class="subtask-row ${subChecked ? 'checked' : ''}" data-task-id="${item.id}" data-subtask-id="${sub.id}">
+                                    <div class="subtask-check">
+                                        <i class="fas fa-check"></i>
+                                    </div>
+                                    <span class="subtask-text">${escapeHtml(sub.text)}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                        <div class="subtask-progress">${doneCount}/${totalCount} completed</div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="checklist-item ${checked ? 'checked' : ''} ${placeholderClass}" data-id="${item.id}" ${colorStyle}>
+                    <div class="checkbox-wrapper">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <div class="item-content">
+                        <div class="item-title">${escapeHtml(item.title)}${todayBadge}</div>
+                        <div class="item-description">${escapeHtml(item.desc)}</div>
+                        ${subtasksHtml}
+                        ${!isPlaceholder ? `<div class="item-timestamp">
+                            <i class="fas fa-clock"></i>
+                            ${timestamp}
+                        </div>` : ''}
+                    </div>
+                    <div class="item-actions">
+                        <button class="item-action-btn move-up" data-id="${item.id}" title="Move Up">
+                            <i class="fas fa-chevron-up"></i>
+                        </button>
+                        <button class="item-action-btn move-down" data-id="${item.id}" title="Move Down">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <button class="item-action-btn edit" data-id="${item.id}" title="Edit">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button class="item-action-btn delete" data-id="${item.id}" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Get group element ID
+        function getGroupElementId(section, group) {
+            const mapping = {
+                'opening-tasks': 'openingTasks',
+                'sorting-tasks': 'sortingTasks',
+                'closing-tasks': 'closingTasks'
+            };
+            return mapping[`${section}-${group}`];
+        }
+
+        // Create empty state HTML
+        function createEmptyState() {
+            return '<div class="empty-group-state">No tasks yet. Tap ✏️ to add tasks.</div>';
+        }
+
+        // Get combined items (permanent + today-only) for a section/group
+        function getCombinedItems(section, group) {
+            const permanent = checklistData[section] && checklistData[section][group] ? checklistData[section][group] : [];
+            const todayOnly = state.todayOnlyTasks && state.todayOnlyTasks[section] && state.todayOnlyTasks[section][group] ? state.todayOnlyTasks[section][group] : [];
+            return [...permanent, ...todayOnly];
+        }
+
+        // Render group with empty state fallback
+        function renderGroup(elementId, section, group) {
+            const el = document.getElementById(elementId);
+            const items = getCombinedItems(section, group);
+            if (items.length === 0) {
+                el.innerHTML = createEmptyState();
+            } else {
+                el.innerHTML = items.map(createItem).join('');
+            }
+        }
+
+        // Render checklists
+        function renderChecklists() {
+            // Opening
+            renderGroup('openingTasks', 'opening', 'tasks');
+
+            // Day-To-Day (sorting)
+            renderGroup('sortingTasks', 'sorting', 'tasks');
+
+            // Closing
+            renderGroup('closingTasks', 'closing', 'tasks');
+
+            updateProgress();
+            attachItemListeners();
+        }
+
+        // Get all items for a section (permanent + today-only)
+        function getAllSectionItems(section) {
+            const permanentItems = Object.values(checklistData[section] || {}).flat();
+            const todayItems = state.todayOnlyTasks && state.todayOnlyTasks[section] ? Object.values(state.todayOnlyTasks[section]).flat() : [];
+            return [...permanentItems, ...todayItems];
+        }
+
+        // Update progress
+        function updateProgress() {
+            const sections = ['opening', 'closing', 'sorting'];
+
+            sections.forEach(section => {
+                const allItems = getAllSectionItems(section);
+                // Filter out placeholders from progress calculation
+                const checkableItems = allItems.filter(item => !item.isPlaceholder);
+                const total = checkableItems.length;
+                const done = checkableItems.filter(item => state.completed[item.id]).length;
+                const percent = total > 0 ? (done / total) * 100 : 0;
+
+                document.getElementById(`${section}Done`).textContent = done;
+                document.getElementById(`${section}Total`).textContent = total;
+                document.getElementById(`${section}Progress`).style.width = `${percent}%`;
+
+                const banner = document.getElementById(`${section}Complete`);
+                if (done === total && total > 0) {
+                    banner.classList.add('show');
+                } else {
+                    banner.classList.remove('show');
+                }
+            });
+        }
+
+        // Find item by ID (searches both permanent and today-only tasks)
+        function findItemById(id) {
+            // Search in permanent tasks
+            for (const section of Object.keys(checklistData)) {
+                for (const group of Object.keys(checklistData[section])) {
+                    const items = checklistData[section][group];
+                    const index = items.findIndex(item => item.id === id);
+                    if (index !== -1) {
+                        return { section, group, index, item: items[index], isTodayOnly: false };
+                    }
+                }
+            }
+            // Search in today-only tasks
+            if (state.todayOnlyTasks) {
+                for (const section of Object.keys(state.todayOnlyTasks)) {
+                    for (const group of Object.keys(state.todayOnlyTasks[section])) {
+                        const items = state.todayOnlyTasks[section][group];
+                        const index = items.findIndex(item => item.id === id);
+                        if (index !== -1) {
+                            return { section, group, index, item: items[index], isTodayOnly: true };
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Attach item click listeners
+        function attachItemListeners() {
+            // Checkbox and content click
+            document.querySelectorAll('.checklist-item').forEach(item => {
+                const checkbox = item.querySelector('.checkbox-wrapper');
+                const content = item.querySelector('.item-content');
+
+                const toggleCheck = () => {
+                    // Skip if in edit mode or if this is a placeholder
+                    if (editMode) return;
+                    if (item.classList.contains('placeholder')) return;
+
+                    const id = item.dataset.id;
+
+                    if (state.completed[id]) {
+                        delete state.completed[id];
+                        item.classList.remove('checked');
+                    } else {
+                        state.completed[id] = {
+                            time: formatTime()
+                        };
+                        item.classList.add('checked');
+
+                        const timestamp = item.querySelector('.item-timestamp');
+                        if (timestamp) {
+                            timestamp.innerHTML = `
+                                <i class="fas fa-clock"></i>
+                                ${state.completed[id].time}
+                            `;
+                        }
+                    }
+
+                    saveState();
+                    updateProgress();
+                };
+
+                checkbox.addEventListener('click', toggleCheck);
+                content.addEventListener('click', (e) => {
+                    // Don't toggle main task if clicking on subtasks
+                    if (e.target.closest('.subtask-row') || e.target.closest('.item-subtasks')) return;
+                    toggleCheck();
+                });
+            });
+
+            // Subtask click handlers
+            document.querySelectorAll('.subtask-row').forEach(row => {
+                row.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (editMode) return;
+
+                    const taskId = row.dataset.taskId;
+                    const subtaskId = row.dataset.subtaskId;
+
+                    if (!state.completedSubtasks) {
+                        state.completedSubtasks = {};
+                    }
+                    if (!state.completedSubtasks[taskId]) {
+                        state.completedSubtasks[taskId] = {};
+                    }
+
+                    if (state.completedSubtasks[taskId][subtaskId]) {
+                        delete state.completedSubtasks[taskId][subtaskId];
+                        row.classList.remove('checked');
+                    } else {
+                        state.completedSubtasks[taskId][subtaskId] = true;
+                        row.classList.add('checked');
+                    }
+
+                    // Update subtask progress display
+                    const subtasksContainer = row.closest('.item-subtasks');
+                    if (subtasksContainer) {
+                        const totalSubs = subtasksContainer.querySelectorAll('.subtask-row').length;
+                        const doneSubs = subtasksContainer.querySelectorAll('.subtask-row.checked').length;
+                        const progressEl = subtasksContainer.querySelector('.subtask-progress');
+                        if (progressEl) {
+                            progressEl.textContent = `${doneSubs}/${totalSubs} completed`;
+                        }
+                    }
+
+                    saveState();
+                });
+            });
+
+            // Edit buttons
+            document.querySelectorAll('.item-action-btn.edit').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = btn.dataset.id;
+                    const found = findItemById(id);
+                    if (found) {
+                        openTaskModal(found.section, found.group, found.item);
+                    }
+                });
+            });
+
+            // Delete buttons
+            document.querySelectorAll('.item-action-btn.delete').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = btn.dataset.id;
+                    const found = findItemById(id);
+                    if (found) {
+                        openDeleteModal(found);
+                    }
+                });
+            });
+
+            // Move up buttons
+            document.querySelectorAll('.item-action-btn.move-up').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = btn.dataset.id;
+                    const found = findItemById(id);
+                    if (found && found.index > 0) {
+                        const items = checklistData[found.section][found.group];
+                        // Swap with previous item
+                        [items[found.index - 1], items[found.index]] = [items[found.index], items[found.index - 1]];
+                        saveState();
+                        renderChecklists();
+                    }
+                });
+            });
+
+            // Move down buttons
+            document.querySelectorAll('.item-action-btn.move-down').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = btn.dataset.id;
+                    const found = findItemById(id);
+                    if (found) {
+                        const items = checklistData[found.section][found.group];
+                        if (found.index < items.length - 1) {
+                            // Swap with next item
+                            [items[found.index], items[found.index + 1]] = [items[found.index + 1], items[found.index]];
+                            saveState();
+                            renderChecklists();
+                        }
+                    }
+                });
+            });
+        }
+
+        // Tab buttons scroll to section
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+
+                // Map tab name to header ID
+                const headerMap = {
+                    'opening': 'headerOpening',
+                    'sorting': 'headerSorting',
+                    'closing': 'headerClosing'
+                };
+
+                const sectionHeader = document.getElementById(headerMap[tab]);
+                if (sectionHeader) {
+                    sectionHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // Scroll to first incomplete task on load
+        function scrollToFirstIncomplete() {
+            // Wait for DOM to settle
+            setTimeout(() => {
+                // Skip placeholders when finding first incomplete
+                const allItems = document.querySelectorAll('.checklist-item:not(.checked):not(.placeholder)');
+                if (allItems.length > 0) {
+                    const firstIncomplete = allItems[0];
+                    firstIncomplete.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 500);
+        }
+
+        // Edit mode toggle
+        const editToggle = document.getElementById('editToggle');
+        editToggle.addEventListener('click', () => {
+            editMode = !editMode;
+            document.body.classList.toggle('edit-mode', editMode);
+            editToggle.classList.toggle('active', editMode);
+        });
+
+        // Reset modal
+        const resetBtn = document.getElementById('resetBtn');
+        const resetModal = document.getElementById('resetModal');
+
+        resetBtn.addEventListener('click', () => {
+            resetModal.classList.add('show');
+        });
+
+        document.getElementById('resetCancel').addEventListener('click', () => {
+            resetModal.classList.remove('show');
+        });
+
+        document.getElementById('resetConfirm').addEventListener('click', () => {
+            state.completed = {};
+            saveState();
+            renderChecklists();
+            resetModal.classList.remove('show');
+        });
+
+        // Task modal
+        const taskModal = document.getElementById('taskModal');
+        const taskModalTitle = document.getElementById('taskModalTitle');
+        const taskModalDesc = document.getElementById('taskModalDesc');
+        const taskTitle = document.getElementById('taskTitle');
+        const taskDesc = document.getElementById('taskDesc');
+        const taskConfirm = document.getElementById('taskConfirm');
+
+        let currentAddSection = null;
+        let currentAddGroup = null;
+        let currentTaskType = 'permanent';
+        let currentTaskColor = 'none';
+        let currentTaskStyle = 'checkable';
+        let currentSubtasks = [];
+
+        // Subtasks management
+        const subtasksList = document.getElementById('subtasksList');
+        const subtaskInput = document.getElementById('subtaskInput');
+        const subtaskAddBtn = document.getElementById('subtaskAddBtn');
+
+        function renderSubtasksList() {
+            subtasksList.innerHTML = currentSubtasks.map((subtask, index) => `
+                <div class="subtask-item-edit" data-index="${index}">
+                    <span>${escapeHtml(subtask.text)}</span>
+                    <button type="button" class="subtask-remove" data-index="${index}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            // Attach remove listeners
+            subtasksList.querySelectorAll('.subtask-remove').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const index = parseInt(btn.dataset.index);
+                    currentSubtasks.splice(index, 1);
+                    renderSubtasksList();
+                });
+            });
+        }
+
+        function addSubtask() {
+            const text = subtaskInput.value.trim();
+            if (text) {
+                currentSubtasks.push({ id: 'sub_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5), text: text });
+                subtaskInput.value = '';
+                renderSubtasksList();
+            }
+        }
+
+        subtaskAddBtn.addEventListener('click', addSubtask);
+        subtaskInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addSubtask();
+            }
+        });
+
+        // Task type toggle buttons
+        const taskTypeToggle = document.getElementById('taskTypeToggle');
+        const taskTypeBtns = taskTypeToggle.querySelectorAll('.task-type-btn');
+
+        taskTypeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                taskTypeBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTaskType = btn.dataset.type;
+            });
+        });
+
+        // Task style toggle buttons
+        const taskStyleToggle = document.getElementById('taskStyleToggle');
+        const taskStyleBtns = taskStyleToggle.querySelectorAll('.task-style-btn');
+
+        taskStyleBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                taskStyleBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTaskStyle = btn.dataset.style;
+            });
+        });
+
+        // Color picker
+        const taskColorPicker = document.getElementById('taskColorPicker');
+        const colorOptions = taskColorPicker.querySelectorAll('.color-option');
+
+        colorOptions.forEach(opt => {
+            opt.addEventListener('click', () => {
+                colorOptions.forEach(o => o.classList.remove('active'));
+                opt.classList.add('active');
+                currentTaskColor = opt.dataset.color;
+            });
+        });
+
+        function openTaskModal(section, group, existingItem = null) {
+            currentAddSection = section;
+            currentAddGroup = group;
+            currentTaskEdit = existingItem;
+
+            // Reset task type to permanent
+            currentTaskType = 'permanent';
+            taskTypeBtns.forEach(b => {
+                b.classList.toggle('active', b.dataset.type === 'permanent');
+            });
+
+            // Reset color to none
+            currentTaskColor = 'none';
+            colorOptions.forEach(o => {
+                o.classList.toggle('active', o.dataset.color === 'none');
+            });
+
+            // Reset style to checkable
+            currentTaskStyle = 'checkable';
+            taskStyleBtns.forEach(b => {
+                b.classList.toggle('active', b.dataset.style === 'checkable');
+            });
+
+            // Reset subtasks
+            currentSubtasks = [];
+
+            if (existingItem) {
+                taskModalTitle.textContent = 'Edit Task';
+                taskModalDesc.textContent = 'Update this task\'s details';
+                taskTitle.value = existingItem.title;
+                taskDesc.value = existingItem.desc || '';
+                taskConfirm.textContent = 'Save Changes';
+
+                // Set task type based on existing item
+                if (existingItem.todayOnly) {
+                    currentTaskType = 'today';
+                    taskTypeBtns.forEach(b => {
+                        b.classList.toggle('active', b.dataset.type === 'today');
+                    });
+                }
+
+                // Set color based on existing item
+                if (existingItem.color) {
+                    currentTaskColor = existingItem.color;
+                    colorOptions.forEach(o => {
+                        o.classList.toggle('active', o.dataset.color === existingItem.color);
+                    });
+                }
+
+                // Set style based on existing item
+                if (existingItem.isPlaceholder) {
+                    currentTaskStyle = 'placeholder';
+                    taskStyleBtns.forEach(b => {
+                        b.classList.toggle('active', b.dataset.style === 'placeholder');
+                    });
+                }
+
+                // Load existing subtasks
+                if (existingItem.subtasks && existingItem.subtasks.length > 0) {
+                    currentSubtasks = JSON.parse(JSON.stringify(existingItem.subtasks));
+                }
+
+                // Hide type toggle when editing (can't change type of existing task)
+                taskTypeToggle.style.display = 'none';
+            } else {
+                taskModalTitle.textContent = 'Add New Task';
+                taskModalDesc.textContent = 'Create a task for this checklist';
+                taskTitle.value = '';
+                taskDesc.value = '';
+                taskConfirm.textContent = 'Add Task';
+                taskTypeToggle.style.display = 'flex';
+            }
+
+            renderSubtasksList();
+            taskModal.classList.add('show');
+            setTimeout(() => taskTitle.focus(), 100);
+        }
+
+        // Add task card clicks
+        document.querySelectorAll('.add-task-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const section = card.dataset.section;
+                const group = card.dataset.group;
+                openTaskModal(section, group);
+            });
+        });
+
+        document.getElementById('taskCancel').addEventListener('click', () => {
+            taskModal.classList.remove('show');
+            currentTaskEdit = null;
+        });
+
+        document.getElementById('taskCloseBtn').addEventListener('click', () => {
+            taskModal.classList.remove('show');
+            currentTaskEdit = null;
+        });
+
+        document.getElementById('taskConfirm').addEventListener('click', () => {
+            const title = taskTitle.value.trim();
+            const desc = taskDesc.value.trim();
+
+            if (!title) {
+                taskTitle.style.borderColor = '#DC2626';
+                taskTitle.focus();
+                return;
+            }
+
+            if (currentTaskEdit) {
+                // Edit existing task
+                if (currentTaskEdit.todayOnly) {
+                    // Find in todayOnlyTasks
+                    const tasks = state.todayOnlyTasks[currentAddSection][currentAddGroup];
+                    const idx = tasks.findIndex(t => t.id === currentTaskEdit.id);
+                    if (idx !== -1) {
+                        tasks[idx].title = title;
+                        tasks[idx].desc = desc;
+                        tasks[idx].color = currentTaskColor !== 'none' ? currentTaskColor : undefined;
+                        tasks[idx].isPlaceholder = currentTaskStyle === 'placeholder' ? true : undefined;
+                        tasks[idx].subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
+                    }
+                } else {
+                    // Find in permanent tasks
+                    const found = findItemById(currentTaskEdit.id);
+                    if (found) {
+                        checklistData[found.section][found.group][found.index].title = title;
+                        checklistData[found.section][found.group][found.index].desc = desc;
+                        checklistData[found.section][found.group][found.index].color = currentTaskColor !== 'none' ? currentTaskColor : undefined;
+                        checklistData[found.section][found.group][found.index].isPlaceholder = currentTaskStyle === 'placeholder' ? true : undefined;
+                        checklistData[found.section][found.group][found.index].subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
+                    }
+                }
+            } else {
+                // Add new task
+                const newTask = {
+                    id: generateId(),
+                    title: title,
+                    desc: desc
+                };
+
+                // Add color if selected
+                if (currentTaskColor !== 'none') {
+                    newTask.color = currentTaskColor;
+                }
+
+                // Add placeholder flag if selected
+                if (currentTaskStyle === 'placeholder') {
+                    newTask.isPlaceholder = true;
+                }
+
+                // Add subtasks if any
+                if (currentSubtasks.length > 0) {
+                    newTask.subtasks = currentSubtasks;
+                }
+
+                if (currentTaskType === 'today') {
+                    // Add to today-only tasks
+                    newTask.todayOnly = true;
+                    if (!state.todayOnlyTasks) {
+                        state.todayOnlyTasks = {
+                            opening: { tasks: [] },
+                            sorting: { tasks: [] },
+                            closing: { tasks: [] }
+                        };
+                    }
+                    if (!state.todayOnlyTasks[currentAddSection]) {
+                        state.todayOnlyTasks[currentAddSection] = {};
+                    }
+                    if (!state.todayOnlyTasks[currentAddSection][currentAddGroup]) {
+                        state.todayOnlyTasks[currentAddSection][currentAddGroup] = [];
+                    }
+                    state.todayOnlyTasks[currentAddSection][currentAddGroup].push(newTask);
+                } else {
+                    // Add to permanent tasks
+                    checklistData[currentAddSection][currentAddGroup].push(newTask);
+                }
+            }
+
+            saveState();
+            renderChecklists();
+            taskModal.classList.remove('show');
+            currentTaskEdit = null;
+        });
+
+        taskTitle.addEventListener('input', () => {
+            taskTitle.style.borderColor = '';
+        });
+
+        taskTitle.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                taskDesc.focus();
+            }
+        });
+
+        // Delete modal
+        const deleteModal = document.getElementById('deleteModal');
+        const deleteTaskName = document.getElementById('deleteTaskName');
+        let currentDeleteItem = null;
+
+        function openDeleteModal(found) {
+            currentDeleteItem = found;
+            deleteTaskName.textContent = `Are you sure you want to delete "${found.item.title}"?`;
+            deleteModal.classList.add('show');
+        }
+
+        document.getElementById('deleteCancel').addEventListener('click', () => {
+            deleteModal.classList.remove('show');
+            currentDeleteItem = null;
+        });
+
+        document.getElementById('deleteConfirm').addEventListener('click', () => {
+            if (currentDeleteItem) {
+                // Remove task from appropriate list
+                if (currentDeleteItem.isTodayOnly) {
+                    state.todayOnlyTasks[currentDeleteItem.section][currentDeleteItem.group].splice(currentDeleteItem.index, 1);
+                } else {
+                    checklistData[currentDeleteItem.section][currentDeleteItem.group].splice(currentDeleteItem.index, 1);
+                }
+                // Also remove from completed if checked
+                delete state.completed[currentDeleteItem.item.id];
+
+                saveState();
+                renderChecklists();
+            }
+            deleteModal.classList.remove('show');
+            currentDeleteItem = null;
+        });
+
+        // ========== AIRTABLE SYNC ==========
+        const syncStatusEl = document.getElementById('syncStatus');
+        const settingsModal = document.getElementById('settingsModal');
+        const airtableToken = document.getElementById('airtableToken');
+        const airtableBaseId = document.getElementById('airtableBaseId');
+        const airtableTableName = document.getElementById('airtableTableName');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const disconnectSection = document.getElementById('disconnectSection');
+
+        let airtableConfig = null;
+        let airtableRecordId = null;
+        let syncInterval = null;
+        let lastSyncTime = 0;
+
+        // Generate date-based record ID for daily history
+        function getRecordId() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            return `CHECKLIST_${year}-${month}-${day}`;
+        }
+
+        // Master record stores the task definitions (shared across all days)
+        const MASTER_RECORD_ID = 'CHECKLIST_MASTER';
+
+        // Load Airtable config
+        function loadAirtableConfig() {
+            try {
+                const saved = storage.get('airtableConfig');
+                if (saved) {
+                    airtableConfig = JSON.parse(saved);
+                }
+            } catch (e) {
+                airtableConfig = null;
+            }
+        }
+
+        // Save Airtable config
+        function saveAirtableConfig() {
+            try {
+                storage.set('airtableConfig', JSON.stringify(airtableConfig));
+            } catch (e) {
+                console.log('Could not save Airtable config');
+            }
+        }
+
+        // Update sync status UI
+        function updateSyncStatus(status, message, clickable = false) {
+            syncStatusEl.className = 'sync-status ' + status + (clickable ? ' clickable' : '');
+            syncStatusEl.innerHTML = `<i class="fas fa-${
+                status === 'connected' ? 'cloud-check' :
+                status === 'syncing' ? 'sync-alt' :
+                status === 'error' ? 'exclamation-triangle' : 'cloud'
+            }"></i><span>${message}</span>`;
+        }
+
+        // Airtable API helper
+        async function airtableRequest(method, endpoint, body = null) {
+            if (!airtableConfig) return null;
+
+            const url = `https://api.airtable.com/v0/${airtableConfig.baseId}/${encodeURIComponent(airtableConfig.tableName)}${endpoint}`;
+
+            const options = {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${airtableConfig.token}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            const response = await fetch(url, options);
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error?.message || 'Airtable API error');
+            }
+
+            return response.json();
+        }
+
+        let masterRecordId = null;
+        let dailyRecordId = null;
+
+        // Find or create the master record (stores task definitions)
+        async function findOrCreateMasterRecord() {
+            const result = await airtableRequest('GET', `?filterByFormula={RecordID}="${MASTER_RECORD_ID}"`);
+
+            if (result.records && result.records.length > 0) {
+                masterRecordId = result.records[0].id;
+                return result.records[0];
+            }
+
+            // Create new master record
+            const newRecord = await airtableRequest('POST', '', {
+                records: [{
+                    fields: {
+                        RecordID: MASTER_RECORD_ID,
+                        Data: JSON.stringify({
+                            tasks: checklistData
+                        }),
+                        LastModified: Date.now()
+                    }
+                }]
+            });
+
+            masterRecordId = newRecord.records[0].id;
+            return newRecord.records[0];
+        }
+
+        // Find or create the daily record (stores completion status for today)
+        async function findOrCreateDailyRecord() {
+            const todayRecordId = getRecordId();
+            const result = await airtableRequest('GET', `?filterByFormula={RecordID}="${todayRecordId}"`);
+
+            if (result.records && result.records.length > 0) {
+                dailyRecordId = result.records[0].id;
+                airtableRecordId = result.records[0].id;
+                return result.records[0];
+            }
+
+            // Create new daily record
+            const newRecord = await airtableRequest('POST', '', {
+                records: [{
+                    fields: {
+                        RecordID: todayRecordId,
+                        Data: JSON.stringify({
+                            completed: {},
+                            date: new Date().toDateString()
+                        }),
+                        LastModified: Date.now()
+                    }
+                }]
+            });
+
+            dailyRecordId = newRecord.records[0].id;
+            airtableRecordId = newRecord.records[0].id;
+            return newRecord.records[0];
+        }
+
+        // Legacy support - find or create record (now handles both)
+        async function findOrCreateRecord() {
+            await findOrCreateMasterRecord();
+            return await findOrCreateDailyRecord();
+        }
+
+        // Push local data to Airtable
+        async function pushToAirtable() {
+            if (!airtableConfig) return;
+
+            const updates = [];
+
+            // Update master record with task definitions
+            if (masterRecordId) {
+                updates.push({
+                    id: masterRecordId,
+                    fields: {
+                        Data: JSON.stringify({
+                            tasks: checklistData
+                        }),
+                        LastModified: Date.now()
+                    }
+                });
+            }
+
+            // Update daily record with completion status and today-only tasks
+            if (dailyRecordId) {
+                updates.push({
+                    id: dailyRecordId,
+                    fields: {
+                        Data: JSON.stringify({
+                            completed: state.completed,
+                            completedSubtasks: state.completedSubtasks,
+                            todayOnlyTasks: state.todayOnlyTasks,
+                            date: new Date().toDateString()
+                        }),
+                        LastModified: Date.now()
+                    }
+                });
+            }
+
+            if (updates.length > 0) {
+                await airtableRequest('PATCH', '', { records: updates });
+            }
+
+            lastSyncTime = Date.now();
+        }
+
+        // Pull data from Airtable
+        async function pullFromAirtable() {
+            if (!airtableConfig) return false;
+
+            try {
+                updateSyncStatus('syncing', 'Syncing...');
+
+                // Get master record (task definitions)
+                const masterRecord = await findOrCreateMasterRecord();
+
+                // Get daily record (today's completions)
+                const dailyRecord = await findOrCreateDailyRecord();
+
+                const today = new Date().toDateString();
+
+                // Load task definitions from master
+                if (masterRecord.fields.Data) {
+                    const masterData = JSON.parse(masterRecord.fields.Data);
+                    if (masterData.tasks) {
+                        checklistData = masterData.tasks;
+
+                        // Migrate old sorting structure if needed
+                        if (checklistData.sorting && !checklistData.sorting.tasks) {
+                            const oldTasks = [
+                                ...(checklistData.sorting.intake || []),
+                                ...(checklistData.sorting.category || []),
+                                ...(checklistData.sorting.quality || [])
+                            ];
+                            checklistData.sorting = { tasks: oldTasks };
+                        }
+
+                        // Migrate old opening structure if needed
+                        if (checklistData.opening && !checklistData.opening.tasks) {
+                            const oldOpeningTasks = [
+                                ...(checklistData.opening.setup || []),
+                                ...(checklistData.opening.equipment || []),
+                                ...(checklistData.opening.customer || [])
+                            ];
+                            checklistData.opening = { tasks: oldOpeningTasks };
+                        }
+
+                        // Migrate old closing structure if needed
+                        if (checklistData.closing && !checklistData.closing.tasks) {
+                            const oldClosingTasks = [
+                                ...(checklistData.closing.end || []),
+                                ...(checklistData.closing.equipment || []),
+                                ...(checklistData.closing.security || [])
+                            ];
+                            checklistData.closing = { tasks: oldClosingTasks };
+                        }
+                    }
+                }
+
+                // Load today's completion status and today-only tasks from daily record
+                if (dailyRecord.fields.Data) {
+                    const dailyData = JSON.parse(dailyRecord.fields.Data);
+                    state.completed = dailyData.completed || {};
+                    state.completedSubtasks = dailyData.completedSubtasks || {};
+                    state.todayOnlyTasks = dailyData.todayOnlyTasks || null;
+                }
+
+                state.lastDate = today;
+                saveState();
+                renderChecklists();
+
+                lastSyncTime = Date.now();
+                updateSyncStatus('connected', 'Synced just now');
+                return true;
+            } catch (e) {
+                console.log('Pull error:', e.message);
+                updateSyncStatus('error', 'Sync failed');
+                return false;
+            }
+        }
+
+        // Full sync (pull then push)
+        async function syncWithAirtable(forcePush = false) {
+            if (!airtableConfig) return;
+
+            try {
+                updateSyncStatus('syncing', 'Syncing...');
+
+                await pullFromAirtable();
+
+                if (forcePush) {
+                    await pushToAirtable();
+                }
+
+                updateSyncStatus('connected', 'Synced just now');
+            } catch (e) {
+                console.log('Sync error:', e.message);
+                updateSyncStatus('error', 'Sync failed');
+            }
+        }
+
+        // Debounced push after local changes
+        let pushTimeout = null;
+        function schedulePush() {
+            if (!airtableConfig) return;
+
+            if (pushTimeout) clearTimeout(pushTimeout);
+
+            pushTimeout = setTimeout(async () => {
+                try {
+                    await pushToAirtable();
+                    updateSyncStatus('connected', 'Synced just now');
+                } catch (e) {
+                    console.log('Push error:', e.message);
+                    updateSyncStatus('error', 'Sync failed');
+                }
+            }, 1000); // Wait 1 second after last change
+        }
+
+        // Override saveState to trigger sync
+        const originalSaveState = saveState;
+        saveState = function() {
+            originalSaveState();
+            schedulePush();
+        };
+
+        // Start periodic sync
+        function startAutoSync() {
+            if (syncInterval) clearInterval(syncInterval);
+
+            // Sync every 30 seconds
+            syncInterval = setInterval(() => {
+                if (airtableConfig) {
+                    pullFromAirtable();
+                }
+            }, 30000);
+        }
+
+        // Settings modal
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            if (airtableConfig) {
+                airtableToken.value = airtableConfig.token;
+                airtableBaseId.value = airtableConfig.baseId;
+                airtableTableName.value = airtableConfig.tableName;
+                disconnectSection.style.display = 'block';
+            } else {
+                airtableToken.value = '';
+                airtableBaseId.value = '';
+                airtableTableName.value = 'Checklist';
+                disconnectSection.style.display = 'none';
+            }
+            connectionStatus.className = 'connection-status';
+            connectionStatus.textContent = '';
+            settingsModal.classList.add('show');
+        });
+
+        document.getElementById('settingsCancel').addEventListener('click', () => {
+            settingsModal.classList.remove('show');
+        });
+
+        document.getElementById('settingsCloseBtn').addEventListener('click', () => {
+            settingsModal.classList.remove('show');
+        });
+
+        // Test connection and save
+        document.getElementById('testConnection').addEventListener('click', async () => {
+            const token = airtableToken.value.trim();
+            const baseId = airtableBaseId.value.trim();
+            const tableName = airtableTableName.value.trim() || 'Checklist';
+
+            if (!token || !baseId) {
+                connectionStatus.className = 'connection-status error';
+                connectionStatus.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter both Token and Base ID';
+                return;
+            }
+
+            connectionStatus.className = 'connection-status loading';
+            connectionStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing connection...';
+
+            // Temporarily set config for testing
+            const tempConfig = { token, baseId, tableName };
+            airtableConfig = tempConfig;
+
+            try {
+                await findOrCreateRecord();
+
+                // Success - save config
+                saveAirtableConfig();
+                startAutoSync();
+
+                connectionStatus.className = 'connection-status success';
+                connectionStatus.innerHTML = '<i class="fas fa-check-circle"></i> Connected successfully!';
+
+                // Initial sync
+                await syncWithAirtable(true);
+
+                setTimeout(() => {
+                    settingsModal.classList.remove('show');
+                }, 1500);
+
+            } catch (e) {
+                airtableConfig = null;
+                connectionStatus.className = 'connection-status error';
+                connectionStatus.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${e.message}`;
+            }
+        });
+
+        // Disconnect
+        document.getElementById('disconnectBtn').addEventListener('click', () => {
+            airtableConfig = null;
+            airtableRecordId = null;
+            if (syncInterval) clearInterval(syncInterval);
+
+            storage.remove('airtableConfig');
+
+            updateSyncStatus('', 'Tap to connect', true);
+            settingsModal.classList.remove('show');
+        });
+
+        // Manual sync button
+        document.getElementById('manualSyncBtn').addEventListener('click', () => {
+            if (airtableConfig) {
+                syncWithAirtable(true);
+            } else {
+                // Show settings if not connected
+                document.getElementById('settingsBtn').click();
+            }
+        });
+
+        // Export config to file
+        document.getElementById('exportConfigBtn').addEventListener('click', () => {
+            const token = airtableToken.value.trim();
+            const baseId = airtableBaseId.value.trim();
+            const tableName = airtableTableName.value.trim() || 'Checklist';
+
+            if (!token || !baseId) {
+                connectionStatus.className = 'connection-status error';
+                connectionStatus.innerHTML = '<i class="fas fa-exclamation-circle"></i> Enter Token and Base ID first';
+                return;
+            }
+
+            const config = {
+                token: token,
+                baseId: baseId,
+                tableName: tableName,
+                exportedAt: new Date().toISOString()
+            };
+
+            const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'manager-checklist-config.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            connectionStatus.className = 'connection-status success';
+            connectionStatus.innerHTML = '<i class="fas fa-check-circle"></i> Config file downloaded!';
+        });
+
+        // Import config from file
+        document.getElementById('importConfigInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const config = JSON.parse(event.target.result);
+
+                    if (!config.token || !config.baseId) {
+                        throw new Error('Invalid config file');
+                    }
+
+                    // Fill in the fields
+                    airtableToken.value = config.token;
+                    airtableBaseId.value = config.baseId;
+                    airtableTableName.value = config.tableName || 'Checklist';
+
+                    // Auto-connect after import
+                    connectionStatus.className = 'connection-status loading';
+                    connectionStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+
+                    // Set config and test
+                    airtableConfig = {
+                        token: config.token,
+                        baseId: config.baseId,
+                        tableName: config.tableName || 'Checklist'
+                    };
+
+                    try {
+                        await findOrCreateRecord();
+                        saveAirtableConfig();
+                        startAutoSync();
+                        await syncWithAirtable(true);
+
+                        connectionStatus.className = 'connection-status success';
+                        connectionStatus.innerHTML = '<i class="fas fa-check-circle"></i> Connected successfully!';
+
+                        setTimeout(() => {
+                            settingsModal.classList.remove('show');
+                        }, 1000);
+                    } catch (connErr) {
+                        airtableConfig = null;
+                        connectionStatus.className = 'connection-status error';
+                        connectionStatus.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${connErr.message}`;
+                    }
+
+                } catch (err) {
+                    connectionStatus.className = 'connection-status error';
+                    connectionStatus.innerHTML = '<i class="fas fa-exclamation-circle"></i> Invalid config file';
+                }
+            };
+            reader.readAsText(file);
+
+            // Reset input so same file can be selected again
+            e.target.value = '';
+        });
+
+        // Initialize Airtable on load
+        function initAirtable() {
+            loadAirtableConfig();
+
+            if (airtableConfig) {
+                updateSyncStatus('syncing', 'Connecting...');
+                syncWithAirtable().then(() => {
+                    startAutoSync();
+                });
+            } else {
+                updateSyncStatus('', 'Tap to connect', true);
+            }
+        }
+
+        // Make sync status clickable to open settings/import
+        syncStatusEl.addEventListener('click', () => {
+            if (!airtableConfig) {
+                // Open settings modal when not connected
+                document.getElementById('settingsBtn').click();
+            }
+        });
+
+        // ========== HISTORY FUNCTIONALITY ==========
+        const historyModal = document.getElementById('historyModal');
+        const historyLoading = document.getElementById('historyLoading');
+        const historyTaskList = document.getElementById('historyTaskList');
+        const historyEmpty = document.getElementById('historyEmpty');
+        const historyDateLabel = document.getElementById('historyDateLabel');
+        const historyDateSub = document.getElementById('historyDateSub');
+        const historyCompleted = document.getElementById('historyCompleted');
+        const historyTotal = document.getElementById('historyTotal');
+        const historyProgressFill = document.getElementById('historyProgressFill');
+        const historyPrevBtn = document.getElementById('historyPrev');
+        const historyNextBtn = document.getElementById('historyNext');
+
+        let historyCache = {}; // Cache loaded records by date
+        let currentHistoryDate = null;
+        let oldestLoadedDate = null;
+        const DAYS_PER_LOAD = 14; // 2 weeks
+
+        // Generate date string for a given date (YYYY-MM-DD)
+        function getDateString(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // Generate Airtable record ID for a date
+        function getDateRecordId(date) {
+            return `CHECKLIST_${getDateString(date)}`;
+        }
+
+        // Format date for display
+        function formatHistoryDate(date) {
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            if (date.toDateString() === today.toDateString()) {
+                return 'Today';
+            } else if (date.toDateString() === yesterday.toDateString()) {
+                return 'Yesterday';
+            } else {
+                return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            }
+        }
+
+        // Format full date for subtitle
+        function formatHistoryDateFull(date) {
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+
+        // Load history records for a date range into cache
+        async function loadHistoryRange(startDate, days) {
+            if (!airtableConfig) return;
+
+            const dateFilters = [];
+
+            for (let i = 0; i < days; i++) {
+                const checkDate = new Date(startDate);
+                checkDate.setDate(checkDate.getDate() - i);
+                const dateStr = getDateString(checkDate);
+
+                // Only load if not already cached
+                if (!historyCache[dateStr]) {
+                    dateFilters.push(`{RecordID}="CHECKLIST_${dateStr}"`);
+                }
+            }
+
+            if (dateFilters.length === 0) return;
+
+            try {
+                const filterFormula = `OR(${dateFilters.join(',')})`;
+                const result = await airtableRequest('GET', `?filterByFormula=${encodeURIComponent(filterFormula)}`);
+
+                if (result.records) {
+                    for (const record of result.records) {
+                        if (record.fields.RecordID && record.fields.RecordID !== 'CHECKLIST_MASTER') {
+                            const dateMatch = record.fields.RecordID.match(/CHECKLIST_(\d{4}-\d{2}-\d{2})/);
+                            if (dateMatch) {
+                                const data = record.fields.Data ? JSON.parse(record.fields.Data) : {};
+                                historyCache[dateMatch[1]] = {
+                                    completed: data.completed || {},
+                                    todayOnlyTasks: data.todayOnlyTasks || null,
+                                    loaded: true
+                                };
+                            }
+                        }
+                    }
+                }
+
+                // Mark dates with no records as empty
+                for (let i = 0; i < days; i++) {
+                    const checkDate = new Date(startDate);
+                    checkDate.setDate(checkDate.getDate() - i);
+                    const dateStr = getDateString(checkDate);
+                    if (!historyCache[dateStr]) {
+                        historyCache[dateStr] = { completed: {}, loaded: true, empty: true };
+                    }
+                }
+
+                // Update oldest loaded date
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() - days + 1);
+                if (!oldestLoadedDate || endDate < oldestLoadedDate) {
+                    oldestLoadedDate = endDate;
+                }
+
+            } catch (e) {
+                console.log('Error loading history:', e.message);
+            }
+        }
+
+        // Calculate stats for a day (includes today-only tasks from that day)
+        function calculateDayStats(dayCompleted, dayTodayOnlyTasks) {
+            // Permanent tasks
+            const permanentTasks = [
+                ...Object.values(checklistData.opening).flat(),
+                ...Object.values(checklistData.closing).flat(),
+                ...Object.values(checklistData.sorting).flat()
+            ];
+
+            // Today-only tasks for that day
+            let todayOnlyTasks = [];
+            if (dayTodayOnlyTasks) {
+                for (const section of Object.keys(dayTodayOnlyTasks)) {
+                    for (const group of Object.keys(dayTodayOnlyTasks[section])) {
+                        todayOnlyTasks = todayOnlyTasks.concat(dayTodayOnlyTasks[section][group]);
+                    }
+                }
+            }
+
+            const allTasks = [...permanentTasks, ...todayOnlyTasks];
+            const total = allTasks.length;
+            const completed = allTasks.filter(task => dayCompleted[task.id]).length;
+
+            return { total, completed };
+        }
+
+        // Render tasks for a specific day
+        function renderHistoryTasks(dayCompleted, dayTodayOnlyTasks) {
+            // Combine permanent and today-only tasks by section
+            const allTasks = {
+                opening: [...Object.values(checklistData.opening).flat()],
+                closing: [...Object.values(checklistData.closing).flat()],
+                sorting: [...Object.values(checklistData.sorting).flat()]
+            };
+
+            // Add today-only tasks from that day
+            if (dayTodayOnlyTasks) {
+                for (const section of Object.keys(dayTodayOnlyTasks)) {
+                    if (!allTasks[section]) allTasks[section] = [];
+                    for (const group of Object.keys(dayTodayOnlyTasks[section])) {
+                        allTasks[section] = allTasks[section].concat(dayTodayOnlyTasks[section][group]);
+                    }
+                }
+            }
+
+            let html = '';
+
+            // Opening tasks
+            if (allTasks.opening.length > 0) {
+                html += '<div class="history-section-title">Opening</div>';
+                allTasks.opening.forEach(task => {
+                    const isComplete = dayCompleted[task.id];
+                    const time = isComplete ? isComplete.time || '' : '';
+                    const badge = task.todayOnly ? ' <span class="item-badge today-only">Today Only</span>' : '';
+                    html += `
+                        <div class="history-task ${isComplete ? 'completed' : 'incomplete'}">
+                            <i class="fas fa-${isComplete ? 'check-circle' : 'circle'}"></i>
+                            <span class="task-name">${escapeHtml(task.title)}${badge}</span>
+                            ${time ? `<span class="task-time">${time}</span>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // Day-To-Day tasks
+            if (allTasks.sorting.length > 0) {
+                html += '<div class="history-section-title">Day-To-Day</div>';
+                allTasks.sorting.forEach(task => {
+                    const isComplete = dayCompleted[task.id];
+                    const time = isComplete ? isComplete.time || '' : '';
+                    const badge = task.todayOnly ? ' <span class="item-badge today-only">Today Only</span>' : '';
+                    html += `
+                        <div class="history-task ${isComplete ? 'completed' : 'incomplete'}">
+                            <i class="fas fa-${isComplete ? 'check-circle' : 'circle'}"></i>
+                            <span class="task-name">${escapeHtml(task.title)}${badge}</span>
+                            ${time ? `<span class="task-time">${time}</span>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // Closing tasks
+            if (allTasks.closing.length > 0) {
+                html += '<div class="history-section-title">Closing</div>';
+                allTasks.closing.forEach(task => {
+                    const isComplete = dayCompleted[task.id];
+                    const time = isComplete ? isComplete.time || '' : '';
+                    const badge = task.todayOnly ? ' <span class="item-badge today-only">Today Only</span>' : '';
+                    html += `
+                        <div class="history-task ${isComplete ? 'completed' : 'incomplete'}">
+                            <i class="fas fa-${isComplete ? 'check-circle' : 'circle'}"></i>
+                            <span class="task-name">${escapeHtml(task.title)}${badge}</span>
+                            ${time ? `<span class="task-time">${time}</span>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            return html;
+        }
+
+        // Display a specific day in the history modal
+        async function displayHistoryDay(date) {
+            const dateStr = getDateString(date);
+            const today = new Date();
+
+            // Update date display
+            historyDateLabel.textContent = formatHistoryDate(date);
+            historyDateSub.textContent = formatHistoryDateFull(date);
+
+            // Update next button state (can't go beyond today)
+            historyNextBtn.disabled = date.toDateString() === today.toDateString();
+
+            // Check if we need to load more data
+            if (!historyCache[dateStr] || !historyCache[dateStr].loaded) {
+                historyLoading.style.display = 'block';
+                historyTaskList.innerHTML = '';
+                historyEmpty.style.display = 'none';
+
+                await loadHistoryRange(date, DAYS_PER_LOAD);
+
+                historyLoading.style.display = 'none';
+            }
+
+            const dayData = historyCache[dateStr];
+
+            if (!dayData || dayData.empty) {
+                // No record for this day
+                historyTaskList.innerHTML = '';
+                historyEmpty.style.display = 'block';
+                historyCompleted.textContent = '0';
+                historyTotal.textContent = '0';
+                historyProgressFill.style.width = '0%';
+            } else {
+                historyEmpty.style.display = 'none';
+                const stats = calculateDayStats(dayData.completed, dayData.todayOnlyTasks);
+                const percent = stats.total > 0 ? (stats.completed / stats.total) * 100 : 0;
+
+                historyCompleted.textContent = stats.completed;
+                historyTotal.textContent = stats.total;
+                historyProgressFill.style.width = `${percent}%`;
+
+                historyTaskList.innerHTML = renderHistoryTasks(dayData.completed, dayData.todayOnlyTasks);
+            }
+
+            currentHistoryDate = date;
+        }
+
+        // Navigate to previous day
+        async function goToPreviousDay() {
+            const prevDate = new Date(currentHistoryDate);
+            prevDate.setDate(prevDate.getDate() - 1);
+            await displayHistoryDay(prevDate);
+        }
+
+        // Navigate to next day
+        async function goToNextDay() {
+            const today = new Date();
+            if (currentHistoryDate.toDateString() === today.toDateString()) return;
+
+            const nextDate = new Date(currentHistoryDate);
+            nextDate.setDate(nextDate.getDate() + 1);
+            await displayHistoryDay(nextDate);
+        }
+
+        // Open history modal
+        async function openHistoryModal() {
+            if (!airtableConfig) {
+                document.getElementById('settingsBtn').click();
+                return;
+            }
+
+            historyModal.classList.add('show');
+            historyCache = {}; // Clear cache
+            oldestLoadedDate = null;
+
+            // Start with today
+            const today = new Date();
+            historyLoading.style.display = 'block';
+            historyTaskList.innerHTML = '';
+            historyEmpty.style.display = 'none';
+
+            // Load initial 2 weeks
+            await loadHistoryRange(today, DAYS_PER_LOAD);
+            historyLoading.style.display = 'none';
+
+            // Display today
+            await displayHistoryDay(today);
+        }
+
+        // History button
+        document.getElementById('historyBtn').addEventListener('click', openHistoryModal);
+
+        // Navigation buttons
+        historyPrevBtn.addEventListener('click', goToPreviousDay);
+        historyNextBtn.addEventListener('click', goToNextDay);
+
+        // Close history modal
+        document.getElementById('historyClose').addEventListener('click', () => {
+            historyModal.classList.remove('show');
+        });
+
+        document.getElementById('historyCloseBtn').addEventListener('click', () => {
+            historyModal.classList.remove('show');
+        });
+
+        // Close modals on overlay click (except settings modal and task modal)
+        [resetModal, deleteModal].forEach(modal => {
+            modal.addEventListener('click', e => {
+                if (e.target === modal) {
+                    modal.classList.remove('show');
+                    currentDeleteItem = null;
+                }
+            });
+        });
+
+        // Initialize
+        function init() {
+            loadState();
+            document.getElementById('currentDate').textContent = formatDate();
+            renderChecklists();
+
+            // Initialize Airtable sync
+            initAirtable();
+
+            // Scroll to first incomplete task after load
+            scrollToFirstIncomplete();
+        }
+
+        init();
+    </script>
+</body>
+</html>
