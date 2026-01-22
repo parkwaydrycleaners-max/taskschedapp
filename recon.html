@@ -774,7 +774,7 @@
             const storeCreditCash = getVal('storeCreditCash');
             const cashRefunds = getVal('cashRefunds');
 
-            const totalRegisterSales = totalCashRegister - pettyCash + otherCashAdded + cashNotPOS - storeCreditCash - cashRefunds;
+            const totalRegisterSales = totalCashRegister - pettyCash - otherCashAdded - cashNotPOS - storeCreditCash - cashRefunds;
             const cashBalance = totalRegisterSales - totalPOSCash;
 
             document.getElementById('totalPOSCash').textContent = fmt(totalPOSCash);
@@ -785,8 +785,8 @@
             // Calculation breakdown
             let cashCalc = `${fmt(totalCashRegister)}`;
             if (pettyCash > 0) cashCalc += ` - ${fmt(pettyCash)} (petty cash)`;
-            if (otherCashAdded > 0) cashCalc += ` + ${fmt(otherCashAdded)} (cash added)`;
-            if (cashNotPOS > 0) cashCalc += ` + ${fmt(cashNotPOS)} (not on POS)`;
+            if (otherCashAdded > 0) cashCalc += ` - ${fmt(otherCashAdded)} (cash added)`;
+            if (cashNotPOS > 0) cashCalc += ` - ${fmt(cashNotPOS)} (not on POS)`;
             if (storeCreditCash > 0) cashCalc += ` - ${fmt(storeCreditCash)} (store credit)`;
             if (cashRefunds > 0) cashCalc += ` - ${fmt(cashRefunds)} (refunds)`;
             cashCalc += ` = ${fmt(totalRegisterSales)}`;
