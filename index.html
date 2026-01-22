@@ -219,6 +219,8 @@ body {
 =============================== */
 .rating-tile {
     text-align: left;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 .rating-header {
     display: flex;
@@ -241,7 +243,13 @@ body {
     margin-top: 6px;
     font-size: 1rem;
 }
-
+/* Review tiles should NOT be square */
+.tile.rating-tile {
+    height: auto;           /* ✅ allow content to define height */
+    min-height: var(--tile-size); /* keeps visual balance */
+    align-items: flex-start;
+}
+    
 /* ===============================
    MODALS (SHARED)
 =============================== */
@@ -801,4 +809,5 @@ fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
