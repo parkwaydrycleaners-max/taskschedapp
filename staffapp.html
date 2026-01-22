@@ -513,11 +513,25 @@
             transition: all 0.2s;
             margin-top: 1px;
             cursor: pointer;
+            background: var(--bg-secondary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* Checkbox visibility on colored tasks */
+        .checklist-item[style*="background-color"] .checkbox-wrapper {
+            border-color: rgba(0,0,0,0.3);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+
+        .dark .checklist-item[style*="background-color"] .checkbox-wrapper {
+            border-color: rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.2);
         }
 
         .checklist-item.checked .checkbox-wrapper {
             background: var(--success-color);
             border-color: var(--success-color);
+            box-shadow: 0 1px 4px rgba(34, 197, 94, 0.4);
         }
 
         .checkbox-wrapper i {
@@ -1766,9 +1780,9 @@
                     </div>
                     <div class="section-header-text">
                         <h2 class="section-title">Opening</h2>
-                        <h2 class="section-title-complete">Opening Complete!</h2>
+                        <h2 class="section-title-complete">Complete! ✓</h2>
                         <div class="section-subtitle">Start of day tasks</div>
-                        <div class="section-subtitle-complete">All morning tasks finished</div>
+                        <div class="section-subtitle-complete">All done</div>
                     </div>
                 </div>
 
@@ -1800,9 +1814,9 @@
                     </div>
                     <div class="section-header-text">
                         <h2 class="section-title">Day-To-Day</h2>
-                        <h2 class="section-title-complete">Day-To-Day Complete!</h2>
+                        <h2 class="section-title-complete">Complete! ✓</h2>
                         <div class="section-subtitle">Daily routine tasks</div>
-                        <div class="section-subtitle-complete">All daily tasks finished</div>
+                        <div class="section-subtitle-complete">All done</div>
                     </div>
                 </div>
 
@@ -1834,9 +1848,9 @@
                     </div>
                     <div class="section-header-text">
                         <h2 class="section-title">Closing</h2>
-                        <h2 class="section-title-complete">Closing Complete!</h2>
+                        <h2 class="section-title-complete">Complete! ✓</h2>
                         <div class="section-subtitle">End of day tasks</div>
-                        <div class="section-subtitle-complete">Store secured for the night</div>
+                        <div class="section-subtitle-complete">All done</div>
                     </div>
                 </div>
 
