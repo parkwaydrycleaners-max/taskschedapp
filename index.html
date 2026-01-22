@@ -515,18 +515,6 @@ button {
                     Rug Clean Estimator
                 </div>
                 
-                <!-- GOOGLE REVIEWS -->
-                <div class="tile rating-tile">
-                    <div class="rating-header">
-                        <svg viewBox="0 0 24 24">
-                            <polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9"/>
-                        </svg>
-                        <div class="rating-title">Google Reviews</div>
-                    </div>
-                    <div id="google-rating" class="rating-line">Loading…</div>
-                    <div id="google-bars" class="rating-bars"></div>
-                </div>
-
                 <!-- YELP ADMIN -->
                 <div class="tile rating-tile"
                      onclick="window.open('https://biz.yelp.com/home/Eb36giK3cXwlb6Bj9Vs-6w/?fwp=true','_blank')">
@@ -542,6 +530,18 @@ button {
                     <div id="yelp-bars" class="rating-bars"></div>
                 </div>
 
+                <!-- GOOGLE REVIEWS -->
+                <div class="tile rating-tile">
+                    <div class="rating-header">
+                        <svg viewBox="0 0 24 24">
+                            <polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9"/>
+                        </svg>
+                        <div class="rating-title">Google Reviews</div>
+                    </div>
+                    <div id="google-rating" class="rating-line">Loading…</div>
+                    <div id="google-bars" class="rating-bars"></div>
+                </div>
+                
                 <!-- FACEBOOK REVIEWS -->
                 <div class="tile rating-tile">
                     <div class="rating-header">
@@ -809,5 +809,6 @@ fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
