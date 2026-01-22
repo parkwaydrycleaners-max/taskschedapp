@@ -515,19 +515,23 @@ button {
                     Rug Clean Estimator
                 </div>
                 
-                <!-- YELP ADMIN -->
+                <!-- Yelp Reviews (Manual Snapshot) -->
                 <div class="tile rating-tile"
                      onclick="window.open('https://biz.yelp.com/home/Eb36giK3cXwlb6Bj9Vs-6w/?fwp=true','_blank')">
+                
                     <div class="rating-header">
                         <svg viewBox="0 0 24 24">
                             <path d="M10.52 2.1L6.38 4.92l1.75 4.2 2.86-2.5-2.43-4.54z"/>
                             <path d="M20.5 14.12l-4.8-.74-.7 4.54 4.8.74z"/>
                             <path d="M6.08 12.9l-4.54.7.7 4.54 4.54-.7z"/>
                         </svg>
-                        <div class="rating-title">Yelp (Admin)</div>
+                        <div class="rating-title">Yelp Reviews</div>
                     </div>
-                    <div id="yelp-rating" class="rating-line">Loading…</div>
-                    <div id="yelp-bars" class="rating-bars"></div>
+                
+                    <div class="rating-line">⭐ 4.5 (213 reviews)</div>
+                    <div class="rating-line" style="font-size:0.75rem; color:#666;">
+                        Last checked: Jan 2026
+                    </div>
                 </div>
 
                 <!-- GOOGLE REVIEWS -->
@@ -542,16 +546,21 @@ button {
                     <div id="google-bars" class="rating-bars"></div>
                 </div>
                 
-                <!-- FACEBOOK REVIEWS -->
-                <div class="tile rating-tile">
+                <!-- Facebook Reviews (Manual Snapshot) -->
+                <div class="tile rating-tile"
+                     onclick="window.open('https://www.facebook.com/1385716841487687/reviews','_blank')">
+                
                     <div class="rating-header">
                         <svg viewBox="0 0 24 24">
                             <path d="M22 12A10 10 0 1010.6 21.8v-6.6H8v-3.2h2.6V9.4c0-2.6 1.5-4.1 3.9-4.1 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.3 0-1.7.8-1.7 1.6v1.9H20l-.5 3.2h-3.3v6.6z"/>
                         </svg>
                         <div class="rating-title">Facebook Reviews</div>
                     </div>
-                    <div id="facebook-rating" class="rating-line">Loading…</div>
-                    <div id="facebook-bars" class="rating-bars"></div>
+                
+                    <div class="rating-line">⭐ 5.0 (189 recommendations)</div>
+                    <div class="rating-line" style="font-size:0.75rem; color:#666;">
+                        Last checked: Jan 2026
+                    </div>
                 </div>
 
             </div>
@@ -792,23 +801,11 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
     document.getElementById("google-bars").innerHTML=renderBars(p,n,g);
 });
 
-fetch(WORKER_URL + "/yelp").then(r=>r.json()).then(d=>{
-    const t=d.review_count,r=d.rating;
-    const p=Math.round(t*(r/5)),g=Math.round(t*((5-r)/5)),n=t-p-g;
-    document.getElementById("yelp-rating").innerText=`⭐ ${r} (${t})`;
-    document.getElementById("yelp-bars").innerHTML=renderBars(p,n,g);
-});
-
-fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
-    const t=d.rating_count,r=d.overall_star_rating;
-    const p=Math.round(t*(r/5)),g=Math.round(t*((5-r)/5)),n=t-p-g;
-    document.getElementById("facebook-rating").innerText=`⭐ ${r} (${t})`;
-    document.getElementById("facebook-bars").innerHTML=renderBars(p,n,g);
-});
 </script>
 
 </body>
 </html>
+
 
 
 
