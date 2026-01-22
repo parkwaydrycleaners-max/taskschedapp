@@ -108,6 +108,42 @@ body {
     margin: 0 auto;      /* center within available space */
 }
 
+/* ===== RUG CLEAN ESTIMATOR LAYOUT ===== */
+
+.rug-dimensions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.rug-multiply {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.rug-units {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.rug-units select {
+    padding: 4px 6px;
+}
+
+.rug-results {
+    text-align: center;
+    margin: 12px 0;
+    font-weight: bold;
+}
+
+.rug-results div {
+    margin: 4px 0;
+}
    
 /* ===============================
    STAFF APP (LEFT)
@@ -594,28 +630,30 @@ button {
 
         <h2>Rug Clean Estimator</h2>
 
-        <!-- INPUTS -->
-        <div class="calc-row">
+        <!-- DIMENSIONS ROW -->
+        <div class="rug-dimensions">
             <input class="qty-input" id="rugLength" placeholder="Length">
-            <div>×</div>
+            <span class="rug-multiply">×</span>
             <input class="qty-input" id="rugWidth" placeholder="Width">
         </div>
 
-        <div style="margin-top:10px;">
-            <label>
-                Units:
-                <select id="rugUnit">
-                    <option value="ft">Feet</option>
-                    <option value="in">Inches</option>
-                    <option value="cm">Centimeters</option>
-                </select>
-            </label>
+        <!-- UNITS -->
+        <div class="rug-units">
+            <label for="rugUnit">Units:</label>
+            <select id="rugUnit">
+                <option value="ft">Feet</option>
+                <option value="in">Inches</option>
+                <option value="cm">Centimeters</option>
+            </select>
         </div>
 
         <!-- RESULTS -->
-        <div class="total" id="rugArea">Area: 0.00 sq ft</div>
-        <div class="total" id="rugPrice">Price: $0.00</div>
+        <div class="rug-results">
+            <div id="rugArea">Area: 0.00 sq ft</div>
+            <div id="rugPrice">Price: $0.00</div>
+        </div>
 
+        <!-- ACTIONS -->
         <button onclick="calculateRug()">Calculate</button>
         <button class="close-btn" onclick="closeModal('rugModal')">Close</button>
 
@@ -763,3 +801,4 @@ fetch(WORKER_URL + "/facebook").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
