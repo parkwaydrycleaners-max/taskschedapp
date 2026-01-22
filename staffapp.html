@@ -45,26 +45,6 @@
             --danger-light: #FEE2E2;
         }
 
-        .dark {
-            --bg-primary: #0F0F0F;
-            --bg-secondary: #1A1A1A;
-            --bg-card: #242424;
-            --text-primary: #F5F5F5;
-            --text-secondary: #A0A0A0;
-            --text-muted: #666666;
-            --accent-opening: #4ADE80;
-            --accent-opening-light: #1A2E1F;
-            --accent-closing: #D4A574;
-            --accent-closing-light: #2A2218;
-            --accent-sorting: #94A3B8;
-            --accent-sorting-light: #1E2433;
-            --border-color: #333333;
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-            --checked-bg: #1A2E1F;
-            --danger-light: #3D1F1F;
-        }
-
         * {
             margin: 0;
             padding: 0;
@@ -121,11 +101,6 @@
             justify-content: center;
             color: white;
             font-size: 18px;
-        }
-
-        .dark .brand-icon {
-            background: linear-gradient(135deg, #4ADE80 0%, #22C55E 100%);
-            color: #0F0F0F;
         }
 
         .brand-text h1 {
@@ -523,11 +498,6 @@
             box-shadow: 0 1px 4px rgba(0,0,0,0.2);
         }
 
-        .dark .checklist-item[style*="background-color"] .checkbox-wrapper {
-            border-color: rgba(255,255,255,0.35);
-            background: rgba(255,255,255,0.2);
-        }
-
         .checklist-item.checked .checkbox-wrapper {
             background: var(--success-color);
             border-color: var(--success-color);
@@ -598,11 +568,6 @@
         .item-badge.today-only {
             background: #FEF3C7;
             color: #D97706;
-        }
-
-        .dark .item-badge.today-only {
-            background: #422006;
-            color: #FBBF24;
         }
 
         /* Item Actions */
@@ -1235,16 +1200,6 @@
             color: var(--text-muted);
         }
 
-        /* Dark mode color adjustments for task colors */
-        .dark .color-option[data-color="#E8F5EC"] { background: #1A3D2A !important; }
-        .dark .color-option[data-color="#DBEAFE"] { background: #1E3A5F !important; }
-        .dark .color-option[data-color="#FEF3C7"] { background: #422006 !important; }
-        .dark .color-option[data-color="#FCE7F3"] { background: #4A1942 !important; }
-        .dark .color-option[data-color="#F3E8FF"] { background: #3B1F5C !important; }
-        .dark .color-option[data-color="#FFEDD5"] { background: #4A2C17 !important; }
-        .dark .color-option[data-color="#ECFDF5"] { background: #134E4A !important; }
-        .dark .color-option[data-color="#FEE2E2"] { background: #4A1D1D !important; }
-
         /* Sync Modal Styles */
         .sync-tabs {
             display: flex;
@@ -1367,11 +1322,6 @@
             color: #D97706;
         }
 
-        .dark .sync-status.syncing {
-            background: #422006;
-            color: #FBBF24;
-        }
-
         .sync-status.error {
             background: var(--danger-light);
             color: var(--danger-color);
@@ -1463,11 +1413,6 @@
             display: block;
             background: #FEF3C7;
             color: #D97706;
-        }
-
-        .dark .connection-status.loading {
-            background: #422006;
-            color: #FBBF24;
         }
 
         /* Empty State */
@@ -2113,18 +2058,6 @@
     </div>
 
     <script>
-        // Dark mode detection
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            document.documentElement.classList.add('dark');
-        }
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
-            document.documentElement.classList.toggle('dark', event.matches);
-            // Re-render checklists to update task colors
-            if (typeof renderChecklists === 'function') {
-                renderChecklists();
-            }
-        });
-
         // Empty Checklist Structure (tasks loaded from Airtable)
         const emptyChecklistData = {
             opening: {
@@ -2285,22 +2218,8 @@
             return 'custom_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         }
 
-        // Map light mode colors to dark mode equivalents
-        const darkModeColors = {
-            '#E8F5EC': '#1A3D2A',
-            '#DBEAFE': '#1E3A5F',
-            '#FEF3C7': '#422006',
-            '#FCE7F3': '#4A1942',
-            '#F3E8FF': '#3B1F5C',
-            '#FFEDD5': '#4A2C17',
-            '#ECFDF5': '#134E4A',
-            '#FEE2E2': '#4A1D1D'
-        };
-
         function getTaskColor(color) {
-            if (!color) return null;
-            const isDark = document.documentElement.classList.contains('dark');
-            return isDark ? (darkModeColors[color] || color) : color;
+            return color || null;
         }
 
         // Create checklist item HTML
