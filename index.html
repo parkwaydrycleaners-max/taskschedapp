@@ -169,10 +169,18 @@ body {
 
 /* ===== RUSH FEE CALCULATOR UX ===== */
 
+.rush-section {
+    margin-top: 12px;
+}
+
+.rush-toggle {
+    font-weight: bold;
+}
+    
 .rush-field {
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 14px;
+display: flex;
+flex-direction: column;
+margin-bottom: 14px;
 }
 
 .rush-field label {
@@ -706,6 +714,29 @@ button {
         <button onclick="calculateHem()">Calculate</button>
         <div class="total" id="hemTotal">Total: $0.00</div>
 
+        <hr>
+        
+        <!-- RUSH SECTION -->
+        <div class="rush-section">
+        
+            <label class="rush-toggle">
+                <input type="checkbox" id="hemRushToggle">
+                Apply Rush Fee (Over Capacity)
+            </label>
+        
+            <div id="hemRushOptions" style="display:none;">
+        
+                <div class="rush-field">
+                    <label>Work Date</label>
+                    <input type="date" id="hemRushDate">
+                </div>
+        
+                <div class="total" id="hemRushFee">Rush Fee: $0.00</div>
+                <div class="total" id="hemRushTotal">Total with Rush: $0.00</div>
+        
+            </div>
+        </div>
+        
         <button class="close-btn" onclick="closeModal('hemModal')">Close</button>
     </div>
 </div>
@@ -788,58 +819,80 @@ function closeModal(id) {
 }
 /* ----------- RUSH CALCULATOR ---------------*/
 
-function calculateRush() {
-    const base = parseFloat(document.getElementById("rushBasePrice").value) || 0;
-    const workDateValue = document.getElementById("rushWorkDate").value;
+function calculateHem() {
+    const rows = [
+        ["cut1", 6.25, "cut1Seq"],
+        ["cut2", 6.25, "cut2Seq"],
+        ["reg1", 12.5, "reg1Seq"],
+        ["reg2", 12.5, "reg2Seq"],
+        ["horse1", 25, "horse1Seq"],
+        ["horse2", 25, "horse2Seq"]
+    ];
 
-    if (!workDateValue || base <= 0) {
-        alert("Please enter a valid base price and work date.");
+    let total = 0;
+    let yards = 0;
+
+    rows.forEach(([qty, rate, seq]) => {
+        const y = parseFloat(document.getElementById(qty).value) || 0;
+        yards += y;
+        total += y * rate;
+
+        if (document.getElementById(seq).checked) {
+            total += y * 5;
+        }
+    });
+
+    document.getElementById("totalYards").innerText =
+        "Total Yards: " + yards.toFixed(2);
+
+    document.getElementById("hemTotal").innerText =
+        "Total: $" + total.toFixed(2);
+
+    /* -------------------------
+       RUSH LOGIC (INTEGRATED)
+    ------------------------- */
+    const applyRush = document.getElementById("hemRushToggle").checked;
+    const rushBox = document.getElementById("hemRushOptions");
+
+    if (!applyRush) {
+        rushBox.style.display = "none";
         return;
     }
+
+    rushBox.style.display = "block";
+
+    const dateValue = document.getElementById("hemRushDate").value;
+    if (!dateValue) return;
 
     const today = new Date();
     today.setHours(0,0,0,0);
 
-    const workDate = new Date(workDateValue);
+    const workDate = new Date(dateValue);
     workDate.setHours(0,0,0,0);
 
-    let diffDays = Math.round((workDate - today) / (1000 * 60 * 60 * 24));
+    let diffDays = Math.round((workDate - today) / (1000*60*60*24));
     if (diffDays < 0) diffDays = 0;
 
-    let rushPercent = 0;
-
-    if (diffDays <= 1) {
-        rushPercent = 0.50;
-    } else if (diffDays === 2) {
-        rushPercent = 0.40;
-    } else if (diffDays === 3) {
-        rushPercent = 0.30;
-    } else {
-        rushPercent = 0.20;
-    }
+    let rushPercent;
+    if (diffDays <= 1) rushPercent = 0.50;
+    else if (diffDays === 2) rushPercent = 0.40;
+    else if (diffDays === 3) rushPercent = 0.30;
+    else rushPercent = 0.20;
 
     let rushFee;
 
-    /* ✅ HARD OVERRIDE RULE */
-    if (base === 15) {
+    /* ✅ $15 FLAT RUSH RULE */
+    if (total === 15) {
         rushFee = 5;
     } else {
-        rushFee = Math.round(base * rushPercent * 100) / 100;
+        rushFee = Math.round(total * rushPercent * 100) / 100;
     }
 
-    const total = base + rushFee;
-
-    document.getElementById("rushDays").innerText =
-        "Days Until Work: " + diffDays;
-
-    document.getElementById("rushPercent").innerText =
-        "Rush %: " + Math.round(rushPercent * 100) + "%";
-
-    document.getElementById("rushFee").innerText =
+    document.getElementById("hemRushFee").innerText =
         "Rush Fee: $" + rushFee.toFixed(2);
 
-    document.getElementById("rushTotal").innerText =
-        "Total with Rush: $" + total.toFixed(2);
+    document.getElementById("hemRushTotal").innerText =
+        "Total with Rush: $" + (total + rushFee).toFixed(2);
 }
     
 /* ----------- RUG CALCULATOR ---------------*/
@@ -934,6 +987,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
