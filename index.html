@@ -514,6 +514,14 @@ button {
                     </svg>
                     Rug Clean Estimator
                 </div>
+
+                <!-- Rush Fee Calculator -->
+                <div class="tile" onclick="openModal('rushModal')">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M13 2L3 14h7l-1 8 10-12h-7z"/>
+                    </svg>
+                    Capacity-Based ALT Rush Calculator
+                </div>
                 
                 <!-- Yelp Reviews (Manual Snapshot) -->
                 <div class="tile rating-tile"
@@ -568,6 +576,41 @@ button {
 
     </main>
 </div>
+<!-- =========================
+     RUSH FEE CALCULATOR MODAL
+========================= -->
+<div id="rushModal" class="modal-overlay">
+    <div class="modal-box">
+
+        <div class="modal-close-x" onclick="closeModal('rushModal')">✕</div>
+
+        <h2>Rush Fee Calculator</h2>
+
+        <!-- INPUTS -->
+        <div class="calc-row">
+            <input class="qty-input" id="rushBasePrice" placeholder="Alteration $">
+            <div>Base Price</div>
+            <div></div>
+        </div>
+
+        <div class="calc-row">
+            <input type="date" id="rushWorkDate">
+            <div>Work Date</div>
+            <div></div>
+        </div>
+
+        <!-- RESULTS -->
+        <div class="total" id="rushDays">Days Until Work: —</div>
+        <div class="total" id="rushPercent">Rush %: —</div>
+        <div class="total" id="rushFee">Rush Fee: $0.00</div>
+        <div class="total" id="rushTotal">Total with Rush: $0.00</div>
+
+        <button onclick="calculateRush()">Calculate</button>
+        <button class="close-btn" onclick="closeModal('rushModal')">Close</button>
+
+    </div>
+</div>
+    
 <!-- =========================
      DRESS HEM ESTIMATOR MODAL
 ========================= -->
@@ -713,6 +756,53 @@ function openModal(id) {
 function closeModal(id) {
     document.getElementById(id).style.display = "none";
 }
+/* ----------- RUSH CALCULATOR ---------------*/
+function calculateRush() {
+    const base = parseFloat(document.getElementById("rushBasePrice").value) || 0;
+    const workDateValue = document.getElementById("rushWorkDate").value;
+
+    if (!workDateValue || base <= 0) {
+        alert("Please enter a base price and work date.");
+        return;
+    }
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const workDate = new Date(workDateValue);
+    workDate.setHours(0,0,0,0);
+
+    const diffTime = workDate - today;
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    let rushPercent = 0;
+
+    if (diffDays <= 1) {
+        rushPercent = 0.50;
+    } else if (diffDays === 2) {
+        rushPercent = 0.40;
+    } else if (diffDays === 3) {
+        rushPercent = 0.30;
+    } else {
+        rushPercent = 0.20;
+    }
+
+    const rushFee = base * rushPercent;
+    const total = base + rushFee;
+
+    document.getElementById("rushDays").innerText =
+        "Days Until Work: " + diffDays;
+
+    document.getElementById("rushPercent").innerText =
+        "Rush %: " + Math.round(rushPercent * 100) + "%";
+
+    document.getElementById("rushFee").innerText =
+        "Rush Fee: $" + rushFee.toFixed(2);
+
+    document.getElementById("rushTotal").innerText =
+        "Total with Rush: $" + total.toFixed(2);
+}
+    
 /* ----------- RUG CALCULATOR ---------------*/
 
 function calculateRug() {
@@ -805,6 +895,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
