@@ -787,6 +787,7 @@ function closeModal(id) {
     document.getElementById(id).style.display = "none";
 }
 /* ----------- RUSH CALCULATOR ---------------*/
+
 function calculateRush() {
     const base = parseFloat(document.getElementById("rushBasePrice").value) || 0;
     const workDateValue = document.getElementById("rushWorkDate").value;
@@ -819,9 +820,9 @@ function calculateRush() {
 
     let rushFee;
 
-    /* ✅ SPECIAL EXEMPTION RULE */
+    /* ✅ HARD OVERRIDE RULE */
     if (base === 15) {
-        rushFee = 20;
+        rushFee = 5;
     } else {
         rushFee = Math.round(base * rushPercent * 100) / 100;
     }
@@ -933,6 +934,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
