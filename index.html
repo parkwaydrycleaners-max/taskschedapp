@@ -167,6 +167,35 @@ body {
     border: none;
 }
 
+/* ===== RUSH FEE CALCULATOR UX ===== */
+
+.rush-field {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 14px;
+}
+
+.rush-field label {
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    font-weight: bold;
+}
+
+.rush-field input {
+    padding: 8px;
+    font-size: 1rem;
+}
+
+.rush-results {
+    margin: 14px 0;
+    text-align: center;
+    font-weight: bold;
+}
+
+.rush-results div {
+    margin: 6px 0;
+}
+    
 /* ===============================
    TILE GRID (RIGHT)
 =============================== */
@@ -586,24 +615,25 @@ button {
 
         <h2>Rush Fee Calculator</h2>
 
-        <!-- INPUTS -->
-        <div class="calc-row">
-            <input class="qty-input" id="rushBasePrice" placeholder="Alteration $">
-            <div>Base Price</div>
-            <div></div>
+        <!-- BASE PRICE -->
+        <div class="rush-field">
+            <label>Alteration Price ($)</label>
+            <input id="rushBasePrice" type="number" step="0.01" placeholder="e.g. 40.00">
         </div>
 
-        <div class="calc-row">
-            <input type="date" id="rushWorkDate">
-            <div>Work Date</div>
-            <div></div>
+        <!-- WORK DATE -->
+        <div class="rush-field">
+            <label>Work Date</label>
+            <input id="rushWorkDate" type="date">
         </div>
 
         <!-- RESULTS -->
-        <div class="total" id="rushDays">Days Until Work: —</div>
-        <div class="total" id="rushPercent">Rush %: —</div>
-        <div class="total" id="rushFee">Rush Fee: $0.00</div>
-        <div class="total" id="rushTotal">Total with Rush: $0.00</div>
+        <div class="rush-results">
+            <div id="rushDays">Days Until Work: —</div>
+            <div id="rushPercent">Rush %: —</div>
+            <div id="rushFee">Rush Fee: $0.00</div>
+            <div id="rushTotal">Total with Rush: $0.00</div>
+        </div>
 
         <button onclick="calculateRush()">Calculate</button>
         <button class="close-btn" onclick="closeModal('rushModal')">Close</button>
@@ -762,7 +792,7 @@ function calculateRush() {
     const workDateValue = document.getElementById("rushWorkDate").value;
 
     if (!workDateValue || base <= 0) {
-        alert("Please enter a base price and work date.");
+        alert("Please enter a valid base price and work date.");
         return;
     }
 
@@ -772,8 +802,10 @@ function calculateRush() {
     const workDate = new Date(workDateValue);
     workDate.setHours(0,0,0,0);
 
-    const diffTime = workDate - today;
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    let diffDays = Math.round((workDate - today) / (1000 * 60 * 60 * 24));
+
+    /* Prevent negative confusion */
+    if (diffDays < 0) diffDays = 0;
 
     let rushPercent = 0;
 
@@ -787,7 +819,13 @@ function calculateRush() {
         rushPercent = 0.20;
     }
 
-    const rushFee = base * rushPercent;
+    let rushFee = base * rushPercent;
+
+    /* ✅ SPECIAL EXEMPTION RULE */
+    if (rushFee === 15) {
+        rushFee = 20;
+    }
+
     const total = base + rushFee;
 
     document.getElementById("rushDays").innerText =
@@ -895,6 +933,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
