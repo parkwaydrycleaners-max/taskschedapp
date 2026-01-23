@@ -819,6 +819,96 @@ function closeModal(id) {
 }
 /* ----------- RUSH CALCULATOR ---------------*/
 
+<script>
+function calculateRush() {
+    const base = parseFloat(document.getElementById("rushBasePrice").value) || 0;
+    const workDateValue = document.getElementById("rushWorkDate").value;
+
+    if (!workDateValue || base <= 0) {
+        alert("Please enter a valid base price and work date.");
+        return;
+    }
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const workDate = new Date(workDateValue);
+    workDate.setHours(0,0,0,0);
+
+    let diffDays = Math.round((workDate - today) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) diffDays = 0;
+
+    let rushPercent = 0;
+
+    if (diffDays <= 1) {
+        rushPercent = 0.50;
+    } else if (diffDays === 2) {
+        rushPercent = 0.40;
+    } else if (diffDays === 3) {
+        rushPercent = 0.30;
+    } else {
+        rushPercent = 0.20;
+    }
+
+    let rushFee;
+
+    /* ✅ HARD OVERRIDE RULE */
+    if (base === 15) {
+        rushFee = 5;
+    } else {
+        rushFee = Math.round(base * rushPercent * 100) / 100;
+    }
+
+    const total = base + rushFee;
+
+    document.getElementById("rushDays").innerText =
+        "Days Until Work: " + diffDays;
+
+    document.getElementById("rushPercent").innerText =
+        "Rush %: " + Math.round(rushPercent * 100) + "%";
+
+    document.getElementById("rushFee").innerText =
+        "Rush Fee: $" + rushFee.toFixed(2);
+
+    document.getElementById("rushTotal").innerText =
+        "Total with Rush: $" + total.toFixed(2);
+}
+
+    
+/* ----------- RUG CALCULATOR ---------------*/
+
+function calculateRug() {
+    const length = parseFloat(document.getElementById("rugLength").value) || 0;
+    const width  = parseFloat(document.getElementById("rugWidth").value) || 0;
+    const unit   = document.getElementById("rugUnit").value;
+
+    let lengthFt = length;
+    let widthFt  = width;
+
+    // Convert to feet
+    if (unit === "in") {
+        lengthFt = length / 12;
+        widthFt  = width / 12;
+    } else if (unit === "cm") {
+        lengthFt = length / 30.48;
+        widthFt  = width / 30.48;
+    }
+
+    const areaSqFt = lengthFt * widthFt;
+    const price = areaSqFt * 5.99;
+
+    document.getElementById("rugArea").innerText =
+        "Area: " + areaSqFt.toFixed(2) + " sq ft";
+
+    document.getElementById("rugPrice").innerText =
+        "Price: $" + price.toFixed(2);
+}
+    
+/* ---------- DRESS HEM ESTIMATOR ---------- */
+function num(id) {
+    return parseFloat(document.getElementById(id).value) || 0;
+}
+
 function calculateHem() {
     const rows = [
         ["cut1", 6.25, "cut1Seq"],
@@ -894,72 +984,6 @@ function calculateHem() {
     document.getElementById("hemRushTotal").innerText =
         "Total with Rush: $" + (total + rushFee).toFixed(2);
 }
-    
-/* ----------- RUG CALCULATOR ---------------*/
-
-function calculateRug() {
-    const length = parseFloat(document.getElementById("rugLength").value) || 0;
-    const width  = parseFloat(document.getElementById("rugWidth").value) || 0;
-    const unit   = document.getElementById("rugUnit").value;
-
-    let lengthFt = length;
-    let widthFt  = width;
-
-    // Convert to feet
-    if (unit === "in") {
-        lengthFt = length / 12;
-        widthFt  = width / 12;
-    } else if (unit === "cm") {
-        lengthFt = length / 30.48;
-        widthFt  = width / 30.48;
-    }
-
-    const areaSqFt = lengthFt * widthFt;
-    const price = areaSqFt * 5.99;
-
-    document.getElementById("rugArea").innerText =
-        "Area: " + areaSqFt.toFixed(2) + " sq ft";
-
-    document.getElementById("rugPrice").innerText =
-        "Price: $" + price.toFixed(2);
-}
-    
-/* ---------- DRESS HEM ESTIMATOR ---------- */
-function num(id) {
-    return parseFloat(document.getElementById(id).value) || 0;
-}
-
-function calculateHem() {
-    const rows = [
-        ["cut1", 6.25, "cut1Seq"],
-        ["cut2", 6.25, "cut2Seq"],
-        ["reg1", 12.5, "reg1Seq"],
-        ["reg2", 12.5, "reg2Seq"],
-        ["horse1", 25, "horse1Seq"],
-        ["horse2", 25, "horse2Seq"]
-    ];
-
-    let total = 0;
-    let yards = 0;
-
-    rows.forEach(([qty, rate, seq]) => {
-        const y = num(qty);
-        yards += y;
-        total += y * rate;
-        if (document.getElementById(seq).checked) {
-            total += y * 5;
-        }
-    });
-
-    if (document.getElementById("glitterCheck").checked) {
-        total += 10;
-    }
-
-    document.getElementById("totalYards").innerText =
-        "Total Yards: " + yards.toFixed(2);
-    document.getElementById("hemTotal").innerText =
-        "Total: $" + total.toFixed(2);
-}
 
 /* ---------- REVIEW DATA ---------- */
 const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
@@ -987,6 +1011,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
