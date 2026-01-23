@@ -985,72 +985,71 @@ function calculateHem() {
         ["horse2", 25, "horse2Seq"]
     ];
 
-    let total = 0;
+    let subtotal = 0;
     let yards = 0;
 
     rows.forEach(([qty, rate, seq]) => {
         const y = parseFloat(document.getElementById(qty).value) || 0;
         yards += y;
-        total += y * rate;
-
+        subtotal += y * rate;
         if (document.getElementById(seq).checked) {
-            total += y * 5;
+            subtotal += y * 5;
         }
     });
+
+    if (document.getElementById("glitterCheck").checked) {
+        subtotal += 10;
+    }
+
+    let rushFee = 0;
+
+    if (document.getElementById("hemRushToggle").checked) {
+        const base = subtotal;
+        const dateVal = document.getElementById("hemRushDate").value;
+
+        if (!dateVal) {
+            alert("Please select a work date for rush.");
+            return;
+        }
+
+        const today = new Date();
+        today.setHours(0,0,0,0);
+
+        const work = new Date(dateVal);
+        work.setHours(0,0,0,0);
+
+        let days = Math.round((work - today) / 86400000);
+        if (days < 0) days = 0;
+
+        let percent =
+            days <= 1 ? 0.50 :
+            days === 2 ? 0.40 :
+            days === 3 ? 0.30 : 0.20;
+
+        /* ✅ $15 FLAT RULE */
+        rushFee = (base === 15) ? 5 : Math.round(base * percent * 100) / 100;
+    }
 
     document.getElementById("totalYards").innerText =
         "Total Yards: " + yards.toFixed(2);
 
-    document.getElementById("hemTotal").innerText =
-        "Total: $" + total.toFixed(2);
-
-    /* -------------------------
-       RUSH LOGIC (INTEGRATED)
-    ------------------------- */
-    const applyRush = document.getElementById("hemRushToggle").checked;
-    const rushBox = document.getElementById("hemRushOptions");
-
-    if (!applyRush) {
-        rushBox.style.display = "none";
-        return;
-    }
-
-    rushBox.style.display = "block";
-
-    const dateValue = document.getElementById("hemRushDate").value;
-    if (!dateValue) return;
-
-    const today = new Date();
-    today.setHours(0,0,0,0);
-
-    const workDate = new Date(dateValue);
-    workDate.setHours(0,0,0,0);
-
-    let diffDays = Math.round((workDate - today) / (1000*60*60*24));
-    if (diffDays < 0) diffDays = 0;
-
-    let rushPercent;
-    if (diffDays <= 1) rushPercent = 0.50;
-    else if (diffDays === 2) rushPercent = 0.40;
-    else if (diffDays === 3) rushPercent = 0.30;
-    else rushPercent = 0.20;
-
-    let rushFee;
-
-    /* ✅ $15 FLAT RUSH RULE */
-    if (total === 15) {
-        rushFee = 5;
-    } else {
-        rushFee = Math.round(total * rushPercent * 100) / 100;
-    }
+    document.getElementById("hemSubtotal").innerText =
+        "Subtotal: $" + subtotal.toFixed(2);
 
     document.getElementById("hemRushFee").innerText =
         "Rush Fee: $" + rushFee.toFixed(2);
 
-    document.getElementById("hemRushTotal").innerText =
-        "Total with Rush: $" + (total + rushFee).toFixed(2);
+    document.getElementById("hemFinalTotal").innerText =
+        "Total: $" + (subtotal + rushFee).toFixed(2);
 }
 
+function toggleRushDate() {
+    const wrap = document.getElementById("hemRushDateWrap");
+    wrap.style.display = document.getElementById("hemRushToggle").checked
+        ? "block"
+        : "none";
+}
+    
 /* ---------- REVIEW DATA ---------- */
 const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 
@@ -1077,18 +1076,3 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
