@@ -819,12 +819,15 @@ function calculateRush() {
         rushPercent = 0.20;
     }
 
-    let rushFee = base * rushPercent;
+let rushFee = base * rushPercent;
 
-    /* ✅ SPECIAL EXEMPTION RULE */
-    if (rushFee === 15) {
-        rushFee = 20;
-    }
+/* Normalize to cents FIRST */
+rushFee = Math.round(rushFee * 100) / 100;
+
+/* ✅ SPECIAL EXEMPTION RULE */
+if (rushFee === 15.00) {
+    rushFee = 20.00;
+}
 
     const total = base + rushFee;
 
@@ -933,6 +936,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
