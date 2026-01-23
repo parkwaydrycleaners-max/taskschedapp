@@ -641,7 +641,7 @@ button {
                         <div class="rating-title">Yelp Reviews</div>
                     </div>
                 
-                    <div class="rating-line">⭐ 4.4 (329 reviews)</div>
+                    <div class="rating-line">⭐ 4.6 (329 reviews)</div>
                     <div class="rating-line" style="font-size:0.75rem; color:#666;">
                         Last checked: Jan 2026
                     </div>
@@ -799,6 +799,7 @@ button {
         <div class="results-box">
             <div id="totalYards">Total Yards: 0.00</div>
             <div id="hemSubtotal">Subtotal: $0.00</div>
+            <div id="hemRushPercent">Rush %: —</div>
             <div id="hemRushFee">Rush Fee: $0.00</div>
             <div id="hemFinalTotal">Total: $0.00</div>
         </div>
@@ -1001,6 +1002,8 @@ function calculateHem() {
         subtotal += 10;
     }
 
+    document.getElementById("hemRushPercent").innerText = "Rush %: —";
+    
     let rushFee = 0;
 
     if (document.getElementById("hemRushToggle").checked) {
@@ -1025,9 +1028,15 @@ function calculateHem() {
             days <= 1 ? 0.50 :
             days === 2 ? 0.40 :
             days === 3 ? 0.30 : 0.20;
-
-        /* ✅ $15 FLAT RULE */
-        rushFee = (base === 15) ? 5 : Math.round(base * percent * 100) / 100;
+        
+        if (base === 15) {
+            rushFee = 5;
+            document.getElementById("hemRushPercent").innerText = "Rush %: Flat";
+        } else {
+            rushFee = Math.round(base * percent * 100) / 100;
+            document.getElementById("hemRushPercent").innerText =
+                "Rush %: " + Math.round(percent * 100) + "%";
+        }
     }
 
     document.getElementById("totalYards").innerText =
@@ -1076,3 +1085,4 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
