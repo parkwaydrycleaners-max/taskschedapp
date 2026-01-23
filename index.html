@@ -803,8 +803,6 @@ function calculateRush() {
     workDate.setHours(0,0,0,0);
 
     let diffDays = Math.round((workDate - today) / (1000 * 60 * 60 * 24));
-
-    /* Prevent negative confusion */
     if (diffDays < 0) diffDays = 0;
 
     let rushPercent = 0;
@@ -819,15 +817,14 @@ function calculateRush() {
         rushPercent = 0.20;
     }
 
-let rushFee = base * rushPercent;
+    let rushFee;
 
-/* Normalize to cents FIRST */
-rushFee = Math.round(rushFee * 100) / 100;
-
-/* ✅ SPECIAL EXEMPTION RULE */
-if (rushFee === 15.00) {
-    rushFee = 20.00;
-}
+    /* ✅ SPECIAL EXEMPTION RULE */
+    if (base === 15) {
+        rushFee = 20;
+    } else {
+        rushFee = Math.round(base * rushPercent * 100) / 100;
+    }
 
     const total = base + rushFee;
 
@@ -936,6 +933,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
