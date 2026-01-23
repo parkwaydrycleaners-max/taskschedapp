@@ -169,8 +169,15 @@ body {
 
 /* ===== RUSH FEE CALCULATOR UX ===== */
 
+.rush-box {
+    background: #f9f9f9;
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+  
 .rush-section {
-    margin-top: 12px;
+margin-top: 12px;
 }
 
 .rush-toggle {
@@ -178,9 +185,9 @@ body {
 }
     
 .rush-field {
-display: flex;
-flex-direction: column;
-margin-bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 14px;
 }
 
 .rush-field label {
@@ -202,6 +209,25 @@ margin-bottom: 14px;
 
 .rush-results div {
     margin: 6px 0;
+}
+
+.rush-toggle {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 8px;
+}
+.rush-options {
+    display: none;
+}
+.rush-fee {
+    margin-top: 6px;
+    font-weight: bold;
+}
+
+.final-total {
+    margin-top: 8px;
+    font-size: 1.15rem;
+    font-weight: bold;
 }
     
 /* ===============================
@@ -356,7 +382,19 @@ button {
 .close-btn {
     background: #ccc;
 }
-
+.summary-box {
+    margin: 12px 0;
+    text-align: center;
+    font-weight: bold;
+}
+.subtotal {
+    margin-top: 6px;
+    font-size: 1.05rem;
+}
+.primary-btn {
+    margin-top: 8px;
+    font-weight: bold;
+}
 /* ===============================
    FOOTER
 =============================== */
@@ -656,15 +694,17 @@ button {
     <div class="modal-box">
 
         <div class="modal-close-x" onclick="closeModal('hemModal')">✕</div>
+
         <h2>Dress Hem Estimator</h2>
 
+        <!-- COLUMN HEADERS -->
         <div class="calc-row calc-header">
             <div>Qty</div>
             <div>Service</div>
             <div class="seq-col">Sequins?</div>
         </div>
 
-        <!-- CUT -->
+        <!-- CUT HEMS -->
         <div class="calc-row">
             <input class="qty-input" id="cut1">
             <div>Cut Hem @ $6.25 / yd</div>
@@ -676,7 +716,7 @@ button {
             <div class="seq-col"><input type="checkbox" id="cut2Seq"></div>
         </div>
 
-        <!-- REGULAR -->
+        <!-- REGULAR HEMS -->
         <div class="calc-row">
             <input class="qty-input" id="reg1">
             <div>Regular Hem @ $12.50 / yd</div>
@@ -688,7 +728,7 @@ button {
             <div class="seq-col"><input type="checkbox" id="reg2Seq"></div>
         </div>
 
-        <!-- HORSEHAIR -->
+        <!-- HORSEHAIR HEMS -->
         <div class="calc-row">
             <input class="qty-input" id="horse1">
             <div>Horsehair Hem @ $25.00 / yd</div>
@@ -709,35 +749,46 @@ button {
             <div class="seq-col"><input type="checkbox" id="glitterCheck"></div>
         </div>
 
-        <div class="total" id="totalYards">Total Yards: 0.00</div>
+        <!-- BASE TOTALS -->
+        <div class="summary-box">
+            <div id="totalYards">Total Yards: 0.00</div>
+            <div class="subtotal">
+                Subtotal: <span id="hemTotal">$0.00</span>
+            </div>
+        </div>
 
-        <button onclick="calculateHem()">Calculate</button>
-        <div class="total" id="hemTotal">Total: $0.00</div>
+        <button class="primary-btn" onclick="calculateHem()">Calculate</button>
 
         <hr>
-        
+
         <!-- RUSH SECTION -->
-        <div class="rush-section">
-        
+        <div class="rush-box">
+
             <label class="rush-toggle">
                 <input type="checkbox" id="hemRushToggle">
                 Apply Rush Fee (Over Capacity)
             </label>
-        
-            <div id="hemRushOptions" style="display:none;">
-        
+
+            <div id="hemRushOptions" class="rush-options">
+
                 <div class="rush-field">
                     <label>Work Date</label>
                     <input type="date" id="hemRushDate">
                 </div>
-        
-                <div class="total" id="hemRushFee">Rush Fee: $0.00</div>
-                <div class="total" id="hemRushTotal">Total with Rush: $0.00</div>
-        
+
+                <div class="rush-fee" id="hemRushFee">
+                    Rush Fee: $0.00
+                </div>
+
+                <div class="final-total" id="hemRushTotal">
+                    Total with Rush: $0.00
+                </div>
+
             </div>
         </div>
-        
+
         <button class="close-btn" onclick="closeModal('hemModal')">Close</button>
+
     </div>
 </div>
 
@@ -1010,6 +1061,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
