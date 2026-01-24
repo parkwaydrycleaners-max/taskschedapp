@@ -627,6 +627,15 @@ button {
                     </svg>
                     Capacity-Based ALT Rush Calculator
                 </div>
+
+                <!-- Wedding Dress Clean Estimator -->
+                <div class="tile" onclick="openModal('weddingModal')">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 2l4 6h-8l4-6z"/>
+                        <path d="M8 8l-3 12h14l-3-12"/>
+                    </svg>
+                    Wedding Dress Clean
+                </div>
                 
                 <!-- Yelp Reviews (Manual Snapshot) -->
                 <div class="tile rating-tile"
@@ -713,6 +722,62 @@ button {
 
         <button onclick="calculateRush()">Calculate</button>
         <button class="close-btn" onclick="closeModal('rushModal')">Close</button>
+
+    </div>
+</div>
+
+<!-- =========================
+     WEDDING DRESS CLEAN MODAL
+========================= -->
+<div id="weddingModal" class="modal-overlay">
+    <div class="modal-box">
+
+        <div class="modal-close-x" onclick="closeModal('weddingModal')">✕</div>
+        <h2>Wedding Dress Cleaning Estimate</h2>
+
+        <!-- DRESS SIZE -->
+        <div class="estimator-section">
+            <strong>Dress Size</strong>
+            <label><input type="radio" name="dressSize" value="120" checked> Simple / Sheath</label>
+            <label><input type="radio" name="dressSize" value="160"> Medium / A‑line</label>
+            <label><input type="radio" name="dressSize" value="220"> Full / Ball Gown</label>
+            <label><input type="radio" name="dressSize" value="280"> Extra Full</label>
+        </div>
+
+        <!-- TRAIN -->
+        <div class="estimator-section">
+            <strong>Train Length</strong>
+            <label><input type="radio" name="train" value="0" checked> None</label>
+            <label><input type="radio" name="train" value="30"> Short (Chapel)</label>
+            <label><input type="radio" name="train" value="60"> Long (Cathedral)</label>
+        </div>
+
+        <!-- DETAILS -->
+        <div class="estimator-section">
+            <strong>Details</strong>
+            <label><input type="checkbox" class="wedding-addon" value="40"> Heavy lace</label>
+            <label><input type="checkbox" class="wedding-addon" value="50"> Beading / Sequins</label>
+            <label><input type="checkbox" class="wedding-addon" value="30"> Multiple layers</label>
+            <label><input type="checkbox" class="wedding-addon" value="40"> Heavy staining</label>
+        </div>
+
+        <!-- OPTIONAL -->
+        <div class="estimator-section">
+            <strong>Optional Services</strong>
+            <label><input type="checkbox" class="wedding-addon" value="75"> Preservation boxing</label>
+            <label><input type="checkbox" class="wedding-addon" value="40"> Pressing / steaming</label>
+        </div>
+
+        <!-- TOTAL -->
+        <div class="results-box">
+            <div id="weddingTotal">Estimated Total: $0.00</div>
+            <div class="estimate-note">
+                Estimate only. Final price confirmed after inspection.
+            </div>
+        </div>
+
+        <button class="primary-btn" onclick="calculateWedding()">Calculate</button>
+        <button class="close-btn" onclick="closeModal('weddingModal')">Close</button>
 
     </div>
 </div>
@@ -971,7 +1036,27 @@ function calculateRug() {
         "Price: $" + price.toFixed(2);
 }
     
-/* ---------- DRESS HEM ESTIMATOR ---------- */
+/* ---------- WEDDING DRESS CLEAN ESTIMATOR ---------- */
+
+function calculateWedding() {
+    let total = 0;
+
+    const size = document.querySelector('input[name="dressSize"]:checked');
+    const train = document.querySelector('input[name="train"]:checked');
+    const addons = document.querySelectorAll('.wedding-addon:checked');
+
+    if (size) total += parseFloat(size.value);
+    if (train) total += parseFloat(train.value);
+
+    addons.forEach(a => {
+        total += parseFloat(a.value);
+    });
+
+    document.getElementById("weddingTotal").innerText =
+        "Estimated Total: $" + total.toFixed(2);
+}
+    
+/* ---------- DRESS HEM ESTIMATOR ---------- */    
 function num(id) {
     return parseFloat(document.getElementById(id).value) || 0;
 }
@@ -1085,4 +1170,5 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
