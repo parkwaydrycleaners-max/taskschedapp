@@ -108,6 +108,45 @@ body {
     margin: 0 auto;      /* center within available space */
 }
 
+/* ===== DRESS SIZE VISUAL GRID ===== */
+
+.dress-size-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.dress-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+}
+
+.dress-option img {
+    width: 60px;
+    height: auto;
+    margin-bottom: 6px;
+}
+
+.dress-option span {
+    font-size: 0.85rem;
+}
+
+.dress-option input {
+    margin-bottom: 4px;
+}
+
+/* Selected state */
+.dress-option input:checked + img,
+.dress-option input:checked ~ span {
+    font-weight: bold;
+}
+    
 /* ===== RUG CLEAN ESTIMATOR LAYOUT ===== */
 
 .rug-dimensions {
@@ -779,12 +818,34 @@ button {
 
 <!-- DRESS SIZE -->
 <div class="estimator-section">
-    <div class="section-title">Dress Size</div>
-    <div class="option-group">
-        <label><input type="radio" name="dressSize" value="120" checked> Simple / Sheath</label>
-        <label><input type="radio" name="dressSize" value="160"> Medium / A‑line</label>
-        <label><input type="radio" name="dressSize" value="220"> Full / Ball Gown</label>
-        <label><input type="radio" name="dressSize" value="280"> Extra Full</label>
+    <div class="section-title">Dress Size (Visual)</div>
+
+    <div class="dress-size-grid">
+
+        <label class="dress-option">
+            <input type="radio" name="dressSize" value="120" checked>
+            <img src="images/wedding-simple.png" alt="Simple / Sheath dress">
+            <span>Simple / Sheath</span>
+        </label>
+
+        <label class="dress-option">
+            <input type="radio" name="dressSize" value="160">
+            <img src="images/wedding-medium.png" alt="Medium / A-line dress">
+            <span>Medium / A‑line</span>
+        </label>
+
+        <label class="dress-option">
+            <input type="radio" name="dressSize" value="220">
+            <img src="images/wedding-full.png" alt="Full / Ball gown">
+            <span>Full / Ball Gown</span>
+        </label>
+
+        <label class="dress-option">
+            <input type="radio" name="dressSize" value="280">
+            <img src="images/wedding-extra-full.png" alt="Extra full gown">
+            <span>Extra Full</span>
+        </label>
+
     </div>
 </div>
 
@@ -1220,6 +1281,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
