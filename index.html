@@ -110,6 +110,38 @@ body {
 
 /* ===== DRESS SIZE VISUAL GRID ===== */
 
+/* ===== WEDDING DRESS TYPE IMAGE + OPTIONS ===== */
+
+.dress-type-image {
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.dress-type-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+}
+
+.dress-type-options {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.dress-type-options label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+}
+
+.dress-type-options input {
+    margin-bottom: 4px;
+}
+    
 .dress-size-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -816,39 +848,43 @@ button {
 
 <h2>Wedding Dress Cleaning Estimate</h2>
 
-<!-- DRESS SIZE -->
+<!-- DRESS TYPE REFERENCE IMAGE -->
+<div class="dress-type-image">
+    <img src="images/wedding-dress-types.png"
+         alt="Wedding dress types reference">
+</div>
+        
+<!-- DRESS TYPE SELECTION -->
 <div class="estimator-section">
-    <div class="section-title">Dress Size (Visual)</div>
+    <div class="section-title">Dress Type</div>
 
-    <div class="dress-size-grid">
-
-        <label class="dress-option">
-            <input type="radio" name="dressSize" value="65" checked>
-            <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/images/wedding-simple.svg" alt="Simple / Sheath dress">
-            <span>Simple / Sheath</span>
+    <div class="dress-type-options">
+        <label>
+            <input type="radio" name="dressSize" value="160" checked>
+            A‑Line
         </label>
 
-        <label class="dress-option">
-            <input type="radio" name="dressSize" value="85">
-            <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/images/wedding-medium.svg" alt="Medium / A-line dress">
-            <span>Medium / A‑line</span>
+        <label>
+            <input type="radio" name="dressSize" value="220">
+            Mermaid
         </label>
 
-        <label class="dress-option">
+        <label>
+            <input type="radio" name="dressSize" value="160">
+            Empire
+        </label>
+
+        <label>
+            <input type="radio" name="dressSize" value="280">
+            Ball Gown
+        </label>
+
+        <label>
             <input type="radio" name="dressSize" value="120">
-            <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/images/wedding-full.svg" alt="Full / Ball gown">
-            <span>Full / Ball Gown</span>
+            Sheath
         </label>
-
-        <label class="dress-option">
-            <input type="radio" name="dressSize" value="150">
-            <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/images/wedding-extra-full.svg" alt="Extra full gown">
-            <span>Extra Full</span>
-        </label>
-
     </div>
 </div>
-
 <!-- TRAIN -->
 <div class="estimator-section">
     <div class="section-title">Train Length</div>
@@ -1280,6 +1316,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
