@@ -259,6 +259,47 @@ margin-top: 12px;
     font-size: 1.15rem;
     font-weight: bold;
 }
+
+/* ===== WEDDING ESTIMATOR VISUAL FIX ===== */
+
+.estimator-section {
+    margin-bottom: 14px;
+}
+
+.section-title {
+    font-weight: bold;
+    margin-bottom: 6px;
+}
+
+.option-group label {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+}
+
+.results-box {
+    margin: 16px 0;
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.final-total {
+    font-size: 1.15rem;
+    font-weight: bold;
+}
+
+.estimate-note {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 4px;
+}
     
 /* ===============================
    TILE GRID (RIGHT)
@@ -733,53 +774,62 @@ button {
     <div class="modal-box">
 
         <div class="modal-close-x" onclick="closeModal('weddingModal')">✕</div>
-        <h2>Wedding Dress Cleaning Estimate</h2>
 
-        <!-- DRESS SIZE -->
-        <div class="estimator-section">
-            <strong>Dress Size</strong>
-            <label><input type="radio" name="dressSize" value="80" checked> Simple / Sheath</label>
-            <label><input type="radio" name="dressSize" value="120"> Medium / A‑line</label>
-            <label><input type="radio" name="dressSize" value="150"> Full / Ball Gown</label>
-            <label><input type="radio" name="dressSize" value="200"> Extra Full</label>
-        </div>
+<h2>Wedding Dress Cleaning Estimate</h2>
 
-        <!-- TRAIN -->
-        <div class="estimator-section">
-            <strong>Train Length</strong>
-            <label><input type="radio" name="train" value="0" checked> None</label>
-            <label><input type="radio" name="train" value="25"> Short (Chapel)</label>
-            <label><input type="radio" name="train" value="40"> Long (Cathedral)</label>
-        </div>
-
-        <!-- DETAILS -->
-        <div class="estimator-section">
-            <strong>Details</strong>
-            <label><input type="checkbox" class="wedding-addon" value="40"> Heavy lace</label>
-            <label><input type="checkbox" class="wedding-addon" value="50"> Beading / Sequins</label>
-            <label><input type="checkbox" class="wedding-addon" value="30"> Multiple layers</label>
-            <label><input type="checkbox" class="wedding-addon" value="40"> Heavy staining</label>
-        </div>
-
-        <!-- OPTIONAL -->
-        <div class="estimator-section">
-            <strong>Optional Services</strong>
-            <label><input type="checkbox" class="wedding-addon" value="75"> Preservation boxing</label>
-            <label><input type="checkbox" class="wedding-addon" value="40"> Pressing / steaming</label>
-        </div>
-
-        <!-- TOTAL -->
-        <div class="results-box">
-            <div id="weddingTotal">Estimated Total: $0.00</div>
-            <div class="estimate-note">
-                Estimate only. Final price confirmed after inspection.
-            </div>
-        </div>
-
-        <button class="primary-btn" onclick="calculateWedding()">Calculate</button>
-        <button class="close-btn" onclick="closeModal('weddingModal')">Close</button>
-
+<!-- DRESS SIZE -->
+<div class="estimator-section">
+    <div class="section-title">Dress Size</div>
+    <div class="option-group">
+        <label><input type="radio" name="dressSize" value="120" checked> Simple / Sheath</label>
+        <label><input type="radio" name="dressSize" value="160"> Medium / A‑line</label>
+        <label><input type="radio" name="dressSize" value="220"> Full / Ball Gown</label>
+        <label><input type="radio" name="dressSize" value="280"> Extra Full</label>
     </div>
+</div>
+
+<!-- TRAIN -->
+<div class="estimator-section">
+    <div class="section-title">Train Length</div>
+    <div class="option-group">
+        <label><input type="radio" name="train" value="0" checked> None</label>
+        <label><input type="radio" name="train" value="30"> Short (Chapel)</label>
+        <label><input type="radio" name="train" value="60"> Long (Cathedral)</label>
+    </div>
+</div>
+
+<!-- DETAILS -->
+<div class="estimator-section">
+    <div class="section-title">Details</div>
+    <div class="checkbox-grid">
+        <label><input type="checkbox" class="wedding-addon" value="40"> Heavy lace</label>
+        <label><input type="checkbox" class="wedding-addon" value="50"> Beading / Sequins</label>
+        <label><input type="checkbox" class="wedding-addon" value="30"> Multiple layers</label>
+        <label><input type="checkbox" class="wedding-addon" value="40"> Heavy staining</label>
+    </div>
+</div>
+
+<!-- OPTIONAL -->
+<div class="estimator-section">
+    <div class="section-title">Optional Services</div>
+    <div class="checkbox-grid">
+        <label><input type="checkbox" class="wedding-addon" value="75"> Preservation boxing</label>
+        <label><input type="checkbox" class="wedding-addon" value="40"> Pressing / steaming</label>
+    </div>
+</div>
+
+<!-- TOTAL -->
+<div class="results-box">
+    <div id="weddingTotal" class="final-total">
+        Estimated Total: $0.00
+    </div>
+    <div class="estimate-note">
+        Estimate only. Final price confirmed after inspection.
+    </div>
+</div>
+
+<button class="primary-btn" onclick="calculateWedding()">Calculate</button>
+<button class="close-btn" onclick="closeModal('weddingModal')">Close</button>
 </div>
     
 <!-- =========================
@@ -1170,6 +1220,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
