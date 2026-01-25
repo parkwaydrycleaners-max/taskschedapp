@@ -927,6 +927,7 @@ button {
 <button class="primary-btn" onclick="calculateWedding()">Calculate</button>
 <button class="close-btn" onclick="closeModal('weddingModal')">Close</button>
 </div>
+</div>
     
 <!-- =========================
      DRESS HEM ESTIMATOR MODAL
@@ -1201,6 +1202,7 @@ function calculateWedding() {
     document.getElementById("weddingTotal").innerText =
         "Estimated Total: $" + total.toFixed(2);
 }
+
     
 /* ---------- DRESS HEM ESTIMATOR ---------- */    
 function num(id) {
@@ -1316,6 +1318,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
