@@ -670,15 +670,6 @@ button {
                     Bookkeeping (Wave)
                 </div>
 
-                <!-- Gmail Inbox -->
-                <div class="tile" onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="2" y="4" width="20" height="16" rx="2"/>
-                        <path d="M22 6l-10 7L2 6"/>
-                    </svg>
-                    Gmail Inbox
-                </div>
-
                 <!-- WhatsApp -->
                 <div class="tile" onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
                     <svg viewBox="0 0 24 24">
@@ -747,6 +738,15 @@ button {
                         <path d="M9 6h6M9 10h6M9 14h4"/>
                     </svg>
                     Missed Calls Logs
+                </div>
+
+                <!-- Gmail Inbox -->
+                <div class="tile" onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
+                    <svg viewBox="0 0 24 24">
+                        <rect x="2" y="4" width="20" height="16" rx="2"/>
+                        <path d="M22 6l-10 7L2 6"/>
+                    </svg>
+                    Gmail Inbox
                 </div>
                 
                 <!-- Yelp Messages (Manual Snapshot) -->
@@ -1322,6 +1322,7 @@ fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
 
 </body>
 </html>
+
 
 
 
