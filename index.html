@@ -210,6 +210,12 @@ body {
     cursor: pointer;
 }
 
+.dress-type-image img {
+    max-height: 260px;      /* prevents scroll takeover */
+    object-fit: contain;
+}
+
+    
 /* ==================================================
    SHARED FORM ELEMENTS
 ================================================== */
@@ -576,7 +582,7 @@ button {
      WEDDING DRESS CLEAN MODAL
 =============================== -->
 <div id="weddingModal" class="modal-overlay">
-    <div class="modal-box">
+    <div class="modal-box wide">
 
         <div class="modal-close-x" onclick="closeModal('weddingModal')">✕</div>
         <h2>Wedding Dress Cleaning Estimate</h2>
@@ -846,3 +852,4 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
