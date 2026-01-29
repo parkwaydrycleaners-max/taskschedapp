@@ -886,19 +886,26 @@ button {
             <img src="images/wedding-dress-types.png" alt="Wedding dress types">
         </div>
 
-        <div class="estimator-section">
-            <div class="section-title">Dress Type</div>
-            <div class="dress-type-options">
-                <label><input type="radio" name="dressSize" value="100" checked> A‑Line</label>
-                <label><input type="radio" name="dressSize" value="85"> Mermaid</label>
-                <label><input type="radio" name="dressSize" value="85"> Empire</label>
-                <label><input type="radio" name="dressSize" value="125"> Ball Gown</label>
-                <label><input type="radio" name="dressSize" value="60"> Sheath</label>
-            </div>
-        </div>
+<div class="estimator-section">
+    <div class="section-title">Train Length</div>
+    <div class="option-group">
+        <label>
+            <input type="checkbox" class="train-option" value="25">
+            Short (Chapel)
+        </label>
+        <label>
+            <input type="checkbox" class="train-option" value="50">
+            Long (Cathedral)
+        </label>
+        <label>
+            <input type="checkbox" class="train-option" value="40">
+            Detachable Skirt
+        </label>
+    </div>
+</div>
 
         <div class="estimator-section">
-            <div class="section-title">Train Length</div>
+            <div class="section-title">Train Length: (select all that apply)</div>
             <div class="option-group">
                 <label><input type="checkbox" name="train" value="0" checked> None</label>
                 <label><input type="checkbox" name="train" value="25"> Short (Chapel)</label>
@@ -1069,14 +1076,21 @@ function calculateRug() {
 function calculateWedding() {
     let total = 0;
 
+    // Dress type (still radio)
     const size = document.querySelector('input[name="dressSize"]:checked');
-    const train = document.querySelector('input[name="train"]:checked');
-    const addons = document.querySelectorAll('.wedding-addon:checked');
-
     if (size) total += parseFloat(size.value);
-    if (train) total += parseFloat(train.value);
 
-    addons.forEach(a => total += parseFloat(a.value));
+    // Train lengths (NOW MULTIPLE)
+    const trains = document.querySelectorAll('.train-option:checked');
+    trains.forEach(t => {
+        total += parseFloat(t.value);
+    });
+
+    // Details + Optional Services
+    const addons = document.querySelectorAll('.wedding-addon:checked');
+    addons.forEach(a => {
+        total += parseFloat(a.value);
+    });
 
     document.getElementById("weddingTotal").innerText =
         "Estimated Total: $" + total.toFixed(2);
@@ -1184,6 +1198,7 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
 
 
 
