@@ -3467,34 +3467,67 @@
             return newRecord.records[0];
         }
 
+        // Flag to prevent race condition when creating daily record
+        let isCreatingDailyRecord = false;
+
         // Find or create the daily record (stores completion status for today)
         async function findOrCreateDailyRecord() {
             const todayRecordId = getRecordId();
             const result = await airtableRequest('GET', `?filterByFormula={RecordID}="${todayRecordId}"`);
 
             if (result.records && result.records.length > 0) {
-                dailyRecordId = result.records[0].id;
-                airtableRecordId = result.records[0].id;
-                return result.records[0];
+                // If multiple duplicates exist, use the one with most recent data
+                let bestRecord = result.records[0];
+                if (result.records.length > 1) {
+                    console.log(`Found ${result.records.length} duplicate records for ${todayRecordId}, using most recent`);
+                    bestRecord = result.records.reduce((a, b) =>
+                        (a.fields.LastModified || 0) > (b.fields.LastModified || 0) ? a : b
+                    );
+                }
+                dailyRecordId = bestRecord.id;
+                airtableRecordId = bestRecord.id;
+                return bestRecord;
             }
 
-            // Create new daily record
-            const newRecord = await airtableRequest('POST', '', {
-                records: [{
-                    fields: {
-                        RecordID: todayRecordId,
-                        Data: JSON.stringify({
-                            completed: {},
-                            date: new Date().toDateString()
-                        }),
-                        LastModified: Date.now()
-                    }
-                }]
-            });
+            // Prevent race condition - if already creating, wait and retry
+            if (isCreatingDailyRecord) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                return await findOrCreateDailyRecord();
+            }
 
-            dailyRecordId = newRecord.records[0].id;
-            airtableRecordId = newRecord.records[0].id;
-            return newRecord.records[0];
+            isCreatingDailyRecord = true;
+
+            try {
+                // Double-check before creating (another request might have created it)
+                const recheck = await airtableRequest('GET', `?filterByFormula={RecordID}="${todayRecordId}"`);
+                if (recheck.records && recheck.records.length > 0) {
+                    dailyRecordId = recheck.records[0].id;
+                    airtableRecordId = recheck.records[0].id;
+                    return recheck.records[0];
+                }
+
+                // Create new daily record
+                const newRecord = await airtableRequest('POST', '', {
+                    records: [{
+                        fields: {
+                            RecordID: todayRecordId,
+                            Data: JSON.stringify({
+                                completed: {},
+                                completedSubtasks: {},
+                                todayOnlyTasks: null,
+                                date: new Date().toDateString()
+                            }),
+                            LastModified: Date.now()
+                        }
+                    }]
+                });
+
+                dailyRecordId = newRecord.records[0].id;
+                airtableRecordId = newRecord.records[0].id;
+                return newRecord.records[0];
+            } finally {
+                isCreatingDailyRecord = false;
+            }
         }
 
         // Legacy support - find or create record (now handles both)
