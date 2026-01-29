@@ -267,12 +267,10 @@ button {
 }
 
 /* ==================================================
-   🔒 CALCULATOR MODALS — DO NOT MODIFY
-   Locks layout to original, readable behavior
-   Applies to ALL calculator modals
+   ✅ ORIGINAL CALCULATOR DESIGN — DO NOT MODIFY
+   Restores plain, readable layout exactly as designed
 ================================================== */
 
-/* Target ALL calculator modals explicitly */
 #hemModal,
 #rugModal,
 #rushModal,
@@ -280,71 +278,56 @@ button {
     font-size: 0.9rem;
 }
 
-/* RESET layout leakage inside modals */
+/* Ensure natural flow */
 #hemModal *,
 #rugModal *,
 #rushModal *,
 #weddingModal * {
-    box-sizing: border-box;
-}
-
-/* Disable grid/flex layouts inside calculators */
-#hemModal .calc-row,
-#rugModal .rug-dimensions,
-#rushModal .rush-field,
-#weddingModal .dress-type-options,
-#weddingModal .checkbox-grid {
     display: block;
 }
 
-/* Restore label + input readability */
+/* Inputs full width by default */
+#hemModal input,
+#rugModal input,
+#rushModal input,
+#weddingModal input,
+#rugModal select {
+    width: 100%;
+    margin-bottom: 6px;
+}
+
+/* Checkboxes & radios inline like original */
+#hemModal input[type="checkbox"],
+#hemModal input[type="radio"],
+#rugModal input[type="checkbox"],
+#rushModal input[type="checkbox"],
+#weddingModal input[type="checkbox"],
+#weddingModal input[type="radio"] {
+    width: auto;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+/* Labels behave naturally */
 #hemModal label,
 #rugModal label,
 #rushModal label,
 #weddingModal label {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+    display: inline-block;
     margin-bottom: 4px;
-    margin-right: 10px;
-    font-size: 0.85rem;
+    cursor: pointer;
 }
 
-/* Section titles: readable, not centered */
-#hemModal .section-title,
-#rugModal .section-title,
-#rushModal .section-title,
-#weddingModal .section-title {
-    text-align: left;
-    font-weight: bold;
-    margin-bottom: 4px;
-}
-
-/* Restore spacing between sections */
-#hemModal .results-box,
-#rugModal .rug-results,
-#rushModal .results-box,
-#weddingModal .results-box {
+/* Section spacing */
+#hemModal hr {
     margin: 12px 0;
-    padding: 10px;
 }
 
-/* Lock image behavior (wedding only, original behavior) */
-#weddingModal .dress-type-image img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 6px;
-}
-
-/* Buttons always full width and separated */
-#hemModal button,
-#rugModal button,
-#rushModal button,
-#weddingModal button {
-    width: 100%;
-    margin-top: 10px;
-}
-    
+#weddingModal .results-box,
+#hemModal .results-box,
+#rushModal .results-box {
+    margin-top: 12px;
+}    
 </style>
 </head>
 <body>
@@ -582,14 +565,11 @@ button {
     </main>
 
 </div>
-<!--
-====================================================
-⚠️  DO NOT MODIFY STYLES FOR CALCULATOR MODALS
-These modals rely on explicit CSS isolation to
-preserve readable layout.
-Changing generic grid/flex styles WILL break them.
-====================================================
--->
+/* ⚠️ WARNING:
+   Calculator modals intentionally use plain HTML flow.
+   DO NOT add grid/flex/centered layout rules here.
+   Doing so WILL break the calculators.
+*/
 <!-- ===============================
      DRESS HEM ESTIMATOR MODAL
 =============================== -->
@@ -1044,6 +1024,7 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
 
 
 
