@@ -1069,6 +1069,30 @@
             background: var(--bg-card);
             border-radius: 8px;
             border: 1px solid var(--border-color);
+            transition: all 0.15s;
+            user-select: none;
+        }
+
+        .subtask-item-edit.dragging {
+            opacity: 0.4;
+            background: var(--bg-primary);
+        }
+
+        .subtask-item-edit.drag-over {
+            border-color: var(--accent-opening);
+            transform: translateY(2px);
+        }
+
+        .subtask-item-edit .drag-handle {
+            color: var(--text-muted);
+            font-size: 11px;
+            cursor: grab;
+            padding: 4px 2px;
+            touch-action: none;
+        }
+
+        .subtask-item-edit .drag-handle:active {
+            cursor: grabbing;
         }
 
         .subtask-item-edit span {
@@ -2812,9 +2836,12 @@
         const subtaskInput = document.getElementById('subtaskInput');
         const subtaskAddBtn = document.getElementById('subtaskAddBtn');
 
+        let draggedSubtaskIndex = null;
+
         function renderSubtasksList() {
             subtasksList.innerHTML = currentSubtasks.map((subtask, index) => `
-                <div class="subtask-item-edit" data-index="${index}">
+                <div class="subtask-item-edit" data-index="${index}" draggable="true">
+                    <i class="fas fa-grip-vertical drag-handle"></i>
                     <span>${escapeHtml(subtask.text)}</span>
                     <button type="button" class="subtask-remove" data-index="${index}">
                         <i class="fas fa-times"></i>
@@ -2829,6 +2856,107 @@
                     const index = parseInt(btn.dataset.index);
                     currentSubtasks.splice(index, 1);
                     renderSubtasksList();
+                });
+            });
+
+            // Attach drag-and-drop listeners
+            subtasksList.querySelectorAll('.subtask-item-edit').forEach(item => {
+                item.addEventListener('dragstart', (e) => {
+                    draggedSubtaskIndex = parseInt(item.dataset.index);
+                    item.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+
+                item.addEventListener('dragend', () => {
+                    item.classList.remove('dragging');
+                    subtasksList.querySelectorAll('.subtask-item-edit').forEach(el => {
+                        el.classList.remove('drag-over');
+                    });
+                    draggedSubtaskIndex = null;
+                });
+
+                item.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    const targetIndex = parseInt(item.dataset.index);
+                    if (draggedSubtaskIndex !== null && draggedSubtaskIndex !== targetIndex) {
+                        item.classList.add('drag-over');
+                    }
+                });
+
+                item.addEventListener('dragleave', () => {
+                    item.classList.remove('drag-over');
+                });
+
+                item.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    item.classList.remove('drag-over');
+                    const targetIndex = parseInt(item.dataset.index);
+
+                    if (draggedSubtaskIndex !== null && draggedSubtaskIndex !== targetIndex) {
+                        // Reorder the array
+                        const draggedItem = currentSubtasks[draggedSubtaskIndex];
+                        currentSubtasks.splice(draggedSubtaskIndex, 1);
+                        currentSubtasks.splice(targetIndex, 0, draggedItem);
+                        renderSubtasksList();
+                    }
+                    draggedSubtaskIndex = null;
+                });
+
+                // Touch support for mobile
+                let touchStartY = 0;
+                let touchedItem = null;
+
+                item.addEventListener('touchstart', (e) => {
+                    touchStartY = e.touches[0].clientY;
+                    touchedItem = item;
+                    draggedSubtaskIndex = parseInt(item.dataset.index);
+                    setTimeout(() => {
+                        if (touchedItem) {
+                            touchedItem.classList.add('dragging');
+                        }
+                    }, 150);
+                }, { passive: true });
+
+                item.addEventListener('touchmove', (e) => {
+                    if (draggedSubtaskIndex === null) return;
+
+                    const touch = e.touches[0];
+                    const elementsAtPoint = document.elementsFromPoint(touch.clientX, touch.clientY);
+                    const targetItem = elementsAtPoint.find(el => el.classList.contains('subtask-item-edit') && el !== item);
+
+                    subtasksList.querySelectorAll('.subtask-item-edit').forEach(el => {
+                        el.classList.remove('drag-over');
+                    });
+
+                    if (targetItem) {
+                        targetItem.classList.add('drag-over');
+                    }
+                }, { passive: true });
+
+                item.addEventListener('touchend', (e) => {
+                    if (draggedSubtaskIndex === null) return;
+
+                    item.classList.remove('dragging');
+                    const touch = e.changedTouches[0];
+                    const elementsAtPoint = document.elementsFromPoint(touch.clientX, touch.clientY);
+                    const targetItem = elementsAtPoint.find(el => el.classList.contains('subtask-item-edit') && el !== item);
+
+                    if (targetItem) {
+                        const targetIndex = parseInt(targetItem.dataset.index);
+                        if (draggedSubtaskIndex !== targetIndex) {
+                            const draggedItem = currentSubtasks[draggedSubtaskIndex];
+                            currentSubtasks.splice(draggedSubtaskIndex, 1);
+                            currentSubtasks.splice(targetIndex, 0, draggedItem);
+                            renderSubtasksList();
+                        }
+                    }
+
+                    subtasksList.querySelectorAll('.subtask-item-edit').forEach(el => {
+                        el.classList.remove('drag-over');
+                    });
+                    draggedSubtaskIndex = null;
+                    touchedItem = null;
                 });
             });
         }
