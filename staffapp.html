@@ -1041,6 +1041,60 @@
             font-style: italic;
         }
 
+        /* Divider Task Styling */
+        .checklist-item.divider {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 8px 16px;
+            min-height: auto;
+        }
+
+        .checklist-item.divider .checkbox-wrapper {
+            display: none;
+        }
+
+        .checklist-item.divider .item-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: default;
+        }
+
+        .checklist-item.divider .item-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .checklist-item.divider .item-description {
+            display: none;
+        }
+
+        .checklist-item.divider .item-timestamp {
+            display: none;
+        }
+
+        .checklist-item.divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        body.edit-mode .checklist-item.divider {
+            background: var(--bg-card);
+            border: 1px dashed var(--border-color);
+            border-radius: 12px;
+        }
+
+        body.edit-mode .checklist-item.divider::after {
+            display: none;
+        }
+
         /* Subtasks in Modal */
         .subtasks-container {
             background: var(--bg-primary);
@@ -2021,7 +2075,11 @@
                 </button>
                 <button type="button" class="task-style-btn" data-style="placeholder">
                     <i class="fas fa-sticky-note"></i>
-                    <span>Note/Placeholder</span>
+                    <span>Note</span>
+                </button>
+                <button type="button" class="task-style-btn" data-style="divider">
+                    <i class="fas fa-minus"></i>
+                    <span>Divider</span>
                 </button>
             </div>
 
@@ -2432,12 +2490,13 @@
         // Create checklist item HTML
         function createItem(item) {
             const isPlaceholder = item.isPlaceholder;
-            const checked = !isPlaceholder && state.completed[item.id];
+            const isDivider = item.isDivider;
+            const checked = !isPlaceholder && !isDivider && state.completed[item.id];
             const timestamp = checked ? checked.time : '';
             const todayBadge = item.todayOnly ? '<span class="item-badge today-only">Today Only</span>' : '';
             const taskColor = getTaskColor(item.color);
-            const colorStyle = taskColor ? `style="background-color: ${taskColor};"` : '';
-            const placeholderClass = isPlaceholder ? 'placeholder' : '';
+            const colorStyle = (taskColor && !isDivider) ? `style="background-color: ${taskColor};"` : '';
+            const styleClass = isDivider ? 'divider' : (isPlaceholder ? 'placeholder' : '');
 
             // Render subtasks if any
             let subtasksHtml = '';
@@ -2466,15 +2525,15 @@
             }
 
             return `
-                <div class="checklist-item ${checked ? 'checked' : ''} ${placeholderClass}" data-id="${item.id}" ${colorStyle}>
+                <div class="checklist-item ${checked ? 'checked' : ''} ${styleClass}" data-id="${item.id}" ${colorStyle}>
                     <div class="checkbox-wrapper">
                         <i class="fas fa-check"></i>
                     </div>
                     <div class="item-content">
-                        <div class="item-title">${escapeHtml(item.title)}${todayBadge}</div>
-                        <div class="item-description">${escapeHtml(item.desc)}</div>
-                        ${subtasksHtml}
-                        ${!isPlaceholder ? `<div class="item-timestamp">
+                        <div class="item-title">${escapeHtml(item.title)}${isDivider ? '' : todayBadge}</div>
+                        <div class="item-description">${escapeHtml(item.desc || '')}</div>
+                        ${!isDivider ? subtasksHtml : ''}
+                        ${(!isPlaceholder && !isDivider) ? `<div class="item-timestamp">
                             <i class="fas fa-clock"></i>
                             ${timestamp}
                         </div>` : ''}
@@ -2566,8 +2625,8 @@
 
             sections.forEach(section => {
                 const allItems = getAllSectionItems(section);
-                // Filter out placeholders from progress calculation
-                const checkableItems = allItems.filter(item => !item.isPlaceholder);
+                // Filter out placeholders and dividers from progress calculation
+                const checkableItems = allItems.filter(item => !item.isPlaceholder && !item.isDivider);
                 const total = checkableItems.length;
                 const done = checkableItems.filter(item => state.completed[item.id]).length;
                 const percent = total > 0 ? (done / total) * 100 : 0;
@@ -2621,9 +2680,10 @@
                 const content = item.querySelector('.item-content');
 
                 const toggleCheck = () => {
-                    // Skip if in edit mode, placeholder, or viewing past date
+                    // Skip if in edit mode, placeholder, divider, or viewing past date
                     if (editMode) return;
                     if (item.classList.contains('placeholder')) return;
+                    if (item.classList.contains('divider')) return;
                     if (!isToday()) return;
 
                     const id = item.dataset.id;
@@ -2780,8 +2840,8 @@
         function scrollToFirstIncomplete() {
             // Wait for DOM to settle
             setTimeout(() => {
-                // Skip placeholders when finding first incomplete
-                const allItems = document.querySelectorAll('.checklist-item:not(.checked):not(.placeholder)');
+                // Skip placeholders and dividers when finding first incomplete
+                const allItems = document.querySelectorAll('.checklist-item:not(.checked):not(.placeholder):not(.divider)');
                 if (allItems.length > 0) {
                     const firstIncomplete = allItems[0];
                     firstIncomplete.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3064,7 +3124,12 @@
                 }
 
                 // Set style based on existing item
-                if (existingItem.isPlaceholder) {
+                if (existingItem.isDivider) {
+                    currentTaskStyle = 'divider';
+                    taskStyleBtns.forEach(b => {
+                        b.classList.toggle('active', b.dataset.style === 'divider');
+                    });
+                } else if (existingItem.isPlaceholder) {
                     currentTaskStyle = 'placeholder';
                     taskStyleBtns.forEach(b => {
                         b.classList.toggle('active', b.dataset.style === 'placeholder');
@@ -3132,6 +3197,7 @@
                         tasks[idx].desc = desc;
                         tasks[idx].color = currentTaskColor !== 'none' ? currentTaskColor : undefined;
                         tasks[idx].isPlaceholder = currentTaskStyle === 'placeholder' ? true : undefined;
+                        tasks[idx].isDivider = currentTaskStyle === 'divider' ? true : undefined;
                         tasks[idx].subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
                     }
                 } else {
@@ -3142,6 +3208,7 @@
                         checklistData[found.section][found.group][found.index].desc = desc;
                         checklistData[found.section][found.group][found.index].color = currentTaskColor !== 'none' ? currentTaskColor : undefined;
                         checklistData[found.section][found.group][found.index].isPlaceholder = currentTaskStyle === 'placeholder' ? true : undefined;
+                        checklistData[found.section][found.group][found.index].isDivider = currentTaskStyle === 'divider' ? true : undefined;
                         checklistData[found.section][found.group][found.index].subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
                     }
                 }
@@ -3158,9 +3225,11 @@
                     newTask.color = currentTaskColor;
                 }
 
-                // Add placeholder flag if selected
+                // Add style flags if selected
                 if (currentTaskStyle === 'placeholder') {
                     newTask.isPlaceholder = true;
+                } else if (currentTaskStyle === 'divider') {
+                    newTask.isDivider = true;
                 }
 
                 // Add subtasks if any
