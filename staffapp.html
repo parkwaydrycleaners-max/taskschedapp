@@ -109,10 +109,43 @@
             letter-spacing: -0.3px;
         }
 
+        .date-nav {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .date-nav-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 6px;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .date-nav-btn:hover {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .date-nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
         .brand-text .date {
             font-size: 13px;
             color: var(--text-secondary);
             font-weight: 500;
+            min-width: 140px;
+            text-align: center;
+        }
+
+        .brand-text .date.past-date {
+            color: var(--accent-closing);
         }
 
         .header-actions {
@@ -647,6 +680,20 @@
 
         body.edit-mode .add-task-card {
             display: flex;
+        }
+
+        /* Hide add task cards when viewing past dates */
+        body.viewing-past .add-task-card {
+            display: none !important;
+        }
+
+        /* Make checkboxes look non-interactive when viewing past */
+        body.viewing-past .checkbox-wrapper {
+            cursor: default;
+        }
+
+        body.viewing-past .subtask-row {
+            cursor: default;
         }
 
         .add-task-card:hover {
@@ -1682,7 +1729,15 @@
                     </div>
                     <div class="brand-text">
                         <h1>Manager's Checklist</h1>
-                        <div class="date" id="currentDate"></div>
+                        <div class="date-nav">
+                            <button class="date-nav-btn" id="datePrev" title="Previous day">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <div class="date" id="currentDate"></div>
+                            <button class="date-nav-btn" id="dateNext" title="Next day">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="header-actions">
@@ -2083,6 +2138,10 @@
         let editMode = false;
         let currentTaskEdit = null;
 
+        // Date navigation
+        let selectedDate = new Date();
+        let historicalCompletedData = {}; // Cache for historical completed data by date string
+
         // Storage helper - use localStorage if available, fallback to window.name
         // Use indirect reference to bypass iframe restrictions when running outside Poe
         const localStore = window['local' + 'Storage'];
@@ -2202,15 +2261,139 @@
             }
         }
 
-        // Format date
-        function formatDate() {
-            const options = { weekday: 'long', month: 'long', day: 'numeric' };
-            return new Date().toLocaleDateString('en-US', options);
+        // Format date for display
+        function formatDate(date = selectedDate) {
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            if (date.toDateString() === today.toDateString()) {
+                return 'Today';
+            } else if (date.toDateString() === yesterday.toDateString()) {
+                return 'Yesterday';
+            }
+
+            const options = { weekday: 'short', month: 'short', day: 'numeric' };
+            return date.toLocaleDateString('en-US', options);
+        }
+
+        // Check if viewing today
+        function isToday() {
+            return selectedDate.toDateString() === new Date().toDateString();
         }
 
         // Format time
         function formatTime() {
             return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+
+        // Update date display
+        function updateDateDisplay() {
+            const dateEl = document.getElementById('currentDate');
+            const nextBtn = document.getElementById('dateNext');
+
+            dateEl.textContent = formatDate();
+            dateEl.classList.toggle('past-date', !isToday());
+
+            // Disable next button if on today
+            nextBtn.disabled = isToday();
+
+            // Toggle viewing-past class on body
+            document.body.classList.toggle('viewing-past', !isToday());
+
+            // Disable editing for past dates
+            const editBtn = document.getElementById('editToggle');
+            if (!isToday() && editMode) {
+                editMode = false;
+                document.body.classList.remove('edit-mode');
+                editBtn.innerHTML = '<i class="fas fa-pen"></i>';
+            }
+            editBtn.style.display = isToday() ? '' : 'none';
+        }
+
+        // Navigate to previous day
+        function goToPrevDate() {
+            selectedDate = new Date(selectedDate);
+            selectedDate.setDate(selectedDate.getDate() - 1);
+            loadDateData();
+        }
+
+        // Navigate to next day
+        function goToNextDate() {
+            if (isToday()) return;
+            selectedDate = new Date(selectedDate);
+            selectedDate.setDate(selectedDate.getDate() + 1);
+            loadDateData();
+        }
+
+        // Load data for selected date
+        async function loadDateData() {
+            updateDateDisplay();
+
+            if (isToday()) {
+                // Load today's live state
+                loadState();
+                renderChecklists();
+            } else {
+                // Load historical data from Airtable
+                await loadHistoricalData();
+            }
+        }
+
+        // Load historical completed data from Airtable
+        async function loadHistoricalData() {
+            if (!airtableConfig) {
+                // No Airtable - show empty for past dates
+                state.completed = {};
+                state.completedSubtasks = {};
+                renderChecklists();
+                return;
+            }
+
+            const dateStr = selectedDate.toDateString();
+
+            // Check cache first
+            if (historicalCompletedData[dateStr]) {
+                state.completed = historicalCompletedData[dateStr].completed || {};
+                state.completedSubtasks = historicalCompletedData[dateStr].completedSubtasks || {};
+                renderChecklists();
+                return;
+            }
+
+            try {
+                // Format date for Airtable record name
+                const recordName = selectedDate.toISOString().split('T')[0];
+
+                const response = await fetch(
+                    `https://api.airtable.com/v0/${airtableConfig.baseId}/${encodeURIComponent(airtableConfig.tableName)}?filterByFormula={Name}="${recordName}"`,
+                    { headers: { 'Authorization': `Bearer ${airtableConfig.token}` } }
+                );
+
+                const data = await response.json();
+
+                if (data.records && data.records.length > 0) {
+                    const record = data.records[0];
+                    const completed = record.fields.CompletedTasks ? JSON.parse(record.fields.CompletedTasks) : {};
+                    const completedSubtasks = record.fields.CompletedSubtasks ? JSON.parse(record.fields.CompletedSubtasks) : {};
+
+                    // Cache it
+                    historicalCompletedData[dateStr] = { completed, completedSubtasks };
+
+                    state.completed = completed;
+                    state.completedSubtasks = completedSubtasks;
+                } else {
+                    state.completed = {};
+                    state.completedSubtasks = {};
+                    historicalCompletedData[dateStr] = { completed: {}, completedSubtasks: {} };
+                }
+
+                renderChecklists();
+            } catch (e) {
+                console.log('Error loading historical data:', e.message);
+                state.completed = {};
+                state.completedSubtasks = {};
+                renderChecklists();
+            }
         }
 
         // Generate unique ID
@@ -2414,9 +2597,10 @@
                 const content = item.querySelector('.item-content');
 
                 const toggleCheck = () => {
-                    // Skip if in edit mode or if this is a placeholder
+                    // Skip if in edit mode, placeholder, or viewing past date
                     if (editMode) return;
                     if (item.classList.contains('placeholder')) return;
+                    if (!isToday()) return;
 
                     const id = item.dataset.id;
 
@@ -2455,6 +2639,7 @@
                 row.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (editMode) return;
+                    if (!isToday()) return;
 
                     const taskId = row.dataset.taskId;
                     const subtaskId = row.dataset.subtaskId;
@@ -3787,9 +3972,13 @@
         });
 
         // Initialize
+        // Date navigation event listeners
+        document.getElementById('datePrev').addEventListener('click', goToPrevDate);
+        document.getElementById('dateNext').addEventListener('click', goToNextDate);
+
         function init() {
             loadState();
-            document.getElementById('currentDate').textContent = formatDate();
+            updateDateDisplay();
             renderChecklists();
 
             // Initialize Airtable sync
