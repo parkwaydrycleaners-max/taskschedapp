@@ -272,6 +272,72 @@ button {
     }
 }
 
+/* ===============================
+   RUG CLEAN ESTIMATOR — READABILITY FIX
+=============================== */
+
+#rugModal .rug-dimensions {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 8px;
+    align-items: center;
+}
+
+#rugModal .rug-units {
+    margin-top: 6px;
+}
+
+#rugModal .rug-results {
+    margin-top: 10px;
+}
+
+/* ===============================
+   RUSH CALCULATOR — READABILITY FIX
+=============================== */
+
+#rushModal .rush-field {
+    display: grid;
+    grid-template-columns: 1fr;
+    margin-bottom: 10px;
+}
+
+#rushModal .rush-results {
+    margin-top: 10px;
+    line-height: 1.4;
+}
+
+/* ===============================
+   DRESS HEM ESTIMATOR — READABILITY FIX
+=============================== */
+
+#hemModal .calc-row {
+    display: grid;
+    grid-template-columns: 70px 1fr 60px;
+    align-items: center;
+    gap: 8px;
+}
+
+#hemModal .calc-header {
+    font-weight: bold;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+}
+
+#hemModal .qty-input {
+    width: 60px;
+    padding: 6px;
+    text-align: center;
+}
+
+#hemModal .seq-col {
+    text-align: center;
+}
+
+#hemModal .results-box {
+    margin-top: 12px;
+}
+
 /* ===== WEDDING DRESS TYPE IMAGE ===== */
 .dress-type-image {
     text-align: center;
@@ -382,7 +448,12 @@ button {
                              onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html','_blank')">
                             Alterations Scheduler (Desktop)
                         </div>
-        
+
+                        <div class="tile" onclick="window.open(
+                          'https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html','_blank')">
+                            Manager Checklist
+                        </div>
+        `                        
                         <div class="tile"
                              onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html','_blank')">
                             Alterations Scheduler (Mobile)
@@ -922,6 +993,7 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
 
 
 
