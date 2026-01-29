@@ -265,6 +265,86 @@ button {
 @media (max-width: 600px) {
     .tiles { grid-template-columns: 1fr; }
 }
+
+/* ==================================================
+   🔒 CALCULATOR MODALS — DO NOT MODIFY
+   Locks layout to original, readable behavior
+   Applies to ALL calculator modals
+================================================== */
+
+/* Target ALL calculator modals explicitly */
+#hemModal,
+#rugModal,
+#rushModal,
+#weddingModal {
+    font-size: 0.9rem;
+}
+
+/* RESET layout leakage inside modals */
+#hemModal *,
+#rugModal *,
+#rushModal *,
+#weddingModal * {
+    box-sizing: border-box;
+}
+
+/* Disable grid/flex layouts inside calculators */
+#hemModal .calc-row,
+#rugModal .rug-dimensions,
+#rushModal .rush-field,
+#weddingModal .dress-type-options,
+#weddingModal .checkbox-grid {
+    display: block;
+}
+
+/* Restore label + input readability */
+#hemModal label,
+#rugModal label,
+#rushModal label,
+#weddingModal label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    margin-right: 10px;
+    font-size: 0.85rem;
+}
+
+/* Section titles: readable, not centered */
+#hemModal .section-title,
+#rugModal .section-title,
+#rushModal .section-title,
+#weddingModal .section-title {
+    text-align: left;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+/* Restore spacing between sections */
+#hemModal .results-box,
+#rugModal .rug-results,
+#rushModal .results-box,
+#weddingModal .results-box {
+    margin: 12px 0;
+    padding: 10px;
+}
+
+/* Lock image behavior (wedding only, original behavior) */
+#weddingModal .dress-type-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+}
+
+/* Buttons always full width and separated */
+#hemModal button,
+#rugModal button,
+#rushModal button,
+#weddingModal button {
+    width: 100%;
+    margin-top: 10px;
+}
+    
 </style>
 </head>
 <body>
@@ -502,6 +582,14 @@ button {
     </main>
 
 </div>
+<!--
+====================================================
+⚠️  DO NOT MODIFY STYLES FOR CALCULATOR MODALS
+These modals rely on explicit CSS isolation to
+preserve readable layout.
+Changing generic grid/flex styles WILL break them.
+====================================================
+-->
 <!-- ===============================
      DRESS HEM ESTIMATOR MODAL
 =============================== -->
@@ -956,6 +1044,7 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
 
 
 
