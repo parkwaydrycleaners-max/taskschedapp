@@ -271,7 +271,6 @@ button {
    Restores plain, readable layout exactly as designed
 ================================================== */
 
-#hemModal,
 #rugModal,
 #rushModal,
 #weddingModal {
@@ -318,9 +317,98 @@ button {
     cursor: pointer;
 }
 
-/* Section spacing */
+/* ==================================================
+   ✅ RUG CLEAN ESTIMATOR — ORIGINAL DESIGN
+   Matches verified production layout EXACTLY
+================================================== */
+
+/* Length × Width on one line */
+#rugModal .rug-dimensions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 10px 0;
+}
+
+/* Inputs are narrow */
+#rugModal .rug-dimensions input {
+    width: 80px;
+    padding: 6px;
+    text-align: center;
+}
+
+/* The × character */
+#rugModal .rug-multiply {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+/* Units dropdown below */
+#rugModal .rug-units {
+    margin-top: 6px;
+    text-align: center;
+}
+
+/* Results below */
+#rugModal .rug-results {
+    margin-top: 10px;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* ==================================================
+   ✅ DRESS HEM ESTIMATOR — ORIGINAL GRID DESIGN
+   Matches verified screenshot EXACTLY
+================================================== */
+
+/* Header + rows use 3-column grid */
+#hemModal .calc-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 70px;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+/* Header row */
+#hemModal .calc-header {
+    font-weight: bold;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+}
+
+/* Qty input */
+#hemModal .qty-input {
+    width: 55px;
+    padding: 6px;
+    text-align: center;
+}
+
+/* Sequins column */
+#hemModal .seq-col {
+    text-align: center;
+}
+
+/* Divider */
 #hemModal hr {
     margin: 12px 0;
+}
+
+/* Rush + Glitter rows stay simple */
+#hemModal .rush-inline label,
+#hemModal .calc-row label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Results box */
+#hemModal .results-box {
+    margin-top: 12px;
+    padding: 12px;
+    text-align: center;
 }
 
 /* ==================================================
@@ -1096,6 +1184,7 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
 
 
 
