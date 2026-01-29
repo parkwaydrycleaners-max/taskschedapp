@@ -5,7 +5,7 @@
 <title>Top Cleaners & Alterations – Intranet</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- LOGIN GUARD -->
+<!-- LOGIN GUARD (UNCHANGED BEHAVIOR) -->
 <script>
 (function () {
     if (sessionStorage.getItem("authorized") !== "yes") {
@@ -13,7 +13,7 @@
     }
 })();
 </script>
-
+    
 <style>
 /* ==================================================
    GLOBAL RESET & VARIABLES
@@ -453,7 +453,7 @@ button {
                           'https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html','_blank')">
                             Manager Checklist
                         </div>
-        `                        
+                                
                         <div class="tile"
                              onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html','_blank')">
                             Alterations Scheduler (Mobile)
@@ -483,61 +483,16 @@ button {
                              onclick="window.open('https://my.waveapps.com/login/','_blank')">
                             Bookkeeping (Wave)
                         </div>
-
-                    </div>
-                </div>
-                        
-                <!-- ===============================
-                     COMMUNICATE
-                =============================== -->
-                <div class="tile-group">
-                    <div class="tile-group-title">Communicate</div>
-                    <div class="tiles">
-
-                        <div class="tile"
-                             onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
-                            Gmail Inbox
-                        </div>
-
-                        <div class="tile"
-                             onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
+						
+						<div class="tile"
+                            onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
                             WhatsApp Group
                         </div>
 
-                        <div class="tile"
-                             onclick="window.open('https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6','_blank')">
-                            Missed Calls Logs
-                        </div>
-
-                        <div class="tile rating-tile"
-                             onclick="window.open('https://business.google.com','_blank')">
-                            <div class="rating-title">Google Reviews</div>
-                            <div id="google-rating" class="rating-line">Loading…</div>
-                            <div id="google-bars" class="rating-bars"></div>
-                        </div>
-
-                        <div class="tile rating-tile"
-                             onclick="window.open('https://biz.yelp.com/home/Eb36giK3cXwlb6Bj9Vs-6w','_blank')">
-                            <div class="rating-title">Yelp Reviews</div>
-                            <div class="rating-line">⭐ 4.6 (329 reviews)</div>
-                            <div class="rating-line" style="font-size:0.75rem;color:#666;">
-                                Last checked: Jan 2026
-                            </div>
-                        </div>
-
-                        <div class="tile rating-tile"
-                             onclick="window.open('https://www.facebook.com/1385716841487687/reviews','_blank')">
-                            <div class="rating-title">Facebook Reviews</div>
-                            <div class="rating-line">⭐ 5.0 (189 recommendations)</div>
-                            <div class="rating-line" style="font-size:0.75rem;color:#666;">
-                                Last checked: Jan 2026
-                            </div>
-                        </div>
-
                     </div>
                 </div>
-
-                <!-- ===============================
+				
+				                <!-- ===============================
                      CALCULATORS
                 =============================== -->
                 <div class="tile-group">
@@ -566,6 +521,54 @@ button {
                         
                     </div>
                 </div>
+                        
+                <!-- ===============================
+                     COMMUNICATE
+                =============================== -->
+                <div class="tile-group">
+                    <div class="tile-group-title">Communicate</div>
+                    <div class="tiles">
+
+                        <div class="tile"
+                             onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
+                            Gmail Inbox
+                        </div>
+
+
+                        <div class="tile"
+                             onclick="window.open('https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6','_blank')">
+                            Missed Calls Logs
+                        </div>
+
+                        <div class="tile rating-tile"
+                             onclick="window.open('https://biz.yelp.com/home/Eb36giK3cXwlb6Bj9Vs-6w','_blank')">
+                            <div class="rating-title">Yelp Reviews</div>
+                            <div class="rating-line">⭐ 4.6 (329 reviews)</div>
+                            <div class="rating-line" style="font-size:0.75rem;color:#666;">
+                                Last checked: Jan 2026
+                            </div>
+                        </div>
+
+                        <div class="tile rating-tile"
+                             onclick="window.open('https://www.facebook.com/1385716841487687/reviews','_blank')">
+                            <div class="rating-title">Facebook Reviews</div>
+                            <div class="rating-line">⭐ 5.0 (189 recommendations)</div>
+                            <div class="rating-line" style="font-size:0.75rem;color:#666;">
+                                Last checked: Jan 2026
+                            </div>
+                        </div>
+						
+						                        <div class="tile rating-tile"
+                             onclick="window.open('https://business.google.com','_blank')">
+                            <div class="rating-title">Google Reviews</div>
+                            <div id="google-rating" class="rating-line">Loading…</div>
+                            <div id="google-bars" class="rating-bars"></div>
+                        </div>
+
+                    </div>
+                </div>
+
+
 
             </div>
         </div>
@@ -993,15 +996,3 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
