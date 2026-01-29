@@ -210,28 +210,36 @@ body {
     cursor: pointer;
 }
 
-/* ✅ Match original calculator behavior */
+/* ==================================================
+   RESTORE ORIGINAL WEDDING MODAL SIZING
+================================================== */
+
+/* Match original calculator sizing */
+#weddingModal .modal-box {
+    max-width: 420px;     /* same as other calculators */
+    max-height: none;     /* ✅ key fix */
+    overflow-y: visible;  /* ✅ key fix */
+}
+
+/* Constrain the reference image like before */
 #weddingModal .dress-type-image {
-    max-height: 180px;        /* ✅ key fix */
-    overflow: hidden;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 #weddingModal .dress-type-image img {
     width: 100%;
-    height: 100%;
+    max-height: 220px;    /* ✅ matches original look */
     object-fit: contain;
 }
 
-#weddingModal .modal-box {
-    padding-top: 12px;
+/* Tighten vertical spacing to match original */
+#weddingModal .estimator-section {
+    margin-bottom: 8px;
 }
 
-#weddingModal .dress-type-options label,
-#weddingModal .option-group label,
-#weddingModal .checkbox-grid label {
-    font-size: 0.85rem;
-    margin-bottom: 2px;
+#weddingModal .results-box {
+    margin-top: 10px;
+    padding: 10px;
 }
     
 /* ==================================================
@@ -870,5 +878,6 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
 
 
