@@ -276,16 +276,10 @@ button {
    RESTORE ORIGINAL WEDDING MODAL SIZING (EXACT)
 ================================================== */
 
-/* Undo global modal scrolling for wedding modal */
-#weddingModal .modal-box {
-    max-height: none;        /* ✅ remove forced height */
-    overflow-y: visible;     /* ✅ restore natural flow */
-}
-
-/* Use original image behavior only */
-#weddingModal .dress-type-image img {
+.dress-type-image img {
     max-width: 100%;
     height: auto;
+    border-radius: 6px;
 }
 
 </style>
@@ -863,6 +857,7 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
 
 
 
