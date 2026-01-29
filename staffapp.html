@@ -2450,6 +2450,7 @@
                 // No Airtable - show empty for past dates
                 state.completed = {};
                 state.completedSubtasks = {};
+                state.todayOnlyTasks = null;
                 renderChecklists();
                 return;
             }
@@ -2460,16 +2461,19 @@
             if (historicalCompletedData[dateStr]) {
                 state.completed = historicalCompletedData[dateStr].completed || {};
                 state.completedSubtasks = historicalCompletedData[dateStr].completedSubtasks || {};
+                state.todayOnlyTasks = historicalCompletedData[dateStr].todayOnlyTasks || null;
                 renderChecklists();
                 return;
             }
 
             try {
-                // Format date for Airtable record name
+                // Format date for Airtable record name (try both formats)
                 const recordName = selectedDate.toISOString().split('T')[0];
+                const recordId = `CHECKLIST_${recordName}`;
 
+                // Search by RecordID field (new format) or Name field (old format)
                 const response = await fetch(
-                    `https://api.airtable.com/v0/${airtableConfig.baseId}/${encodeURIComponent(airtableConfig.tableName)}?filterByFormula={Name}="${recordName}"`,
+                    `https://api.airtable.com/v0/${airtableConfig.baseId}/${encodeURIComponent(airtableConfig.tableName)}?filterByFormula=OR({RecordID}="${recordId}",{Name}="${recordName}")`,
                     { headers: { 'Authorization': `Bearer ${airtableConfig.token}` } }
                 );
 
@@ -2477,18 +2481,33 @@
 
                 if (data.records && data.records.length > 0) {
                     const record = data.records[0];
-                    const completed = record.fields.CompletedTasks ? JSON.parse(record.fields.CompletedTasks) : {};
-                    const completedSubtasks = record.fields.CompletedSubtasks ? JSON.parse(record.fields.CompletedSubtasks) : {};
+                    let completed = {};
+                    let completedSubtasks = {};
+                    let todayOnlyTasks = null;
+
+                    // Try new Data field format first
+                    if (record.fields.Data) {
+                        const parsedData = JSON.parse(record.fields.Data);
+                        completed = parsedData.completed || {};
+                        completedSubtasks = parsedData.completedSubtasks || {};
+                        todayOnlyTasks = parsedData.todayOnlyTasks || null;
+                    } else {
+                        // Fall back to old format
+                        completed = record.fields.CompletedTasks ? JSON.parse(record.fields.CompletedTasks) : {};
+                        completedSubtasks = record.fields.CompletedSubtasks ? JSON.parse(record.fields.CompletedSubtasks) : {};
+                    }
 
                     // Cache it
-                    historicalCompletedData[dateStr] = { completed, completedSubtasks };
+                    historicalCompletedData[dateStr] = { completed, completedSubtasks, todayOnlyTasks };
 
                     state.completed = completed;
                     state.completedSubtasks = completedSubtasks;
+                    state.todayOnlyTasks = todayOnlyTasks;
                 } else {
                     state.completed = {};
                     state.completedSubtasks = {};
-                    historicalCompletedData[dateStr] = { completed: {}, completedSubtasks: {} };
+                    state.todayOnlyTasks = null;
+                    historicalCompletedData[dateStr] = { completed: {}, completedSubtasks: {}, todayOnlyTasks: null };
                 }
 
                 renderChecklists();
@@ -2496,6 +2515,7 @@
                 console.log('Error loading historical data:', e.message);
                 state.completed = {};
                 state.completedSubtasks = {};
+                state.todayOnlyTasks = null;
                 renderChecklists();
             }
         }
