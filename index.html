@@ -5,10 +5,10 @@
 <title>Top Cleaners & Alterations – Intranet</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- LOGIN GUARD (STABLE ACROSS TABS) -->
+<!-- LOGIN GUARD (UNCHANGED BEHAVIOR) -->
 <script>
 (function () {
-    if (localStorage.getItem("authorized") !== "yes") {
+    if (sessionStorage.getItem("authorized") !== "yes") {
         window.location.href = "login.html";
     }
 })();
@@ -956,3 +956,4 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
