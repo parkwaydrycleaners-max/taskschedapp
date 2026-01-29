@@ -5,22 +5,20 @@
 <title>Top Cleaners & Alterations – Intranet</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- LOGIN GUARD (UNCHANGED BEHAVIOR) -->
+<!-- LOGIN GUARD (STABLE ACROSS TABS) -->
 <script>
 (function () {
-    if (sessionStorage.getItem("authorized") !== "yes") {
+    if (localStorage.getItem("authorized") !== "yes") {
         window.location.href = "login.html";
     }
 })();
 </script>
-    
+
 <style>
 /* ==================================================
    GLOBAL RESET & VARIABLES
 ================================================== */
-* {
-    box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 :root {
     --left-panel-width: 360px;
@@ -63,10 +61,10 @@ body {
 
 /* LEFT PANEL */
 .dashboard-left {
-    margin-right: 4px;
+    margin-right: -4px;
 }
 .staff-app-wrapper {
-    height: calc(120vh - 120px);
+    height: calc(100vh - 120px);
     background: #fff;
     border-radius: 12px;
     overflow: hidden;
@@ -80,16 +78,13 @@ body {
 
 /* RIGHT PANEL */
 .dashboard-right {
-    height: 100%;
     overflow-y: auto;
 }
 
 /* ==================================================
    TILE GRID
 ================================================== */
-.tile-section {
-    padding: 0;
-}
+.tile-section { padding: 0; }
 
 .tiles {
     display: grid;
@@ -135,7 +130,6 @@ body {
     grid-column: 1 / -1;
     margin-top: 28px;
 }
-
 .tile-group-title {
     font-weight: bold;
     margin-bottom: 8px;
@@ -151,35 +145,30 @@ body {
     align-items: flex-start;
     text-align: left;
 }
-
 .rating-header {
     display: flex;
     align-items: center;
     gap: 8px;
 }
-
 .rating-header svg {
     width: 20px;
     height: 20px;
 }
-
 .rating-title {
     font-weight: bold;
     font-size: 0.9rem;
 }
-
 .rating-line {
     font-size: 0.85rem;
     margin-top: 4px;
 }
-
 .rating-bars {
     margin-top: 6px;
     font-size: 1rem;
 }
 
 /* ==================================================
-   MODALS (GLOBAL)
+   MODALS — ORIGINAL BEHAVIOR (DO NOT CHANGE)
 ================================================== */
 .modal-overlay {
     position: fixed;
@@ -209,7 +198,7 @@ body {
     font-size: 20px;
     cursor: pointer;
 }
-    
+
 /* ==================================================
    SHARED FORM ELEMENTS
 ================================================== */
@@ -219,173 +208,8 @@ button {
     margin-top: 10px;
 }
 
-.primary-btn {
-    font-weight: bold;
-}
-
-.close-btn {
-    background: #ccc;
-}
-
-.results-box {
-    margin-top: 14px;
-    padding: 12px;
-    background: #f9f9f9;
-    border-radius: 8px;
-    text-align: center;
-    font-weight: bold;
-}
-
-.total {
-    margin-top: 6px;
-    font-weight: bold;
-}
-
-/* ==================================================
-   FOOTER
-================================================== */
-.footer {
-    text-align: center;
-    font-size: 0.85rem;
-    padding: 20px 10px;
-    color: #555;
-}
-
-/* ==================================================
-   MOBILE BEHAVIOR
-================================================== */
-@media (max-width: 900px) {
-    .dashboard-layout {
-        grid-template-columns: 1fr;
-    }
-    .staff-app-wrapper {
-        height: 80vh;
-    }
-    .tiles {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 600px) {
-    .tiles {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* ===============================
-   RUG CLEAN ESTIMATOR — READABILITY FIX
-=============================== */
-
-#rugModal .rug-dimensions {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: 8px;
-    align-items: center;
-}
-
-#rugModal .rug-units {
-    margin-top: 6px;
-}
-
-#rugModal .rug-results {
-    margin-top: 10px;
-}
-
-/* ===============================
-   RUSH CALCULATOR — READABILITY FIX
-=============================== */
-
-#rushModal .rush-field {
-    display: grid;
-    grid-template-columns: 1fr;
-    margin-bottom: 10px;
-}
-
-#rushModal .rush-results {
-    margin-top: 10px;
-    line-height: 1.4;
-}
-
-/* ===============================
-   DRESS HEM ESTIMATOR — READABILITY FIX
-=============================== */
-
-#hemModal .calc-row {
-    display: grid;
-    grid-template-columns: 70px 1fr 60px;
-    align-items: center;
-    gap: 8px;
-}
-
-#hemModal .calc-header {
-    font-weight: bold;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 6px;
-    margin-bottom: 8px;
-}
-
-#hemModal .qty-input {
-    width: 60px;
-    padding: 6px;
-    text-align: center;
-}
-
-#hemModal .seq-col {
-    text-align: center;
-}
-
-#hemModal .results-box {
-    margin-top: 12px;
-}
-
-/* ===== WEDDING DRESS TYPE IMAGE ===== */
-.dress-type-image {
-    text-align: center;
-    margin-bottom: 12px;
-}
-
-.dress-type-image img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 6px;
-}
-
-/* ===== WEDDING ESTIMATOR ===== */
-.estimator-section {
-    margin-bottom: 14px;
-}
-
-.section-title {
-    font-weight: bold;
-    margin-bottom: 6px;
-    text-align: center;
-}
-
-.dress-type-options {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 8px;
-    text-align: center;
-    font-size: 0.85rem;
-}
-
-.dress-type-options label {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    cursor: pointer;
-}
-
-.option-group label {
-    display: block;
-    margin-bottom: 4px;
-}
-
-.checkbox-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px 12px;
-}
+.primary-btn { font-weight: bold; }
+.close-btn { background: #ccc; }
 
 .results-box {
     margin: 16px 0;
@@ -407,6 +231,40 @@ button {
     margin-top: 4px;
 }
 
+/* ==================================================
+   WEDDING IMAGE — ORIGINAL RULES
+================================================== */
+.dress-type-image {
+    text-align: center;
+    margin-bottom: 12px;
+}
+.dress-type-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+}
+
+/* ==================================================
+   FOOTER
+================================================== */
+.footer {
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 20px 10px;
+    color: #555;
+}
+
+/* ==================================================
+   MOBILE
+================================================== */
+@media (max-width: 900px) {
+    .dashboard-layout { grid-template-columns: 1fr; }
+    .staff-app-wrapper { height: 80vh; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+    .tiles { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -420,7 +278,7 @@ button {
 <!-- DASHBOARD -->
 <div class="dashboard-layout">
 
-    <!-- LEFT: MANAGER CHECKLIST -->
+    <!-- LEFT: MANAGER CHECKLIST (IFRAME) -->
     <aside class="dashboard-left">
         <div class="staff-app-wrapper">
             <iframe
@@ -438,56 +296,95 @@ button {
             <div class="tiles">
 
                 <!-- ===============================
-                     CORE TOOLS
+                     TOOLS
                 =============================== -->
                 <div class="tile-group">
                     <div class="tile-group-title">Tools</div>
                     <div class="tiles">
 
-                        <div class="tile"
-                             onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html','_blank')">
+                        <!-- Alterations Scheduler (Desktop) -->
+                        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                <path d="M3 10h18M8 2v4M16 2v4"/>
+                            </svg>
                             Alterations Scheduler (Desktop)
                         </div>
 
-                        <div class="tile" onclick="window.open(
-                          'https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html','_blank')">
+                        <!-- Manager Checklist (Tile) -->
+                        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                                <path d="M7 8h10M7 12h10M7 16h6"/>
+                            </svg>
                             Manager Checklist
                         </div>
-                                
-                        <div class="tile"
-                             onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html','_blank')">
+
+                        <!-- Alterations Scheduler (Mobile) -->
+                        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="7" y="3" width="10" height="18" rx="2"/>
+                            </svg>
                             Alterations Scheduler (Mobile)
                         </div>
 
-						<div class="tile"
-                             onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true','_blank')">
-                            Directory of Contacts
-                        </div>
-						       
-                        <div class="tile"
-                             onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true','_blank')">
-                            Weekly Work Schedule
-                        </div>
-        
-                        <div class="tile"
-                             onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html','_blank')">
+                        <!-- Daily Reconciliation -->
+                        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M3 3v18h18"/>
+                                <path d="M7 14l4-4 4 4 5-5"/>
+                            </svg>
                             Daily Reconciliation
                         </div>
-        
-                        <div class="tile"
-                             onclick="window.open('https://my.waveapps.com/login/','_blank')">
+
+                        <!-- Weekly Work Schedule -->
+                        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                <path d="M3 10h18"/>
+                            </svg>
+                            Weekly Work Schedule
+                        </div>
+
+                        <!-- Directory of Contacts -->
+                        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="4" y="4" width="16" height="16"/>
+                                <path d="M8 9h8M8 13h5"/>
+                            </svg>
+                            Directory of Contacts
+                        </div>
+
+                        <!-- Payroll Calculator -->
+                        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M12 1v22"/>
+                                <path d="M17 5H9a4 4 0 0 0 0 8h6a4 4 0 0 1 0 8H6"/>
+                            </svg>
+                            Payroll Calculator
+                        </div>
+
+                        <!-- Bookkeeping -->
+                        <div class="tile" onclick="window.open('https://my.waveapps.com/login/','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="3" width="18" height="18"/>
+                                <path d="M8 7h8M8 12h8M8 17h5"/>
+                            </svg>
                             Bookkeeping (Wave)
                         </div>
-						
-						<div class="tile"
-                            onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
+
+                        <!-- WhatsApp Group -->
+                        <div class="tile" onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z"/>
+                            </svg>
                             WhatsApp Group
                         </div>
 
                     </div>
                 </div>
-				
-				                <!-- ===============================
+
+                <!-- ===============================
                      CALCULATORS
                 =============================== -->
                 <div class="tile-group">
@@ -495,33 +392,48 @@ button {
                     <div class="tiles">
 
                         <div class="tile" onclick="openModal('hemModal')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M4 4l16 16M20 4L4 20"/>
+                                <circle cx="7" cy="7" r="2"/>
+                                <circle cx="17" cy="17" r="2"/>
+                            </svg>
                             Dress Hem Estimator
                         </div>
 
                         <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1035596463&single=true','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                                <path d="M3 10h18M3 14h18M3 18h18"/>
+                            </svg>
                             Alterations Pricing
                         </div>
 
                         <div class="tile" onclick="openModal('rushModal')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M13 2L3 14h7l-1 8 10-12h-7z"/>
+                            </svg>
                             Capacity‑Based ALT Rush
                         </div>
 
                         <div class="tile" onclick="openModal('weddingModal')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M12 2l4 6h-8l4-6z"/>
+                                <path d="M8 8l-3 12h14l-3-12"/>
+                            </svg>
                             Wedding Dress Clean
                         </div>
 
                         <div class="tile" onclick="openModal('rugModal')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="16"/>
+                                <path d="M6 8h12M6 12h12M6 16h8"/>
+                            </svg>
                             Rug Clean Estimator
                         </div>
-						        
-                        <div class="tile"
-                             onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html','_blank')">
-                            Payroll Calculator
-                        </div>
-						
+
                     </div>
                 </div>
-                        
+
                 <!-- ===============================
                      COMMUNICATE
                 =============================== -->
@@ -529,36 +441,54 @@ button {
                     <div class="tile-group-title">Communicate</div>
                     <div class="tiles">
 
-                        <div class="tile"
-                             onclick="window.open('https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6','_blank')">
-                            Missed Calls Logs
-                        </div>
-
-                        <div class="tile"
-                             onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
+                        <div class="tile" onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                <path d="M22 6l-10 7L2 6"/>
+                            </svg>
                             Gmail Inbox
                         </div>
-						
-                        <div class="tile rating-tile"
-                             onclick="window.open('https://biz.yelp.com/leads_center/Eb36giK3cXwlb6Bj9Vs-6w/leads','_blank')">
-                            <div class="rating-title">Yelp Inbox</div>
-                            <div class="rating-line">⭐ 4.6 (332 reviews)</div>
+
+                        <div class="tile" onclick="window.open('https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M22 16.9v3a2 2 0 0 1-2.2 2
+                                         19.8 19.8 0 0 1-8.6-3.1
+                                         19.5 19.5 0 0 1-6-6
+                                         19.8 19.8 0 0 1-3.1-8.7
+                                         A2 2 0 0 1 4.1 2h3"/>
+                            </svg>
+                            Missed Calls and Voicemail
+                        </div>
+
+                        <div class="tile rating-tile" onclick="window.open('https://biz.yelp.com/leads_center/Eb36giK3cXwlb6Bj9Vs-6w/leads','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9"/>
+                            </svg>
+                            <div class="rating-title">Yelp Reviews</div>
+                            <div class="rating-line">⭐ 4.6 (329 reviews)</div>
                             <div class="rating-line" style="font-size:0.75rem;color:#666;">
                                 Last checked: Jan 2026
                             </div>
                         </div>
 
-                        <div class="tile rating-tile"
-                             onclick="window.open('https://business.facebook.com/latest/inbox/all/?business_id=155792138923304&asset_id=1385716841487687','_blank')">
-                            <div class="rating-title">FB/IG/Whatsapp</div>
-                            <div class="rating-line">⭐ 5.0 (3 recommendations)</div>
+                        <div class="tile rating-tile" onclick="window.open('https://business.facebook.com/latest/inbox/all?asset_id=1385716841487687&business_id=155792138923304&selected_item_id=956883540843188&thread_type=WEC_MESSAGE','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M22 12A10 10 0 1010.6 21.8v-6.6H8v-3.2h2.6V9.4
+                                         c0-2.6 1.5-4.1 3.9-4.1
+                                         1.1 0 2.2.2 2.2.2v2.5h-1.3
+                                         c-1.3 0-1.7.8-1.7 1.6v1.9H20l-.5 3.2h-3.3v6.6z"/>
+                            </svg>
+                            <div class="rating-title">Facebook Reviews</div>
+                            <div class="rating-line">⭐ 5.0 (189 recommendations)</div>
                             <div class="rating-line" style="font-size:0.75rem;color:#666;">
                                 Last checked: Jan 2026
                             </div>
                         </div>
-						
-						 <div class="tile rating-tile"
-                             onclick="window.open('https://www.google.com/search?q=West+Covina+Parkway+Top+Cleaners+and+Alterations&stick=H4sIAAAAAAAA_-NgU1I1qLAwSDZKMU8xNDU1SEwzMza2MqhIMrMwMUg2T042S7EwTDMyWMRqEJ5aXKLgnF-WmZeoEJBYlF2eWKkQkl-g4JyTmpiXWlSskJiXouCYU5JalFiSmZ9XDADG4AQyXAAAAA&hl=en&mat=CegFBc_B0J0VElYBTVDHnlHUx7VRKkheCv4Yql6UJZH5uTa5OyxJVGR9UM9PKYB1GTY-QxfnnGBHz-3s2nx0o205EBM6HcgoQ3DSzXstZ32tw_UEMF6Bye8BOSg6wHObHA&authuser=0#mpd=~1557630576960538088/customers/reviews','_blank')">
+
+                        <div class="tile rating-tile" onclick="window.open('https://www.google.com/search?q=West+Covina+Parkway+Top+Cleaners+and+Alterations&stick=H4sIAAAAAAAA_-NgU1I1qLAwSDZKMU8xNDU1SEwzMza2MqhIMrMwMUg2T042S7EwTDMyWMRqEJ5aXKLgnF-WmZeoEJBYlF2eWKkQkl-g4JyTmpiXWlSskJiXouCYU5JalFiSmZ9XDADG4AQyXAAAAA&hl=en&mat=CegFBc_B0J0VElYBTVDHnlHUx7VRKkheCv4Yql6UJZH5uTa5OyxJVGR9UM9PKYB1GTY-QxfnnGBHz-3s2nx0o205EBM6HcgoQ3DSzXstZ32tw_UEMF6Bye8BOSg6wHObHA&authuser=0#mpd=~1557630576960538088/customers/reviews','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9"/>
+                            </svg>
                             <div class="rating-title">Google Reviews</div>
                             <div id="google-rating" class="rating-line">Loading…</div>
                             <div id="google-bars" class="rating-bars"></div>
@@ -566,8 +496,6 @@ button {
 
                     </div>
                 </div>
-
-
 
             </div>
         </div>
@@ -579,7 +507,6 @@ button {
 =============================== -->
 <div id="hemModal" class="modal-overlay">
     <div class="modal-box">
-
         <div class="modal-close-x" onclick="closeModal('hemModal')">✕</div>
         <h2>Dress Hem Estimator</h2>
 
@@ -661,7 +588,6 @@ button {
 =============================== -->
 <div id="rugModal" class="modal-overlay">
     <div class="modal-box">
-
         <div class="modal-close-x" onclick="closeModal('rugModal')">✕</div>
         <h2>Rug Clean Estimator</h2>
 
@@ -695,7 +621,6 @@ button {
 =============================== -->
 <div id="rushModal" class="modal-overlay">
     <div class="modal-box">
-
         <div class="modal-close-x" onclick="closeModal('rushModal')">✕</div>
         <h2>Rush Fee Calculator</h2>
 
@@ -726,7 +651,6 @@ button {
 =============================== -->
 <div id="weddingModal" class="modal-overlay">
     <div class="modal-box">
-
         <div class="modal-close-x" onclick="closeModal('weddingModal')">✕</div>
         <h2>Wedding Dress Cleaning Estimate</h2>
 
@@ -804,15 +728,18 @@ function openModal(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = "flex";
 }
+
 function closeModal(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
 }
 
-/* Esc key closes any open modal */
+/* ESC closes any open modal */
 document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
-        document.querySelectorAll(".modal-overlay").forEach(m => m.style.display = "none");
+        document.querySelectorAll(".modal-overlay").forEach(m => {
+            m.style.display = "none";
+        });
     }
 });
 
@@ -831,8 +758,11 @@ function computeRush(baseAmount, workDateValue) {
         return { days: null, percentLabel: "—", rushFee: 0 };
     }
 
-    const today = new Date(); today.setHours(0,0,0,0);
-    const workDate = new Date(workDateValue); workDate.setHours(0,0,0,0);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const workDate = new Date(workDateValue);
+    workDate.setHours(0,0,0,0);
 
     let days = Math.round((workDate - today) / 86400000);
     if (days < 0) days = 0;
@@ -867,9 +797,12 @@ function calculateRush() {
         return;
     }
 
-    document.getElementById("rushDays").innerText = "Days Until Work: " + result.days;
-    document.getElementById("rushPercent").innerText = "Rush %: " + result.percentLabel;
-    document.getElementById("rushFee").innerText = "Rush Fee: $" + result.rushFee.toFixed(2);
+    document.getElementById("rushDays").innerText =
+        "Days Until Work: " + result.days;
+    document.getElementById("rushPercent").innerText =
+        "Rush %: " + result.percentLabel;
+    document.getElementById("rushFee").innerText =
+        "Rush Fee: $" + result.rushFee.toFixed(2);
     document.getElementById("rushTotal").innerText =
         "Total with Rush: $" + (base + result.rushFee).toFixed(2);
 }
@@ -882,15 +815,24 @@ function calculateRug() {
     const width  = parseFloat(document.getElementById("rugWidth").value) || 0;
     const unit   = document.getElementById("rugUnit").value;
 
-    let lengthFt = length, widthFt = width;
-    if (unit === "in") { lengthFt = length / 12; widthFt = width / 12; }
-    if (unit === "cm") { lengthFt = length / 30.48; widthFt = width / 30.48; }
+    let lengthFt = length;
+    let widthFt  = width;
+
+    if (unit === "in") {
+        lengthFt = length / 12;
+        widthFt  = width / 12;
+    } else if (unit === "cm") {
+        lengthFt = length / 30.48;
+        widthFt  = width / 30.48;
+    }
 
     const areaSqFt = lengthFt * widthFt;
     const price = areaSqFt * 5.99;
 
-    document.getElementById("rugArea").innerText = "Area: " + areaSqFt.toFixed(2) + " sq ft";
-    document.getElementById("rugPrice").innerText = "Price: $" + price.toFixed(2);
+    document.getElementById("rugArea").innerText =
+        "Area: " + areaSqFt.toFixed(2) + " sq ft";
+    document.getElementById("rugPrice").innerText =
+        "Price: $" + price.toFixed(2);
 }
 
 /* ==================================================
@@ -898,12 +840,14 @@ function calculateRug() {
 ================================================== */
 function calculateWedding() {
     let total = 0;
+
     const size = document.querySelector('input[name="dressSize"]:checked');
     const train = document.querySelector('input[name="train"]:checked');
     const addons = document.querySelectorAll('.wedding-addon:checked');
 
     if (size) total += parseFloat(size.value);
     if (train) total += parseFloat(train.value);
+
     addons.forEach(a => total += parseFloat(a.value));
 
     document.getElementById("weddingTotal").innerText =
@@ -911,11 +855,12 @@ function calculateWedding() {
 }
 
 /* ==================================================
-   DRESS HEM ESTIMATOR (WITH RUSH)
+   DRESS HEM ESTIMATOR
 ================================================== */
 function toggleRushDate() {
     const wrap = document.getElementById("hemRushDateWrap");
-    wrap.style.display = document.getElementById("hemRushToggle").checked ? "block" : "none";
+    wrap.style.display =
+        document.getElementById("hemRushToggle").checked ? "block" : "none";
 }
 
 function calculateHem() {
@@ -928,34 +873,46 @@ function calculateHem() {
         ["horse2", 25, "horse2Seq"]
     ];
 
-    let subtotal = 0, yards = 0;
+    let subtotal = 0;
+    let yards = 0;
 
     rows.forEach(([qty, rate, seq]) => {
         const y = parseFloat(document.getElementById(qty).value) || 0;
         yards += y;
         subtotal += y * rate;
-        if (document.getElementById(seq).checked) subtotal += y * 5;
+        if (document.getElementById(seq).checked) {
+            subtotal += y * 5;
+        }
     });
 
-    if (document.getElementById("glitterCheck").checked) subtotal += 10;
+    if (document.getElementById("glitterCheck").checked) {
+        subtotal += 10;
+    }
 
-    document.getElementById("totalYards").innerText = "Total Yards: " + yards.toFixed(2);
-    document.getElementById("hemSubtotal").innerText = "Subtotal: $" + subtotal.toFixed(2);
+    document.getElementById("totalYards").innerText =
+        "Total Yards: " + yards.toFixed(2);
+    document.getElementById("hemSubtotal").innerText =
+        "Subtotal: $" + subtotal.toFixed(2);
     document.getElementById("hemRushPercent").innerText = "Rush %: —";
 
     let rushFee = 0;
+
     if (document.getElementById("hemRushToggle").checked) {
         const dateVal = document.getElementById("hemRushDate").value;
         const result = computeRush(subtotal, dateVal);
+
         if (result.days === null) {
             alert("Please select a work date for rush.");
             return;
         }
+
         rushFee = result.rushFee;
-        document.getElementById("hemRushPercent").innerText = "Rush %: " + result.percentLabel;
+        document.getElementById("hemRushPercent").innerText =
+            "Rush %: " + result.percentLabel;
     }
 
-    document.getElementById("hemRushFee").innerText = "Rush Fee: $" + rushFee.toFixed(2);
+    document.getElementById("hemRushFee").innerText =
+        "Rush Fee: $" + rushFee.toFixed(2);
     document.getElementById("hemFinalTotal").innerText =
         "Total: $" + (subtotal + rushFee).toFixed(2);
 }
@@ -968,6 +925,7 @@ const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 function bars(count, icon) {
     return icon.repeat(Math.min(20, Math.floor(count)));
 }
+
 function renderBars(pos, neu, neg) {
     return `
         <div class="rating-line">Positive: ${pos}</div>${bars(pos/5,"🟩")}
@@ -977,26 +935,24 @@ function renderBars(pos, neu, neg) {
 }
 
 fetch(WORKER_URL + "/google")
-  .then(r => r.json())
-  .then(d => {
-      const t = d.result.user_ratings_total;
-      const r = d.result.rating;
-      const p = Math.round(t * 0.85);
-      const n = Math.round(t * 0.10);
-      const g = t - p - n;
-      document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
-      document.getElementById("google-bars").innerHTML = renderBars(p, n, g);
-  })
-  .catch(() => {
-      const el = document.getElementById("google-rating");
-      if (el) el.innerText = "Unavailable";
-  });
+    .then(r => r.json())
+    .then(d => {
+        const t = d.result.user_ratings_total;
+        const r = d.result.rating;
+        const p = Math.round(t * 0.85);
+        const n = Math.round(t * 0.10);
+        const g = t - p - n;
+
+        document.getElementById("google-rating").innerText =
+            `⭐ ${r} (${t})`;
+        document.getElementById("google-bars").innerHTML =
+            renderBars(p, n, g);
+    })
+    .catch(() => {
+        const el = document.getElementById("google-rating");
+        if (el) el.innerText = "Unavailable";
+    });
 </script>
 
 </body>
 </html>
-
-
-
-
-
