@@ -886,31 +886,23 @@ button {
             <img src="images/wedding-dress-types.png" alt="Wedding dress types">
         </div>
 
-<div class="estimator-section">
-    <div class="section-title">Train Length</div>
-    <div class="option-group">
-        <label>
-            <input type="checkbox" class="train-option" value="25">
-            Short (Chapel)
-        </label>
-        <label>
-            <input type="checkbox" class="train-option" value="50">
-            Long (Cathedral)
-        </label>
-        <label>
-            <input type="checkbox" class="train-option" value="40">
-            Detachable Skirt
-        </label>
-    </div>
-</div>
+        <div class="estimator-section">
+            <div class="section-title">Dress Type</div>
+            <div class="dress-type-options">
+                <label><input type="radio" name="dressSize" value="100" checked> A-Line</label>
+                <label><input type="radio" name="dressSize" value="85"> Mermaid</label>
+                <label><input type="radio" name="dressSize" value="85"> Empire</label>
+                <label><input type="radio" name="dressSize" value="125"> Ball Gown</label>
+                <label><input type="radio" name="dressSize" value="60"> Sheath</label>
+            </div>
+        </div>
 
         <div class="estimator-section">
-            <div class="section-title">Train Length: (select all that apply)</div>
+            <div class="section-title">Train Length</div>
             <div class="option-group">
-                <label><input type="checkbox" name="train" value="0" checked> None</label>
-                <label><input type="checkbox" name="train" value="25"> Short (Chapel)</label>
-                <label><input type="checkbox" name="train" value="50"> Long (Cathedral)</label>
-                <label><input type="checkbox" name="train" value="40"> Detachable Skirt</label>
+                <label><input type="checkbox" class="train-option" value="25">Short (Chapel)</label>
+                <label><input type="checkbox" class="train-option" value="50">Long (Cathedral)</label>
+                <label><input type="checkbox" class="train-option" value="40">Detachable Skirt</label>
             </div>
         </div>
 
@@ -1198,14 +1190,3 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
