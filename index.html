@@ -273,35 +273,19 @@ button {
 }
 
 /* ==================================================
-   RESTORE ORIGINAL WEDDING MODAL SIZING
+   RESTORE ORIGINAL WEDDING MODAL SIZING (EXACT)
 ================================================== */
 
-/* Match original calculator sizing */
+/* Undo global modal scrolling for wedding modal */
 #weddingModal .modal-box {
-    max-width: 420px;     /* same as other calculators */
-    max-height: none;     /* ✅ key fix */
-    overflow-y: visible;  /* ✅ key fix */
+    max-height: none;        /* ✅ remove forced height */
+    overflow-y: visible;     /* ✅ restore natural flow */
 }
 
-/* Constrain the reference image like before */
-#weddingModal .dress-type-image {
-    margin-bottom: 6px;
-}
-
+/* Use original image behavior only */
 #weddingModal .dress-type-image img {
-    width: 100%;
-    max-height: 220px;    /* ✅ matches original look */
-    object-fit: contain;
-}
-
-/* Tighten vertical spacing to match original */
-#weddingModal .estimator-section {
-    margin-bottom: 8px;
-}
-
-#weddingModal .results-box {
-    margin-top: 10px;
-    padding: 10px;
+    max-width: 100%;
+    height: auto;
 }
 
 </style>
@@ -879,6 +863,7 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
 
 
 
