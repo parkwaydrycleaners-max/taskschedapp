@@ -5,7 +5,7 @@
 <title>Top Cleaners & Alterations – Intranet</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- LOGIN GUARD (UNCHANGED BEHAVIOR) -->
+<!-- LOGIN GUARD -->
 <script>
 (function () {
     if (sessionStorage.getItem("authorized") !== "yes") {
@@ -15,9 +15,9 @@
 </script>
 
 <style>
-/* ===============================
-   GLOBAL / RESET
-=============================== */
+/* ==================================================
+   GLOBAL RESET & VARIABLES
+================================================== */
 * {
     box-sizing: border-box;
 }
@@ -26,7 +26,7 @@
     --left-panel-width: 360px;
     --tile-size: calc(var(--left-panel-width) / 2);
 }
-    
+
 body {
     margin: 0;
     font-family: Arial, sans-serif;
@@ -34,9 +34,9 @@ body {
     color: #222;
 }
 
-/* ===============================
-   HEADER / NAV
-=============================== */
+/* ==================================================
+   HEADER
+================================================== */
 .logo-wrap {
     background: #fff;
     padding: 16px;
@@ -48,333 +48,45 @@ body {
     width: 100%;
 }
 
-.navbar {
-    display: flex;
-    justify-content: space-around;
-    padding: 10px 0;
-    background: #fff;
-    border-bottom: 1px solid #ddd;
-}
-.nav-item {
-    font-size: 0.75rem;
-    text-align: center;
-}
-.nav-item svg {
-    width: 22px;
-    height: 22px;
-    display: block;
-    margin: 0 auto 4px;
-}
-.nav-item a {
-    text-decoration: none;
-    color: #333;
-}
-
-/* ===============================
+/* ==================================================
    DASHBOARD LAYOUT
-=============================== */
+================================================== */
 .dashboard-layout {
     display: grid;
     grid-template-columns: var(--left-panel-width) 1fr;
     gap: 6px;
     padding: 8px;
-
-    min-height: calc(100vh - 160px); /* logo + footer space */
-
-    max-width: 1400px;   /* controls overall dashboard width */
-    margin: 0 auto;      /* ✅ centers dashboard horizontally */
+    max-width: 1400px;
+    margin: 0 auto;
+    min-height: calc(100vh - 160px);
 }
 
-.staff-app-wrapper {
-    height: 100%;
-    overflow: hidden;
-}
-   
-    
-/* LEFT COLUMN */
+/* LEFT PANEL */
 .dashboard-left {
-    height: 100%;
-    margin-right: -3px;
+    margin-right: -4px;
 }
-
-/* RIGHT COLUMN */
-.dashboard-right {
-    height: 100%;
-}
-
-/* Prevent tiles from stretching on large screens */
-.dashboard-right-inner {
-    max-width: 1200px;   /* adjust if you want slightly wider/narrower */
-    margin: 0 auto;      /* center within available space */
-}
-
-/* ===== DRESS SIZE VISUAL GRID ===== */
-
-/* ===== WEDDING DRESS TYPE IMAGE + OPTIONS ===== */
-
-.dress-type-image {
-    text-align: center;
-    margin-bottom: 12px;
-}
-
-.dress-type-image img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 6px;
-}
-
-.dress-type-options {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 8px;
-    text-align: center;
-    font-size: 0.85rem;
-}
-
-.dress-type-options label {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    cursor: pointer;
-}
-
-.dress-type-options input {
-    margin-bottom: 4px;
-}
-    
-.dress-size-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-}
-
-.dress-option {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    cursor: pointer;
-    text-align: center;
-}
-
-.dress-option img {
-    width: 60px;
-    height: auto;
-    margin-bottom: 6px;
-}
-
-.dress-option span {
-    font-size: 0.85rem;
-}
-
-.dress-option input {
-    margin-bottom: 4px;
-}
-
-/* Selected state */
-.dress-option input:checked + img,
-.dress-option input:checked ~ span {
-    font-weight: bold;
-}
-    
-/* ===== RUG CLEAN ESTIMATOR LAYOUT ===== */
-
-.rug-dimensions {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin: 12px 0;
-}
-
-.rug-multiply {
-    font-size: 1.2rem;
-    font-weight: bold;
-}
-
-.rug-units {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    margin-bottom: 14px;
-}
-
-.rug-units select {
-    padding: 4px 6px;
-}
-
-.rug-results {
-    text-align: center;
-    margin: 12px 0;
-    font-weight: bold;
-}
-
-.rug-results div {
-    margin: 4px 0;
-}
-   
-/* ===============================
-   STAFF APP (LEFT)
-=============================== */
-.section-title {
-    font-size: 1rem;
-    margin-bottom: 8px;
-}
-
 .staff-app-wrapper {
-    height: calc(100vh - 80px);
+    height: calc(100vh - 120px);
     background: #fff;
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0,0,0,0.12);
 }
-
 .staff-app-frame {
     width: 100%;
     height: 100%;
     border: none;
 }
 
-/* ===== RUSH FEE CALCULATOR UX ===== */
-
-.rush-box {
-    background: #f9f9f9;
-    padding: 12px;
-    border-radius: 8px;
-    margin-top: 10px;
-}
-  
-.rush-section {
-margin-top: 12px;
+/* RIGHT PANEL */
+.dashboard-right {
+    height: 100%;
+    overflow-y: auto;
 }
 
-.rush-toggle {
-    font-weight: bold;
-}
-
-/* ===== HEM ESTIMATOR UX ===== */
-
-.rush-inline {
-    margin-top: 8px;
-    font-weight: bold;
-}
-
-.rush-date {
-    display: none;
-    margin-top: 6px;
-}
-
-.results-box {
-    margin-top: 14px;
-    padding: 10px;
-    background: #f9f9f9;
-    border-radius: 8px;
-    text-align: center;
-    font-weight: bold;
-}
-
-.results-box div {
-    margin: 4px 0;
-}
-
-.primary-btn {
-    margin-top: 12px;
-    font-weight: bold;
-}
-    
-.rush-field {
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 14px;
-}
-
-.rush-field label {
-    font-size: 0.85rem;
-    margin-bottom: 4px;
-    font-weight: bold;
-}
-
-.rush-field input {
-    padding: 8px;
-    font-size: 1rem;
-}
-
-.rush-results {
-    margin: 14px 0;
-    text-align: center;
-    font-weight: bold;
-}
-
-.rush-results div {
-    margin: 6px 0;
-}
-
-.rush-toggle {
-    font-weight: bold;
-    display: block;
-    margin-bottom: 8px;
-}
-.rush-options {
-    display: none;
-}
-.rush-fee {
-    margin-top: 6px;
-    font-weight: bold;
-}
-
-.final-total {
-    margin-top: 8px;
-    font-size: 1.15rem;
-    font-weight: bold;
-}
-
-/* ===== WEDDING ESTIMATOR VISUAL FIX ===== */
-
-.estimator-section {
-    margin-bottom: 14px;
-}
-
-.section-title {
-    font-weight: bold;
-    margin-bottom: 6px;
-}
-
-.option-group label {
-    display: block;
-    margin-bottom: 4px;
-}
-
-.checkbox-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px 12px;
-}
-
-.results-box {
-    margin: 16px 0;
-    padding: 12px;
-    background: #f9f9f9;
-    border-radius: 8px;
-    text-align: center;
-}
-
-.final-total {
-    font-size: 1.15rem;
-    font-weight: bold;
-}
-
-.estimate-note {
-    font-size: 0.75rem;
-    color: #666;
-    margin-top: 4px;
-}
-    
-/* ===============================
-   TILE GRID (RIGHT)
-=============================== */
+/* ==================================================
+   TILE GRID
+================================================== */
 .tile-section {
     padding: 0;
 }
@@ -383,24 +95,21 @@ margin-top: 12px;
     display: grid;
     grid-template-columns: repeat(4, var(--tile-size));
     gap: 16px;
-
-    justify-content: start;   /* ✅ THIS is the key fix */
+    justify-content: start;
 }
 
 .tile {
     width: var(--tile-size);
     height: var(--tile-size);
-
     background: #fff;
     border-radius: 12px;
     padding: 12px;
-
     display: flex;
     flex-direction: column;
     justify-content: center;
-    align-items: center;   /* ✅ centers icon + text */
-
+    align-items: center;
     box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    cursor: pointer;
     text-align: center;
 }
 
@@ -415,49 +124,63 @@ margin-top: 12px;
     stroke-linejoin: round;
 }
 
-.section-title {
-    text-align: center;
+.tile:hover {
+    outline: 2px solid #0a75ff;
 }
-    
-/* ===============================
+
+/* ==================================================
+   TILE GROUP SECTIONS
+================================================== */
+.tile-group {
+    grid-column: 1 / -1;
+    margin-top: 28px;
+}
+
+.tile-group-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+    padding-left: 4px;
+}
+
+/* ==================================================
    REVIEW TILES
-=============================== */
-.rating-tile {
+================================================== */
+.tile.rating-tile {
+    height: auto;
+    min-height: var(--tile-size);
+    align-items: flex-start;
     text-align: left;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
 }
+
 .rating-header {
     display: flex;
     align-items: center;
     gap: 8px;
 }
+
 .rating-header svg {
     width: 20px;
     height: 20px;
 }
+
 .rating-title {
     font-weight: bold;
     font-size: 0.9rem;
 }
+
 .rating-line {
     font-size: 0.85rem;
     margin-top: 4px;
 }
+
 .rating-bars {
     margin-top: 6px;
     font-size: 1rem;
 }
-/* Review tiles should NOT be square */
-.tile.rating-tile {
-    height: auto;           /* ✅ allow content to define height */
-    min-height: var(--tile-size); /* keeps visual balance */
-    align-items: flex-start;
-}
-    
-/* ===============================
-   MODALS (SHARED)
-=============================== */
+
+/* ==================================================
+   MODALS (GLOBAL)
+================================================== */
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -487,59 +210,40 @@ margin-top: 12px;
     cursor: pointer;
 }
 
-/* ===============================
-   DRESS HEM ESTIMATOR
-=============================== */
-.calc-row {
-    display: grid;
-    grid-template-columns: 60px 1fr 60px;
-    gap: 8px;
-    align-items: center;
-    margin: 6px 0;
-}
-.calc-header {
-    font-weight: bold;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 6px;
-    margin-bottom: 8px;
-}
-.qty-input {
-    width: 55px;
-    padding: 6px;
-    text-align: center;
-}
-.seq-col {
-    text-align: center;
-}
+/* ==================================================
+   SHARED FORM ELEMENTS
+================================================== */
 button {
     width: 100%;
     padding: 12px;
     margin-top: 10px;
 }
-.total {
-    text-align: center;
+
+.primary-btn {
     font-weight: bold;
-    margin-top: 10px;
 }
+
 .close-btn {
     background: #ccc;
 }
-.summary-box {
-    margin: 12px 0;
+
+.results-box {
+    margin-top: 14px;
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 8px;
     text-align: center;
     font-weight: bold;
 }
-.subtotal {
+
+.total {
     margin-top: 6px;
-    font-size: 1.05rem;
-}
-.primary-btn {
-    margin-top: 8px;
     font-weight: bold;
 }
-/* ===============================
+
+/* ==================================================
    FOOTER
-=============================== */
+================================================== */
 .footer {
     text-align: center;
     font-size: 0.85rem;
@@ -547,16 +251,12 @@ button {
     color: #555;
 }
 
-/* ===============================
+/* ==================================================
    MOBILE BEHAVIOR
-=============================== */
+================================================== */
 @media (max-width: 900px) {
     .dashboard-layout {
         grid-template-columns: 1fr;
-    }
-    .dashboard-left {
-        position: static;
-        height: auto;
     }
     .staff-app-wrapper {
         height: 80vh;
@@ -565,6 +265,7 @@ button {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
 @media (max-width: 600px) {
     .tiles {
         grid-template-columns: 1fr;
@@ -573,384 +274,172 @@ button {
 </style>
 </head>
 <body>
+
 <!-- LOGO -->
 <div class="logo-wrap">
-    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png" alt="Top Cleaners & Alterations">
+    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png"
+         alt="Top Cleaners & Alterations">
 </div>
 
 <!-- DASHBOARD -->
 <div class="dashboard-layout">
 
-    <!-- LEFT: STAFF APP -->
+    <!-- LEFT: MANAGER CHECKLIST -->
     <aside class="dashboard-left">
         <div class="staff-app-wrapper">
             <iframe
                 src="https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html"
-                title="Manager's Checklist"
+                title="Manager Checklist"
                 class="staff-app-frame"
                 loading="lazy">
             </iframe>
         </div>
     </aside>
 
-    <!-- RIGHT: TILES + REVIEWS -->
+    <!-- RIGHT: TILE SECTIONS -->
     <main class="dashboard-right">
-
-        <div class="tile-section" id="tools">
+        <div class="tile-section">
             <div class="tiles">
 
-                <!-- Alterations Scheduler (Desktop) -->
-                <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="3" y="4" width="18" height="18" rx="2"/>
-                        <path d="M3 10h18M8 2v4M16 2v4"/>
-                    </svg>
+                <!-- ===============================
+                     CORE TOOLS
+                =============================== -->
+                <div class="tile"
+                     onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html','_blank')">
                     Alterations Scheduler (Desktop)
                 </div>
 
-                <!-- Alterations Scheduler (Mobile) -->
-                <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="7" y="3" width="10" height="18" rx="2"/>
-                    </svg>
+                <div class="tile"
+                     onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html','_blank')">
                     Alterations Scheduler (Mobile)
                 </div>
 
-                <!-- Daily Reconciliation -->
-                <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M3 3v18h18"/>
-                        <path d="M7 14l4-4 4 4 5-5"/>
-                    </svg>
+                <div class="tile"
+                     onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html','_blank')">
                     Daily Reconciliation
                 </div>
 
-                <!-- Weekly Schedule -->
-                <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="3" y="4" width="18" height="18" rx="2"/>
-                        <path d="M3 10h18"/>
-                    </svg>
+                <div class="tile"
+                     onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true','_blank')">
                     Weekly Work Schedule
                 </div>
 
-                <!-- Directory -->
-                <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="4" y="4" width="16" height="16"/>
-                        <path d="M8 9h8M8 13h5"/>
-                    </svg>
+                <div class="tile"
+                     onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true','_blank')">
                     Directory of Contacts
                 </div>
 
-                <!-- Alterations Pricing -->
-                <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1035596463&single=true','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="3" y="4" width="18" height="16" rx="2"/>
-                        <path d="M3 10h18M3 14h18M3 18h18"/>
-                    </svg>
+                <div class="tile"
+                     onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1035596463&single=true','_blank')">
                     Alterations Pricing
                 </div>
 
-                <!-- Payroll Calculator -->
-                <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M12 1v22"/>
-                        <path d="M17 5H9a4 4 0 0 0 0 8h6a4 4 0 0 1 0 8H6"/>
-                    </svg>
+                <div class="tile"
+                     onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html','_blank')">
                     Payroll Calculator
                 </div>
 
-                <!-- Bookkeeping (Wave) -->
-                <div class="tile" onclick="window.open('https://my.waveapps.com/login/','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="3" y="3" width="18" height="18"/>
-                        <path d="M8 7h8M8 12h8M8 17h5"/>
-                    </svg>
+                <div class="tile"
+                     onclick="window.open('https://my.waveapps.com/login/','_blank')">
                     Bookkeeping (Wave)
                 </div>
 
-                <!-- WhatsApp -->
-                <div class="tile" onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z"/>
-                    </svg>
-                    WhatsApp Group
-                </div>
+                <!-- ===============================
+                     COMMUNICATE
+                =============================== -->
+                <div class="tile-group">
+                    <div class="tile-group-title">Communicate</div>
+                    <div class="tiles">
 
-                <!-- CleanChat AI -->
-                <div class="tile" onclick="window.open('https://www.facebook.com/messages/t/2083730355435395','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M4 4h16v12H5l-3 3V4z"/>
-                        <path d="M8 9h8M8 13h5"/>
-                    </svg>
-                    CleanChat AI
-                </div>
+                        <div class="tile"
+                             onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
+                            Gmail Inbox
+                        </div>
 
-                <!-- Manager Checklist -->
-                <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="3" y="4" width="18" height="16" rx="2"/>
-                        <path d="M7 8h10M7 12h10M7 16h6"/>
-                    </svg>
-                    Manager Checklist
-                </div>
+                        <div class="tile"
+                             onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
+                            WhatsApp Group
+                        </div>
 
-                <!-- Dress Hem Estimator -->
-                <div class="tile" onclick="openModal('hemModal')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="3" y="4" width="18" height="16" rx="2"/>
-                        <path d="M7 8h10M7 12h10M7 16h6"/>
-                    </svg>
-                    Dress Hem Estimator
-                </div>
+                        <div class="tile"
+                             onclick="window.open('https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6','_blank')">
+                            Missed Calls Logs
+                        </div>
 
-                <!-- Rug Clean Estimator -->
-                <div class="tile" onclick="openModal('rugModal')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="3" y="4" width="18" height="16" rx="2"/>
-                        <path d="M6 8h12M6 12h12M6 16h8"/>
-                    </svg>
-                    Rug Clean Estimator
-                </div>
+                        <div class="tile rating-tile"
+                             onclick="window.open('https://business.google.com','_blank')">
+                            <div class="rating-title">Google Reviews</div>
+                            <div id="google-rating" class="rating-line">Loading…</div>
+                            <div id="google-bars" class="rating-bars"></div>
+                        </div>
 
-                <!-- Rush Fee Calculator -->
-                <div class="tile" onclick="openModal('rushModal')">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M13 2L3 14h7l-1 8 10-12h-7z"/>
-                    </svg>
-                    Capacity-Based ALT Rush Calculator
-                </div>
+                        <div class="tile rating-tile"
+                             onclick="window.open('https://biz.yelp.com/home/Eb36giK3cXwlb6Bj9Vs-6w','_blank')">
+                            <div class="rating-title">Yelp Reviews</div>
+                            <div class="rating-line">⭐ 4.6 (329 reviews)</div>
+                            <div class="rating-line" style="font-size:0.75rem;color:#666;">
+                                Last checked: Jan 2026
+                            </div>
+                        </div>
 
-                <!-- Wedding Dress Clean Estimator -->
-                <div class="tile" onclick="openModal('weddingModal')">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M12 2l4 6h-8l4-6z"/>
-                        <path d="M8 8l-3 12h14l-3-12"/>
-                    </svg>
-                    Wedding Dress Clean
-                </div>
+                        <div class="tile rating-tile"
+                             onclick="window.open('https://www.facebook.com/1385716841487687/reviews','_blank')">
+                            <div class="rating-title">Facebook Reviews</div>
+                            <div class="rating-line">⭐ 5.0 (189 recommendations)</div>
+                            <div class="rating-line" style="font-size:0.75rem;color:#666;">
+                                Last checked: Jan 2026
+                            </div>
+                        </div>
 
-                <!-- Call Logs -->
-                <div class="tile" onclick="window.open('https://cdr.voiply.com/index/7cf33032-c9a5-4b82-a3b8-60f9d37312c6','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="6" y="2" width="12" height="20" rx="2"/>
-                        <path d="M9 6h6M9 10h6M9 14h4"/>
-                    </svg>
-                    Missed Calls Logs
-                </div>
-
-                <!-- Gmail Inbox -->
-                <div class="tile" onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="2" y="4" width="20" height="16" rx="2"/>
-                        <path d="M22 6l-10 7L2 6"/>
-                    </svg>
-                    Gmail Inbox
-                </div>
-                
-                <!-- Yelp Messages (Manual Snapshot) -->
-                <div class="tile rating-tile"
-                     onclick="window.open('https://biz.yelp.com/leads_center/Eb36giK3cXwlb6Bj9Vs-6w/leads','_blank')">
-                
-                    <div class="rating-header">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M10.52 2.1L6.38 4.92l1.75 4.2 2.86-2.5-2.43-4.54z"/>
-                            <path d="M20.5 14.12l-4.8-.74-.7 4.54 4.8.74z"/>
-                            <path d="M6.08 12.9l-4.54.7.7 4.54 4.54-.7z"/>
-                        </svg>
-                        <div class="rating-title">Yelp Inbox</div>
-                    </div>
-                
-                    <div class="rating-line">⭐ 4.6 (331 reviews)</div>
-                    <div class="rating-line" style="font-size:0.75rem; color:#666;">
-                        Last checked: Jan 2026
                     </div>
                 </div>
 
-                <!-- Facebook/IG/Whatsapp Messages -->
-                <div class="tile rating-tile"
-                     onclick="window.open('https://business.facebook.com/latest/inbox/all/?asset_id=1385716841487687&business_id=155792138923304','_blank')">
-                
-                    <div class="rating-header">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M22 12A10 10 0 1010.6 21.8v-6.6H8v-3.2h2.6V9.4c0-2.6 1.5-4.1 3.9-4.1 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.3 0-1.7.8-1.7 1.6v1.9H20l-.5 3.2h-3.3v6.6z"/>
-                        </svg>
-                        <div class="rating-title">Facebook/IG Inbox</div>
-                    </div>
-                
-                    <div class="rating-line">⭐ 5.0 (189 recommendations)</div>
-                    <div class="rating-line" style="font-size:0.75rem; color:#666;">
-                        Last checked: Jan 2026
-                    </div>
-                </div>
-                
-                <!-- GOOGLE REVIEWS -->
-                <div class="tile rating-tile"
-                        onclick="window.open('https://business.google.com/?gmbsrc=ww-ww-ot-gs-z-gmb-l-z-h~z-ogb-u&authuser=0','_blank')">
-                    <div class="rating-header">
-                        <svg viewBox="0 0 24 24">
-                            <polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9"/>
-                        </svg>
-                        <div class="rating-title">Google Reviews</div>
-                    </div>
-                    <div id="google-rating" class="rating-line">Loading…</div>
-                    <div id="google-bars" class="rating-bars"></div>
-                </div>
-                
+                <!-- ===============================
+                     CALCULATORS
+                =============================== -->
+                <div class="tile-group">
+                    <div class="tile-group-title">Calculators</div>
+                    <div class="tiles">
 
+                        <div class="tile" onclick="openModal('hemModal')">
+                            Dress Hem Estimator
+                        </div>
+
+                        <div class="tile" onclick="openModal('rugModal')">
+                            Rug Clean Estimator
+                        </div>
+
+                        <div class="tile" onclick="openModal('rushModal')">
+                            Capacity‑Based ALT Rush
+                        </div>
+
+                        <div class="tile" onclick="openModal('weddingModal')">
+                            Wedding Dress Clean
+                        </div>
+
+                    </div>
+                </div>
 
             </div>
         </div>
-
     </main>
+
 </div>
-<!-- =========================
-     RUSH FEE CALCULATOR MODAL
-========================= -->
-<div id="rushModal" class="modal-overlay">
-    <div class="modal-box">
-
-        <div class="modal-close-x" onclick="closeModal('rushModal')">✕</div>
-
-        <h2>Rush Fee Calculator</h2>
-
-        <!-- BASE PRICE -->
-        <div class="rush-field">
-            <label>Alteration Price ($)</label>
-            <input id="rushBasePrice" type="number" step="0.01" placeholder="e.g. 40.00">
-        </div>
-
-        <!-- WORK DATE -->
-        <div class="rush-field">
-            <label>Work Date</label>
-            <input id="rushWorkDate" type="date">
-        </div>
-
-        <!-- RESULTS -->
-        <div class="rush-results">
-            <div id="rushDays">Days Until Work: —</div>
-            <div id="rushPercent">Rush %: —</div>
-            <div id="rushFee">Rush Fee: $0.00</div>
-            <div id="rushTotal">Total with Rush: $0.00</div>
-        </div>
-
-        <button onclick="calculateRush()">Calculate</button>
-        <button class="close-btn" onclick="closeModal('rushModal')">Close</button>
-
-    </div>
-</div>
-
-<!-- =========================
-     WEDDING DRESS CLEAN MODAL
-========================= -->
-<div id="weddingModal" class="modal-overlay">
-    <div class="modal-box">
-
-        <div class="modal-close-x" onclick="closeModal('weddingModal')">✕</div>
-
-<h2>Wedding Dress Cleaning Estimate</h2>
-
-<!-- DRESS TYPE REFERENCE IMAGE -->
-<div class="dress-type-image">
-    <img src="images/wedding-dress-types.png"
-         alt="Wedding dress types reference">
-</div>
-        
-<!-- DRESS TYPE SELECTION -->
-<div class="estimator-section">
-    <div class="section-title">Dress Type</div>
-
-    <div class="dress-type-options">
-        <label>
-            <input type="radio" name="dressSize" value="100" checked>
-            A‑Line
-        </label>
-
-        <label>
-            <input type="radio" name="dressSize" value="85">
-            Mermaid
-        </label>
-
-        <label>
-            <input type="radio" name="dressSize" value="85">
-            Empire
-        </label>
-
-        <label>
-            <input type="radio" name="dressSize" value="125">
-            Ball Gown
-        </label>
-
-        <label>
-            <input type="radio" name="dressSize" value="45">
-            Sheath
-        </label>
-    </div>
-</div>
-<!-- TRAIN -->
-<div class="estimator-section">
-    <div class="section-title">Train Length</div>
-    <div class="option-group">
-        <label><input type="radio" name="train" value="0" checked> None</label>
-        <label><input type="radio" name="train" value="25"> Short (Chapel)</label>
-        <label><input type="radio" name="train" value="50"> Long (Cathedral)</label>
-        <label><input type="radio" name="train" value="40"> Detachable Skirt</label>
-    </div>
-</div>
-
-<!-- DETAILS -->
-<div class="estimator-section">
-    <div class="section-title">Details</div>
-    <div class="checkbox-grid">
-        <label><input type="checkbox" class="wedding-addon" value="5"> Heavy lace</label>
-        <label><input type="checkbox" class="wedding-addon" value="25"> Beading / Sequins</label>
-        <label><input type="checkbox" class="wedding-addon" value="30"> Petticoat</label>
-    </div>
-</div>
-
-<!-- OPTIONAL -->
-<div class="estimator-section">
-    <div class="section-title">Optional Services</div>
-    <div class="checkbox-grid">
-        <label><input type="checkbox" class="wedding-addon" value="125"> Preservation boxing</label>
-        <label><input type="checkbox" class="wedding-addon" value="-40"> Pressing / steaming</label>
-    </div>
-</div>
-
-<!-- TOTAL -->
-<div class="results-box">
-    <div id="weddingTotal" class="final-total">
-        Estimated Total: $0.00
-    </div>
-    <div class="estimate-note">
-        Estimate only. Final price confirmed after inspection.
-    </div>
-</div>
-
-<button class="primary-btn" onclick="calculateWedding()">Calculate</button>
-<button class="close-btn" onclick="closeModal('weddingModal')">Close</button>
-</div>
-</div>
-    
-<!-- =========================
+<!-- ===============================
      DRESS HEM ESTIMATOR MODAL
-========================= -->
+=============================== -->
 <div id="hemModal" class="modal-overlay">
     <div class="modal-box">
 
         <div class="modal-close-x" onclick="closeModal('hemModal')">✕</div>
-
         <h2>Dress Hem Estimator</h2>
 
-        <!-- HEADER -->
         <div class="calc-row calc-header">
             <div>Qty</div>
             <div>Service</div>
             <div class="seq-col">Sequins?</div>
         </div>
 
-        <!-- CUT -->
         <div class="calc-row">
             <input class="qty-input" id="cut1">
             <div>Cut Hem @ $6.25 / yd</div>
@@ -962,7 +451,6 @@ button {
             <div class="seq-col"><input type="checkbox" id="cut2Seq"></div>
         </div>
 
-        <!-- REGULAR -->
         <div class="calc-row">
             <input class="qty-input" id="reg1">
             <div>Regular Hem @ $12.50 / yd</div>
@@ -974,7 +462,6 @@ button {
             <div class="seq-col"><input type="checkbox" id="reg2Seq"></div>
         </div>
 
-        <!-- HORSEHAIR -->
         <div class="calc-row">
             <input class="qty-input" id="horse1">
             <div>Horsehair Hem @ $25.00 / yd</div>
@@ -988,14 +475,12 @@ button {
 
         <hr>
 
-        <!-- GLITTER -->
         <div class="calc-row">
             <div></div>
             <div>Add Glitter (+ $10 flat)</div>
             <div class="seq-col"><input type="checkbox" id="glitterCheck"></div>
         </div>
 
-        <!-- RUSH -->
         <div class="rush-inline">
             <label>
                 <input type="checkbox" id="hemRushToggle" onchange="toggleRushDate()">
@@ -1008,10 +493,8 @@ button {
             <input type="date" id="hemRushDate">
         </div>
 
-        <!-- CALCULATE -->
         <button class="primary-btn" onclick="calculateHem()">Calculate</button>
 
-        <!-- RESULTS -->
         <div class="results-box">
             <div id="totalYards">Total Yards: 0.00</div>
             <div id="hemSubtotal">Subtotal: $0.00</div>
@@ -1021,30 +504,26 @@ button {
         </div>
 
         <button class="close-btn" onclick="closeModal('hemModal')">Close</button>
-
     </div>
 </div>
 
-<!-- =========================
+<!-- ===============================
      RUG CLEAN ESTIMATOR MODAL
-========================= -->
+=============================== -->
 <div id="rugModal" class="modal-overlay">
     <div class="modal-box">
 
         <div class="modal-close-x" onclick="closeModal('rugModal')">✕</div>
-
         <h2>Rug Clean Estimator</h2>
 
-        <!-- DIMENSIONS ROW -->
         <div class="rug-dimensions">
             <input class="qty-input" id="rugLength" placeholder="Length">
             <span class="rug-multiply">×</span>
             <input class="qty-input" id="rugWidth" placeholder="Width">
         </div>
 
-        <!-- UNITS -->
         <div class="rug-units">
-            <label for="rugUnit">Units:</label>
+            <label>Units:</label>
             <select id="rugUnit">
                 <option value="ft">Feet</option>
                 <option value="in">Inches</option>
@@ -1052,36 +531,111 @@ button {
             </select>
         </div>
 
-        <!-- RESULTS -->
         <div class="rug-results">
             <div id="rugArea">Area: 0.00 sq ft</div>
             <div id="rugPrice">Price: $0.00</div>
         </div>
 
-        <!-- ACTIONS -->
         <button onclick="calculateRug()">Calculate</button>
         <button class="close-btn" onclick="closeModal('rugModal')">Close</button>
-
-    </div>
-</div>
-    
-<!-- =========================
-     STAFF APP MODAL (FROM TILE)
-========================= -->
-<div id="staffModal" class="modal-overlay">
-    <div class="modal-box" style="padding:0; max-width:900px;">
-        <div class="modal-close-x" onclick="closeModal('staffModal')">✕</div>
-        <iframe
-            src="https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html"
-            style="width:100%; height:85vh; border:none;">
-        </iframe>
     </div>
 </div>
 
-<!-- =========================
+<!-- ===============================
+     RUSH FEE CALCULATOR MODAL
+=============================== -->
+<div id="rushModal" class="modal-overlay">
+    <div class="modal-box">
+
+        <div class="modal-close-x" onclick="closeModal('rushModal')">✕</div>
+        <h2>Rush Fee Calculator</h2>
+
+        <div class="rush-field">
+            <label>Alteration Price ($)</label>
+            <input id="rushBasePrice" type="number" step="0.01">
+        </div>
+
+        <div class="rush-field">
+            <label>Work Date</label>
+            <input id="rushWorkDate" type="date">
+        </div>
+
+        <div class="results-box">
+            <div id="rushDays">Days Until Work: —</div>
+            <div id="rushPercent">Rush %: —</div>
+            <div id="rushFee">Rush Fee: $0.00</div>
+            <div id="rushTotal">Total with Rush: $0.00</div>
+        </div>
+
+        <button onclick="calculateRush()">Calculate</button>
+        <button class="close-btn" onclick="closeModal('rushModal')">Close</button>
+    </div>
+</div>
+
+<!-- ===============================
+     WEDDING DRESS CLEAN MODAL
+=============================== -->
+<div id="weddingModal" class="modal-overlay">
+    <div class="modal-box">
+
+        <div class="modal-close-x" onclick="closeModal('weddingModal')">✕</div>
+        <h2>Wedding Dress Cleaning Estimate</h2>
+
+        <div class="dress-type-image">
+            <img src="images/wedding-dress-types.png" alt="Wedding dress types">
+        </div>
+
+        <div class="estimator-section">
+            <div class="section-title">Dress Type</div>
+            <div class="dress-type-options">
+                <label><input type="radio" name="dressSize" value="100" checked> A‑Line</label>
+                <label><input type="radio" name="dressSize" value="85"> Mermaid</label>
+                <label><input type="radio" name="dressSize" value="85"> Empire</label>
+                <label><input type="radio" name="dressSize" value="125"> Ball Gown</label>
+                <label><input type="radio" name="dressSize" value="45"> Sheath</label>
+            </div>
+        </div>
+
+        <div class="estimator-section">
+            <div class="section-title">Train Length</div>
+            <div class="option-group">
+                <label><input type="radio" name="train" value="0" checked> None</label>
+                <label><input type="radio" name="train" value="25"> Short (Chapel)</label>
+                <label><input type="radio" name="train" value="50"> Long (Cathedral)</label>
+                <label><input type="radio" name="train" value="40"> Detachable Skirt</label>
+            </div>
+        </div>
+
+        <div class="estimator-section">
+            <div class="section-title">Details</div>
+            <div class="checkbox-grid">
+                <label><input type="checkbox" class="wedding-addon" value="5"> Heavy lace</label>
+                <label><input type="checkbox" class="wedding-addon" value="25"> Beading / Sequins</label>
+                <label><input type="checkbox" class="wedding-addon" value="30"> Petticoat</label>
+            </div>
+        </div>
+
+        <div class="estimator-section">
+            <div class="section-title">Optional Services</div>
+            <div class="checkbox-grid">
+                <label><input type="checkbox" class="wedding-addon" value="125"> Preservation boxing</label>
+                <label><input type="checkbox" class="wedding-addon" value="-40"> Pressing / steaming</label>
+            </div>
+        </div>
+
+        <div class="results-box">
+            <div id="weddingTotal">Estimated Total: $0.00</div>
+            <div class="estimate-note">Estimate only. Final price confirmed after inspection.</div>
+        </div>
+
+        <button class="primary-btn" onclick="calculateWedding()">Calculate</button>
+        <button class="close-btn" onclick="closeModal('weddingModal')">Close</button>
+    </div>
+</div>
+<!-- ===============================
      FOOTER
-========================= -->
-<div class="footer" id="contact">
+=============================== -->
+<div class="footer">
     <strong>Top Cleaners & Alterations</strong><br>
     1016 W West Covina Parkway<br>
     West Covina, CA 91790<br>
@@ -1090,127 +644,129 @@ button {
     Internal Access Only
 </div>
 
-<!-- =========================
-     CONSOLIDATED JAVASCRIPT
-========================= -->
+<!-- ===============================
+     ALL JAVASCRIPT
+=============================== -->
 <script>
-/* ---------- MODAL HELPERS ---------- */
+/* ==================================================
+   MODAL OPEN / CLOSE
+================================================== */
 function openModal(id) {
-    document.getElementById(id).style.display = "flex";
+    const el = document.getElementById(id);
+    if (el) el.style.display = "flex";
 }
 function closeModal(id) {
-    document.getElementById(id).style.display = "none";
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
 }
-/* ----------- RUSH CALCULATOR ---------------*/
 
+/* Esc key closes any open modal */
+document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+        document.querySelectorAll(".modal-overlay").forEach(m => m.style.display = "none");
+    }
+});
+
+/* Click outside modal-box closes modal */
+document.querySelectorAll(".modal-overlay").forEach(modal => {
+    modal.addEventListener("click", function (e) {
+        if (e.target === modal) modal.style.display = "none";
+    });
+});
+
+/* ==================================================
+   CENTRALIZED RUSH LOGIC (ONE SOURCE OF TRUTH)
+================================================== */
+function computeRush(baseAmount, workDateValue) {
+    if (!workDateValue || baseAmount <= 0) {
+        return { days: null, percentLabel: "—", rushFee: 0 };
+    }
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const workDate = new Date(workDateValue); workDate.setHours(0,0,0,0);
+
+    let days = Math.round((workDate - today) / 86400000);
+    if (days < 0) days = 0;
+
+    let percent =
+        days <= 1 ? 0.50 :
+        days === 2 ? 0.40 :
+        days === 3 ? 0.30 : 0.20;
+
+    /* $15 flat rule */
+    if (baseAmount === 15) {
+        return { days, percentLabel: "Flat", rushFee: 5 };
+    }
+
+    return {
+        days,
+        percentLabel: Math.round(percent * 100) + "%",
+        rushFee: Math.round(baseAmount * percent * 100) / 100
+    };
+}
+
+/* ==================================================
+   RUSH FEE CALCULATOR
+================================================== */
 function calculateRush() {
     const base = parseFloat(document.getElementById("rushBasePrice").value) || 0;
-    const workDateValue = document.getElementById("rushWorkDate").value;
+    const workDate = document.getElementById("rushWorkDate").value;
 
-    if (!workDateValue || base <= 0) {
+    const result = computeRush(base, workDate);
+    if (result.days === null) {
         alert("Please enter a valid base price and work date.");
         return;
     }
 
-    const today = new Date();
-    today.setHours(0,0,0,0);
-
-    const workDate = new Date(workDateValue);
-    workDate.setHours(0,0,0,0);
-
-    let diffDays = Math.round((workDate - today) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) diffDays = 0;
-
-    let rushPercent = 0;
-
-    if (diffDays <= 1) {
-        rushPercent = 0.50;
-    } else if (diffDays === 2) {
-        rushPercent = 0.40;
-    } else if (diffDays === 3) {
-        rushPercent = 0.30;
-    } else {
-        rushPercent = 0.20;
-    }
-
-    let rushFee;
-
-    /* ✅ HARD OVERRIDE RULE */
-    if (base === 15) {
-        rushFee = 5;
-    } else {
-        rushFee = Math.round(base * rushPercent * 100) / 100;
-    }
-
-    const total = base + rushFee;
-
-    document.getElementById("rushDays").innerText =
-        "Days Until Work: " + diffDays;
-
-    document.getElementById("rushPercent").innerText =
-        "Rush %: " + Math.round(rushPercent * 100) + "%";
-
-    document.getElementById("rushFee").innerText =
-        "Rush Fee: $" + rushFee.toFixed(2);
-
+    document.getElementById("rushDays").innerText = "Days Until Work: " + result.days;
+    document.getElementById("rushPercent").innerText = "Rush %: " + result.percentLabel;
+    document.getElementById("rushFee").innerText = "Rush Fee: $" + result.rushFee.toFixed(2);
     document.getElementById("rushTotal").innerText =
-        "Total with Rush: $" + total.toFixed(2);
+        "Total with Rush: $" + (base + result.rushFee).toFixed(2);
 }
 
-    
-/* ----------- RUG CALCULATOR ---------------*/
-
+/* ==================================================
+   RUG CLEAN ESTIMATOR
+================================================== */
 function calculateRug() {
     const length = parseFloat(document.getElementById("rugLength").value) || 0;
     const width  = parseFloat(document.getElementById("rugWidth").value) || 0;
     const unit   = document.getElementById("rugUnit").value;
 
-    let lengthFt = length;
-    let widthFt  = width;
-
-    // Convert to feet
-    if (unit === "in") {
-        lengthFt = length / 12;
-        widthFt  = width / 12;
-    } else if (unit === "cm") {
-        lengthFt = length / 30.48;
-        widthFt  = width / 30.48;
-    }
+    let lengthFt = length, widthFt = width;
+    if (unit === "in") { lengthFt = length / 12; widthFt = width / 12; }
+    if (unit === "cm") { lengthFt = length / 30.48; widthFt = width / 30.48; }
 
     const areaSqFt = lengthFt * widthFt;
     const price = areaSqFt * 5.99;
 
-    document.getElementById("rugArea").innerText =
-        "Area: " + areaSqFt.toFixed(2) + " sq ft";
-
-    document.getElementById("rugPrice").innerText =
-        "Price: $" + price.toFixed(2);
+    document.getElementById("rugArea").innerText = "Area: " + areaSqFt.toFixed(2) + " sq ft";
+    document.getElementById("rugPrice").innerText = "Price: $" + price.toFixed(2);
 }
-    
-/* ---------- WEDDING DRESS CLEAN ESTIMATOR ---------- */
 
+/* ==================================================
+   WEDDING DRESS CLEAN ESTIMATOR
+================================================== */
 function calculateWedding() {
     let total = 0;
-
     const size = document.querySelector('input[name="dressSize"]:checked');
     const train = document.querySelector('input[name="train"]:checked');
     const addons = document.querySelectorAll('.wedding-addon:checked');
 
     if (size) total += parseFloat(size.value);
     if (train) total += parseFloat(train.value);
-
-    addons.forEach(a => {
-        total += parseFloat(a.value);
-    });
+    addons.forEach(a => total += parseFloat(a.value));
 
     document.getElementById("weddingTotal").innerText =
         "Estimated Total: $" + total.toFixed(2);
 }
 
-    
-/* ---------- DRESS HEM ESTIMATOR ---------- */    
-function num(id) {
-    return parseFloat(document.getElementById(id).value) || 0;
+/* ==================================================
+   DRESS HEM ESTIMATOR (WITH RUSH)
+================================================== */
+function toggleRushDate() {
+    const wrap = document.getElementById("hemRushDateWrap");
+    wrap.style.display = document.getElementById("hemRushToggle").checked ? "block" : "none";
 }
 
 function calculateHem() {
@@ -1223,86 +779,46 @@ function calculateHem() {
         ["horse2", 25, "horse2Seq"]
     ];
 
-    let subtotal = 0;
-    let yards = 0;
+    let subtotal = 0, yards = 0;
 
     rows.forEach(([qty, rate, seq]) => {
         const y = parseFloat(document.getElementById(qty).value) || 0;
         yards += y;
         subtotal += y * rate;
-        if (document.getElementById(seq).checked) {
-            subtotal += y * 5;
-        }
+        if (document.getElementById(seq).checked) subtotal += y * 5;
     });
 
-    if (document.getElementById("glitterCheck").checked) {
-        subtotal += 10;
-    }
+    if (document.getElementById("glitterCheck").checked) subtotal += 10;
 
+    document.getElementById("totalYards").innerText = "Total Yards: " + yards.toFixed(2);
+    document.getElementById("hemSubtotal").innerText = "Subtotal: $" + subtotal.toFixed(2);
     document.getElementById("hemRushPercent").innerText = "Rush %: —";
-    
+
     let rushFee = 0;
-
     if (document.getElementById("hemRushToggle").checked) {
-        const base = subtotal;
         const dateVal = document.getElementById("hemRushDate").value;
-
-        if (!dateVal) {
+        const result = computeRush(subtotal, dateVal);
+        if (result.days === null) {
             alert("Please select a work date for rush.");
             return;
         }
-
-        const today = new Date();
-        today.setHours(0,0,0,0);
-
-        const work = new Date(dateVal);
-        work.setHours(0,0,0,0);
-
-        let days = Math.round((work - today) / 86400000);
-        if (days < 0) days = 0;
-
-        let percent =
-            days <= 1 ? 0.50 :
-            days === 2 ? 0.40 :
-            days === 3 ? 0.30 : 0.20;
-        
-        if (base === 15) {
-            rushFee = 5;
-            document.getElementById("hemRushPercent").innerText = "Rush %: Flat";
-        } else {
-            rushFee = Math.round(base * percent * 100) / 100;
-            document.getElementById("hemRushPercent").innerText =
-                "Rush %: " + Math.round(percent * 100) + "%";
-        }
+        rushFee = result.rushFee;
+        document.getElementById("hemRushPercent").innerText = "Rush %: " + result.percentLabel;
     }
 
-    document.getElementById("totalYards").innerText =
-        "Total Yards: " + yards.toFixed(2);
-
-    document.getElementById("hemSubtotal").innerText =
-        "Subtotal: $" + subtotal.toFixed(2);
-
-    document.getElementById("hemRushFee").innerText =
-        "Rush Fee: $" + rushFee.toFixed(2);
-
+    document.getElementById("hemRushFee").innerText = "Rush Fee: $" + rushFee.toFixed(2);
     document.getElementById("hemFinalTotal").innerText =
         "Total: $" + (subtotal + rushFee).toFixed(2);
 }
 
-function toggleRushDate() {
-    const wrap = document.getElementById("hemRushDateWrap");
-    wrap.style.display = document.getElementById("hemRushToggle").checked
-        ? "block"
-        : "none";
-}
-    
-/* ---------- REVIEW DATA ---------- */
+/* ==================================================
+   GOOGLE REVIEWS (LIVE)
+================================================== */
 const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
 
 function bars(count, icon) {
     return icon.repeat(Math.min(20, Math.floor(count)));
 }
-
 function renderBars(pos, neu, neg) {
     return `
         <div class="rating-line">Positive: ${pos}</div>${bars(pos/5,"🟩")}
@@ -1311,20 +827,22 @@ function renderBars(pos, neu, neg) {
     `;
 }
 
-fetch(WORKER_URL + "/google").then(r=>r.json()).then(d=>{
-    const t=d.result.user_ratings_total,r=d.result.rating;
-    const p=Math.round(t*.85),n=Math.round(t*.1),g=t-p-n;
-    document.getElementById("google-rating").innerText=`⭐ ${r} (${t})`;
-    document.getElementById("google-bars").innerHTML=renderBars(p,n,g);
-});
-
+fetch(WORKER_URL + "/google")
+  .then(r => r.json())
+  .then(d => {
+      const t = d.result.user_ratings_total;
+      const r = d.result.rating;
+      const p = Math.round(t * 0.85);
+      const n = Math.round(t * 0.10);
+      const g = t - p - n;
+      document.getElementById("google-rating").innerText = `⭐ ${r} (${t})`;
+      document.getElementById("google-bars").innerHTML = renderBars(p, n, g);
+  })
+  .catch(() => {
+      const el = document.getElementById("google-rating");
+      if (el) el.innerText = "Unavailable";
+  });
 </script>
 
 </body>
 </html>
-
-
-
-
-
-
