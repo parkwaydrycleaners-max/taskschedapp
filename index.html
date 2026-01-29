@@ -209,38 +209,6 @@ body {
     font-size: 20px;
     cursor: pointer;
 }
-
-/* ==================================================
-   RESTORE ORIGINAL WEDDING MODAL SIZING
-================================================== */
-
-/* Match original calculator sizing */
-#weddingModal .modal-box {
-    max-width: 420px;     /* same as other calculators */
-    max-height: none;     /* ✅ key fix */
-    overflow-y: visible;  /* ✅ key fix */
-}
-
-/* Constrain the reference image like before */
-#weddingModal .dress-type-image {
-    margin-bottom: 6px;
-}
-
-#weddingModal .dress-type-image img {
-    width: 100%;
-    max-height: 220px;    /* ✅ matches original look */
-    object-fit: contain;
-}
-
-/* Tighten vertical spacing to match original */
-#weddingModal .estimator-section {
-    margin-bottom: 8px;
-}
-
-#weddingModal .results-box {
-    margin-top: 10px;
-    padding: 10px;
-}
     
 /* ==================================================
    SHARED FORM ELEMENTS
@@ -303,6 +271,39 @@ button {
         grid-template-columns: 1fr;
     }
 }
+
+/* ==================================================
+   RESTORE ORIGINAL WEDDING MODAL SIZING
+================================================== */
+
+/* Match original calculator sizing */
+#weddingModal .modal-box {
+    max-width: 420px;     /* same as other calculators */
+    max-height: none;     /* ✅ key fix */
+    overflow-y: visible;  /* ✅ key fix */
+}
+
+/* Constrain the reference image like before */
+#weddingModal .dress-type-image {
+    margin-bottom: 6px;
+}
+
+#weddingModal .dress-type-image img {
+    width: 100%;
+    max-height: 220px;    /* ✅ matches original look */
+    object-fit: contain;
+}
+
+/* Tighten vertical spacing to match original */
+#weddingModal .estimator-section {
+    margin-bottom: 8px;
+}
+
+#weddingModal .results-box {
+    margin-top: 10px;
+    padding: 10px;
+}
+
 </style>
 </head>
 <body>
@@ -878,6 +879,7 @@ fetch(WORKER_URL + "/google")
 
 </body>
 </html>
+
 
 
 
