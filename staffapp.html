@@ -2467,13 +2467,13 @@
             }
 
             try {
-                // Format date for Airtable record name (try both formats)
+                // Format date for Airtable record name
                 const recordName = selectedDate.toISOString().split('T')[0];
                 const recordId = `CHECKLIST_${recordName}`;
 
-                // Search by RecordID field (new format) or Name field (old format)
+                // Search by RecordID field only
                 const response = await fetch(
-                    `https://api.airtable.com/v0/${airtableConfig.baseId}/${encodeURIComponent(airtableConfig.tableName)}?filterByFormula=OR({RecordID}="${recordId}",{Name}="${recordName}")`,
+                    `https://api.airtable.com/v0/${airtableConfig.baseId}/${encodeURIComponent(airtableConfig.tableName)}?filterByFormula={RecordID}="${recordId}"`,
                     { headers: { 'Authorization': `Bearer ${airtableConfig.token}` } }
                 );
 
@@ -3469,6 +3469,7 @@
 
         // Flag to prevent race condition when creating daily record
         let isCreatingDailyRecord = false;
+        let duplicateWarningShown = {}; // Track which dates we've warned about
 
         // Find or create the daily record (stores completion status for today)
         async function findOrCreateDailyRecord() {
@@ -3479,7 +3480,11 @@
                 // If multiple duplicates exist, use the one with most recent data
                 let bestRecord = result.records[0];
                 if (result.records.length > 1) {
-                    console.log(`Found ${result.records.length} duplicate records for ${todayRecordId}, using most recent`);
+                    // Only warn once per date per session
+                    if (!duplicateWarningShown[todayRecordId]) {
+                        console.log(`Found ${result.records.length} duplicate records for ${todayRecordId}, using most recent. Consider deleting duplicates in Airtable.`);
+                        duplicateWarningShown[todayRecordId] = true;
+                    }
                     bestRecord = result.records.reduce((a, b) =>
                         (a.fields.LastModified || 0) > (b.fields.LastModified || 0) ? a : b
                     );
@@ -3702,9 +3707,9 @@
         function startAutoSync() {
             if (syncInterval) clearInterval(syncInterval);
 
-            // Sync every 30 seconds
+            // Sync every 30 seconds (only when viewing today)
             syncInterval = setInterval(() => {
-                if (airtableConfig) {
+                if (airtableConfig && isToday()) {
                     pullFromAirtable();
                 }
             }, 30000);
