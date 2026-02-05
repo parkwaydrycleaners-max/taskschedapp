@@ -807,31 +807,10 @@
             padding: 28px;
             width: 100%;
             max-width: 400px;
+            max-height: 90vh;
+            overflow-y: auto;
             box-shadow: var(--shadow-md);
             position: relative;
-            max-height: 90vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Task modal with scrollable content */
-        #taskModal .modal {
-            max-height: 85vh;
-        }
-
-        #taskModal .modal-content-scroll {
-            flex: 1;
-            overflow-y: auto;
-            margin: 0 -28px;
-            padding: 0 28px;
-            min-height: 0;
-        }
-
-        #taskModal .modal-actions {
-            flex-shrink: 0;
-            padding-top: 16px;
-            margin-top: auto;
-            border-top: 1px solid var(--border-color);
         }
 
         .modal-close-btn {
@@ -2082,66 +2061,64 @@
             <h3 id="taskModalTitle">Add New Task</h3>
             <p id="taskModalDesc">Create a task for this checklist</p>
 
-            <div class="modal-content-scroll">
-                <label for="taskTitle">Task Title *</label>
-                <input type="text" id="taskTitle" placeholder="e.g., Check inventory levels" maxlength="100">
+            <label for="taskTitle">Task Title *</label>
+            <input type="text" id="taskTitle" placeholder="e.g., Check inventory levels" maxlength="100">
 
-                <label for="taskDesc">Description (optional)</label>
-                <textarea id="taskDesc" placeholder="e.g., Count stock and note any items below minimum" maxlength="200"></textarea>
+            <label for="taskDesc">Description (optional)</label>
+            <textarea id="taskDesc" placeholder="e.g., Count stock and note any items below minimum" maxlength="200"></textarea>
 
-                <label>Mini Checklist (optional)</label>
-                <div class="subtasks-container" id="subtasksContainer">
-                    <div class="subtasks-list" id="subtasksList"></div>
-                    <div class="subtask-add">
-                        <input type="text" id="subtaskInput" placeholder="Add a subtask..." maxlength="80">
-                        <button type="button" class="subtask-add-btn" id="subtaskAddBtn">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <label>Task Color</label>
-                <div class="task-color-picker" id="taskColorPicker">
-                    <div class="color-option active" data-color="none" title="Default"></div>
-                    <div class="color-option" data-color="#E8F5EC" style="background: #E8F5EC;" title="Mint"></div>
-                    <div class="color-option" data-color="#DBEAFE" style="background: #DBEAFE;" title="Sky"></div>
-                    <div class="color-option" data-color="#FEF3C7" style="background: #FEF3C7;" title="Amber"></div>
-                    <div class="color-option" data-color="#FCE7F3" style="background: #FCE7F3;" title="Pink"></div>
-                    <div class="color-option" data-color="#F3E8FF" style="background: #F3E8FF;" title="Purple"></div>
-                    <div class="color-option" data-color="#FFEDD5" style="background: #FFEDD5;" title="Peach"></div>
-                    <div class="color-option" data-color="#ECFDF5" style="background: #ECFDF5;" title="Teal"></div>
-                    <div class="color-option" data-color="#FEE2E2" style="background: #FEE2E2;" title="Rose"></div>
-                </div>
-
-                <label>Task Style</label>
-                <div class="task-style-toggle" id="taskStyleToggle">
-                    <button type="button" class="task-style-btn active" data-style="checkable">
-                        <i class="fas fa-check-square"></i>
-                        <span>Checkable</span>
-                    </button>
-                    <button type="button" class="task-style-btn" data-style="placeholder">
-                        <i class="fas fa-sticky-note"></i>
-                        <span>Note</span>
-                    </button>
-                    <button type="button" class="task-style-btn" data-style="divider">
-                        <i class="fas fa-minus"></i>
-                        <span>Divider</span>
+            <label>Mini Checklist (optional)</label>
+            <div class="subtasks-container" id="subtasksContainer">
+                <div class="subtasks-list" id="subtasksList"></div>
+                <div class="subtask-add">
+                    <input type="text" id="subtaskInput" placeholder="Add a subtask..." maxlength="80">
+                    <button type="button" class="subtask-add-btn" id="subtaskAddBtn">
+                        <i class="fas fa-plus"></i>
                     </button>
                 </div>
+            </div>
 
-                <label>Task Duration</label>
-                <div class="task-type-toggle" id="taskTypeToggle">
-                    <button type="button" class="task-type-btn active" data-type="permanent">
-                        <i class="fas fa-infinity"></i>
-                        <span>Permanent</span>
-                        <small>Every day</small>
-                    </button>
-                    <button type="button" class="task-type-btn" data-type="today">
-                        <i class="fas fa-calendar-day"></i>
-                        <span>Today Only</span>
-                        <small>Just for today</small>
-                    </button>
-                </div>
+            <label>Task Color</label>
+            <div class="task-color-picker" id="taskColorPicker">
+                <div class="color-option active" data-color="none" title="Default"></div>
+                <div class="color-option" data-color="#E8F5EC" style="background: #E8F5EC;" title="Mint"></div>
+                <div class="color-option" data-color="#DBEAFE" style="background: #DBEAFE;" title="Sky"></div>
+                <div class="color-option" data-color="#FEF3C7" style="background: #FEF3C7;" title="Amber"></div>
+                <div class="color-option" data-color="#FCE7F3" style="background: #FCE7F3;" title="Pink"></div>
+                <div class="color-option" data-color="#F3E8FF" style="background: #F3E8FF;" title="Purple"></div>
+                <div class="color-option" data-color="#FFEDD5" style="background: #FFEDD5;" title="Peach"></div>
+                <div class="color-option" data-color="#ECFDF5" style="background: #ECFDF5;" title="Teal"></div>
+                <div class="color-option" data-color="#FEE2E2" style="background: #FEE2E2;" title="Rose"></div>
+            </div>
+
+            <label>Task Style</label>
+            <div class="task-style-toggle" id="taskStyleToggle">
+                <button type="button" class="task-style-btn active" data-style="checkable">
+                    <i class="fas fa-check-square"></i>
+                    <span>Checkable</span>
+                </button>
+                <button type="button" class="task-style-btn" data-style="placeholder">
+                    <i class="fas fa-sticky-note"></i>
+                    <span>Note</span>
+                </button>
+                <button type="button" class="task-style-btn" data-style="divider">
+                    <i class="fas fa-minus"></i>
+                    <span>Divider</span>
+                </button>
+            </div>
+
+            <label>Task Duration</label>
+            <div class="task-type-toggle" id="taskTypeToggle">
+                <button type="button" class="task-type-btn active" data-type="permanent">
+                    <i class="fas fa-infinity"></i>
+                    <span>Permanent</span>
+                    <small>Every day</small>
+                </button>
+                <button type="button" class="task-type-btn" data-type="today">
+                    <i class="fas fa-calendar-day"></i>
+                    <span>Today Only</span>
+                    <small>Just for today</small>
+                </button>
             </div>
 
             <div class="modal-actions">
