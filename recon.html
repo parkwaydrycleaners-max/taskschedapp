@@ -446,15 +446,44 @@
             color: #42a5f5;
         }
 
-        .tips-box ul {
+        .tips-box .checklist {
             margin: 0;
-            padding-left: 1.5rem;
+            padding: 0;
+            list-style: none;
         }
 
-        .tips-box li {
+        .tips-box .checklist li {
             margin-bottom: 0.5rem;
             color: var(--text);
             line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .tips-box .checklist li.checked {
+            opacity: 0.45;
+            text-decoration: line-through;
+        }
+
+        .tips-box .checklist li.tip-header {
+            text-decoration: none;
+            opacity: 1;
+        }
+
+        .tips-box .checklist input[type="checkbox"] {
+            margin-top: 0.25rem;
+            min-width: 18px;
+            min-height: 18px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #1976d2;
+            flex-shrink: 0;
+        }
+
+        .tips-box .checklist .tip-text {
+            flex: 1;
         }
 
         .date-warning {
@@ -588,7 +617,7 @@
 
                 <div class="tips-box" id="cardTips">
                     <h4>💡 Troubleshooting Tips:</h4>
-                    <ul id="cardTipsList"></ul>
+                    <ul class="checklist" id="cardTipsList"></ul>
                 </div>
             </div>
 
@@ -683,7 +712,7 @@
 
                 <div class="tips-box" id="cashTips">
                     <h4>💡 Troubleshooting Tips:</h4>
-                    <ul id="cashTipsList"></ul>
+                    <ul class="checklist" id="cashTipsList"></ul>
                 </div>
             </div>
         </div>
@@ -871,92 +900,96 @@
             generateReport();
         }
 
+        function buildChecklist(items) {
+            return items.map(function(item) {
+                if (item.header) {
+                    return '<li class="tip-header"><span class="tip-text">' + item.text + '</span></li>';
+                }
+                return '<li><input type="checkbox" onchange="this.parentElement.classList.toggle(\'checked\', this.checked)"><span class="tip-text">' + item.text + '</span></li>';
+            }).join('');
+        }
+
         function showCardTips(balance, ccActual, posCard) {
-            const tips = [];
-            const isPositive = balance > 0; // CC Terminal > POS
-            const diff = fmt(Math.abs(balance));
+            var items = [];
+            var isPositive = balance > 0;
+            var diff = fmt(Math.abs(balance));
 
             if (isPositive) {
-                // SCENARIO 2: CC Terminal is higher than POS
-                tips.push('<strong style="font-size:1.05em;">CC Terminal total is HIGHER than POS card total by ' + diff + '</strong>');
-                tips.push('Verify the .50 surcharge count is accurate — each transaction under $15 adds $0.50 on the terminal but not POS');
-                tips.push('Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered');
-                tips.push('Check if any modified receipts from past orders were paid today — these show on the CC terminal but not in today\'s POS sales');
-                tips.push('<strong>Print the credit card terminal report</strong> (prints for the whole store) and look for the unbalanced amount (' + diff + ') as a specific transaction');
-                tips.push('If the amount is not found on the terminal report, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists transactions chronologically (first to last). Sort your POS transactions the same way and match them in order.');
-                tips.push('Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged');
+                items.push({header: true, text: '<strong style="font-size:1.05em;">CC Terminal total is HIGHER than POS card total by ' + diff + '</strong>'});
+                items.push({text: 'Verify the .50 surcharge count is accurate — each transaction under $15 adds $0.50 on the terminal but not POS'});
+                items.push({text: 'Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered'});
+                items.push({text: 'Check if any modified receipts from past orders were paid today — these show on the CC terminal but not in today\'s POS sales'});
+                items.push({text: '<strong>Print the credit card terminal report</strong> (prints for the whole store) and look for the unbalanced amount (' + diff + ') as a specific transaction'});
+                items.push({text: 'If the amount is not found on the terminal report, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists transactions chronologically (first to last). Sort your POS transactions the same way and match them in order.'});
+                items.push({text: 'Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged'});
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance (&gt;$50):</strong> Double-check both CC terminal totals — reprint terminal reports if needed');
+                    items.push({text: '<strong>Large variance (&gt;$50):</strong> Double-check both CC terminal totals — reprint terminal reports if needed'});
                 }
 
-                tips.push('<strong>Last resort:</strong> Review surveillance camera footage to verify the time and amount of POS transactions against terminal records');
+                items.push({text: '<strong>Last resort:</strong> Review surveillance camera footage to verify the time and amount of POS transactions against terminal records'});
             } else {
-                // SCENARIO 1: POS is higher than CC Terminal
-                tips.push('<strong style="font-size:1.05em;">POS card total is HIGHER than CC Terminal total by ' + diff + '</strong>');
-                tips.push('Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered');
-                tips.push('Check if a card transaction was entered in POS but the card was actually declined or not processed on the terminal');
-                tips.push('Check if a cash or other payment was accidentally rung up as a credit card sale in POS');
-                tips.push('<strong>Print the credit card terminal report</strong> (prints for the whole store) and compare the transaction count — if POS has more card transactions, identify the extra one(s)');
-                tips.push('If counts match, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists transactions chronologically (first to last). Sort your POS transactions the same way and match them in order.');
-                tips.push('Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged');
+                items.push({header: true, text: '<strong style="font-size:1.05em;">POS card total is HIGHER than CC Terminal total by ' + diff + '</strong>'});
+                items.push({text: 'Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered'});
+                items.push({text: 'Check if a card transaction was entered in POS but the card was actually declined or not processed on the terminal'});
+                items.push({text: 'Check if a cash or other payment was accidentally rung up as a credit card sale in POS'});
+                items.push({text: '<strong>Print the credit card terminal report</strong> (prints for the whole store) and compare the transaction count — if POS has more card transactions, identify the extra one(s)'});
+                items.push({text: 'If counts match, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists transactions chronologically (first to last). Sort your POS transactions the same way and match them in order.'});
+                items.push({text: 'Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged'});
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance (&gt;$50):</strong> Review the full transaction log on both the CC terminal and POS sales report side by side');
+                    items.push({text: '<strong>Large variance (&gt;$50):</strong> Review the full transaction log on both the CC terminal and POS sales report side by side'});
                 }
 
-                tips.push('<strong>Last resort:</strong> Review surveillance camera footage to verify the time and amount of POS transactions against terminal records');
+                items.push({text: '<strong>Last resort:</strong> Review surveillance camera footage to verify the time and amount of POS transactions against terminal records'});
             }
 
-            document.getElementById('cardTipsList').innerHTML = tips.map(t => `<li>${t}</li>`).join('');
+            document.getElementById('cardTipsList').innerHTML = buildChecklist(items);
             document.getElementById('cardTips').classList.add('show');
         }
 
         function showCashTips(balance, registerTotal, posTotal) {
-            const tips = [];
-            const isPositive = balance > 0; // Register Sales > POS
-            const diff = fmt(Math.abs(balance));
+            var items = [];
+            var isPositive = balance > 0;
+            var diff = fmt(Math.abs(balance));
 
-            tips.push('<strong>⚠️ Variance exceeds $2.00 tolerance (coins not counted)</strong>');
+            items.push({header: true, text: '<strong>⚠️ Variance exceeds $2.00 tolerance (coins not counted)</strong>'});
 
-            // Check if register total is negative (petty cash exceeds register count)
             if (registerTotal < 0) {
-                tips.push('<strong style="font-size:1.05em;">Petty Cash (' + fmt(getVal('pettyCash')) + ') exceeds Cash Register count (' + fmt(getVal('cashRegister1') + getVal('cashRegister2')) + ')</strong>');
-                tips.push('Verify petty cash amount is correct — it should not be more than what is in the register');
-                tips.push('Check if petty cash was already removed from the register before counting');
-                tips.push('Confirm the cash register count includes all bills (check under the drawer and in the safe)');
+                items.push({header: true, text: '<strong style="font-size:1.05em;">Petty Cash (' + fmt(getVal('pettyCash')) + ') exceeds Cash Register count (' + fmt(getVal('cashRegister1') + getVal('cashRegister2')) + ')</strong>'});
+                items.push({text: 'Verify petty cash amount is correct — it should not be more than what is in the register'});
+                items.push({text: 'Check if petty cash was already removed from the register before counting'});
+                items.push({text: 'Confirm the cash register count includes all bills (check under the drawer and in the safe)'});
             } else if (isPositive) {
-                // SCENARIO 4: Register total (adjusted) is higher than POS
-                tips.push('<strong style="font-size:1.05em;">Cash Register total (adjusted) is HIGHER than POS cash total by ' + diff + '</strong>');
-                tips.push('Confirm all adjustment fields (petty cash, other cash added, cash sales not on POS, store credit in cash, cash refunds) are correctly entered');
-                tips.push('Check if a cash sale was completed but not rung up in POS (customer paid cash but no POS entry was made)');
-                tips.push('Verify "Other Cash Added" amount — was extra cash placed in the register that is not related to a sale?');
-                tips.push('Check if someone made change from the register for a non-sale reason (e.g., breaking a large bill) without recording it');
-                tips.push('Recount the physical cash in the register (bills only) to confirm the register total is accurate');
+                items.push({header: true, text: '<strong style="font-size:1.05em;">Cash Register total (adjusted) is HIGHER than POS cash total by ' + diff + '</strong>'});
+                items.push({text: 'Confirm all adjustment fields (petty cash, other cash added, cash sales not on POS, store credit in cash, cash refunds) are correctly entered'});
+                items.push({text: 'Check if a cash sale was completed but not rung up in POS (customer paid cash but no POS entry was made)'});
+                items.push({text: 'Verify "Other Cash Added" amount — was extra cash placed in the register that is not related to a sale?'});
+                items.push({text: 'Check if someone made change from the register for a non-sale reason (e.g., breaking a large bill) without recording it'});
+                items.push({text: 'Recount the physical cash in the register (bills only) to confirm the register total is accurate'});
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance (&gt;$50):</strong> Review all cash transactions in POS and verify each one against actual receipts');
+                    items.push({text: '<strong>Large variance (&gt;$50):</strong> Review all cash transactions in POS and verify each one against actual receipts'});
                 }
 
-                tips.push('<strong>Last resort:</strong> Review surveillance camera footage to verify cash transactions and register activity');
+                items.push({text: '<strong>Last resort:</strong> Review surveillance camera footage to verify cash transactions and register activity'});
             } else {
-                // SCENARIO 3: POS is higher than Register total (adjusted)
-                tips.push('<strong style="font-size:1.05em;">POS cash total is HIGHER than Cash Register total (adjusted) by ' + diff + '</strong>');
-                tips.push('Confirm all adjustment fields (petty cash, other cash added, cash sales not on POS, store credit in cash, cash refunds) are correctly entered');
-                tips.push('Check if a cash sale was rung up in POS but the customer actually paid with a card or other method');
-                tips.push('Verify all bills were counted — check under the cash drawer, in the safe, or in a drop box');
-                tips.push('Check if cash was removed from the register during the day (bank deposit, petty cash withdrawal, or an employee borrowing)');
-                tips.push('Confirm cash refunds are correctly entered — a refund should show as cash leaving the register');
-                tips.push('Review all mixed payment transactions — verify the cash portions match what was actually received');
+                items.push({header: true, text: '<strong style="font-size:1.05em;">POS cash total is HIGHER than Cash Register total (adjusted) by ' + diff + '</strong>'});
+                items.push({text: 'Confirm all adjustment fields (petty cash, other cash added, cash sales not on POS, store credit in cash, cash refunds) are correctly entered'});
+                items.push({text: 'Check if a cash sale was rung up in POS but the customer actually paid with a card or other method'});
+                items.push({text: 'Verify all bills were counted — check under the cash drawer, in the safe, or in a drop box'});
+                items.push({text: 'Check if cash was removed from the register during the day (bank deposit, petty cash withdrawal, or an employee borrowing)'});
+                items.push({text: 'Confirm cash refunds are correctly entered — a refund should show as cash leaving the register'});
+                items.push({text: 'Review all mixed payment transactions — verify the cash portions match what was actually received'});
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance (&gt;$50):</strong> Recount cash bills and review every POS cash transaction against receipts');
+                    items.push({text: '<strong>Large variance (&gt;$50):</strong> Recount cash bills and review every POS cash transaction against receipts'});
                 }
 
-                tips.push('<strong>Last resort:</strong> Review surveillance camera footage to verify cash transactions and register activity');
+                items.push({text: '<strong>Last resort:</strong> Review surveillance camera footage to verify cash transactions and register activity'});
             }
 
-            document.getElementById('cashTipsList').innerHTML = tips.map(t => `<li>${t}</li>`).join('');
+            document.getElementById('cashTipsList').innerHTML = buildChecklist(items);
             document.getElementById('cashTips').classList.add('show');
         }
 
