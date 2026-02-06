@@ -921,7 +921,7 @@
                 items.push({text: 'Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered'});
                 items.push({text: '<strong>Look over the credit card terminal report</strong> (prints for the whole store) and look for the unbalanced amount (' + diff + ') as a specific transaction'});
                 items.push({text: 'Check if any modified receipts from past orders were paid today — these show on the CC terminal but not in today\'s POS sales'});
-                items.push({text: 'If the amount is not found on the terminal report, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists transactions chronologically (first to last). Sort your POS transactions the same way and match them in order.'});
+                items.push({text: 'If the amount is not found on the terminal report, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists the last transaction at the top and the first transaction at the bottom. Sort your POS transactions the same way (latest first) and match them in order.'});
                 items.push({text: 'Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged'});
 
                 if (Math.abs(balance) > 50) {
@@ -936,7 +936,7 @@
                 items.push({text: 'Check if a card transaction was entered in POS but the card was actually declined or not processed on the terminal'});
                 items.push({text: 'Check if a cash or other payment was accidentally rung up as a credit card sale in POS'});
                 items.push({text: '<strong>Look over the credit card terminal report</strong> (prints for the whole store) and compare the transaction count — if POS has more card transactions, identify the extra one(s)'});
-                items.push({text: 'If counts match, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists transactions chronologically (first to last). Sort your POS transactions the same way and match them in order.'});
+                items.push({text: 'If counts match, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists the last transaction at the top and the first transaction at the bottom. Sort your POS transactions the same way (latest first) and match them in order.'});
                 items.push({text: 'Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged'});
 
                 if (Math.abs(balance) > 50) {
