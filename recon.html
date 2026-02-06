@@ -1,94 +1,1364 @@
-1098             });
-  1099         }
-  1100 
-- 1101         function copyReport() {
-- 1102             const reportText = document.getElementById('reportOutput').textContent;
-- 1103 
-- 1104             if (reportText === 'Enter values above to generate report...') {
-- 1105                 showAlert('Please enter values first to generate a report');
-- 1106                 return;
-- 1107             }
-- 1108 
-+ 1101         function hasVariance() {
-+ 1102             var cardBalance = parseFloat(document.getElementById('cardBalance').textContent.replace('$', '')) || 0;
-+ 1103             var cashBalance = parseFloat(document.getElementById('cashBalance').textContent.replace('$', '')) || 0;
-+ 1104             var cardOff = Math.abs(cardBalance) >= 0.01;
-+ 1105             var cashOff = Math.abs(cashBalance) >= 2.00;
-+ 1106             var variances = [];
-+ 1107             if (cardOff) variances.push('Card: ' + fmt(cardBalance));
-+ 1108             if (cashOff) variances.push('Cash: ' + fmt(cashBalance));
-+ 1109             return variances;
-+ 1110         }
-+ 1111 
-+ 1112         function showVariancePrompt(variances, onSubmit) {
-+ 1113             var m = document.createElement('div');
-+ 1114             m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
-+ 1115             m.innerHTML = '<div style="background:var(--bg);padding:2rem;border-radius:8px;max-width:500px;width:90%;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid var(--border)">' +
-+ 1116                 '<p style="color:var(--red-text);font-weight:700;font-size:1.1rem;margin-bottom:0.75rem">⚠️ Variance Detected</p>' +
-+ 1117                 '<p style="color:var(--text);margin-bottom:0.5rem">' + variances.join(' &nbsp;|&nbsp; ') + '</p>' +
-+ 1118                 '<p style="color:var(--text);margin-bottom:1rem">Please provide an explanation for the variance before sending this report:</p>' +
-+ 1119                 '<textarea id="varianceExplanation" style="width:100%;min-height:100px;padding:0.75rem;font-size:1rem;font-family:inherit;border:2px solid #dc3545;border-radius:6px;background:var(--input-bg);color:var(--text);resize:vertical;margin-bottom:1rem" placeholder="Explain why the reconciliation is not balanced..."></textarea>' +
-+ 1120                 '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">' +
-+ 1121                 '<button class="cancel-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Cancel</button>' +
-+ 1122                 '<button class="submit-btn" style="padding:0.75rem;background:#4a90e2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Submit & Copy</button>' +
-+ 1123                 '</div></div>';
-+ 1124             document.body.appendChild(m);
-+ 1125 
-+ 1126             var textArea = m.querySelector('#varianceExplanation');
-+ 1127             var existing = document.getElementById('notesField').value.trim();
-+ 1128             if (existing) textArea.value = existing;
-+ 1129             textArea.focus();
-+ 1130 
-+ 1131             m.querySelector('.cancel-btn').onclick = function() { m.remove(); };
-+ 1132             m.querySelector('.submit-btn').onclick = function() {
-+ 1133                 var explanation = textArea.value.trim();
-+ 1134                 if (!explanation) {
-+ 1135                     textArea.style.borderColor = '#dc3545';
-+ 1136                     textArea.style.boxShadow = '0 0 0 3px rgba(220,53,69,0.25)';
-+ 1137                     textArea.setAttribute('placeholder', '⚠️ Explanation is required before copying the report!');
-+ 1138                     return;
-+ 1139                 }
-+ 1140                 m.remove();
-+ 1141                 onSubmit(explanation);
-+ 1142             };
-+ 1143         }
-+ 1144 
-+ 1145         function proceedWithDateCheck() {
-  1146             var selected = document.getElementById('reconciliationDate').value;
-  1147             if (selected && selected !== getTodayString()) {
-  1148                 var dateObj = new Date(selected);
-  1153                 );
-  1154                 return;
-  1155             }
-- 1119 
-  1156             doCopy();
-+ 1157         }
-+ 1158 
-+ 1159         function copyReport() {
-+ 1160             var reportText = document.getElementById('reportOutput').textContent;
-+ 1161 
-+ 1162             if (reportText === 'Enter values above to generate report...') {
-+ 1163                 showAlert('Please enter values first to generate a report');
-+ 1164                 return;
-+ 1165             }
-+ 1166 
-+ 1167             var variances = hasVariance();
-+ 1168             if (variances.length > 0) {
-+ 1169                 showVariancePrompt(variances, function(explanation) {
-+ 1170                     var notesField = document.getElementById('notesField');
-+ 1171                     var existing = notesField.value.trim();
-+ 1172                     if (existing && existing !== explanation) {
-+ 1173                         notesField.value = existing + '\n\nVARIANCE EXPLANATION: ' + explanation;
-+ 1174                     } else {
-+ 1175                         notesField.value = 'VARIANCE EXPLANATION: ' + explanation;
-+ 1176                     }
-+ 1177                     generateReport();
-+ 1178                     proceedWithDateCheck();
-+ 1179                 });
-+ 1180                 return;
-+ 1181             }
-+ 1182 
-+ 1183             proceedWithDateCheck();
-  1184         }
-  1185 
-  1186         function validateInputs() {
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Sales Reconciliation</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #000000;
+            --border: #cccccc;
+            --header-bg: #f0f0f0;
+            --total-bg: #e8e8e8;
+            --green: #c6efce;
+            --green-text: #006100;
+            --red: #ffc7ce;
+            --red-text: #9c0006;
+            --input-bg: #ffffff;
+        }
+
+        .dark {
+            --bg: #1e1e1e;
+            --text: #e0e0e0;
+            --border: #444444;
+            --header-bg: #2a2a2a;
+            --total-bg: #333333;
+            --green: #1b4d3e;
+            --green-text: #4ade80;
+            --red: #4d1f1f;
+            --red-text: #f87171;
+            --input-bg: #2a2a2a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 1rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: var(--header-bg);
+            border-radius: 8px;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .date-input {
+            font-size: 1.1rem;
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--text);
+        }
+
+        .boards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 600px), 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .board {
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .board-title {
+            background: var(--header-bg);
+            padding: 1rem;
+            font-weight: 700;
+            font-size: 1.1rem;
+            text-align: center;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            border-bottom: 1px solid var(--border);
+            min-height: 45px;
+        }
+
+        .row.no-border {
+            border-bottom: none;
+        }
+
+        .row-label {
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            font-size: 0.95rem;
+        }
+
+        .row-label.bold {
+            font-weight: 700;
+            background: var(--total-bg);
+        }
+
+        .row-label.section-header {
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: #666;
+            padding-top: 1rem;
+        }
+
+        .dark .row-label.section-header {
+            color: #999;
+        }
+
+        .row-value {
+            padding: 0.5rem;
+            min-width: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .row-value input {
+            width: 100%;
+            padding: 0.5rem;
+            font-size: 1rem;
+            border: 2px solid #4a90e2;
+            border-radius: 4px;
+            text-align: right;
+            background: var(--input-bg);
+            color: var(--text);
+            font-family: 'Courier New', monospace;
+            box-shadow: inset 0 0 0 1px rgba(74, 144, 226, 0.1);
+        }
+
+        .row-value input:focus {
+            outline: none;
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+        }
+
+        .row-value input::before {
+            content: '✏️';
+            margin-right: 0.5rem;
+        }
+
+        .row-value.calculated {
+            padding: 0.75rem 1rem;
+            font-weight: 700;
+            font-size: 1.1rem;
+            font-family: 'Courier New', monospace;
+            background: var(--total-bg);
+        }
+
+        .balance-row {
+            background: var(--green);
+            color: var(--green-text);
+        }
+
+        .balance-row.unbalanced {
+            background: var(--red);
+            color: var(--red-text);
+        }
+
+        .balance-row .row-label {
+            background: transparent;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .balance-row .row-value {
+            font-weight: 700;
+            font-size: 1.2rem;
+            padding: 0.75rem 1rem;
+        }
+
+        .split-input {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+
+        .helper-text {
+            font-size: 0.75rem;
+            color: #666;
+            font-style: italic;
+        }
+
+        .dark .helper-text {
+            color: #999;
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        button {
+            padding: 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #4a90e2;
+            color: white;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #357abd;
+            transform: translateY(-1px);
+        }
+
+        button.secondary {
+            background: var(--total-bg);
+            color: var(--text);
+            border: 2px solid var(--border);
+        }
+
+        button.secondary:hover {
+            border-color: #4a90e2;
+        }
+
+        .history {
+            background: var(--header-bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 2px solid var(--border);
+        }
+
+        .history h2 {
+            margin-bottom: 1rem;
+        }
+
+        .history-item {
+            background: var(--bg);
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-radius: 6px;
+            border-left: 4px solid var(--border);
+        }
+
+        .history-item.balanced {
+            border-left-color: var(--green-text);
+        }
+
+        .history-item.unbalanced {
+            border-left-color: var(--red-text);
+        }
+
+        .history-date {
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .history-details {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .dark .history-details {
+            color: #999;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #999;
+        }
+
+        .notes-section {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: var(--header-bg);
+            border-radius: 8px;
+            border: 2px solid var(--border);
+        }
+
+        .notes-section h3 {
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+
+        .notes-section textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 0.75rem;
+            font-size: 0.95rem;
+            font-family: inherit;
+            border: 2px solid #4a90e2;
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--text);
+            resize: vertical;
+            box-shadow: inset 0 0 0 1px rgba(74, 144, 226, 0.1);
+        }
+
+        .notes-section textarea:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+        }
+
+        .breakdown {
+            background: var(--header-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            font-family: 'Courier New', monospace;
+            color: var(--text-secondary);
+            border-left: 3px solid #4a90e2;
+        }
+
+        .breakdown-title {
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin: 0.5rem;
+            border-left: 4px solid #ffc107;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .dark .warning {
+            background: #3d3000;
+            color: #ffc107;
+        }
+
+        .warning.show {
+            display: block;
+        }
+
+        .input-icon {
+            position: relative;
+        }
+
+        .input-icon::after {
+            content: '✏️';
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.85rem;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .report-section {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: var(--header-bg);
+            border-radius: 8px;
+            border: 2px solid var(--border);
+        }
+
+        .report-section h3 {
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+
+        .report-output {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            color: var(--text);
+            min-height: 150px;
+            margin-bottom: 1rem;
+        }
+
+        .copy-button {
+            background: #28a745;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .copy-button:hover {
+            background: #218838;
+        }
+
+        .copy-button.copied {
+            background: #17a2b8;
+        }
+
+        .tips-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 1rem;
+            margin-top: 1rem;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .dark .tips-box {
+            background: #0d3a5c;
+            border-left-color: #42a5f5;
+        }
+
+        .tips-box.show {
+            display: block;
+        }
+
+        .tips-box h4 {
+            margin: 0 0 0.75rem 0;
+            font-size: 1rem;
+            color: #1976d2;
+        }
+
+        .dark .tips-box h4 {
+            color: #42a5f5;
+        }
+
+        .tips-box .checklist {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .tips-box .checklist li {
+            margin-bottom: 0.5rem;
+            color: var(--text);
+            line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .tips-box .checklist li.checked {
+            opacity: 0.45;
+            text-decoration: line-through;
+        }
+
+        .tips-box .checklist li.tip-header {
+            text-decoration: none;
+            opacity: 1;
+        }
+
+        .tips-box .checklist input[type="checkbox"] {
+            margin-top: 0.25rem;
+            min-width: 18px;
+            min-height: 18px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #1976d2;
+            flex-shrink: 0;
+        }
+
+        .tips-box .checklist .tip-text {
+            flex: 1;
+        }
+
+        .date-warning {
+            display: none;
+            background: #dc3545;
+            color: #ffffff;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-top: 0.75rem;
+            font-weight: 700;
+            font-size: 1rem;
+            text-align: center;
+            animation: pulse-warning 1.5s ease-in-out infinite;
+        }
+
+        .date-warning.show {
+            display: block;
+        }
+
+        @keyframes pulse-warning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        @media (max-width: 768px) {
+            .boards {
+                grid-template-columns: 1fr;
+            }
+
+            .row-value {
+                min-width: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Daily Sales Reconciliation</h1>
+            <label>DATE: <input type="date" id="reconciliationDate" class="date-input" ></label>
+            <div class="date-warning" id="dateWarning">⚠️ WARNING: The selected date is NOT today! Make sure this is correct before sending the report.</div>
+        </div>
+
+        <div class="boards">
+            <!-- LEFT: CREDIT CARD -->
+            <div class="board">
+                <div class="board-title">CREDIT CARD RECONCILIATION</div>
+
+                <div class="row">
+                    <div class="row-label">POS CREDIT CARD SALES</div>
+                    <div class="row-value"><input type="number" id="posCardSales" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">POS MIXED SALES (CARD PORTION ONLY)</div>
+                    <div class="row-value"><input type="number" id="posMixedCard" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label bold">TOTAL POS CREDIT CARD SALES</div>
+                    <div class="row-value calculated" id="totalPOSCard">$0.00</div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label section-header">CREDIT CARD TERMINAL READINGS:</div>
+                    <div class="row-value"></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">CREDIT CARD TERMINAL 1 SALES</div>
+                    <div class="row-value"><input type="number" id="ccMachine1" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">CREDIT CARD TERMINAL 2 SALES</div>
+                    <div class="row-value"><input type="number" id="ccMachine2" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label bold">TOTAL CREDIT CARD SALES</div>
+                    <div class="row-value calculated" id="totalCCMachine">$0.00</div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label section-header">ADJUSTMENTS:</div>
+                    <div class="row-value"></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">
+                        ADDITIONAL .50 CHARGES (count)
+                        <div class="helper-text">Enter # of transactions under $15</div>
+                    </div>
+                    <div class="row-value"><input type="number" id="additional50" step="1" placeholder="0" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">OTHER CARD TRANSACTIONS</div>
+                    <div class="row-value"><input type="number" id="otherCardTrans" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">ADDITIONAL SALES NOT ON POS</div>
+                    <div class="row-value"><input type="number" id="addSalesNotPOS" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">STORE CREDIT IN CARD</div>
+                    <div class="row-value"><input type="number" id="storeCreditCard" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">VOIDS</div>
+                    <div class="row-value"><input type="number" id="voidsCard" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label bold">TOTAL CREDIT CARD SALES (ADJUSTED)</div>
+                    <div class="row-value calculated" id="totalCCActual">$0.00</div>
+                </div>
+
+                <div class="breakdown" id="cardBreakdown">
+                    <div class="breakdown-title">📊 Calculation:</div>
+                    <div id="cardCalcText">Enter values to see calculation</div>
+                </div>
+
+                <div class="row balance-row" id="cardBalanceRow">
+                    <div class="row-label">BALANCE?</div>
+                    <div class="row-value" id="cardBalance">$0.00</div>
+                </div>
+
+                <div class="tips-box" id="cardTips">
+                    <h4>💡 Troubleshooting Tips:</h4>
+                    <ul class="checklist" id="cardTipsList"></ul>
+                </div>
+            </div>
+
+            <!-- RIGHT: CASH -->
+            <div class="board">
+                <div class="board-title">CASH RECONCILIATION</div>
+
+                <div class="row">
+                    <div class="row-label">POS CASH SALES</div>
+                    <div class="row-value"><input type="number" id="posCashSales" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">POS MIXED (CASH PORTION ONLY)</div>
+                    <div class="row-value"><input type="number" id="posMixedCash" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">POS EXPENSE REGISTER</div>
+                    <div class="row-value"><input type="number" id="posExpense" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label bold">TOTAL POS CASH SALES</div>
+                    <div class="row-value calculated" id="totalPOSCash">$0.00</div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label section-header">CASH REGISTER COUNT:</div>
+                    <div class="row-value"></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">CASH REGISTER 1</div>
+                    <div class="row-value"><input type="number" id="cashRegister1" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">CASH REGISTER 2</div>
+                    <div class="row-value"><input type="number" id="cashRegister2" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label bold">TOTAL CASH REGISTER</div>
+                    <div class="row-value calculated" id="totalCashRegister">$0.00</div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label section-header">ADJUSTMENTS:</div>
+                    <div class="row-value"></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">PETTY CASH</div>
+                    <div class="row-value"><input type="number" id="pettyCash" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">OTHER CASH ADDED</div>
+                    <div class="row-value"><input type="number" id="otherCashAdded" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">CASH SALES NOT ON POS</div>
+                    <div class="row-value"><input type="number" id="cashNotPOS" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">STORE CREDIT IN CASH</div>
+                    <div class="row-value"><input type="number" id="storeCreditCash" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label">CASH REFUNDS</div>
+                    <div class="row-value"><input type="number" id="cashRefunds" step="0.01" placeholder="0.00" ></div>
+                </div>
+
+                <div class="row">
+                    <div class="row-label bold">TOTAL REGISTER SALES</div>
+                    <div class="row-value calculated" id="totalRegisterSales">$0.00</div>
+                </div>
+
+                <div class="breakdown" id="cashBreakdown">
+                    <div class="breakdown-title">📊 Calculation:</div>
+                    <div id="cashCalcText">Enter values to see calculation</div>
+                </div>
+
+                <div class="row balance-row" id="cashBalanceRow">
+                    <div class="row-label">BALANCE? (±$2 tolerance)</div>
+                    <div class="row-value" id="cashBalance">$0.00</div>
+                </div>
+
+                <div class="tips-box" id="cashTips">
+                    <h4>💡 Troubleshooting Tips:</h4>
+                    <ul class="checklist" id="cashTipsList"></ul>
+                </div>
+            </div>
+        </div>
+
+        <div id="warningContainer"></div>
+
+        <div class="notes-section">
+            <h3>📝 Notes / Comments</h3>
+            <textarea id="notesField" placeholder="Add notes about today's reconciliation (e.g., reasons for variance, special circumstances, etc.)"></textarea>
+        </div>
+
+        <div class="report-section">
+            <h3>📄 Sales Report (Copy & Paste)</h3>
+            <div class="report-output" id="reportOutput">Enter values above to generate report...</div>
+            <button class="copy-button" onclick="copyReport()">📋 Copy Report to Clipboard</button>
+        </div>
+
+        <div class="actions">
+            <button onclick="saveRecord()">💾 Save Record</button>
+            <button class="secondary" onclick="clearAll()">🔄 Clear All</button>
+            <button class="secondary" onclick="exportCSV()">📥 Export CSV</button>
+        </div>
+
+        <div class="history">
+            <h2>📅 History</h2>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+    <script>
+        let history = [];
+
+        // Dark mode
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            document.documentElement.classList.toggle('dark', e.matches);
+        });
+
+        // Set today's date
+        function getTodayString() {
+            const d = new Date();
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+
+        const dateInput = document.getElementById('reconciliationDate');
+        dateInput.value = getTodayString();
+
+        function checkDateWarning() {
+            const selected = dateInput.value;
+            const today = getTodayString();
+            const warning = document.getElementById('dateWarning');
+            if (selected && selected !== today) {
+                warning.classList.add('show');
+            } else {
+                warning.classList.remove('show');
+            }
+        }
+
+        dateInput.addEventListener('change', function() {
+            checkDateWarning();
+            generateReport();
+        });
+
+        // Auto-refresh date when page regains focus (catches tabs left open overnight)
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                const today = getTodayString();
+                if (dateInput.value !== today) {
+                    showConfirm(
+                        '📅 A new day has started. Update the date to today (' + new Date().toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'}) + ')?',
+                        function() {
+                            dateInput.value = today;
+                            checkDateWarning();
+                            generateReport();
+                        }
+                    );
+                    checkDateWarning();
+                }
+            }
+        });
+
+        checkDateWarning();
+
+        function getVal(id) {
+            return parseFloat(document.getElementById(id).value) || 0;
+        }
+
+        function fmt(val) {
+            return '$' + val.toFixed(2);
+        }
+
+        function calculate() {
+            validateInputs();
+
+            // CARD SIDE
+            const posCardSales = getVal('posCardSales');
+            const posMixedCard = getVal('posMixedCard');
+            const totalPOSCard = posCardSales + posMixedCard;
+
+            const ccMachine1 = getVal('ccMachine1');
+            const ccMachine2 = getVal('ccMachine2');
+            const totalCCMachine = ccMachine1 + ccMachine2;
+
+            const additional50Count = getVal('additional50');
+            const additional50Amount = additional50Count * 0.50;
+            const otherCardTrans = getVal('otherCardTrans');
+            const addSalesNotPOS = getVal('addSalesNotPOS');
+            const storeCreditCard = getVal('storeCreditCard');
+            const voidsCard = getVal('voidsCard');
+
+            const totalCCActual = totalCCMachine - additional50Amount - otherCardTrans - addSalesNotPOS - storeCreditCard - voidsCard;
+            const cardBalance = totalCCActual - totalPOSCard;
+
+            document.getElementById('totalPOSCard').textContent = fmt(totalPOSCard);
+            document.getElementById('totalCCMachine').textContent = fmt(totalCCMachine);
+            document.getElementById('totalCCActual').textContent = fmt(totalCCActual);
+            document.getElementById('cardBalance').textContent = fmt(cardBalance);
+
+            // Calculation breakdown
+            let cardCalc = `${fmt(totalCCMachine)}`;
+            if (additional50Amount > 0) cardCalc += ` - ${fmt(additional50Amount)} (${additional50Count} × $0.50)`;
+            if (otherCardTrans > 0) cardCalc += ` - ${fmt(otherCardTrans)} (other trans)`;
+            if (addSalesNotPOS > 0) cardCalc += ` - ${fmt(addSalesNotPOS)} (not on POS)`;
+            if (storeCreditCard > 0) cardCalc += ` - ${fmt(storeCreditCard)} (store credit)`;
+            if (voidsCard > 0) cardCalc += ` - ${fmt(voidsCard)} (voids)`;
+            cardCalc += ` = ${fmt(totalCCActual)}`;
+            document.getElementById('cardCalcText').textContent = cardCalc;
+
+            const cardBalanceRow = document.getElementById('cardBalanceRow');
+            if (Math.abs(cardBalance) < 0.01) {
+                cardBalanceRow.classList.remove('unbalanced');
+                document.getElementById('cardTips').classList.remove('show');
+            } else {
+                cardBalanceRow.classList.add('unbalanced');
+                showCardTips(cardBalance, totalCCActual, totalPOSCard);
+            }
+
+            // CASH SIDE
+            const posCashSales = getVal('posCashSales');
+            const posMixedCash = getVal('posMixedCash');
+            const posExpense = getVal('posExpense');
+            const totalPOSCash = posCashSales + posMixedCash + posExpense;
+
+            const cashRegister1 = getVal('cashRegister1');
+            const cashRegister2 = getVal('cashRegister2');
+            const totalCashRegister = cashRegister1 + cashRegister2;
+
+            const pettyCash = getVal('pettyCash');
+            const otherCashAdded = getVal('otherCashAdded');
+            const cashNotPOS = getVal('cashNotPOS');
+            const storeCreditCash = getVal('storeCreditCash');
+            const cashRefunds = getVal('cashRefunds');
+
+            const totalRegisterSales = totalCashRegister - pettyCash - otherCashAdded - cashNotPOS - storeCreditCash - cashRefunds;
+            const cashBalance = totalRegisterSales - totalPOSCash;
+
+            document.getElementById('totalPOSCash').textContent = fmt(totalPOSCash);
+            document.getElementById('totalCashRegister').textContent = fmt(totalCashRegister);
+            document.getElementById('totalRegisterSales').textContent = fmt(totalRegisterSales);
+            document.getElementById('cashBalance').textContent = fmt(cashBalance);
+
+            // Calculation breakdown
+            let cashCalc = `${fmt(totalCashRegister)}`;
+            if (pettyCash > 0) cashCalc += ` - ${fmt(pettyCash)} (petty cash)`;
+            if (otherCashAdded > 0) cashCalc += ` - ${fmt(otherCashAdded)} (cash added)`;
+            if (cashNotPOS > 0) cashCalc += ` - ${fmt(cashNotPOS)} (not on POS)`;
+            if (storeCreditCash > 0) cashCalc += ` - ${fmt(storeCreditCash)} (store credit)`;
+            if (cashRefunds > 0) cashCalc += ` - ${fmt(cashRefunds)} (refunds)`;
+            cashCalc += ` = ${fmt(totalRegisterSales)}`;
+            document.getElementById('cashCalcText').textContent = cashCalc;
+
+            const cashBalanceRow = document.getElementById('cashBalanceRow');
+            const cashTolerance = 2.00; // $2 tolerance for coins not counted
+            if (Math.abs(cashBalance) < cashTolerance) {
+                cashBalanceRow.classList.remove('unbalanced');
+                document.getElementById('cashTips').classList.remove('show');
+            } else {
+                cashBalanceRow.classList.add('unbalanced');
+                showCashTips(cashBalance, totalRegisterSales, totalPOSCash);
+            }
+
+            // Generate report
+            generateReport();
+        }
+
+        function buildChecklist(items) {
+            return items.map(function(item) {
+                if (item.header) {
+                    return '<li class="tip-header"><span class="tip-text">' + item.text + '</span></li>';
+                }
+                return '<li><input type="checkbox" onchange="this.parentElement.classList.toggle(\'checked\', this.checked)"><span class="tip-text">' + item.text + '</span></li>';
+            }).join('');
+        }
+
+        function showCardTips(balance, ccActual, posCard) {
+            var items = [];
+            var isPositive = balance > 0;
+            var diff = fmt(Math.abs(balance));
+
+            if (isPositive) {
+                items.push({header: true, text: '<strong style="font-size:1.05em;">CC Terminal total is HIGHER than POS card total by ' + diff + '</strong>'});
+                items.push({text: 'Verify the .50 surcharge count is accurate — each transaction under $15 adds $0.50 on the terminal but not POS'});
+                items.push({text: 'Check for transactions between $14.50–$14.99 that were rounded up to $15.00 on the terminal — these round-ups do not appear on the POS'});
+                items.push({text: 'Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered'});
+                items.push({text: 'Check if any modified receipts from past orders were paid today — these show on the CC terminal but not in today\'s POS sales'});
+                items.push({text: '<strong>Print the credit card terminal report</strong> (prints for the whole store) and look for the unbalanced amount (' + diff + ') as a specific transaction'});
+                items.push({text: 'If the amount is not found on the terminal report, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists transactions chronologically (first to last). Sort your POS transactions the same way and match them in order.'});
+                items.push({text: 'Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged'});
+
+                if (Math.abs(balance) > 50) {
+                    items.push({text: '<strong>Large variance (&gt;$50):</strong> Double-check both CC terminal totals — reprint terminal reports if needed'});
+                }
+
+                items.push({text: '<strong>Last resort:</strong> Review surveillance camera footage to verify the time and amount of POS transactions against terminal records'});
+            } else {
+                items.push({header: true, text: '<strong style="font-size:1.05em;">POS card total is HIGHER than CC Terminal total by ' + diff + '</strong>'});
+                items.push({text: 'Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered'});
+                items.push({text: 'Verify that $14.50–$14.99 round-ups and .50 surcharges are not over-counted in adjustments — over-subtracting these lowers the terminal total too much'});
+                items.push({text: 'Check if a card transaction was entered in POS but the card was actually declined or not processed on the terminal'});
+                items.push({text: 'Check if a cash or other payment was accidentally rung up as a credit card sale in POS'});
+                items.push({text: '<strong>Print the credit card terminal report</strong> (prints for the whole store) and compare the transaction count — if POS has more card transactions, identify the extra one(s)'});
+                items.push({text: 'If counts match, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists transactions chronologically (first to last). Sort your POS transactions the same way and match them in order.'});
+                items.push({text: 'Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged'});
+
+                if (Math.abs(balance) > 50) {
+                    items.push({text: '<strong>Large variance (&gt;$50):</strong> Review the full transaction log on both the CC terminal and POS sales report side by side'});
+                }
+
+                items.push({text: '<strong>Last resort:</strong> Review surveillance camera footage to verify the time and amount of POS transactions against terminal records'});
+            }
+
+            document.getElementById('cardTipsList').innerHTML = buildChecklist(items);
+            document.getElementById('cardTips').classList.add('show');
+        }
+
+        function showCashTips(balance, registerTotal, posTotal) {
+            var items = [];
+            var isPositive = balance > 0;
+            var diff = fmt(Math.abs(balance));
+
+            items.push({header: true, text: '<strong>⚠️ Variance exceeds $2.00 tolerance (coins not counted)</strong>'});
+
+            if (registerTotal < 0) {
+                items.push({header: true, text: '<strong style="font-size:1.05em;">Petty Cash (' + fmt(getVal('pettyCash')) + ') exceeds Cash Register count (' + fmt(getVal('cashRegister1') + getVal('cashRegister2')) + ')</strong>'});
+                items.push({text: 'Verify petty cash amount is correct — it should not be more than what is in the register'});
+                items.push({text: 'Check if petty cash was already removed from the register before counting'});
+                items.push({text: 'Confirm the cash register count includes all bills (check under the drawer and in the safe)'});
+            } else if (isPositive) {
+                items.push({header: true, text: '<strong style="font-size:1.05em;">Cash Register total (adjusted) is HIGHER than POS cash total by ' + diff + '</strong>'});
+                items.push({text: 'Confirm all adjustment fields (petty cash, other cash added, cash sales not on POS, store credit in cash, cash refunds) are correctly entered'});
+                items.push({text: 'Check if a cash sale was completed but not rung up in POS (customer paid cash but no POS entry was made)'});
+                items.push({text: 'Verify "Other Cash Added" amount — was extra cash placed in the register that is not related to a sale?'});
+                items.push({text: 'Check if someone made change from the register for a non-sale reason (e.g., breaking a large bill) without recording it'});
+                items.push({text: 'Recount the physical cash in the register (bills only) to confirm the register total is accurate'});
+
+                if (Math.abs(balance) > 50) {
+                    items.push({text: '<strong>Large variance (&gt;$50):</strong> Review all cash transactions in POS and verify each one against actual receipts'});
+                }
+
+                items.push({text: '<strong>Last resort:</strong> Review surveillance camera footage to verify cash transactions and register activity'});
+            } else {
+                items.push({header: true, text: '<strong style="font-size:1.05em;">POS cash total is HIGHER than Cash Register total (adjusted) by ' + diff + '</strong>'});
+                items.push({text: 'Confirm all adjustment fields (petty cash, other cash added, cash sales not on POS, store credit in cash, cash refunds) are correctly entered'});
+                items.push({text: 'Check if a cash sale was rung up in POS but the customer actually paid with a card or other method'});
+                items.push({text: 'Verify all bills were counted — check under the cash drawer, in the safe, or in a drop box'});
+                items.push({text: 'Check if cash was removed from the register during the day (bank deposit, petty cash withdrawal, or an employee borrowing)'});
+                items.push({text: 'Confirm cash refunds are correctly entered — a refund should show as cash leaving the register'});
+                items.push({text: 'Review all mixed payment transactions — verify the cash portions match what was actually received'});
+
+                if (Math.abs(balance) > 50) {
+                    items.push({text: '<strong>Large variance (&gt;$50):</strong> Recount cash bills and review every POS cash transaction against receipts'});
+                }
+
+                items.push({text: '<strong>Last resort:</strong> Review surveillance camera footage to verify cash transactions and register activity'});
+            }
+
+            document.getElementById('cashTipsList').innerHTML = buildChecklist(items);
+            document.getElementById('cashTips').classList.add('show');
+        }
+
+        function generateReport() {
+            const date = document.getElementById('reconciliationDate').value;
+            if (!date) {
+                document.getElementById('reportOutput').textContent = 'Enter values above to generate report...';
+                return;
+            }
+
+            const dateObj = new Date(date);
+            const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            // Get all values
+            const totalPOSCard = parseFloat(document.getElementById('totalPOSCard').textContent.replace('$', ''));
+            const totalCCActual = parseFloat(document.getElementById('totalCCActual').textContent.replace('$', ''));
+            const cardBalance = parseFloat(document.getElementById('cardBalance').textContent.replace('$', ''));
+            const cardBalanced = Math.abs(cardBalance) < 0.01;
+
+            const totalPOSCash = parseFloat(document.getElementById('totalPOSCash').textContent.replace('$', ''));
+            const totalRegisterSales = parseFloat(document.getElementById('totalRegisterSales').textContent.replace('$', ''));
+            const cashBalance = parseFloat(document.getElementById('cashBalance').textContent.replace('$', ''));
+            const cashBalanced = Math.abs(cashBalance) < 2.00; // $2 tolerance for coins
+
+            const totalSales = totalCCActual + totalRegisterSales;
+            const allBalanced = cardBalanced && cashBalanced;
+
+            const notes = document.getElementById('notesField').value.trim();
+
+            // Build report
+            let report = '';
+            report += '═══════════════════════════════════════════════\n';
+            report += '           DAILY SALES RECONCILIATION\n';
+            report += '═══════════════════════════════════════════════\n';
+            report += `DATE: ${formattedDate}\n`;
+            const now = new Date();
+            const generatedAt = now.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+            report += `Generated: ${generatedAt}\n`;
+            if (date !== getTodayString()) {
+                report += '⚠️ NOTE: Report date does NOT match today\'s date!\n';
+            }
+            report += '═══════════════════════════════════════════════\n\n';
+
+            report += '💳 CREDIT CARD SALES\n';
+            report += '───────────────────────────────────────────────\n';
+            report += `POS Credit Card Total:        ${fmt(totalPOSCard)}\n`;
+            report += `Actual CC Terminal Total:      ${fmt(totalCCActual)}\n`;
+            report += `Card Balance:                 ${fmt(cardBalance)} ${cardBalanced ? '✓' : '⚠️'}\n\n`;
+
+            report += '💵 CASH SALES\n';
+            report += '───────────────────────────────────────────────\n';
+            report += `POS Cash Total:               ${fmt(totalPOSCash)}\n`;
+            report += `Actual Register Total:        ${fmt(totalRegisterSales)}\n`;
+            report += `Cash Balance:                 ${fmt(cashBalance)} ${cashBalanced ? '✓' : '⚠️'}\n\n`;
+
+            report += '📊 SUMMARY\n';
+            report += '───────────────────────────────────────────────\n';
+            report += `Total Sales (Card + Cash):    ${fmt(totalSales)}\n`;
+            report += `Overall Status:               ${allBalanced ? '✓ BALANCED' : '⚠️ VARIANCE DETECTED'}\n`;
+
+            if (notes) {
+                report += '\n📝 NOTES\n';
+                report += '───────────────────────────────────────────────\n';
+                report += `${notes}\n`;
+            }
+
+            report += '\n═══════════════════════════════════════════════\n';
+
+            document.getElementById('reportOutput').textContent = report;
+        }
+
+        function doCopy() {
+            const reportText = document.getElementById('reportOutput').textContent;
+            navigator.clipboard.writeText(reportText).then(() => {
+                const btn = document.querySelector('.copy-button');
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Copied!';
+                btn.classList.add('copied');
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('copied');
+                }, 2000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = reportText;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+
+                const btn = document.querySelector('.copy-button');
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Copied!';
+                btn.classList.add('copied');
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
+        function hasVariance() {
+            var cardBalance = parseFloat(document.getElementById('cardBalance').textContent.replace('$', '')) || 0;
+            var cashBalance = parseFloat(document.getElementById('cashBalance').textContent.replace('$', '')) || 0;
+            var cardOff = Math.abs(cardBalance) >= 0.01;
+            var cashOff = Math.abs(cashBalance) >= 2.00;
+            var variances = [];
+            if (cardOff) variances.push('Card: ' + fmt(cardBalance));
+            if (cashOff) variances.push('Cash: ' + fmt(cashBalance));
+            return variances;
+        }
+
+        function showVariancePrompt(variances, onSubmit) {
+            var m = document.createElement('div');
+            m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+            m.innerHTML = '<div style="background:var(--bg);padding:2rem;border-radius:8px;max-width:500px;width:90%;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid var(--border)">' +
+                '<p style="color:var(--red-text);font-weight:700;font-size:1.1rem;margin-bottom:0.75rem">⚠️ Variance Detected</p>' +
+                '<p style="color:var(--text);margin-bottom:0.5rem">' + variances.join(' &nbsp;|&nbsp; ') + '</p>' +
+                '<p style="color:var(--text);margin-bottom:1rem">Please provide an explanation for the variance before sending this report:</p>' +
+                '<textarea id="varianceExplanation" style="width:100%;min-height:100px;padding:0.75rem;font-size:1rem;font-family:inherit;border:2px solid #dc3545;border-radius:6px;background:var(--input-bg);color:var(--text);resize:vertical;margin-bottom:1rem" placeholder="Explain why the reconciliation is not balanced..."></textarea>' +
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">' +
+                '<button class="cancel-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Cancel</button>' +
+                '<button class="submit-btn" style="padding:0.75rem;background:#4a90e2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Submit & Copy</button>' +
+                '</div></div>';
+            document.body.appendChild(m);
+
+            var textArea = m.querySelector('#varianceExplanation');
+            var existing = document.getElementById('notesField').value.trim();
+            if (existing) textArea.value = existing;
+            textArea.focus();
+
+            m.querySelector('.cancel-btn').onclick = function() { m.remove(); };
+            m.querySelector('.submit-btn').onclick = function() {
+                var explanation = textArea.value.trim();
+                if (!explanation) {
+                    textArea.style.borderColor = '#dc3545';
+                    textArea.style.boxShadow = '0 0 0 3px rgba(220,53,69,0.25)';
+                    textArea.setAttribute('placeholder', '⚠️ Explanation is required before copying the report!');
+                    return;
+                }
+                m.remove();
+                onSubmit(explanation);
+            };
+        }
+
+        function proceedWithDateCheck() {
+            var selected = document.getElementById('reconciliationDate').value;
+            if (selected && selected !== getTodayString()) {
+                var dateObj = new Date(selected);
+                var dateLabel = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                showConfirm(
+                    '⚠️ The report date is <strong>' + dateLabel + '</strong>, which is NOT today.<br><br>Are you sure you want to copy this report?',
+                    doCopy
+                );
+                return;
+            }
+            doCopy();
+        }
+
+        function copyReport() {
+            var reportText = document.getElementById('reportOutput').textContent;
+
+            if (reportText === 'Enter values above to generate report...') {
+                showAlert('Please enter values first to generate a report');
+                return;
+            }
+
+            var variances = hasVariance();
+            if (variances.length > 0) {
+                showVariancePrompt(variances, function(explanation) {
+                    var notesField = document.getElementById('notesField');
+                    var existing = notesField.value.trim();
+                    if (existing && existing !== explanation) {
+                        notesField.value = existing + '\n\nVARIANCE EXPLANATION: ' + explanation;
+                    } else {
+                        notesField.value = 'VARIANCE EXPLANATION: ' + explanation;
+                    }
+                    generateReport();
+                    proceedWithDateCheck();
+                });
+                return;
+            }
+
+            proceedWithDateCheck();
+        }
+
+        function validateInputs() {
+            const warnings = [];
+
+            // Check for unusually large values
+            const largeThreshold = 10000;
+            if (getVal('ccMachine1') > largeThreshold) warnings.push('⚠️ CC Terminal 1 is over $10,000 - please verify');
+            if (getVal('ccMachine2') > largeThreshold) warnings.push('⚠️ CC Terminal 2 is over $10,000 - please verify');
+            if (getVal('cashRegister1') > largeThreshold) warnings.push('⚠️ Cash Register 1 is over $10,000 - please verify');
+            if (getVal('cashRegister2') > largeThreshold) warnings.push('⚠️ Cash Register 2 is over $10,000 - please verify');
+
+            // Check for negative values where they don't make sense
+            const inputs = document.querySelectorAll('input[type="number"]');
+            inputs.forEach(input => {
+                if (parseFloat(input.value) < 0 && input.id !== 'cardBalance' && input.id !== 'cashBalance') {
+                    const label = input.closest('.row')?.querySelector('.row-label')?.textContent || input.id;
+                    warnings.push(`⚠️ Negative value in "${label.trim()}" - is this correct?`);
+                }
+            });
+
+            // Check if additional .50 count is suspiciously high
+            if (getVal('additional50') > 100) {
+                warnings.push('⚠️ Over 100 transactions under $15 - please verify count');
+            }
+
+            // Display warnings
+            const container = document.getElementById('warningContainer');
+            if (warnings.length > 0) {
+                container.innerHTML = warnings.map(w => `<div class="warning show">${w}</div>`).join('');
+            } else {
+                container.innerHTML = '';
+            }
+        }
+
+        // Add listeners
+        const inputs = document.querySelectorAll('input[type="number"]');
+        inputs.forEach(input => input.addEventListener('input', calculate));
+
+        function saveRecord() {
+            const date = document.getElementById('reconciliationDate').value;
+            if (!date) {
+                showAlert('Please select a date');
+                return;
+            }
+
+            const notes = document.getElementById('notesField').value.trim();
+
+            const record = {
+                date: date,
+                notes: notes,
+                card: {
+                    posCardSales: getVal('posCardSales'),
+                    posMixedCard: getVal('posMixedCard'),
+                    totalPOSCard: parseFloat(document.getElementById('totalPOSCard').textContent.replace('$', '')),
+                    ccMachine1: getVal('ccMachine1'),
+                    ccMachine2: getVal('ccMachine2'),
+                    totalCCMachine: parseFloat(document.getElementById('totalCCMachine').textContent.replace('$', '')),
+                    additional50Count: getVal('additional50'),
+                    additional50Amount: getVal('additional50') * 0.50,
+                    otherCardTrans: getVal('otherCardTrans'),
+                    addSalesNotPOS: getVal('addSalesNotPOS'),
+                    storeCreditCard: getVal('storeCreditCard'),
+                    voidsCard: getVal('voidsCard'),
+                    totalCCActual: parseFloat(document.getElementById('totalCCActual').textContent.replace('$', '')),
+                    balance: parseFloat(document.getElementById('cardBalance').textContent.replace('$', ''))
+                },
+                cash: {
+                    posCashSales: getVal('posCashSales'),
+                    posMixedCash: getVal('posMixedCash'),
+                    posExpense: getVal('posExpense'),
+                    totalPOSCash: parseFloat(document.getElementById('totalPOSCash').textContent.replace('$', '')),
+                    cashRegister1: getVal('cashRegister1'),
+                    cashRegister2: getVal('cashRegister2'),
+                    totalCashRegister: parseFloat(document.getElementById('totalCashRegister').textContent.replace('$', '')),
+                    pettyCash: getVal('pettyCash'),
+                    otherCashAdded: getVal('otherCashAdded'),
+                    cashNotPOS: getVal('cashNotPOS'),
+                    storeCreditCash: getVal('storeCreditCash'),
+                    cashRefunds: getVal('cashRefunds'),
+                    totalRegisterSales: parseFloat(document.getElementById('totalRegisterSales').textContent.replace('$', '')),
+                    balance: parseFloat(document.getElementById('cashBalance').textContent.replace('$', ''))
+                }
+            };
+
+            history.unshift(record);
+            displayHistory();
+            showAlert('✓ Record saved successfully!');
+
+            // Clear notes after saving
+            document.getElementById('notesField').value = '';
+        }
+
+        function clearAll() {
+            showConfirm('Clear all fields?', () => {
+                inputs.forEach(input => input.value = '');
+                document.getElementById('notesField').value = '';
+                calculate();
+                generateReport();
+            });
+        }
+
+        function displayHistory() {
+            const list = document.getElementById('historyList');
+            if (history.length === 0) {
+                list.innerHTML = '<div class="empty-state">No records yet</div>';
+                return;
+            }
+
+            list.innerHTML = history.map(r => {
+                const cardOK = Math.abs(r.card.balance) < 0.01;
+                const cashOK = Math.abs(r.cash.balance) < 2.00; // $2 tolerance
+                const allOK = cardOK && cashOK;
+                const notesHtml = r.notes ? `<div style="margin-top:0.5rem;font-style:italic;color:var(--text)">📝 ${r.notes}</div>` : '';
+
+                return `
+                    <div class="history-item ${allOK ? 'balanced' : 'unbalanced'}">
+                        <div class="history-date">${new Date(r.date).toLocaleDateString('en-US', {weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'})} ${allOK ? '✓' : '⚠'}</div>
+                        <div class="history-details">
+                            <div><strong>Card:</strong> Actual: ${fmt(r.card.totalCCActual)} | POS: ${fmt(r.card.totalPOSCard)} | Balance: ${fmt(r.card.balance)} ${cardOK ? '✓' : ''}</div>
+                            <div><strong>Cash:</strong> Register: ${fmt(r.cash.totalRegisterSales)} | POS: ${fmt(r.cash.totalPOSCash)} | Balance: ${fmt(r.cash.balance)} ${cashOK ? '✓' : ''}</div>
+                            ${notesHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function exportCSV() {
+            if (history.length === 0) {
+                showAlert('No records to export');
+                return;
+            }
+
+            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Terminal 1', 'CC Terminal 2', 'Total CC Terminal', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Store Credit Card', 'Voids', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance'];
+
+            const rows = history.map(r => [
+                r.date,
+                `"${(r.notes || '').replace(/"/g, '""')}"`,
+                r.card.posCardSales, r.card.posMixedCard, r.card.totalPOSCard,
+                r.card.ccMachine1, r.card.ccMachine2, r.card.totalCCMachine,
+                r.card.additional50Count, r.card.additional50Amount,
+                r.card.otherCardTrans, r.card.addSalesNotPOS, r.card.storeCreditCard,
+                r.card.voidsCard, r.card.totalCCActual, r.card.balance,
+                r.cash.posCashSales, r.cash.posMixedCash, r.cash.posExpense, r.cash.totalPOSCash,
+                r.cash.cashRegister1, r.cash.cashRegister2, r.cash.totalCashRegister,
+                r.cash.pettyCash, r.cash.otherCashAdded, r.cash.cashNotPOS,
+                r.cash.storeCreditCash, r.cash.cashRefunds, r.cash.totalRegisterSales, r.cash.balance
+            ]);
+
+            const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reconciliation-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function showAlert(msg) {
+            const m = document.createElement('div');
+            m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+            m.innerHTML = `<div style="background:var(--bg);padding:2rem;border-radius:8px;max-width:400px;width:90%;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid var(--border)"><p style="color:var(--text);margin-bottom:1.5rem">${msg}</p><button onclick="this.closest('div[style*=fixed]').remove()" style="width:100%;padding:0.75rem;background:#4a90e2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">OK</button></div>`;
+            document.body.appendChild(m);
+        }
+
+        function showConfirm(msg, onConfirm) {
+            const m = document.createElement('div');
+            m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+            m.innerHTML = `<div style="background:var(--bg);padding:2rem;border-radius:8px;max-width:400px;width:90%;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid var(--border)"><p style="color:var(--text);margin-bottom:1.5rem">${msg}</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem"><button onclick="this.closest('div[style*=fixed]').remove()" style="padding:0.75rem;background:var(--total-bg);color:var(--text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Cancel</button><button class="confirm-btn" style="padding:0.75rem;background:#4a90e2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Confirm</button></div></div>`;
+            document.body.appendChild(m);
+            m.querySelector('.confirm-btn').onclick = () => { m.remove(); onConfirm(); };
+        }
+
+        calculate();
+        displayHistory();
+        generateReport();
+    </script>
+</body>
+</html>
