@@ -917,6 +917,7 @@
             if (isPositive) {
                 items.push({header: true, text: '<strong style="font-size:1.05em;">CC Terminal total is HIGHER than POS card total by ' + diff + '</strong>'});
                 items.push({text: 'Verify the .50 surcharge count is accurate — each transaction under $15 adds $0.50 on the terminal but not POS'});
+                items.push({text: 'Check for transactions between $14.50–$14.99 that were rounded up to $15.00 on the terminal — these round-ups do not appear on the POS'});
                 items.push({text: 'Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered'});
                 items.push({text: 'Check if any modified receipts from past orders were paid today — these show on the CC terminal but not in today\'s POS sales'});
                 items.push({text: '<strong>Print the credit card terminal report</strong> (prints for the whole store) and look for the unbalanced amount (' + diff + ') as a specific transaction'});
@@ -931,6 +932,7 @@
             } else {
                 items.push({header: true, text: '<strong style="font-size:1.05em;">POS card total is HIGHER than CC Terminal total by ' + diff + '</strong>'});
                 items.push({text: 'Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered'});
+                items.push({text: 'Verify that $14.50–$14.99 round-ups and .50 surcharges are not over-counted in adjustments — over-subtracting these lowers the terminal total too much'});
                 items.push({text: 'Check if a card transaction was entered in POS but the card was actually declined or not processed on the terminal'});
                 items.push({text: 'Check if a cash or other payment was accidentally rung up as a credit card sale in POS'});
                 items.push({text: '<strong>Print the credit card terminal report</strong> (prints for the whole store) and compare the transaction count — if POS has more card transactions, identify the extra one(s)'});
