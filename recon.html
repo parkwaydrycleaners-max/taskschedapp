@@ -496,17 +496,17 @@
                 </div>
 
                 <div class="row">
-                    <div class="row-label section-header">CREDIT CARD MACHINE READINGS:</div>
+                    <div class="row-label section-header">CREDIT CARD TERMINAL READINGS:</div>
                     <div class="row-value"></div>
                 </div>
 
                 <div class="row">
-                    <div class="row-label">CREDIT CARD MACHINE SALES</div>
+                    <div class="row-label">CREDIT CARD TERMINAL 1 SALES</div>
                     <div class="row-value"><input type="number" id="ccMachine1" step="0.01" placeholder="0.00" ></div>
                 </div>
 
                 <div class="row">
-                    <div class="row-label">CREDIT CARD MACHINE 2 SALES</div>
+                    <div class="row-label">CREDIT CARD TERMINAL 2 SALES</div>
                     <div class="row-value"><input type="number" id="ccMachine2" step="0.01" placeholder="0.00" ></div>
                 </div>
 
@@ -808,32 +808,39 @@
 
         function showCardTips(balance, ccActual, posCard) {
             const tips = [];
-            const isPositive = balance > 0; // CC Machine > POS
+            const isPositive = balance > 0; // CC Terminal > POS
+            const diff = fmt(Math.abs(balance));
 
             if (isPositive) {
-                // CC Machine shows MORE than POS
-                tips.push('<strong>CC Machine is higher than POS by ' + fmt(Math.abs(balance)) + '</strong>');
-                tips.push('Check if all credit card transactions from the machine appear in today\'s POS sales');
-                tips.push('Verify no sales were accidentally entered twice in the POS');
-                tips.push('Check if any modified receipts from past orders were paid today - these show on CC machine but not in today\'s POS sales');
-                tips.push('Confirm all adjustments (voids, store credits, etc.) are correctly entered');
-                tips.push('Verify the .50 transaction count is accurate');
+                // SCENARIO 2: CC Terminal is higher than POS
+                tips.push('<strong style="font-size:1.05em;">CC Terminal total is HIGHER than POS card total by ' + diff + '</strong>');
+                tips.push('Verify the .50 surcharge count is accurate — each transaction under $15 adds $0.50 on the terminal but not POS');
+                tips.push('Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered');
+                tips.push('Check if any modified receipts from past orders were paid today — these show on the CC terminal but not in today\'s POS sales');
+                tips.push('<strong>Print the credit card terminal report</strong> (prints for the whole store) and look for the unbalanced amount (' + diff + ') as a specific transaction');
+                tips.push('If the amount is not found on the terminal report, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists transactions chronologically (first to last). Sort your POS transactions the same way and match them in order.');
+                tips.push('Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged');
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance detected:</strong> Double-check both CC machine totals - reprint receipts if needed');
+                    tips.push('<strong>Large variance (&gt;$50):</strong> Double-check both CC terminal totals — reprint terminal reports if needed');
                 }
+
+                tips.push('<strong>Last resort:</strong> Review surveillance camera footage to verify the time and amount of POS transactions against terminal records');
             } else {
-                // POS shows MORE than CC Machine
-                tips.push('<strong>POS is higher than CC Machine by ' + fmt(Math.abs(balance)) + '</strong>');
-                tips.push('Check if some credit card sales were accidentally entered as cash in POS');
-                tips.push('Verify all credit card transactions processed successfully (no declines)');
-                tips.push('Check if any manual card entries in POS didn\'t process on the machine');
-                tips.push('Review all mixed payment transactions - verify card portions match');
-                tips.push('Confirm all adjustments are entered correctly');
+                // SCENARIO 1: POS is higher than CC Terminal
+                tips.push('<strong style="font-size:1.05em;">POS card total is HIGHER than CC Terminal total by ' + diff + '</strong>');
+                tips.push('Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered');
+                tips.push('Check if a card transaction was entered in POS but the card was actually declined or not processed on the terminal');
+                tips.push('Check if a cash or other payment was accidentally rung up as a credit card sale in POS');
+                tips.push('<strong>Print the credit card terminal report</strong> (prints for the whole store) and compare the transaction count — if POS has more card transactions, identify the extra one(s)');
+                tips.push('If counts match, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists transactions chronologically (first to last). Sort your POS transactions the same way and match them in order.');
+                tips.push('Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged');
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance detected:</strong> Review transaction log on CC machine vs POS sales report');
+                    tips.push('<strong>Large variance (&gt;$50):</strong> Review the full transaction log on both the CC terminal and POS sales report side by side');
                 }
+
+                tips.push('<strong>Last resort:</strong> Review surveillance camera footage to verify the time and amount of POS transactions against terminal records');
             }
 
             document.getElementById('cardTipsList').innerHTML = tips.map(t => `<li>${t}</li>`).join('');
@@ -843,38 +850,45 @@
         function showCashTips(balance, registerTotal, posTotal) {
             const tips = [];
             const isPositive = balance > 0; // Register Sales > POS
+            const diff = fmt(Math.abs(balance));
 
             tips.push('<strong>⚠️ Variance exceeds $2.00 tolerance (coins not counted)</strong>');
 
             // Check if register total is negative (petty cash exceeds register count)
             if (registerTotal < 0) {
-                tips.push('<strong>Petty Cash (' + fmt(getVal('pettyCash')) + ') exceeds Cash Register count (' + fmt(getVal('cashRegister1') + getVal('cashRegister2')) + ')</strong>');
-                tips.push('Verify petty cash amount is correct - it should not be more than what\'s in the register');
+                tips.push('<strong style="font-size:1.05em;">Petty Cash (' + fmt(getVal('pettyCash')) + ') exceeds Cash Register count (' + fmt(getVal('cashRegister1') + getVal('cashRegister2')) + ')</strong>');
+                tips.push('Verify petty cash amount is correct — it should not be more than what is in the register');
                 tips.push('Check if petty cash was already removed from the register before counting');
-                tips.push('Confirm the cash register count is accurate');
+                tips.push('Confirm the cash register count includes all bills (check under the drawer and in the safe)');
             } else if (isPositive) {
-                // Total Register Sales (after adjustments) is higher than POS
-                tips.push('<strong>Adjusted Register Total is higher than POS by ' + fmt(Math.abs(balance)) + '</strong>');
-                tips.push('Check if all cash sales are recorded in POS');
-                tips.push('Verify "Cash Sales Not on POS" field includes any manual/off-system sales');
-                tips.push('Check if "Other Cash Added" or extra cash was added to the register');
-                tips.push('Confirm petty cash amount is correct');
+                // SCENARIO 4: Register total (adjusted) is higher than POS
+                tips.push('<strong style="font-size:1.05em;">Cash Register total (adjusted) is HIGHER than POS cash total by ' + diff + '</strong>');
+                tips.push('Confirm all adjustment fields (petty cash, other cash added, cash sales not on POS, store credit in cash, cash refunds) are correctly entered');
+                tips.push('Check if a cash sale was completed but not rung up in POS (customer paid cash but no POS entry was made)');
+                tips.push('Verify "Other Cash Added" amount — was extra cash placed in the register that is not related to a sale?');
+                tips.push('Check if someone made change from the register for a non-sale reason (e.g., breaking a large bill) without recording it');
+                tips.push('Recount the physical cash in the register (bills only) to confirm the register total is accurate');
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance detected:</strong> Recount the physical cash in the register (bills only)');
+                    tips.push('<strong>Large variance (&gt;$50):</strong> Review all cash transactions in POS and verify each one against actual receipts');
                 }
+
+                tips.push('<strong>Last resort:</strong> Review surveillance camera footage to verify cash transactions and register activity');
             } else {
-                // POS shows MORE than Total Register Sales (after adjustments)
-                tips.push('<strong>POS Total is higher than Adjusted Register Total by ' + fmt(Math.abs(balance)) + '</strong>');
-                tips.push('Check if some cash sales were accidentally entered as credit card in POS');
-                tips.push('Verify all bills were counted - check under drawer, in safe, etc.');
-                tips.push('Check if cash was removed during the day (bank deposit, petty cash withdrawal)');
-                tips.push('Confirm cash refunds are correctly entered');
-                tips.push('Review all mixed payment transactions - verify cash portions match');
+                // SCENARIO 3: POS is higher than Register total (adjusted)
+                tips.push('<strong style="font-size:1.05em;">POS cash total is HIGHER than Cash Register total (adjusted) by ' + diff + '</strong>');
+                tips.push('Confirm all adjustment fields (petty cash, other cash added, cash sales not on POS, store credit in cash, cash refunds) are correctly entered');
+                tips.push('Check if a cash sale was rung up in POS but the customer actually paid with a card or other method');
+                tips.push('Verify all bills were counted — check under the cash drawer, in the safe, or in a drop box');
+                tips.push('Check if cash was removed from the register during the day (bank deposit, petty cash withdrawal, or an employee borrowing)');
+                tips.push('Confirm cash refunds are correctly entered — a refund should show as cash leaving the register');
+                tips.push('Review all mixed payment transactions — verify the cash portions match what was actually received');
 
                 if (Math.abs(balance) > 50) {
-                    tips.push('<strong>Large variance detected:</strong> Consider recounting cash bills and reviewing all cash transactions');
+                    tips.push('<strong>Large variance (&gt;$50):</strong> Recount cash bills and review every POS cash transaction against receipts');
                 }
+
+                tips.push('<strong>Last resort:</strong> Review surveillance camera footage to verify cash transactions and register activity');
             }
 
             document.getElementById('cashTipsList').innerHTML = tips.map(t => `<li>${t}</li>`).join('');
@@ -918,7 +932,7 @@
             report += '💳 CREDIT CARD SALES\n';
             report += '───────────────────────────────────────────────\n';
             report += `POS Credit Card Total:        ${fmt(totalPOSCard)}\n`;
-            report += `Actual CC Machine Total:      ${fmt(totalCCActual)}\n`;
+            report += `Actual CC Terminal Total:      ${fmt(totalCCActual)}\n`;
             report += `Card Balance:                 ${fmt(cardBalance)} ${cardBalanced ? '✓' : '⚠️'}\n\n`;
 
             report += '💵 CASH SALES\n';
@@ -989,8 +1003,8 @@
 
             // Check for unusually large values
             const largeThreshold = 10000;
-            if (getVal('ccMachine1') > largeThreshold) warnings.push('⚠️ CC Machine 1 is over $10,000 - please verify');
-            if (getVal('ccMachine2') > largeThreshold) warnings.push('⚠️ CC Machine 2 is over $10,000 - please verify');
+            if (getVal('ccMachine1') > largeThreshold) warnings.push('⚠️ CC Terminal 1 is over $10,000 - please verify');
+            if (getVal('ccMachine2') > largeThreshold) warnings.push('⚠️ CC Terminal 2 is over $10,000 - please verify');
             if (getVal('cashRegister1') > largeThreshold) warnings.push('⚠️ Cash Register 1 is over $10,000 - please verify');
             if (getVal('cashRegister2') > largeThreshold) warnings.push('⚠️ Cash Register 2 is over $10,000 - please verify');
 
@@ -1116,7 +1130,7 @@
                 return;
             }
 
-            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Machine 1', 'CC Machine 2', 'Total CC Machine', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Store Credit Card', 'Voids', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance'];
+            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Terminal 1', 'CC Terminal 2', 'Total CC Terminal', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Store Credit Card', 'Voids', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance'];
 
             const rows = history.map(r => [
                 r.date,
