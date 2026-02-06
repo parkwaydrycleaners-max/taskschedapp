@@ -457,6 +457,28 @@
             line-height: 1.5;
         }
 
+        .date-warning {
+            display: none;
+            background: #dc3545;
+            color: #ffffff;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-top: 0.75rem;
+            font-weight: 700;
+            font-size: 1rem;
+            text-align: center;
+            animation: pulse-warning 1.5s ease-in-out infinite;
+        }
+
+        .date-warning.show {
+            display: block;
+        }
+
+        @keyframes pulse-warning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
         @media (max-width: 768px) {
             .boards {
                 grid-template-columns: 1fr;
@@ -473,6 +495,7 @@
         <div class="header">
             <h1>📊 Daily Sales Reconciliation</h1>
             <label>DATE: <input type="date" id="reconciliationDate" class="date-input" ></label>
+            <div class="date-warning" id="dateWarning">⚠️ WARNING: The selected date is NOT today! Make sure this is correct before sending the report.</div>
         </div>
 
         <div class="boards">
@@ -702,7 +725,49 @@
         });
 
         // Set today's date
-        document.getElementById('reconciliationDate').valueAsDate = new Date();
+        function getTodayString() {
+            const d = new Date();
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+
+        const dateInput = document.getElementById('reconciliationDate');
+        dateInput.value = getTodayString();
+
+        function checkDateWarning() {
+            const selected = dateInput.value;
+            const today = getTodayString();
+            const warning = document.getElementById('dateWarning');
+            if (selected && selected !== today) {
+                warning.classList.add('show');
+            } else {
+                warning.classList.remove('show');
+            }
+        }
+
+        dateInput.addEventListener('change', function() {
+            checkDateWarning();
+            generateReport();
+        });
+
+        // Auto-refresh date when page regains focus (catches tabs left open overnight)
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                const today = getTodayString();
+                if (dateInput.value !== today) {
+                    showConfirm(
+                        '📅 A new day has started. Update the date to today (' + new Date().toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'}) + ')?',
+                        function() {
+                            dateInput.value = today;
+                            checkDateWarning();
+                            generateReport();
+                        }
+                    );
+                    checkDateWarning();
+                }
+            }
+        });
+
+        checkDateWarning();
 
         function getVal(id) {
             return parseFloat(document.getElementById(id).value) || 0;
@@ -927,6 +992,12 @@
             report += '           DAILY SALES RECONCILIATION\n';
             report += '═══════════════════════════════════════════════\n';
             report += `DATE: ${formattedDate}\n`;
+            const now = new Date();
+            const generatedAt = now.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+            report += `Generated: ${generatedAt}\n`;
+            if (date !== getTodayString()) {
+                report += '⚠️ NOTE: Report date does NOT match today\'s date!\n';
+            }
             report += '═══════════════════════════════════════════════\n\n';
 
             report += '💳 CREDIT CARD SALES\n';
