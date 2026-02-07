@@ -416,6 +416,30 @@ button {
    Matches verified screenshot EXACTLY
 ================================================== */
 
+/* Wedding Timing Switch */
+.wedding-timing-switch {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    background: #eef2f6;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+}
+.wedding-timing-switch label {
+    font-weight: bold;
+    color: #333;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+/* Helper to hide the preservation option */
+.hidden-option {
+    display: none !important;
+}
+    
 /* Modal container stays default */
 #weddingModal .modal-box {
     max-width: 420px;
@@ -953,7 +977,19 @@ button {
 <div id="weddingModal" class="modal-overlay">
     <div class="modal-box">
         <div class="modal-close-x" onclick="closeModal('weddingModal')">✕</div>
-        <h2>Wedding Dress Cleaning Estimate</h2>
+        <h2>Wedding Dress Estimate</h2>
+
+        <!-- NEW: BEFORE / AFTER SWITCH -->
+        <div class="wedding-timing-switch">
+            <label>
+                <input type="radio" name="weddingTiming" value="after" checked onchange="toggleWeddingTiming()">
+                After Wedding
+            </label>
+            <label>
+                <input type="radio" name="weddingTiming" value="before" onchange="toggleWeddingTiming()">
+                Before Wedding
+            </label>
+        </div>
 
         <div class="dress-type-image">
             <img src="images/wedding-dress-types.png" alt="Wedding dress types">
@@ -991,7 +1027,11 @@ button {
         <div class="estimator-section">
             <div class="section-title">Optional Services</div>
             <div class="checkbox-grid">
-                <label><input type="checkbox" class="wedding-addon" value="125"> Preservation boxing</label>
+                <!-- UPDATED: Added ID to Label and Input -->
+                <label id="preservationLabel">
+                    <input type="checkbox" class="wedding-addon" id="preservationCheckbox" value="125"> 
+                    Preservation boxing
+                </label>
                 <label><input type="checkbox" class="wedding-addon" value="-40"> Pressing / steaming</label>
             </div>
         </div>
@@ -1176,6 +1216,28 @@ function calculateWedding() {
 }
 
 /* ==================================================
+   WEDDING TIMING LOGIC
+================================================== */
+function toggleWeddingTiming() {
+    const isBefore = document.querySelector('input[name="weddingTiming"][value="before"]').checked;
+    const presLabel = document.getElementById("preservationLabel");
+    const presCheck = document.getElementById("preservationCheckbox");
+
+    if (isBefore) {
+        // Hide the option
+        presLabel.classList.add("hidden-option");
+        // Uncheck it so it doesn't add cost
+        presCheck.checked = false;
+    } else {
+        // Show the option
+        presLabel.classList.remove("hidden-option");
+    }
+    
+    // Recalculate immediately so the total updates if we unchecked the box
+    calculateWedding();
+}
+
+/* ==================================================
    DRESS HEM ESTIMATOR
 ================================================== */
 function toggleRushDate() {
@@ -1299,6 +1361,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
