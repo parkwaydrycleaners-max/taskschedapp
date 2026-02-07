@@ -327,13 +327,18 @@ select.form-input { appearance: auto; }
       </div>
       <div id="salesFormatHelp" style="display:none; margin-bottom: 16px; padding: 16px; background: var(--info-bg); border-radius: 8px; font-size: 13px; color: var(--text);">
         <strong>Accepted formats:</strong><br><br>
-        <strong>Wide format</strong> (categories as columns):<br>
+        <strong>1. POS Sales Report</strong> (auto-detected):<br>
+        <code>&nbsp;Sales Report By Category</code><br>
+        <code>&nbsp;Drop &nbsp; Dry Pcs &nbsp; Dry Amt &nbsp; Laund Pcs ...</code><br>
+        <code>&nbsp;2022/01/04 &nbsp; 287 &nbsp; 1488.66 ...</code><br>
+        Paste the full report including both left-side (Drop through Press Pcs) and right-side (Press Amt through Total Amt) pages. The app will automatically merge them.<br><br>
+        <strong>2. Wide CSV</strong> (categories as columns):<br>
         <code>Date, Food, Beverage, Retail</code><br>
         <code>2025-04-01, 5200, 1800, 900</code><br><br>
-        <strong>Long format</strong> (one row per category):<br>
+        <strong>3. Long CSV</strong> (one row per category):<br>
         <code>Date, Category, Amount</code><br>
         <code>2025-04-01, Food, 5200</code><br><br>
-        Dates can be YYYY-MM-DD, MM/DD/YYYY, or similar. CSV or tab-separated.
+        Dates can be YYYY-MM-DD, MM/DD/YYYY, YYYY/MM/DD, or similar.
       </div>
       <textarea class="form-input" id="salesInput" placeholder="Paste your sales data here (CSV, tab-separated, or comma-separated)..."></textarea>
       <div style="margin-top: 12px; display: flex; gap: 10px; align-items: center;">
@@ -734,59 +739,235 @@ function parseCSVRows(text) {
   return lines.map(l => l.split(sep).map(c => c.trim().replace(/^["']|["']$/g, '')));
 }
 
+/**
+ * Detect if text is the POS "Sales Report By Category" fixed-width split-page format.
+ * Checks for the report title or the characteristic header pattern.
+ */
+function isPOSReportFormat(text) {
+  if (/sales\s+report\s+by\s+category/i.test(text)) return true;
+  /* Check for the left-page header pattern: "Drop" followed by "Dry Pcs" */
+  if (/Drop\s.*Dry\s+Pcs/i.test(text) && /\d{4}\/\d{2}\/\d{2}/.test(text)) return true;
+  return false;
+}
+
+/**
+ * Parse the POS "Sales Report By Category" fixed-width split-page format.
+ * Left pages have:  Drop(date) | Dry Pcs | Dry Amt | Laund Pcs | Laund Amt | Alter Pcs | Alter Amt | Press Pcs
+ * Right pages have: Press Amt | DC Amt | Total Pcs | Total Amt
+ * Returns array of {date, categories: {Dry: amt, Laundry: amt, Alterations: amt, Press: amt, DC: amt, Total: amt}}
+ */
+function parseSalesReport(text) {
+  const lines = text.split('\n');
+  /* Gather pages: each page is a block of lines between header rows */
+  var leftPages = [];
+  var rightPages = [];
+  var currentBlock = [];
+  var currentType = null; /* 'left' or 'right' */
+  var inDataBlock = false;
+
+  for (var li = 0; li < lines.length; li++) {
+    var line = lines[li];
+    /* Detect left-page header: contains "Drop" and "Dry Pcs" */
+    if (/Drop\b/i.test(line) && /Dry\s+Pcs/i.test(line)) {
+      /* Save previous block if any */
+      if (currentType && currentBlock.length > 0) {
+        if (currentType === 'left') leftPages.push(currentBlock);
+        else rightPages.push(currentBlock);
+      }
+      currentBlock = [];
+      currentType = 'left';
+      inDataBlock = true;
+      continue;
+    }
+    /* Detect right-page header: contains "Press Amt" and "DC Amt" or "Total Amt" but NOT "Drop" */
+    if (!(/Drop\b/i.test(line)) && /Press\s+Amt/i.test(line) && (/DC\s+Amt/i.test(line) || /Total\s+Amt/i.test(line))) {
+      if (currentType && currentBlock.length > 0) {
+        if (currentType === 'left') leftPages.push(currentBlock);
+        else rightPages.push(currentBlock);
+      }
+      currentBlock = [];
+      currentType = 'right';
+      inDataBlock = true;
+      continue;
+    }
+    /* Skip report title / date range lines, page numbers, blank lines within header area */
+    if (/sales\s+report\s+by\s+category/i.test(line)) { continue; }
+    if (/^\s*date\s+range/i.test(line)) { continue; }
+    if (/^\s*page\s*:\s*\d/i.test(line)) { continue; }
+    if (/^\s*[-=]+\s*$/.test(line)) { continue; }
+
+    if (inDataBlock) {
+      var trimmed = line.trim();
+      /* Empty line or separator may indicate end of data block */
+      if (trimmed === '') {
+        /* Could be spacing between pages; don't end block for single blank lines */
+        continue;
+      }
+      /* Summary/total lines at end of report */
+      if (/^(total|grand\s+total|report\s+total)/i.test(trimmed)) {
+        continue;
+      }
+      currentBlock.push(line);
+    }
+  }
+  /* Push last block */
+  if (currentType && currentBlock.length > 0) {
+    if (currentType === 'left') leftPages.push(currentBlock);
+    else rightPages.push(currentBlock);
+  }
+
+  /* Parse left-page data rows: extract date + 7 numeric columns */
+  var leftRows = [];
+  for (var lp = 0; lp < leftPages.length; lp++) {
+    var page = leftPages[lp];
+    for (var ri = 0; ri < page.length; ri++) {
+      var row = page[ri];
+      /* Match date at start: YYYY/MM/DD */
+      var dateMatch = row.match(/^\s*(\d{4}\/\d{2}\/\d{2})/);
+      if (!dateMatch) continue;
+      var dateStr2 = dateMatch[1];
+      /* Extract all numbers after the date */
+      var numPart = row.substring(dateMatch[0].length);
+      var nums = numPart.match(/-?[\d,]+\.?\d*/g) || [];
+      var values = nums.map(function(n) { return parseFloat(n.replace(/,/g, '')); });
+      /* Expect up to 7 values: Dry Pcs, Dry Amt, Laund Pcs, Laund Amt, Alter Pcs, Alter Amt, Press Pcs */
+      leftRows.push({
+        date: dateStr2,
+        dryPcs: values[0] || 0,
+        dryAmt: values[1] || 0,
+        laundPcs: values[2] || 0,
+        laundAmt: values[3] || 0,
+        alterPcs: values[4] || 0,
+        alterAmt: values[5] || 0,
+        pressPcs: values[6] || 0
+      });
+    }
+  }
+
+  /* Parse right-page data rows: extract 4 numeric columns (Press Amt, DC Amt, Total Pcs, Total Amt) */
+  var rightRows = [];
+  for (var rp = 0; rp < rightPages.length; rp++) {
+    var rPage = rightPages[rp];
+    for (var rri = 0; rri < rPage.length; rri++) {
+      var rRow = rPage[rri];
+      var rTrimmed = rRow.trim();
+      if (!rTrimmed) continue;
+      /* Right pages only have numbers (no dates) */
+      var rNums = rTrimmed.match(/-?[\d,]+\.?\d*/g) || [];
+      if (rNums.length === 0) continue;
+      var rValues = rNums.map(function(n) { return parseFloat(n.replace(/,/g, '')); });
+      /* Expect 4 values: Press Amt, DC Amt, Total Pcs, Total Amt */
+      rightRows.push({
+        pressAmt: rValues[0] || 0,
+        dcAmt: rValues[1] || 0,
+        totalPcs: rValues[2] || 0,
+        totalAmt: rValues[3] || 0
+      });
+    }
+  }
+
+  /* Merge left and right rows by index (they correspond 1:1) */
+  var records = [];
+  var maxLen = Math.max(leftRows.length, rightRows.length);
+  for (var mi = 0; mi < maxLen; mi++) {
+    var left = leftRows[mi] || {};
+    var right = rightRows[mi] || {};
+    var dVal = left.date;
+    if (!dVal) continue;
+    /* Normalise date from YYYY/MM/DD to YYYY-MM-DD for parseDate */
+    var normDate = dVal.replace(/\//g, '-');
+    var parsedDate = parseDate(normDate);
+    if (!parsedDate) continue;
+
+    records.push({
+      date: parsedDate,
+      dry: left.dryAmt || 0,
+      laundry: left.laundAmt || 0,
+      alterations: left.alterAmt || 0,
+      press: right.pressAmt || 0,
+      dc: right.dcAmt || 0,
+      total: right.totalAmt || 0
+    });
+  }
+
+  return records;
+}
+
 function importSalesData() {
-  const raw = document.getElementById('salesInput').value.trim();
+  var raw = document.getElementById('salesInput').value.trim();
   if (!raw) { toast('Please paste some data first', 'error'); return; }
-  const rows = parseCSVRows(raw);
-  if (rows.length < 2) { toast('Need at least a header and one data row', 'error'); return; }
 
-  const header = rows[0];
-  let count = 0;
+  var count = 0;
 
-  /* Detect format: wide or long */
-  const lowerHeader = header.map(h => h.toLowerCase());
-  const isLong = lowerHeader.includes('category') || lowerHeader.includes('cat');
-
-  if (isLong) {
-    /* Long format: Date, Category, Amount */
-    const dateIdx = lowerHeader.findIndex(h => h.includes('date'));
-    const catIdx = lowerHeader.findIndex(h => h.includes('cat'));
-    const amtIdx = lowerHeader.findIndex(h => h.includes('amount') || h.includes('sales') || h.includes('total') || h.includes('revenue'));
-    const dI = dateIdx >= 0 ? dateIdx : 0;
-    const cI = catIdx >= 0 ? catIdx : 1;
-    const aI = amtIdx >= 0 ? amtIdx : 2;
-
-    for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      if (r.length < 3) continue;
-      const d = parseDate(r[dI]);
-      if (!d) continue;
-      const cat = r[cI].trim();
-      const amt = parseFloat(r[aI].replace(/[$,]/g, ''));
-      if (isNaN(amt)) continue;
-      AppState.salesData.push({ date: d, category: cat, amount: amt });
-      if (!AppState.settings.categories.includes(cat)) AppState.settings.categories.push(cat);
-      count++;
+  /* Auto-detect POS report format vs CSV */
+  if (isPOSReportFormat(raw)) {
+    var records = parseSalesReport(raw);
+    var catNames = ['Dry Cleaning', 'Laundry', 'Alterations', 'Press', 'DC'];
+    var catKeys = ['dry', 'laundry', 'alterations', 'press', 'dc'];
+    catNames.forEach(function(c) {
+      if (!AppState.settings.categories.includes(c)) AppState.settings.categories.push(c);
+    });
+    for (var ri2 = 0; ri2 < records.length; ri2++) {
+      var rec = records[ri2];
+      for (var ci = 0; ci < catKeys.length; ci++) {
+        var amt2 = rec[catKeys[ci]];
+        /* Import even zero amounts for completeness */
+        AppState.salesData.push({ date: rec.date, category: catNames[ci], amount: amt2 });
+        count++;
+      }
     }
   } else {
-    /* Wide format: Date, Cat1, Cat2, ... */
-    const cats = header.slice(1);
-    cats.forEach(c => { if (c && !AppState.settings.categories.includes(c)) AppState.settings.categories.push(c); });
-    for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      const d = parseDate(r[0]);
-      if (!d) continue;
-      for (let j = 1; j < r.length && j <= cats.length; j++) {
-        const amt = parseFloat(r[j].replace(/[$,]/g, ''));
+    /* CSV parsing path */
+    var rows = parseCSVRows(raw);
+    if (rows.length < 2) { toast('Need at least a header and one data row', 'error'); return; }
+
+    var header = rows[0];
+
+    /* Detect format: wide or long */
+    var lowerHeader = header.map(function(h) { return h.toLowerCase(); });
+    var isLong = lowerHeader.includes('category') || lowerHeader.includes('cat');
+
+    if (isLong) {
+      /* Long format: Date, Category, Amount */
+      var dateIdx = lowerHeader.findIndex(function(h) { return h.includes('date'); });
+      var catIdx = lowerHeader.findIndex(function(h) { return h.includes('cat'); });
+      var amtIdx = lowerHeader.findIndex(function(h) { return h.includes('amount') || h.includes('sales') || h.includes('total') || h.includes('revenue'); });
+      var dI = dateIdx >= 0 ? dateIdx : 0;
+      var cI = catIdx >= 0 ? catIdx : 1;
+      var aI = amtIdx >= 0 ? amtIdx : 2;
+
+      for (var i = 1; i < rows.length; i++) {
+        var r = rows[i];
+        if (r.length < 3) continue;
+        var d = parseDate(r[dI]);
+        if (!d) continue;
+        var cat = r[cI].trim();
+        var amt = parseFloat(r[aI].replace(/[$,]/g, ''));
         if (isNaN(amt)) continue;
-        AppState.salesData.push({ date: d, category: cats[j-1], amount: amt });
+        AppState.salesData.push({ date: d, category: cat, amount: amt });
+        if (!AppState.settings.categories.includes(cat)) AppState.settings.categories.push(cat);
         count++;
+      }
+    } else {
+      /* Wide format: Date, Cat1, Cat2, ... */
+      var cats = header.slice(1);
+      cats.forEach(function(c) { if (c && !AppState.settings.categories.includes(c)) AppState.settings.categories.push(c); });
+      for (var iw = 1; iw < rows.length; iw++) {
+        var rw = rows[iw];
+        var dw = parseDate(rw[0]);
+        if (!dw) continue;
+        for (var j = 1; j < rw.length && j <= cats.length; j++) {
+          var amtw = parseFloat(rw[j].replace(/[$,]/g, ''));
+          if (isNaN(amtw)) continue;
+          AppState.salesData.push({ date: dw, category: cats[j-1], amount: amtw });
+          count++;
+        }
       }
     }
   }
 
   if (count > 0) {
-    AppState.salesData.sort((a,b) => a.date.localeCompare(b.date));
+    AppState.salesData.sort(function(a,b) { return a.date.localeCompare(b.date); });
     toast(count + ' sales records imported!', 'success');
     document.getElementById('salesInput').value = '';
     renderSalesPage();
@@ -1957,4 +2138,3 @@ init();
 </script>
 </body>
 </html>
-
