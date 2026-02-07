@@ -255,19 +255,52 @@ button {
 }
 
 /* ==================================================
+   MOBILE / DESKTOP VISIBILITY RULES (FIXED)
+================================================== */
+
+/* ✅ Default (DESKTOP) */
+.mobile-checklist-btn {
+    display: none;
+}
+
+/* ==================================================
    MOBILE
 ================================================== */
 @media (max-width: 900px) {
-    .dashboard-layout { grid-template-columns: 1fr; }
-    .staff-app-wrapper { height: 80vh; }
-    .tiles { grid-template-columns: repeat(2, 1fr); }
+
+    .dashboard-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .staff-app-wrapper {
+        height: 80vh;
+    }
+
+    .tiles {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* ✅ Show checklist button on mobile */
+    .mobile-checklist-btn {
+        display: block;
+        background: #fff;
+        padding: 14px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        font-weight: bold;
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        cursor: pointer;
+    }
 }
+
+/* ==================================================
+   SMALL MOBILE (OPTIONAL)
+================================================== */
 @media (max-width: 600px) {
-    .tiles { grid-template-columns: 1fr; }
-}
-/* Hide mobile checklist button on desktop */
-.mobile-checklist-btn {
-    display: none;
+    .tiles {
+        grid-template-columns: 1fr;
+    }
 }
     
 /* ==================================================
@@ -1373,6 +1406,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
