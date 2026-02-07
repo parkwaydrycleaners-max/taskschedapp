@@ -4546,7 +4546,14 @@
                 .catch(() => console.log('PWA: Service Worker skipped'));
         }
 
+        window.addEventListener("message", function (e) {
+    if (e.data === "scrollToNextTask") {
+        scrollToNextUndoneTask(); // ← your existing function
+    }
+});
+
         init();
     </script>
 </body>
 </html>
+
