@@ -550,6 +550,7 @@ button {
     <aside class="dashboard-left">
         <div class="staff-app-wrapper">
             <iframe
+                id="staffIframe"
                 src="https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html"
                 title="Manager Checklist"
                 class="staff-app-frame"
@@ -1024,7 +1025,19 @@ button {
 ================================================== */
 function openModal(id) {
     const el = document.getElementById(id);
-    if (el) el.style.display = "flex";
+    if (!el) return;
+
+    el.style.display = "flex";
+
+    // ✅ If opening checklist, trigger scroll after visible
+    if (id === "staffModal") {
+        setTimeout(() => {
+            const iframe = document.getElementById("staffIframe");
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage("scrollToNextTask", "*");
+            }
+        }, 100);
+    }
 }
 
 function closeModal(id) {
@@ -1283,6 +1296,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
