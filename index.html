@@ -1023,8 +1023,6 @@ button {
 /* ==================================================
    MODAL OPEN / CLOSE
 ================================================== */
-let pendingChecklistScroll = false;
-
 function openModal(id) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -1032,27 +1030,17 @@ function openModal(id) {
     el.style.display = "flex";
 
     if (id === "staffModal") {
-        pendingChecklistScroll = true;
+        setTimeout(() => {
+            const iframe = document.getElementById("staffIframe");
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage(
+                    "runScrollToFirstIncomplete",
+                    "*"
+                );
+            }
+        }, 150);
     }
 }
-
-// ✅ Listen for checklist readiness
-window.addEventListener("message", function (event) {
-    if (
-        event.data &&
-        event.data.type === "checklistReady" &&
-        pendingChecklistScroll
-    ) {
-        const iframe = document.getElementById("staffIframe");
-        if (iframe && iframe.contentWindow) {
-            iframe.contentWindow.postMessage(
-                { type: "scrollToNextUndoneTask" },
-                "*"
-            );
-        }
-        pendingChecklistScroll = false;
-    }
-});
 
 function closeModal(id) {
     const el = document.getElementById(id);
@@ -1310,6 +1298,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
