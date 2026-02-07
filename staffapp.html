@@ -4549,9 +4549,10 @@
                 .catch(() => console.log('PWA: Service Worker skipped'));
         }
 
-    window.addEventListener("message", function (event) {
-    if (event.data && event.data.type === "scrollToNextUndoneTask") {
-        scrollToNextUndoneTask();
+        window.scrollToFirstIncomplete = scrollToFirstIncomplete;
+        window.addEventListener("message", function (event) {
+    if (event.data === "runScrollToFirstIncomplete") {
+        scrollToFirstIncomplete();
     }
 });
 
@@ -4559,5 +4560,6 @@
     </script>
 </body>
 </html>
+
 
 
