@@ -974,12 +974,15 @@ button {
 <!-- ===============================
      WEDDING DRESS CLEAN MODAL
 =============================== -->
+<!-- ===============================
+     WEDDING DRESS CLEAN MODAL
+=============================== -->
 <div id="weddingModal" class="modal-overlay">
     <div class="modal-box">
         <div class="modal-close-x" onclick="closeModal('weddingModal')">✕</div>
         <h2>Wedding Dress Estimate</h2>
 
-        <!-- NEW: BEFORE / AFTER SWITCH -->
+        <!-- BEFORE / AFTER SWITCH -->
         <div class="wedding-timing-switch">
             <label>
                 <input type="radio" name="weddingTiming" value="after" checked onchange="toggleWeddingTiming()">
@@ -998,41 +1001,44 @@ button {
         <div class="estimator-section">
             <div class="section-title">Dress Type</div>
             <div class="dress-type-options">
-                <label><input type="radio" name="dressSize" value="100" checked> A-Line</label>
-                <label><input type="radio" name="dressSize" value="85"> Mermaid</label>
-                <label><input type="radio" name="dressSize" value="85"> Empire</label>
-                <label><input type="radio" name="dressSize" value="125"> Ball Gown</label>
-                <label><input type="radio" name="dressSize" value="60"> Sheath</label>
+                <!-- Added onchange to all radios -->
+                <label><input type="radio" name="dressSize" value="100" checked onchange="calculateWedding()"> A-Line</label>
+                <label><input type="radio" name="dressSize" value="85" onchange="calculateWedding()"> Mermaid</label>
+                <label><input type="radio" name="dressSize" value="85" onchange="calculateWedding()"> Empire</label>
+                <label><input type="radio" name="dressSize" value="125" onchange="calculateWedding()"> Ball Gown</label>
+                <label><input type="radio" name="dressSize" value="60" onchange="calculateWedding()"> Sheath</label>
             </div>
         </div>
 
         <div class="estimator-section">
             <div class="section-title">Train Length</div>
             <div class="option-group">
-                <label><input type="checkbox" class="train-option" value="25">Short (Chapel)</label>
-                <label><input type="checkbox" class="train-option" value="50">Long (Cathedral)</label>
-                <label><input type="checkbox" class="train-option" value="40">Detachable Skirt</label>
+                <!-- Added onchange to all checkboxes -->
+                <label><input type="checkbox" class="train-option" value="25" onchange="calculateWedding()">Short (Chapel)</label>
+                <label><input type="checkbox" class="train-option" value="50" onchange="calculateWedding()">Long (Cathedral)</label>
+                <label><input type="checkbox" class="train-option" value="40" onchange="calculateWedding()">Detachable Skirt</label>
             </div>
         </div>
 
         <div class="estimator-section">
             <div class="section-title">Details</div>
             <div class="checkbox-grid">
-                <label><input type="checkbox" class="wedding-addon" value="5"> Heavy lace</label>
-                <label><input type="checkbox" class="wedding-addon" value="25"> Beading / Sequins</label>
-                <label><input type="checkbox" class="wedding-addon" value="30"> Petticoat</label>
+                <!-- Added onchange to all checkboxes -->
+                <label><input type="checkbox" class="wedding-addon" value="5" onchange="calculateWedding()"> Heavy lace</label>
+                <label><input type="checkbox" class="wedding-addon" value="25" onchange="calculateWedding()"> Beading / Sequins</label>
+                <label><input type="checkbox" class="wedding-addon" value="30" onchange="calculateWedding()"> Petticoat</label>
             </div>
         </div>
 
         <div class="estimator-section">
             <div class="section-title">Optional Services</div>
             <div class="checkbox-grid">
-                <!-- UPDATED: Added ID to Label and Input -->
                 <label id="preservationLabel">
-                    <input type="checkbox" class="wedding-addon" id="preservationCheckbox" value="125"> 
+                    <!-- Added onchange -->
+                    <input type="checkbox" class="wedding-addon" id="preservationCheckbox" value="125" onchange="calculateWedding()"> 
                     Preservation boxing
                 </label>
-                <label><input type="checkbox" class="wedding-addon" value="-40"> Pressing / steaming</label>
+                <label><input type="checkbox" class="wedding-addon" value="-40" onchange="calculateWedding()"> Pressing / steaming</label>
             </div>
         </div>
 
@@ -1041,7 +1047,7 @@ button {
             <div class="estimate-note">Estimate only. Final price confirmed after inspection.</div>
         </div>
 
-        <button class="primary-btn" onclick="calculateWedding()">Calculate</button>
+        <!-- Removed the "Calculate" button, kept only Close -->
         <button class="close-btn" onclick="closeModal('weddingModal')">Close</button>
     </div>
 </div>
@@ -1081,6 +1087,9 @@ function openModal(id) {
             }
         }, 150);
     }
+    if (id === 'weddingModal') {
+        calculateWedding();
+   
 }
 
 function closeModal(id) {
@@ -1361,6 +1370,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
