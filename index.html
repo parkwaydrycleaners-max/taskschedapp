@@ -265,7 +265,11 @@ button {
 @media (max-width: 600px) {
     .tiles { grid-template-columns: 1fr; }
 }
-
+/* Hide mobile checklist button on desktop */
+.mobile-checklist-btn {
+    display: none;
+}
+    
 /* ==================================================
    ✅ ORIGINAL CALCULATOR DESIGN — DO NOT MODIFY
    Restores plain, readable layout exactly as designed
@@ -1371,6 +1375,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
