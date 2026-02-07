@@ -1023,22 +1023,36 @@ button {
 /* ==================================================
    MODAL OPEN / CLOSE
 ================================================== */
+let pendingChecklistScroll = false;
+
 function openModal(id) {
     const el = document.getElementById(id);
     if (!el) return;
 
     el.style.display = "flex";
 
-    // ✅ If opening checklist, trigger scroll after visible
     if (id === "staffModal") {
-        setTimeout(() => {
-            const iframe = document.getElementById("staffIframe");
-            if (iframe && iframe.contentWindow) {
-                iframe.contentWindow.postMessage("scrollToNextTask", "*");
-            }
-        }, 100);
+        pendingChecklistScroll = true;
     }
 }
+
+// ✅ Listen for checklist readiness
+window.addEventListener("message", function (event) {
+    if (
+        event.data &&
+        event.data.type === "checklistReady" &&
+        pendingChecklistScroll
+    ) {
+        const iframe = document.getElementById("staffIframe");
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage(
+                { type: "scrollToNextUndoneTask" },
+                "*"
+            );
+        }
+        pendingChecklistScroll = false;
+    }
+});
 
 function closeModal(id) {
     const el = document.getElementById(id);
@@ -1296,6 +1310,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
