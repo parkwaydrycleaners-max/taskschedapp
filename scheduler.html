@@ -1,0 +1,1960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StaffCast - Smart Staff Scheduling</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f6f5f0; --surface: #ffffff; --card: #ffffff; --border: #e5e2db;
+  --text: #1a1a2e; --muted: #6b7280; --accent: #c2640a; --accent-bg: #fef3e2;
+  --accent-hover: #a3530a; --success: #0d9466; --success-bg: #ecfdf5;
+  --danger: #dc2626; --danger-bg: #fef2f2; --info: #2563eb; --info-bg: #eff6ff;
+  --sidebar-bg: #1a1a2e; --sidebar-text: #cbd5e1; --sidebar-active: #f59e0b;
+  --chart1: #f59e0b; --chart2: #0ea5e9; --chart3: #8b5cf6; --chart4: #ec4899;
+  --chart5: #10b981; --chart6: #f97316; --radius: 12px; --shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --font: 'Outfit', sans-serif;
+}
+.dark {
+  --bg: #0c0f1a; --surface: #151929; --card: #1c2137; --border: #2a3050;
+  --text: #e2e8f0; --muted: #94a3b8; --accent: #f59e0b; --accent-bg: #2a2210;
+  --accent-hover: #fbbf24; --success: #10b981; --success-bg: #0d2a1f;
+  --danger: #ef4444; --danger-bg: #2a1215; --info: #3b82f6; --info-bg: #131c33;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; min-height: 100vh; overflow-x: hidden; }
+button { font-family: var(--font); cursor: pointer; }
+input, textarea, select { font-family: var(--font); font-size: 16px; }
+
+/* Sidebar */
+.sidebar {
+  width: 240px; min-height: 100vh; background: var(--sidebar-bg); padding: 0;
+  display: flex; flex-direction: column; position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
+  transition: transform 0.3s ease;
+}
+.sidebar-brand { padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.sidebar-brand h1 { font-size: 22px; font-weight: 800; color: #f59e0b; letter-spacing: -0.5px; }
+.sidebar-brand span { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; }
+.sidebar-nav { padding: 16px 12px; flex: 1; }
+.nav-item {
+  display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-radius: 8px;
+  color: var(--sidebar-text); font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: all 0.15s; border: none; background: none; width: 100%; text-align: left;
+}
+.nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.nav-item.active { background: rgba(245,158,11,0.12); color: #f59e0b; }
+.nav-icon { width: 20px; text-align: center; font-size: 16px; }
+.sidebar-footer { padding: 16px; border-top: 1px solid rgba(255,255,255,0.06); }
+.btn-export {
+  width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04); color: #cbd5e1; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn-export:hover { background: rgba(255,255,255,0.08); }
+
+/* Main Content */
+.main { margin-left: 240px; flex: 1; padding: 28px 32px; min-height: 100vh; }
+.page { display: none; }
+.page.active { display: block; }
+.page-header { margin-bottom: 28px; }
+.page-header h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+.page-header p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+/* Cards */
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; box-shadow: var(--shadow); margin-bottom: 20px;
+}
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.card-title { font-size: 16px; font-weight: 600; }
+
+/* Grid */
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+
+/* Stat Cards */
+.stat-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; box-shadow: var(--shadow);
+}
+.stat-label { font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.stat-value { font-size: 28px; font-weight: 700; margin-top: 6px; letter-spacing: -1px; }
+.stat-change { font-size: 12px; margin-top: 4px; font-weight: 500; }
+.stat-change.up { color: var(--success); }
+.stat-change.down { color: var(--danger); }
+
+/* Buttons */
+.btn {
+  padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  border: none; cursor: pointer; transition: all 0.15s; display: inline-flex;
+  align-items: center; gap: 8px;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.btn-secondary:hover { background: var(--bg); }
+.btn-sm { padding: 6px 14px; font-size: 13px; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { opacity: 0.9; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { padding: 10px 14px; text-align: left; font-weight: 600; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--muted); border-bottom: 2px solid var(--border); }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+tr:hover td { background: var(--accent-bg); }
+
+/* Forms */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.form-input {
+  width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text); font-size: 16px; transition: border 0.15s;
+}
+.form-input:focus { outline: none; border-color: var(--accent); }
+textarea.form-input { min-height: 160px; resize: vertical; font-family: 'Courier New', monospace; font-size: 13px; }
+select.form-input { appearance: auto; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 0; }
+.tab {
+  padding: 10px 18px; font-size: 14px; font-weight: 500; color: var(--muted); cursor: pointer;
+  border: none; background: none; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s;
+}
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab:hover:not(.active) { color: var(--text); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Toast */
+.toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  padding: 14px 20px; border-radius: 10px; font-size: 14px; font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15); animation: slideIn 0.3s ease; min-width: 280px;
+}
+.toast.success { background: var(--success); color: #fff; }
+.toast.error { background: var(--danger); color: #fff; }
+.toast.info { background: var(--info); color: #fff; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal {
+  background: var(--card); border-radius: var(--radius); padding: 28px; max-width: 480px;
+  width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); border: 1px solid var(--border);
+}
+.modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+.modal p { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* Badge */
+.badge {
+  display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.badge-success { background: var(--success-bg); color: var(--success); }
+.badge-danger { background: var(--danger-bg); color: var(--danger); }
+.badge-info { background: var(--info-bg); color: var(--info); }
+.badge-warning { background: var(--accent-bg); color: var(--accent); }
+
+/* Forecast method cards */
+.method-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; cursor: pointer; transition: all 0.15s;
+}
+.method-card.selected { border-color: var(--accent); background: var(--accent-bg); }
+.method-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.method-card p { font-size: 12px; color: var(--muted); }
+
+/* Day columns for dashboard */
+.day-cols { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-top: 16px; }
+.day-col {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 10px; text-align: center;
+}
+.day-col.today { border-color: var(--accent); background: var(--accent-bg); }
+.day-col .day-name { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.day-col .day-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.day-col .day-sales { font-size: 20px; font-weight: 700; margin-top: 8px; }
+.day-col .day-hours { font-size: 14px; color: var(--accent); font-weight: 600; margin-top: 4px; }
+.day-col .day-weather { font-size: 18px; margin-top: 6px; }
+
+/* Chart container */
+.chart-container { position: relative; width: 100%; }
+.chart-container canvas { width: 100% !important; }
+
+/* Mobile hamburger */
+.hamburger {
+  display: none; position: fixed; top: 16px; left: 16px; z-index: 200; background: var(--sidebar-bg);
+  border: none; color: #f59e0b; font-size: 22px; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+}
+.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 90; }
+
+/* Quick update area */
+.quick-update {
+  background: linear-gradient(135deg, var(--accent-bg), var(--surface));
+  border: 2px dashed var(--accent); border-radius: var(--radius); padding: 24px;
+  text-align: center; cursor: pointer; transition: all 0.2s;
+}
+.quick-update:hover { background: var(--accent-bg); border-style: solid; }
+.quick-update h3 { font-size: 16px; font-weight: 600; color: var(--accent); }
+.quick-update p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+/* Loading spinner */
+.spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Empty state */
+.empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty-state .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+.empty-state h3 { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.empty-state p { font-size: 14px; max-width: 400px; margin: 0 auto; }
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .day-cols { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 768px) {
+  .hamburger { display: block; }
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-overlay.open { display: block; }
+  .main { margin-left: 0; padding: 70px 16px 24px; }
+  .grid-4, .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .grid-2 { grid-template-columns: 1fr; }
+  .day-cols { grid-template-columns: repeat(3, 1fr); }
+  .modal { margin: 16px; }
+}
+@media (max-width: 480px) {
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+  .day-cols { grid-template-columns: repeat(2, 1fr); }
+  .tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .tab { white-space: nowrap; padding: 10px 12px; font-size: 13px; }
+}
+</style>
+</head>
+<body>
+
+<button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <h1>&#x26A1; StaffCast</h1>
+    <span>Smart Scheduling</span>
+  </div>
+  <div class="sidebar-nav">
+    <button class="nav-item active" onclick="showPage('dashboard')" data-page="dashboard">
+      <span class="nav-icon">&#x1F4CA;</span> Dashboard
+    </button>
+    <button class="nav-item" onclick="showPage('sales')" data-page="sales">
+      <span class="nav-icon">&#x1F4B0;</span> Sales Data
+    </button>
+    <button class="nav-item" onclick="showPage('hours')" data-page="hours">
+      <span class="nav-icon">&#x1F465;</span> Staff Hours
+    </button>
+    <button class="nav-item" onclick="showPage('forecast')" data-page="forecast">
+      <span class="nav-icon">&#x1F52E;</span> Forecast
+    </button>
+    <button class="nav-item" onclick="showPage('analytics')" data-page="analytics">
+      <span class="nav-icon">&#x1F4C8;</span> Analytics
+    </button>
+    <button class="nav-item" onclick="showPage('settings')" data-page="settings">
+      <span class="nav-icon">&#x2699;</span> Settings
+    </button>
+  </div>
+  <div class="sidebar-footer">
+    <button class="btn-export" onclick="exportAllData()">&#x1F4E5; Export All Data</button>
+    <button class="btn-export" style="margin-top:8px" onclick="document.getElementById('importFileInput').click()">&#x1F4E4; Import Data</button>
+    <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importAllData(event)">
+  </div>
+</nav>
+
+<main class="main">
+
+  <!-- ==================== DASHBOARD ==================== -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <h2>Dashboard</h2>
+      <p>Weekly overview and recommended staff hours</p>
+    </div>
+    <div class="grid-4" id="dashStats"></div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">This Week&apos;s Schedule</span>
+        <span class="badge badge-info" id="dashWeekLabel"></span>
+      </div>
+      <div class="day-cols" id="dashDayCols"></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Sales Trend (Last 30 Days)</span></div>
+        <div class="chart-container"><canvas id="dashSalesChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Staff Hours Trend</span></div>
+        <div class="chart-container"><canvas id="dashHoursChart"></canvas></div>
+      </div>
+    </div>
+    <div class="quick-update" onclick="showPage('sales')">
+      <h3>&#x2795; Quick Update</h3>
+      <p>Paste new sales data to automatically recalculate forecasts and staff hours</p>
+    </div>
+  </div>
+
+  <!-- ==================== SALES DATA ==================== -->
+  <div class="page" id="page-sales">
+    <div class="page-header">
+      <h2>Sales Data</h2>
+      <p>Import and manage daily sales by category</p>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Import Sales Data</span>
+        <button class="btn btn-sm btn-secondary" onclick="showSalesFormatHelp()">&#x2139; Format Help</button>
+      </div>
+      <div id="salesFormatHelp" style="display:none; margin-bottom: 16px; padding: 16px; background: var(--info-bg); border-radius: 8px; font-size: 13px; color: var(--text);">
+        <strong>Accepted formats:</strong><br><br>
+        <strong>Wide format</strong> (categories as columns):<br>
+        <code>Date, Food, Beverage, Retail</code><br>
+        <code>2025-04-01, 5200, 1800, 900</code><br><br>
+        <strong>Long format</strong> (one row per category):<br>
+        <code>Date, Category, Amount</code><br>
+        <code>2025-04-01, Food, 5200</code><br><br>
+        Dates can be YYYY-MM-DD, MM/DD/YYYY, or similar. CSV or tab-separated.
+      </div>
+      <textarea class="form-input" id="salesInput" placeholder="Paste your sales data here (CSV, tab-separated, or comma-separated)..."></textarea>
+      <div style="margin-top: 12px; display: flex; gap: 10px; align-items: center;">
+        <button class="btn btn-primary" onclick="importSalesData()">&#x1F4C4; Import Data</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('salesFileInput').click()">&#x1F4C1; Upload CSV</button>
+        <input type="file" id="salesFileInput" accept=".csv,.tsv,.txt" style="display:none" onchange="handleSalesFile(event)">
+        <span style="font-size: 12px; color: var(--muted);" id="salesCount"></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Sales Records</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select class="form-input" style="width:auto;padding:6px 10px;font-size:13px;" id="salesFilterCat" onchange="renderSalesTable()">
+            <option value="">All Categories</option>
+          </select>
+          <button class="btn btn-sm btn-danger" onclick="confirmClearSales()">Clear All</button>
+        </div>
+      </div>
+      <div class="table-wrap" id="salesTableWrap"></div>
+    </div>
+  </div>
+
+  <!-- ==================== STAFF HOURS ==================== -->
+  <div class="page" id="page-hours">
+    <div class="page-header">
+      <h2>Staff Hours</h2>
+      <p>Import employee hours and view recommended scheduling</p>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this, 'hours-recommended')">Recommended Hours</button>
+      <button class="tab" onclick="switchTab(this, 'hours-actual')">Actual Employee Hours</button>
+      <button class="tab" onclick="switchTab(this, 'hours-import')">Import Hours</button>
+    </div>
+    <div class="tab-content active" id="hours-recommended">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recommended Staff Hours - Next 14 Days</span>
+          <button class="btn btn-sm btn-primary" onclick="recalcHours()">&#x1F504; Recalculate</button>
+        </div>
+        <div class="table-wrap" id="recommendedHoursTable"></div>
+      </div>
+    </div>
+    <div class="tab-content" id="hours-actual">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Actual Employee Hours</span>
+          <div style="display:flex;gap:8px;">
+            <select class="form-input" style="width:auto;padding:6px 10px;font-size:13px;" id="empFilter" onchange="renderEmployeeTable()">
+              <option value="">All Employees</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap" id="employeeHoursTable"></div>
+      </div>
+    </div>
+    <div class="tab-content" id="hours-import">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Import Employee Hours</span>
+          <button class="btn btn-sm btn-secondary" onclick="showHoursFormatHelp()">&#x2139; Format Help</button>
+        </div>
+        <div id="hoursFormatHelp" style="display:none; margin-bottom: 16px; padding: 16px; background: var(--info-bg); border-radius: 8px; font-size: 13px; color: var(--text);">
+          <strong>Accepted format:</strong><br><br>
+          <code>Date, Employee, Hours</code><br>
+          <code>2025-04-01, John Smith, 8.5</code><br>
+          <code>2025-04-01, Jane Doe, 7.0</code><br><br>
+          Dates can be YYYY-MM-DD or MM/DD/YYYY. CSV or tab-separated.
+        </div>
+        <textarea class="form-input" id="hoursInput" placeholder="Paste employee hours data here..."></textarea>
+        <div style="margin-top: 12px; display: flex; gap: 10px;">
+          <button class="btn btn-primary" onclick="importEmployeeHours()">&#x1F4C4; Import Data</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('hoursFileInput').click()">&#x1F4C1; Upload CSV</button>
+          <input type="file" id="hoursFileInput" accept=".csv,.tsv,.txt" style="display:none" onchange="handleHoursFile(event)">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== FORECAST ==================== -->
+  <div class="page" id="page-forecast">
+    <div class="page-header">
+      <h2>Forecast</h2>
+      <p>Configure forecasting methods and view predictions</p>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Forecasting Methods</span>
+        <span class="badge badge-warning" id="forecastActiveMethod">Ensemble</span>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Select methods to include in the ensemble forecast. The ensemble combines selected methods for better accuracy.</p>
+      <div class="grid-3" id="methodCards"></div>
+    </div>
+    <div class="card" id="weatherCard">
+      <div class="card-header">
+        <span class="card-title">&#x1F326; Weather Integration</span>
+        <button class="btn btn-sm btn-primary" onclick="fetchWeatherData()">Fetch Weather</button>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Weather data adjusts forecasts for rain and extreme heat. Set your location in Settings.</p>
+      <div id="weatherStatus" style="font-size: 13px;"></div>
+      <div id="weatherPreview" style="margin-top: 12px;"></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">14-Day Sales Forecast</span>
+        <button class="btn btn-sm btn-secondary" onclick="runForecast()">&#x1F504; Run Forecast</button>
+      </div>
+      <div class="chart-container" style="height:300px;"><canvas id="forecastChart"></canvas></div>
+      <div class="table-wrap" style="margin-top: 16px;" id="forecastTable"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Forecast Accuracy (Backtest)</span></div>
+      <div id="accuracyMetrics" class="grid-3"></div>
+    </div>
+  </div>
+
+  <!-- ==================== ANALYTICS ==================== -->
+  <div class="page" id="page-analytics">
+    <div class="page-header">
+      <h2>Analytics</h2>
+      <p>Visualize historical sales, trends, and patterns</p>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this, 'analytics-trends')">Sales Trends</button>
+      <button class="tab" onclick="switchTab(this, 'analytics-categories')">By Category</button>
+      <button class="tab" onclick="switchTab(this, 'analytics-patterns')">Day Patterns</button>
+      <button class="tab" onclick="switchTab(this, 'analytics-compare')">Week Comparison</button>
+    </div>
+    <div class="tab-content active" id="analytics-trends">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Total Sales Over Time</span>
+          <select class="form-input" style="width:auto;padding:6px 10px;font-size:13px;" id="trendRange" onchange="renderTrendChart()">
+            <option value="30">Last 30 days</option>
+            <option value="60">Last 60 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="0">All time</option>
+          </select>
+        </div>
+        <div class="chart-container" style="height:350px;"><canvas id="trendChart"></canvas></div>
+      </div>
+    </div>
+    <div class="tab-content" id="analytics-categories">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Sales by Category (Pie)</span></div>
+          <div class="chart-container" style="height:300px;"><canvas id="categoryPieChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Category Trends</span></div>
+          <div class="chart-container" style="height:300px;"><canvas id="categoryTrendChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-content" id="analytics-patterns">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Average Sales by Day of Week</span></div>
+          <div class="chart-container" style="height:300px;"><canvas id="dayOfWeekChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Sales Heatmap (Day vs Week)</span></div>
+          <div id="heatmapContainer" style="overflow-x:auto;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-content" id="analytics-compare">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Week-over-Week Comparison</span></div>
+        <div class="chart-container" style="height:350px;"><canvas id="weekCompareChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SETTINGS ==================== -->
+  <div class="page" id="page-settings">
+    <div class="page-header">
+      <h2>Settings</h2>
+      <p>Configure your business parameters and scheduling rules</p>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">&#x1F3E2; Business Details</div>
+        <div class="form-group">
+          <label class="form-label">Business Name</label>
+          <input class="form-input" id="setBizName" placeholder="My Business">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Currency Symbol</label>
+          <input class="form-input" id="setCurrency" placeholder="$" maxlength="3">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location Zip Code (for weather)</label>
+          <input class="form-input" id="setZipCode" placeholder="e.g. 90210" maxlength="10">
+          <span style="font-size:11px;color:var(--muted);margin-top:4px;display:block;" id="zipResolvedLabel"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">&#x23F0; Staff Scheduling Rules</div>
+        <div class="form-group">
+          <label class="form-label">Max Hours Per Employee Per Day</label>
+          <input class="form-input" id="setMaxHoursDay" type="number" step="0.5" placeholder="10">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Hours Per Employee Per Week</label>
+          <input class="form-input" id="setMaxHoursWeek" type="number" step="0.5" placeholder="40">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Total Staff Hours Per Day</label>
+          <input class="form-input" id="setMaxTotalHoursDay" type="number" step="1" placeholder="120">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Total Staff Hours Per Week</label>
+          <input class="form-input" id="setMaxTotalHoursWeek" type="number" step="1" placeholder="600">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Minimum Staff Hours Per Day</label>
+          <input class="form-input" id="setMinHoursDay" type="number" step="1" placeholder="16">
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">&#x1F4B5; Labor Targets</div>
+        <div class="form-group">
+          <label class="form-label">Target Labor Cost % of Sales</label>
+          <input class="form-input" id="setLaborPct" type="number" step="0.5" placeholder="30">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Average Hourly Wage ($)</label>
+          <input class="form-input" id="setAvgWage" type="number" step="0.25" placeholder="18">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sales Per Labor Hour ($ target)</label>
+          <input class="form-input" id="setSalesPerHour" type="number" step="1" placeholder="60">
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">&#x1F326; Weather Adjustments</div>
+        <div class="form-group">
+          <label class="form-label">Rain Adjustment % (reduce sales by)</label>
+          <input class="form-input" id="setRainAdj" type="number" step="1" placeholder="15">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Extreme Heat Threshold (&deg;F)</label>
+          <input class="form-input" id="setHeatThresh" type="number" step="1" placeholder="95">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Heat Adjustment % (reduce sales by)</label>
+          <input class="form-input" id="setHeatAdj" type="number" step="1" placeholder="10">
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px;">&#x1F4C2; Sales Categories</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Categories are auto-detected from imported data. You can also add them manually.</p>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input class="form-input" id="newCategoryInput" placeholder="New category name" style="max-width:260px;">
+        <button class="btn btn-primary btn-sm" onclick="addCategory()">Add</button>
+      </div>
+      <div id="categoriesList" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+    </div>
+    <div style="margin-top: 16px;">
+      <button class="btn btn-primary" onclick="saveSettings()">&#x2714; Save Settings</button>
+    </div>
+  </div>
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+/* ============ APP STATE ============ */
+const AppState = {
+  salesData: [],
+  employeeHours: [],
+  weatherData: [],
+  forecastCache: [],
+  settings: {
+    bizName: '',
+    currency: '$',
+    zipCode: '',
+    lat: null,
+    lon: null,
+    maxHoursPerDay: 10,
+    maxHoursPerWeek: 40,
+    maxTotalHoursDay: 120,
+    maxTotalHoursWeek: 600,
+    minHoursDay: 16,
+    laborPct: 30,
+    avgWage: 18,
+    salesPerHour: 60,
+    rainAdj: 15,
+    heatThresh: 95,
+    heatAdj: 10,
+    categories: []
+  },
+  forecastMethods: {
+    movingAvg: true,
+    expSmooth: true,
+    dayOfWeek: true,
+    trend: true,
+    weather: true
+  }
+};
+
+const chartInstances = {};
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAYS_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const CHART_COLORS = ['#f59e0b','#0ea5e9','#8b5cf6','#ec4899','#10b981','#f97316','#6366f1','#14b8a6'];
+
+/* ============ UTILITIES ============ */
+function fmt(n) { return AppState.settings.currency + Number(n||0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+function fmtDec(n) { return Number(n||0).toFixed(1); }
+function dateStr(d) { const dt = new Date(d); return dt.toISOString().split('T')[0]; }
+function parseDate(s) {
+  if (!s) return null;
+  s = s.trim();
+  /* Try ISO first */
+  let d = new Date(s);
+  if (!isNaN(d.getTime()) && s.match(/\d{4}/)) return dateStr(d);
+  /* MM/DD/YYYY */
+  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (m) {
+    const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+    d = new Date(yr + '-' + m[1].padStart(2,'0') + '-' + m[2].padStart(2,'0'));
+    if (!isNaN(d.getTime())) return dateStr(d);
+  }
+  return null;
+}
+function dayOfWeek(dateString) { return new Date(dateString + 'T12:00:00').getDay(); }
+function addDays(dateString, n) {
+  const d = new Date(dateString + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return dateStr(d);
+}
+function today() { return dateStr(new Date()); }
+function getMonday(dateString) {
+  const d = new Date(dateString + 'T12:00:00');
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return dateStr(d);
+}
+
+function toast(msg, type) {
+  type = type || 'info';
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.animation = 'slideOut 0.3s ease forwards'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+/* ============ DARK MODE ============ */
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  document.documentElement.classList.add('dark');
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+  if (event.matches) { document.documentElement.classList.add('dark'); } else { document.documentElement.classList.remove('dark'); }
+});
+
+/* ============ NAVIGATION ============ */
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const page = document.getElementById('page-' + name);
+  if (page) page.classList.add('active');
+  const nav = document.querySelector('[data-page="' + name + '"]');
+  if (nav) nav.classList.add('active');
+  if (name === 'dashboard') renderDashboard();
+  else if (name === 'sales') renderSalesPage();
+  else if (name === 'hours') renderHoursPage();
+  else if (name === 'forecast') renderForecastPage();
+  else if (name === 'analytics') renderAnalyticsPage();
+  else if (name === 'settings') loadSettings();
+  closeSidebar();
+}
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+}
+function switchTab(btn, tabId) {
+  const parent = btn.closest('.page');
+  parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  parent.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const el = document.getElementById(tabId);
+  if (el) el.classList.add('active');
+}
+
+/* ============ DATA PARSING ============ */
+function parseCSVRows(text) {
+  const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l);
+  const sep = lines[0].includes('\t') ? '\t' : ',';
+  return lines.map(l => l.split(sep).map(c => c.trim().replace(/^["']|["']$/g, '')));
+}
+
+function importSalesData() {
+  const raw = document.getElementById('salesInput').value.trim();
+  if (!raw) { toast('Please paste some data first', 'error'); return; }
+  const rows = parseCSVRows(raw);
+  if (rows.length < 2) { toast('Need at least a header and one data row', 'error'); return; }
+
+  const header = rows[0];
+  let count = 0;
+
+  /* Detect format: wide or long */
+  const lowerHeader = header.map(h => h.toLowerCase());
+  const isLong = lowerHeader.includes('category') || lowerHeader.includes('cat');
+
+  if (isLong) {
+    /* Long format: Date, Category, Amount */
+    const dateIdx = lowerHeader.findIndex(h => h.includes('date'));
+    const catIdx = lowerHeader.findIndex(h => h.includes('cat'));
+    const amtIdx = lowerHeader.findIndex(h => h.includes('amount') || h.includes('sales') || h.includes('total') || h.includes('revenue'));
+    const dI = dateIdx >= 0 ? dateIdx : 0;
+    const cI = catIdx >= 0 ? catIdx : 1;
+    const aI = amtIdx >= 0 ? amtIdx : 2;
+
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (r.length < 3) continue;
+      const d = parseDate(r[dI]);
+      if (!d) continue;
+      const cat = r[cI].trim();
+      const amt = parseFloat(r[aI].replace(/[$,]/g, ''));
+      if (isNaN(amt)) continue;
+      AppState.salesData.push({ date: d, category: cat, amount: amt });
+      if (!AppState.settings.categories.includes(cat)) AppState.settings.categories.push(cat);
+      count++;
+    }
+  } else {
+    /* Wide format: Date, Cat1, Cat2, ... */
+    const cats = header.slice(1);
+    cats.forEach(c => { if (c && !AppState.settings.categories.includes(c)) AppState.settings.categories.push(c); });
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const d = parseDate(r[0]);
+      if (!d) continue;
+      for (let j = 1; j < r.length && j <= cats.length; j++) {
+        const amt = parseFloat(r[j].replace(/[$,]/g, ''));
+        if (isNaN(amt)) continue;
+        AppState.salesData.push({ date: d, category: cats[j-1], amount: amt });
+        count++;
+      }
+    }
+  }
+
+  if (count > 0) {
+    AppState.salesData.sort((a,b) => a.date.localeCompare(b.date));
+    toast(count + ' sales records imported!', 'success');
+    document.getElementById('salesInput').value = '';
+    renderSalesPage();
+    runForecast();
+  } else {
+    toast('No valid records found. Check format.', 'error');
+  }
+}
+
+function importEmployeeHours() {
+  const raw = document.getElementById('hoursInput').value.trim();
+  if (!raw) { toast('Please paste some data first', 'error'); return; }
+  const rows = parseCSVRows(raw);
+  if (rows.length < 2) { toast('Need at least a header and one data row', 'error'); return; }
+
+  const header = rows[0].map(h => h.toLowerCase());
+  const dateIdx = Math.max(0, header.findIndex(h => h.includes('date')));
+  const empIdx = header.findIndex(h => h.includes('employee') || h.includes('name') || h.includes('staff'));
+  const hrsIdx = header.findIndex(h => h.includes('hour'));
+  const eI = empIdx >= 0 ? empIdx : 1;
+  const hI = hrsIdx >= 0 ? hrsIdx : 2;
+  let count = 0;
+
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.length < 3) continue;
+    const d = parseDate(r[dateIdx]);
+    if (!d) continue;
+    const emp = r[eI].trim();
+    const hrs = parseFloat(r[hI]);
+    if (!emp || isNaN(hrs)) continue;
+    AppState.employeeHours.push({ date: d, employee: emp, hours: hrs });
+    count++;
+  }
+
+  if (count > 0) {
+    AppState.employeeHours.sort((a,b) => a.date.localeCompare(b.date));
+    toast(count + ' employee hour records imported!', 'success');
+    document.getElementById('hoursInput').value = '';
+    renderHoursPage();
+  } else {
+    toast('No valid records found. Check format.', 'error');
+  }
+}
+
+function handleSalesFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('salesInput').value = e.target.result;
+    importSalesData();
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function handleHoursFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('hoursInput').value = e.target.result;
+    importEmployeeHours();
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+/* ============ AGGREGATION HELPERS ============ */
+function getDailySales(salesArr) {
+  const map = {};
+  (salesArr || AppState.salesData).forEach(s => {
+    map[s.date] = (map[s.date] || 0) + s.amount;
+  });
+  return Object.entries(map).sort((a,b) => a[0].localeCompare(b[0])).map(([date, total]) => ({ date, total }));
+}
+
+function getDailySalesByCategory() {
+  const map = {};
+  AppState.salesData.forEach(s => {
+    if (!map[s.date]) map[s.date] = {};
+    map[s.date][s.category] = (map[s.date][s.category] || 0) + s.amount;
+  });
+  return map;
+}
+
+function getActualTotalHoursByDate() {
+  const map = {};
+  AppState.employeeHours.forEach(h => {
+    map[h.date] = (map[h.date] || 0) + h.hours;
+  });
+  return map;
+}
+
+/* ============ FORECASTING ENGINE ============ */
+const Forecaster = {
+  movingAverage(dailySales, windowSize, daysAhead) {
+    windowSize = windowSize || 7;
+    daysAhead = daysAhead || 14;
+    if (dailySales.length === 0) return [];
+    const lastDate = dailySales[dailySales.length - 1].date;
+    const recent = dailySales.slice(-windowSize);
+    const avg = recent.reduce((s,d) => s + d.total, 0) / recent.length;
+    const result = [];
+    for (let i = 1; i <= daysAhead; i++) {
+      result.push({ date: addDays(lastDate, i), predicted: avg, method: 'Moving Avg' });
+    }
+    return result;
+  },
+
+  exponentialSmoothing(dailySales, alpha, daysAhead) {
+    alpha = alpha || 0.3;
+    daysAhead = daysAhead || 14;
+    if (dailySales.length === 0) return [];
+    let level = dailySales[0].total;
+    for (let i = 1; i < dailySales.length; i++) {
+      level = alpha * dailySales[i].total + (1 - alpha) * level;
+    }
+    const lastDate = dailySales[dailySales.length - 1].date;
+    const result = [];
+    for (let i = 1; i <= daysAhead; i++) {
+      result.push({ date: addDays(lastDate, i), predicted: level, method: 'Exp Smooth' });
+    }
+    return result;
+  },
+
+  dayOfWeekPattern(dailySales, daysAhead) {
+    daysAhead = daysAhead || 14;
+    if (dailySales.length < 7) return [];
+    const dayAvg = [0,0,0,0,0,0,0];
+    const dayCnt = [0,0,0,0,0,0,0];
+    /* Weight recent data more heavily */
+    const recent = dailySales.slice(-56);
+    recent.forEach((d, idx) => {
+      const dow = dayOfWeek(d.date);
+      const weight = 1 + (idx / recent.length);
+      dayAvg[dow] += d.total * weight;
+      dayCnt[dow] += weight;
+    });
+    for (let i = 0; i < 7; i++) { dayAvg[i] = dayCnt[i] > 0 ? dayAvg[i] / dayCnt[i] : 0; }
+
+    const lastDate = dailySales[dailySales.length - 1].date;
+    const result = [];
+    for (let i = 1; i <= daysAhead; i++) {
+      const fd = addDays(lastDate, i);
+      const dow = dayOfWeek(fd);
+      result.push({ date: fd, predicted: dayAvg[dow], method: 'Day Pattern' });
+    }
+    return result;
+  },
+
+  trendAndSeasonal(dailySales, daysAhead) {
+    daysAhead = daysAhead || 14;
+    if (dailySales.length < 14) return [];
+    /* Linear regression on recent data */
+    const recent = dailySales.slice(-60);
+    const n = recent.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+    for (let i = 0; i < n; i++) {
+      sumX += i; sumY += recent[i].total; sumXY += i * recent[i].total; sumXX += i * i;
+    }
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+
+    /* Day of week seasonal factors */
+    const dayAvg = [0,0,0,0,0,0,0];
+    const dayCnt = [0,0,0,0,0,0,0];
+    const overallAvg = sumY / n;
+    recent.forEach(d => {
+      const dow = dayOfWeek(d.date);
+      dayAvg[dow] += d.total;
+      dayCnt[dow]++;
+    });
+    const seasonal = dayAvg.map((sum, i) => dayCnt[i] > 0 ? (sum / dayCnt[i]) / (overallAvg || 1) : 1);
+
+    const lastDate = dailySales[dailySales.length - 1].date;
+    const result = [];
+    for (let i = 1; i <= daysAhead; i++) {
+      const fd = addDays(lastDate, i);
+      const dow = dayOfWeek(fd);
+      const trendVal = intercept + slope * (n - 1 + i);
+      const prediction = Math.max(0, trendVal * seasonal[dow]);
+      result.push({ date: fd, predicted: prediction, method: 'Trend+Season' });
+    }
+    return result;
+  },
+
+  weatherAdjust(forecasts, weatherDataArr) {
+    if (!weatherDataArr || weatherDataArr.length === 0) return forecasts;
+    const wMap = {};
+    weatherDataArr.forEach(w => { wMap[w.date] = w; });
+    const s = AppState.settings;
+    return forecasts.map(f => {
+      const w = wMap[f.date];
+      if (!w) return f;
+      let adj = 1;
+      if (w.rain > 2) adj *= (1 - s.rainAdj / 100);
+      if (w.tempMax > s.heatThresh) adj *= (1 - s.heatAdj / 100);
+      return { ...f, predicted: f.predicted * adj, weatherAdj: adj };
+    });
+  },
+
+  ensemble(dailySales, daysAhead) {
+    daysAhead = daysAhead || 14;
+    const methods = AppState.forecastMethods;
+    const results = [];
+    if (methods.movingAvg) results.push(this.movingAverage(dailySales, 7, daysAhead));
+    if (methods.expSmooth) results.push(this.exponentialSmoothing(dailySales, 0.3, daysAhead));
+    if (methods.dayOfWeek) results.push(this.dayOfWeekPattern(dailySales, daysAhead));
+    if (methods.trend) results.push(this.trendAndSeasonal(dailySales, daysAhead));
+
+    if (results.length === 0) return [];
+
+    const combined = [];
+    for (let i = 0; i < daysAhead; i++) {
+      let sum = 0, cnt = 0;
+      results.forEach(r => { if (r[i]) { sum += r[i].predicted; cnt++; } });
+      const fd = results[0][i] ? results[0][i].date : addDays(dailySales[dailySales.length-1].date, i+1);
+      combined.push({ date: fd, predicted: cnt > 0 ? sum / cnt : 0, method: 'Ensemble' });
+    }
+
+    if (methods.weather) {
+      return this.weatherAdjust(combined, AppState.weatherData);
+    }
+    return combined;
+  },
+
+  backtest(dailySales, testDays) {
+    testDays = testDays || 7;
+    if (dailySales.length < testDays + 14) return null;
+    const trainData = dailySales.slice(0, -testDays);
+    const testData = dailySales.slice(-testDays);
+    const predictions = this.ensemble(trainData, testDays);
+    let totalErr = 0, totalAbs = 0, totalActual = 0;
+    testData.forEach((actual, i) => {
+      if (predictions[i]) {
+        const err = actual.total - predictions[i].predicted;
+        totalErr += err;
+        totalAbs += Math.abs(err);
+        totalActual += actual.total;
+      }
+    });
+    const mape = totalActual > 0 ? (totalAbs / totalActual) * 100 : 0;
+    return { mape: mape, bias: totalErr / testDays, mae: totalAbs / testDays };
+  }
+};
+
+/* ============ STAFF HOURS CALCULATOR ============ */
+function calculateDailyHours(forecastedSales) {
+  const s = AppState.settings;
+  /* Primary method: sales per labor hour */
+  let hours = forecastedSales / (s.salesPerHour || 60);
+  /* Clamp by daily max */
+  hours = Math.max(s.minHoursDay || 0, Math.min(hours, s.maxTotalHoursDay || 999));
+  /* Also cap by weekly max spread across 7 days (simple daily budget) */
+  const weeklyBudgetPerDay = (s.maxTotalHoursWeek || 9999) / 7;
+  hours = Math.min(hours, weeklyBudgetPerDay);
+  return Math.round(hours * 2) / 2; /* round to nearest 0.5 */
+}
+
+/* ============ WEATHER SERVICE ============ */
+async function fetchWeatherData() {
+  const s = AppState.settings;
+  const statusEl = document.getElementById('weatherStatus');
+
+  if (!s.lat || !s.lon) {
+    if (s.zipCode) {
+      statusEl.innerHTML = '<span class="spinner"></span> Resolving zip code...';
+      const resolved = await resolveZipCode(s.zipCode);
+      if (resolved) { s.lat = resolved.lat; s.lon = resolved.lon; }
+      else { statusEl.innerHTML = '<span style="color:var(--danger);">&#x2716;</span> Could not resolve zip code. Check Settings.'; return; }
+    } else {
+      statusEl.innerHTML = '<span style="color:var(--danger);">&#x2716;</span> Please set your zip code in Settings first.';
+      return;
+    }
+  }
+
+  statusEl.innerHTML = '<span class="spinner"></span> Fetching weather data...';
+
+  try {
+    /* Historical last 30 days */
+    const endDate = today();
+    const startDate = addDays(endDate, -30);
+    const histUrl = 'https://archive-api.open-meteo.com/v1/archive?latitude=' + s.lat + '&longitude=' + s.lon +
+      '&start_date=' + startDate + '&end_date=' + endDate +
+      '&daily=temperature_2m_max,precipitation_sum,weathercode&temperature_unit=fahrenheit&timezone=auto';
+
+    /* Forecast next 14 days */
+    const fcstUrl = 'https://api.open-meteo.com/v1/forecast?latitude=' + s.lat + '&longitude=' + s.lon +
+      '&daily=temperature_2m_max,precipitation_probability_max,weathercode&temperature_unit=fahrenheit&timezone=auto&forecast_days=14';
+
+    const [histRes, fcstRes] = await Promise.all([fetch(histUrl), fetch(fcstUrl)]);
+    const histData = await histRes.json();
+    const fcstData = await fcstRes.json();
+
+    AppState.weatherData = [];
+
+    if (histData.daily) {
+      histData.daily.time.forEach((t, i) => {
+        AppState.weatherData.push({
+          date: t,
+          tempMax: histData.daily.temperature_2m_max[i],
+          rain: histData.daily.precipitation_sum[i],
+          code: histData.daily.weathercode[i],
+          source: 'historical'
+        });
+      });
+    }
+
+    if (fcstData.daily) {
+      fcstData.daily.time.forEach((t, i) => {
+        AppState.weatherData.push({
+          date: t,
+          tempMax: fcstData.daily.temperature_2m_max[i],
+          rain: fcstData.daily.precipitation_probability_max[i],
+          code: fcstData.daily.weathercode[i],
+          source: 'forecast'
+        });
+      });
+    }
+
+    statusEl.innerHTML = '<span style="color:var(--success);">&#x2714;</span> Weather data loaded: ' +
+      AppState.weatherData.length + ' days';
+    renderWeatherPreview();
+    toast('Weather data fetched!', 'success');
+    runForecast();
+  } catch (err) {
+    statusEl.innerHTML = '<span style="color:var(--danger);">&#x2716;</span> Failed to fetch weather. ' +
+      'Check your location in Settings, or the request may have been blocked by the security policy. ' +
+      'You can manually add weather adjustments in Settings.';
+    toast('Weather fetch failed: ' + err.message, 'error');
+  }
+}
+
+function weatherEmoji(code) {
+  if (code === undefined || code === null) return '';
+  if (code <= 1) return '\u2600\uFE0F';
+  if (code <= 3) return '\u26C5';
+  if (code <= 48) return '\uD83C\uDF2B\uFE0F';
+  if (code <= 67) return '\uD83C\uDF27\uFE0F';
+  if (code <= 77) return '\u2744\uFE0F';
+  if (code <= 82) return '\uD83C\uDF26\uFE0F';
+  if (code <= 86) return '\u2744\uFE0F';
+  return '\u26C8\uFE0F';
+}
+
+function renderWeatherPreview() {
+  const el = document.getElementById('weatherPreview');
+  const forecast = AppState.weatherData.filter(w => w.source === 'forecast').slice(0, 7);
+  if (forecast.length === 0) { el.innerHTML = ''; return; }
+  let html = '<div style="display:flex;gap:8px;overflow-x:auto;">';
+  forecast.forEach(w => {
+    html += '<div style="text-align:center;min-width:60px;padding:8px;background:var(--surface);border-radius:8px;border:1px solid var(--border);">' +
+      '<div style="font-size:11px;color:var(--muted);">' + w.date.slice(5) + '</div>' +
+      '<div style="font-size:20px;">' + weatherEmoji(w.code) + '</div>' +
+      '<div style="font-size:13px;font-weight:600;">' + Math.round(w.tempMax) + '&deg;</div>' +
+      '<div style="font-size:10px;color:var(--muted);">' + Math.round(w.rain) + '%</div></div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+/* ============ RUN FORECAST ============ */
+function runForecast() {
+  const daily = getDailySales();
+  if (daily.length < 7) {
+    AppState.forecastCache = [];
+    return;
+  }
+  AppState.forecastCache = Forecaster.ensemble(daily, 14);
+}
+
+function recalcHours() {
+  runForecast();
+  renderHoursPage();
+  toast('Hours recalculated!', 'success');
+}
+
+/* ============ RENDER DASHBOARD ============ */
+function renderDashboard() {
+  const daily = getDailySales();
+  const actualHours = getActualTotalHoursByDate();
+  runForecast();
+
+  /* Stats */
+  const last7 = daily.slice(-7);
+  const prev7 = daily.slice(-14, -7);
+  const totalLast7 = last7.reduce((s,d) => s + d.total, 0);
+  const totalPrev7 = prev7.reduce((s,d) => s + d.total, 0);
+  const avgDaily = last7.length > 0 ? totalLast7 / last7.length : 0;
+  const change = totalPrev7 > 0 ? ((totalLast7 - totalPrev7) / totalPrev7 * 100) : 0;
+
+  const forecastTotal = AppState.forecastCache.slice(0, 7).reduce((s,f) => s + f.predicted, 0);
+  const forecastHours = AppState.forecastCache.slice(0, 7).reduce((s,f) => s + calculateDailyHours(f.predicted), 0);
+
+  document.getElementById('dashStats').innerHTML =
+    statCard('Last 7 Days', fmt(totalLast7), change, true) +
+    statCard('Avg Daily Sales', fmt(avgDaily), null) +
+    statCard('Next 7 Days (Forecast)', fmt(forecastTotal), null) +
+    statCard('Forecast Hours (7 days)', fmtDec(forecastHours) + ' hrs', null);
+
+  /* Week schedule */
+  const monday = getMonday(today());
+  document.getElementById('dashWeekLabel').textContent = 'Week of ' + monday;
+  let dayCols = '';
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(monday, i);
+    const isToday = d === today();
+    const actual = daily.find(s => s.date === d);
+    const forecast = AppState.forecastCache.find(f => f.date === d);
+    const sales = actual ? actual.total : (forecast ? forecast.predicted : null);
+    const hours = sales !== null ? calculateDailyHours(sales) : null;
+    const weather = AppState.weatherData.find(w => w.date === d);
+
+    dayCols += '<div class="day-col' + (isToday ? ' today' : '') + '">' +
+      '<div class="day-name">' + DAYS[dayOfWeek(d)] + '</div>' +
+      '<div class="day-date">' + d.slice(5) + '</div>' +
+      '<div class="day-sales">' + (sales !== null ? fmt(sales) : '—') + '</div>' +
+      '<div style="font-size:10px;color:var(--muted);">' + (actual ? 'Actual' : (forecast ? 'Forecast' : '')) + '</div>' +
+      '<div class="day-hours">' + (hours !== null ? fmtDec(hours) + 'h' : '—') + '</div>' +
+      (weather ? '<div class="day-weather">' + weatherEmoji(weather.code) + '</div>' : '') +
+      '</div>';
+  }
+  document.getElementById('dashDayCols').innerHTML = dayCols;
+
+  /* Charts */
+  renderDashSalesChart(daily);
+  renderDashHoursChart(daily, actualHours);
+}
+
+function statCard(label, value, change, showChange) {
+  let changeHtml = '';
+  if (showChange && change !== null && change !== undefined) {
+    const dir = change >= 0 ? 'up' : 'down';
+    const arrow = change >= 0 ? '\u2191' : '\u2193';
+    changeHtml = '<div class="stat-change ' + dir + '">' + arrow + ' ' + Math.abs(change).toFixed(1) + '% vs prev week</div>';
+  }
+  return '<div class="stat-card"><div class="stat-label">' + label + '</div><div class="stat-value">' + value + '</div>' + changeHtml + '</div>';
+}
+
+function renderDashSalesChart(daily) {
+  const last30 = daily.slice(-30);
+  renderLineChart('dashSalesChart', last30.map(d => d.date.slice(5)), [
+    { label: 'Daily Sales', data: last30.map(d => d.total), color: CHART_COLORS[0] }
+  ]);
+}
+
+function renderDashHoursChart(daily, actualHoursMap) {
+  const last30 = daily.slice(-30);
+  const recommended = last30.map(d => calculateDailyHours(d.total));
+  const actual = last30.map(d => actualHoursMap[d.date] || null);
+  renderLineChart('dashHoursChart', last30.map(d => d.date.slice(5)), [
+    { label: 'Recommended', data: recommended, color: CHART_COLORS[0] },
+    { label: 'Actual', data: actual, color: CHART_COLORS[1] }
+  ]);
+}
+
+/* ============ RENDER SALES PAGE ============ */
+function renderSalesPage() {
+  updateCategoryFilter();
+  renderSalesTable();
+  const count = AppState.salesData.length;
+  document.getElementById('salesCount').textContent = count + ' total records';
+}
+
+function renderSalesTable() {
+  const wrap = document.getElementById('salesTableWrap');
+  const filter = document.getElementById('salesFilterCat').value;
+  let data = AppState.salesData;
+  if (filter) data = data.filter(s => s.category === filter);
+
+  if (data.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F4CA;</div><h3>No Sales Data</h3><p>Import your daily sales by category data above to get started.</p></div>';
+    return;
+  }
+
+  /* Show most recent 200 rows */
+  const show = data.slice(-200).reverse();
+  let html = '<table><thead><tr><th>Date</th><th>Day</th><th>Category</th><th style="text-align:right">Amount</th></tr></thead><tbody>';
+  show.forEach(s => {
+    html += '<tr><td>' + s.date + '</td><td>' + DAYS[dayOfWeek(s.date)] + '</td><td>' +
+      '<span class="badge badge-info">' + s.category + '</span></td>' +
+      '<td style="text-align:right;font-weight:600;">' + fmt(s.amount) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  if (data.length > 200) html += '<p style="font-size:12px;color:var(--muted);margin-top:8px;">Showing latest 200 of ' + data.length + ' records</p>';
+  wrap.innerHTML = html;
+}
+
+function updateCategoryFilter() {
+  const sel = document.getElementById('salesFilterCat');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All Categories</option>';
+  AppState.settings.categories.forEach(c => {
+    sel.innerHTML += '<option value="' + c + '"' + (c === current ? ' selected' : '') + '>' + c + '</option>';
+  });
+}
+
+function showSalesFormatHelp() {
+  const el = document.getElementById('salesFormatHelp');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function confirmClearSales() {
+  showModal('Clear All Sales Data?', 'This will permanently remove all imported sales records. This action cannot be undone.', function() {
+    AppState.salesData = [];
+    AppState.forecastCache = [];
+    renderSalesPage();
+    toast('All sales data cleared', 'info');
+  });
+}
+
+/* ============ RENDER HOURS PAGE ============ */
+function renderHoursPage() {
+  renderRecommendedHours();
+  renderEmployeeTable();
+  updateEmployeeFilter();
+}
+
+function renderRecommendedHours() {
+  const wrap = document.getElementById('recommendedHoursTable');
+  if (AppState.forecastCache.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F52E;</div><h3>No Forecast Available</h3><p>Import sales data first to generate forecasts and recommended hours.</p></div>';
+    return;
+  }
+  const actualMap = getActualTotalHoursByDate();
+  let html = '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast Sales</th>' +
+    '<th style="text-align:right">Rec. Hours</th><th style="text-align:right">Actual Hours</th><th>Variance</th></tr></thead><tbody>';
+
+  let weekSales = 0, weekHours = 0, weekActual = 0, weekDays = 0;
+  const maxWeek = AppState.settings.maxTotalHoursWeek || 9999;
+  let prevMonday = null;
+
+  AppState.forecastCache.forEach(function(f, idx) {
+    const hours = calculateDailyHours(f.predicted);
+    const actual = actualMap[f.date];
+    const monday = getMonday(f.date);
+
+    /* Insert week summary row when week changes */
+    if (prevMonday && monday !== prevMonday && weekDays > 0) {
+      const overCap = weekHours > maxWeek;
+      html += '<tr style="background:var(--accent-bg);font-weight:600;"><td colspan="2">Week Total</td>' +
+        '<td style="text-align:right;">' + fmt(weekSales) + '</td>' +
+        '<td style="text-align:right;color:' + (overCap ? 'var(--danger)' : 'var(--accent)') + ';">' + fmtDec(weekHours) +
+        (overCap ? ' &#x26A0;' : '') + ' / ' + fmtDec(maxWeek) + '</td>' +
+        '<td style="text-align:right;">' + (weekActual > 0 ? fmtDec(weekActual) : '—') + '</td><td></td></tr>';
+      weekSales = 0; weekHours = 0; weekActual = 0; weekDays = 0;
+    }
+    prevMonday = monday;
+    weekSales += f.predicted;
+    weekHours += hours;
+    if (actual !== undefined) weekActual += actual;
+    weekDays++;
+
+    let variance = '';
+    if (actual !== undefined) {
+      const diff = actual - hours;
+      const cls = diff > 2 ? 'danger' : (diff < -2 ? 'success' : 'info');
+      variance = '<span class="badge badge-' + cls + '">' + (diff > 0 ? '+' : '') + fmtDec(diff) + 'h</span>';
+    }
+    html += '<tr><td>' + f.date + '</td><td>' + DAYS[dayOfWeek(f.date)] + '</td>' +
+      '<td style="text-align:right;">' + fmt(f.predicted) + '</td>' +
+      '<td style="text-align:right;font-weight:600;color:var(--accent);">' + fmtDec(hours) + '</td>' +
+      '<td style="text-align:right;">' + (actual !== undefined ? fmtDec(actual) : '—') + '</td>' +
+      '<td>' + variance + '</td></tr>';
+
+    /* Final week summary */
+    if (idx === AppState.forecastCache.length - 1 && weekDays > 0) {
+      const overCap = weekHours > maxWeek;
+      html += '<tr style="background:var(--accent-bg);font-weight:600;"><td colspan="2">Week Total</td>' +
+        '<td style="text-align:right;">' + fmt(weekSales) + '</td>' +
+        '<td style="text-align:right;color:' + (overCap ? 'var(--danger)' : 'var(--accent)') + ';">' + fmtDec(weekHours) +
+        (overCap ? ' &#x26A0;' : '') + ' / ' + fmtDec(maxWeek) + '</td>' +
+        '<td style="text-align:right;">' + (weekActual > 0 ? fmtDec(weekActual) : '—') + '</td><td></td></tr>';
+    }
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function renderEmployeeTable() {
+  const wrap = document.getElementById('employeeHoursTable');
+  const filter = document.getElementById('empFilter').value;
+  let data = AppState.employeeHours;
+  if (filter) data = data.filter(h => h.employee === filter);
+
+  if (data.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F465;</div><h3>No Employee Hours</h3><p>Go to the Import Hours tab to add employee hour records.</p></div>';
+    return;
+  }
+
+  const show = data.slice(-200).reverse();
+  let html = '<table><thead><tr><th>Date</th><th>Day</th><th>Employee</th><th style="text-align:right">Hours</th></tr></thead><tbody>';
+  show.forEach(h => {
+    const overMax = h.hours > AppState.settings.maxHoursPerDay;
+    html += '<tr><td>' + h.date + '</td><td>' + DAYS[dayOfWeek(h.date)] + '</td><td>' + h.employee + '</td>' +
+      '<td style="text-align:right;font-weight:600;' + (overMax ? 'color:var(--danger);' : '') + '">' + fmtDec(h.hours) +
+      (overMax ? ' &#x26A0;' : '') + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  if (data.length > 200) html += '<p style="font-size:12px;color:var(--muted);margin-top:8px;">Showing latest 200 of ' + data.length + ' records</p>';
+  wrap.innerHTML = html;
+}
+
+function updateEmployeeFilter() {
+  const sel = document.getElementById('empFilter');
+  const current = sel.value;
+  const emps = [...new Set(AppState.employeeHours.map(h => h.employee))].sort();
+  sel.innerHTML = '<option value="">All Employees</option>';
+  emps.forEach(e => {
+    sel.innerHTML += '<option value="' + e + '"' + (e === current ? ' selected' : '') + '>' + e + '</option>';
+  });
+}
+
+function showHoursFormatHelp() {
+  const el = document.getElementById('hoursFormatHelp');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+/* ============ RENDER FORECAST PAGE ============ */
+function renderForecastPage() {
+  renderMethodCards();
+  runForecast();
+  renderForecastChart();
+  renderForecastTable();
+  renderAccuracy();
+  renderWeatherPreview();
+}
+
+function renderMethodCards() {
+  const methods = [
+    { key: 'movingAvg', name: 'Moving Average', desc: '7-day rolling average. Smooths short-term fluctuations.' },
+    { key: 'expSmooth', name: 'Exponential Smoothing', desc: 'Weights recent data more heavily for responsiveness.' },
+    { key: 'dayOfWeek', name: 'Day-of-Week Pattern', desc: 'Captures weekly seasonality (busy weekends, slow Mondays, etc).' },
+    { key: 'trend', name: 'Trend + Seasonal', desc: 'Linear trend with day-of-week adjustment. Captures growth or decline.' },
+    { key: 'weather', name: 'Weather Adjustment', desc: 'Reduces forecast for rain and extreme heat. Requires weather data.' }
+  ];
+  let html = '';
+  methods.forEach(m => {
+    html += '<div class="method-card' + (AppState.forecastMethods[m.key] ? ' selected' : '') +
+      '" onclick="toggleMethod(\'' + m.key + '\')">' +
+      '<h4>' + (AppState.forecastMethods[m.key] ? '&#x2714; ' : '') + m.name + '</h4>' +
+      '<p>' + m.desc + '</p></div>';
+  });
+  document.getElementById('methodCards').innerHTML = html;
+  const active = Object.values(AppState.forecastMethods).filter(Boolean).length;
+  document.getElementById('forecastActiveMethod').textContent = active + ' methods active';
+}
+
+function toggleMethod(key) {
+  AppState.forecastMethods[key] = !AppState.forecastMethods[key];
+  renderMethodCards();
+  runForecast();
+  renderForecastChart();
+  renderForecastTable();
+}
+
+function renderForecastChart() {
+  const daily = getDailySales();
+  const last30 = daily.slice(-30);
+  const labels = [...last30.map(d => d.date.slice(5)), ...AppState.forecastCache.map(f => f.date.slice(5))];
+  const actual = [...last30.map(d => d.total), ...AppState.forecastCache.map(() => null)];
+  const forecast = [...last30.map(() => null), ...AppState.forecastCache.map(f => f.predicted)];
+  /* Connect the lines */
+  if (last30.length > 0 && AppState.forecastCache.length > 0) {
+    forecast[last30.length - 1] = last30[last30.length - 1].total;
+  }
+  renderLineChart('forecastChart', labels, [
+    { label: 'Actual Sales', data: actual, color: CHART_COLORS[0] },
+    { label: 'Forecast', data: forecast, color: CHART_COLORS[1], dashed: true }
+  ]);
+}
+
+function renderForecastTable() {
+  const wrap = document.getElementById('forecastTable');
+  if (AppState.forecastCache.length === 0) {
+    wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;">Import sales data to see forecasts.</p>';
+    return;
+  }
+  let html = '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast Sales</th>' +
+    '<th style="text-align:right">Rec. Hours</th><th>Weather</th></tr></thead><tbody>';
+  AppState.forecastCache.forEach(f => {
+    const hours = calculateDailyHours(f.predicted);
+    const w = AppState.weatherData.find(wd => wd.date === f.date);
+    html += '<tr><td>' + f.date + '</td><td>' + DAYS[dayOfWeek(f.date)] + '</td>' +
+      '<td style="text-align:right;font-weight:600;">' + fmt(f.predicted) + '</td>' +
+      '<td style="text-align:right;color:var(--accent);font-weight:600;">' + fmtDec(hours) + '</td>' +
+      '<td>' + (w ? weatherEmoji(w.code) + ' ' + Math.round(w.tempMax) + '\u00B0' : '—') + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function renderAccuracy() {
+  const daily = getDailySales();
+  const result = Forecaster.backtest(daily);
+  const wrap = document.getElementById('accuracyMetrics');
+  if (!result) {
+    wrap.innerHTML = '<div style="grid-column:1/-1;"><p style="color:var(--muted);font-size:13px;">Need at least 21 days of data for accuracy backtesting.</p></div>';
+    return;
+  }
+  wrap.innerHTML =
+    '<div class="stat-card"><div class="stat-label">MAPE (Accuracy)</div><div class="stat-value">' + result.mape.toFixed(1) + '%</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>' +
+    '<div class="stat-card"><div class="stat-label">Avg Bias</div><div class="stat-value">' + fmt(result.bias) + '</div><div style="font-size:12px;color:var(--muted);">Negative = under-forecast</div></div>' +
+    '<div class="stat-card"><div class="stat-label">MAE</div><div class="stat-value">' + fmt(result.mae) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
+}
+
+/* ============ RENDER ANALYTICS PAGE ============ */
+function renderAnalyticsPage() {
+  renderTrendChart();
+  renderCategoryCharts();
+  renderDayOfWeekChart();
+  renderHeatmap();
+  renderWeekCompare();
+}
+
+function renderTrendChart() {
+  const daily = getDailySales();
+  const range = parseInt(document.getElementById('trendRange').value);
+  const data = range > 0 ? daily.slice(-range) : daily;
+  if (data.length === 0) return;
+  /* Also show 7-day moving average */
+  const ma = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < 6) { ma.push(null); continue; }
+    let sum = 0;
+    for (let j = i - 6; j <= i; j++) sum += data[j].total;
+    ma.push(sum / 7);
+  }
+  renderLineChart('trendChart', data.map(d => d.date.slice(5)), [
+    { label: 'Daily Sales', data: data.map(d => d.total), color: CHART_COLORS[0], fill: true },
+    { label: '7-Day Avg', data: ma, color: CHART_COLORS[1], lineWidth: 3 }
+  ]);
+}
+
+function renderCategoryCharts() {
+  const cats = AppState.settings.categories;
+  if (cats.length === 0) return;
+  /* Pie chart */
+  const totals = {};
+  AppState.salesData.forEach(s => { totals[s.category] = (totals[s.category] || 0) + s.amount; });
+  renderPieChart('categoryPieChart', cats, cats.map(c => totals[c] || 0));
+
+  /* Category trend */
+  const daily = getDailySales();
+  const last30Dates = daily.slice(-30).map(d => d.date);
+  const byCat = getDailySalesByCategory();
+  const datasets = cats.map((cat, i) => ({
+    label: cat,
+    data: last30Dates.map(d => (byCat[d] && byCat[d][cat]) || 0),
+    color: CHART_COLORS[i % CHART_COLORS.length]
+  }));
+  renderLineChart('categoryTrendChart', last30Dates.map(d => d.slice(5)), datasets);
+}
+
+function renderDayOfWeekChart() {
+  const daily = getDailySales();
+  if (daily.length < 7) return;
+  const dayTotals = [0,0,0,0,0,0,0];
+  const dayCounts = [0,0,0,0,0,0,0];
+  daily.forEach(d => {
+    const dow = dayOfWeek(d.date);
+    dayTotals[dow] += d.total;
+    dayCounts[dow]++;
+  });
+  const avgs = dayTotals.map((t, i) => dayCounts[i] > 0 ? t / dayCounts[i] : 0);
+  renderBarChart('dayOfWeekChart', DAYS_FULL, avgs);
+}
+
+function renderHeatmap() {
+  const container = document.getElementById('heatmapContainer');
+  const daily = getDailySales();
+  if (daily.length < 14) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:13px;">Need at least 2 weeks of data.</p>';
+    return;
+  }
+  /* Group by week */
+  const weeks = {};
+  daily.forEach(d => {
+    const mon = getMonday(d.date);
+    if (!weeks[mon]) weeks[mon] = {};
+    weeks[mon][dayOfWeek(d.date)] = d.total;
+  });
+  const weekKeys = Object.keys(weeks).sort().slice(-12);
+  const allVals = Object.values(weeks).flatMap(w => Object.values(w));
+  const maxVal = Math.max(...allVals, 1);
+  const minVal = Math.min(...allVals, 0);
+
+  let html = '<table style="font-size:12px;"><thead><tr><th>Week</th>';
+  DAYS.forEach(d => { html += '<th style="text-align:center;">' + d + '</th>'; });
+  html += '</tr></thead><tbody>';
+  weekKeys.forEach(wk => {
+    html += '<tr><td style="font-size:11px;white-space:nowrap;">' + wk.slice(5) + '</td>';
+    for (let i = 0; i < 7; i++) {
+      const val = weeks[wk][i];
+      if (val !== undefined) {
+        const intensity = (val - minVal) / (maxVal - minVal);
+        const r = Math.round(245 - intensity * 100);
+        const g = Math.round(158 + intensity * 40);
+        const b = Math.round(11 + intensity * 50);
+        html += '<td style="text-align:center;background:rgba(' + r + ',' + g + ',' + b + ',0.3);font-weight:500;border-radius:4px;">' + fmt(val) + '</td>';
+      } else {
+        html += '<td style="text-align:center;color:var(--muted);">—</td>';
+      }
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function renderWeekCompare() {
+  const daily = getDailySales();
+  if (daily.length < 14) return;
+  const weeks = {};
+  daily.forEach(d => {
+    const mon = getMonday(d.date);
+    if (!weeks[mon]) weeks[mon] = [0,0,0,0,0,0,0];
+    weeks[mon][dayOfWeek(d.date)] += d.total;
+  });
+  const wkKeys = Object.keys(weeks).sort().slice(-4);
+  const datasets = wkKeys.map((wk, i) => ({
+    label: 'Week ' + wk.slice(5),
+    data: DAYS.map((_, di) => weeks[wk][di] || 0),
+    color: CHART_COLORS[i % CHART_COLORS.length]
+  }));
+  renderLineChart('weekCompareChart', DAYS, datasets);
+}
+
+/* ============ CHART HELPERS ============ */
+function destroyChart(id) { if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; } }
+
+function getChartTextColor() {
+  return document.documentElement.classList.contains('dark') ? '#94a3b8' : '#6b7280';
+}
+function getChartGridColor() {
+  return document.documentElement.classList.contains('dark') ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+}
+
+function renderLineChart(canvasId, labels, datasets) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  chartInstances[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: datasets.map(ds => ({
+        label: ds.label,
+        data: ds.data,
+        borderColor: ds.color,
+        backgroundColor: ds.fill ? ds.color + '20' : 'transparent',
+        fill: ds.fill || false,
+        borderWidth: ds.lineWidth || 2,
+        borderDash: ds.dashed ? [6, 4] : [],
+        pointRadius: labels.length > 40 ? 0 : 3,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        spanGaps: false
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: getChartTextColor(), font: { family: 'Outfit', size: 12 } } } },
+      scales: {
+        x: { ticks: { color: getChartTextColor(), font: { family: 'Outfit', size: 11 }, maxTicksLimit: 15 }, grid: { color: getChartGridColor() } },
+        y: { ticks: { color: getChartTextColor(), font: { family: 'Outfit', size: 11 } }, grid: { color: getChartGridColor() } }
+      }
+    }
+  });
+}
+
+function renderBarChart(canvasId, labels, data) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  chartInstances[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: CHART_COLORS.slice(0, labels.length).map(c => c + '80'),
+        borderColor: CHART_COLORS.slice(0, labels.length),
+        borderWidth: 2, borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: getChartTextColor(), font: { family: 'Outfit', size: 12 } }, grid: { display: false } },
+        y: { ticks: { color: getChartTextColor(), font: { family: 'Outfit', size: 11 } }, grid: { color: getChartGridColor() } }
+      }
+    }
+  });
+}
+
+function renderPieChart(canvasId, labels, data) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  chartInstances[canvasId] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: CHART_COLORS.slice(0, labels.length).map(c => c + '90'),
+        borderColor: CHART_COLORS.slice(0, labels.length),
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: getChartTextColor(), font: { family: 'Outfit', size: 12 }, padding: 16 } } }
+    }
+  });
+}
+
+/* ============ SETTINGS ============ */
+function loadSettings() {
+  const s = AppState.settings;
+  document.getElementById('setBizName').value = s.bizName;
+  document.getElementById('setCurrency').value = s.currency;
+  document.getElementById('setZipCode').value = s.zipCode;
+  const zipLabel = document.getElementById('zipResolvedLabel');
+  if (s.lat && s.lon) {
+    zipLabel.textContent = 'Resolved: ' + s.lat.toFixed(4) + ', ' + s.lon.toFixed(4);
+  } else {
+    zipLabel.textContent = '';
+  }
+  document.getElementById('setMaxHoursDay').value = s.maxHoursPerDay;
+  document.getElementById('setMaxHoursWeek').value = s.maxHoursPerWeek;
+  document.getElementById('setMaxTotalHoursDay').value = s.maxTotalHoursDay;
+  document.getElementById('setMaxTotalHoursWeek').value = s.maxTotalHoursWeek;
+  document.getElementById('setMinHoursDay').value = s.minHoursDay;
+  document.getElementById('setLaborPct').value = s.laborPct;
+  document.getElementById('setAvgWage').value = s.avgWage;
+  document.getElementById('setSalesPerHour').value = s.salesPerHour;
+  document.getElementById('setRainAdj').value = s.rainAdj;
+  document.getElementById('setHeatThresh').value = s.heatThresh;
+  document.getElementById('setHeatAdj').value = s.heatAdj;
+  renderCategoriesList();
+}
+
+async function resolveZipCode(zip) {
+  /* Use Open-Meteo geocoding to resolve zip to lat/lon */
+  const url = 'https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(zip) + '&count=5&language=en&format=json';
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.results && data.results.length > 0) {
+      /* Try to find a US result matching postal code context, otherwise take first */
+      const usResult = data.results.find(function(r) { return r.country_code === 'US'; }) || data.results[0];
+      return { lat: usResult.latitude, lon: usResult.longitude, name: usResult.name + (usResult.admin1 ? ', ' + usResult.admin1 : '') };
+    }
+  } catch (e) {
+    /* Try the Zippopotam fallback for US zip codes */
+    try {
+      const res2 = await fetch('https://api.zippopotam.us/us/' + encodeURIComponent(zip));
+      if (res2.ok) {
+        const data2 = await res2.json();
+        const place = data2.places[0];
+        return { lat: parseFloat(place.latitude), lon: parseFloat(place.longitude), name: place['place name'] + ', ' + place['state abbreviation'] };
+      }
+    } catch (e2) { /* both failed */ }
+  }
+  return null;
+}
+
+async function saveSettings() {
+  const s = AppState.settings;
+  s.bizName = document.getElementById('setBizName').value;
+  s.currency = document.getElementById('setCurrency').value || '$';
+  const newZip = document.getElementById('setZipCode').value.trim();
+  s.maxHoursPerDay = parseFloat(document.getElementById('setMaxHoursDay').value) || 10;
+  s.maxHoursPerWeek = parseFloat(document.getElementById('setMaxHoursWeek').value) || 40;
+  s.maxTotalHoursDay = parseFloat(document.getElementById('setMaxTotalHoursDay').value) || 120;
+  s.maxTotalHoursWeek = parseFloat(document.getElementById('setMaxTotalHoursWeek').value) || 600;
+  s.minHoursDay = parseFloat(document.getElementById('setMinHoursDay').value) || 16;
+  s.laborPct = parseFloat(document.getElementById('setLaborPct').value) || 30;
+  s.avgWage = parseFloat(document.getElementById('setAvgWage').value) || 18;
+  s.salesPerHour = parseFloat(document.getElementById('setSalesPerHour').value) || 60;
+  s.rainAdj = parseFloat(document.getElementById('setRainAdj').value) || 15;
+  s.heatThresh = parseFloat(document.getElementById('setHeatThresh').value) || 95;
+  s.heatAdj = parseFloat(document.getElementById('setHeatAdj').value) || 10;
+
+  /* Resolve zip code to coordinates if it changed */
+  if (newZip && newZip !== s.zipCode) {
+    const zipLabel = document.getElementById('zipResolvedLabel');
+    zipLabel.textContent = 'Resolving zip code...';
+    const result = await resolveZipCode(newZip);
+    if (result) {
+      s.lat = result.lat;
+      s.lon = result.lon;
+      s.zipCode = newZip;
+      zipLabel.textContent = 'Resolved: ' + result.name + ' (' + result.lat.toFixed(4) + ', ' + result.lon.toFixed(4) + ')';
+      toast('Settings saved! Location: ' + result.name, 'success');
+    } else {
+      zipLabel.textContent = 'Could not resolve zip code. Weather may be blocked by security policy or zip is invalid.';
+      s.zipCode = newZip;
+      toast('Settings saved, but zip code could not be resolved.', 'error');
+    }
+  } else {
+    s.zipCode = newZip;
+    toast('Settings saved!', 'success');
+  }
+  runForecast();
+}
+
+function renderCategoriesList() {
+  const el = document.getElementById('categoriesList');
+  if (AppState.settings.categories.length === 0) {
+    el.innerHTML = '<span style="font-size:13px;color:var(--muted);">No categories yet. They will be auto-detected from sales data.</span>';
+    return;
+  }
+  el.innerHTML = AppState.settings.categories.map(c =>
+    '<span class="badge badge-info" style="font-size:13px;padding:6px 12px;cursor:pointer;" onclick="removeCategory(\'' +
+    c.replace(/'/g, "\\'") + '\')">' + c + ' &times;</span>'
+  ).join('');
+}
+
+function addCategory() {
+  const input = document.getElementById('newCategoryInput');
+  const name = input.value.trim();
+  if (!name) return;
+  if (AppState.settings.categories.includes(name)) { toast('Category already exists', 'error'); return; }
+  AppState.settings.categories.push(name);
+  input.value = '';
+  renderCategoriesList();
+}
+
+function removeCategory(name) {
+  AppState.settings.categories = AppState.settings.categories.filter(c => c !== name);
+  renderCategoriesList();
+}
+
+/* ============ IMPORT/EXPORT ============ */
+function exportAllData() {
+  const data = {
+    version: 1,
+    exportDate: new Date().toISOString(),
+    salesData: AppState.salesData,
+    employeeHours: AppState.employeeHours,
+    weatherData: AppState.weatherData,
+    settings: AppState.settings,
+    forecastMethods: AppState.forecastMethods
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'staffcast-data-' + today() + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Data exported!', 'success');
+}
+
+function importAllData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.salesData) AppState.salesData = data.salesData;
+      if (data.employeeHours) AppState.employeeHours = data.employeeHours;
+      if (data.weatherData) AppState.weatherData = data.weatherData;
+      if (data.settings) Object.assign(AppState.settings, data.settings);
+      if (data.forecastMethods) Object.assign(AppState.forecastMethods, data.forecastMethods);
+      runForecast();
+      toast('Data imported! ' + (AppState.salesData.length) + ' sales records, ' +
+        (AppState.employeeHours.length) + ' hour records.', 'success');
+      showPage('dashboard');
+    } catch (err) {
+      toast('Invalid file: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+/* ============ MODAL ============ */
+function showModal(title, message, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = '<div class="modal"><h3>' + title + '</h3><p>' + message + '</p>' +
+    '<div class="modal-actions"><button class="btn btn-secondary" data-action="cancel">Cancel</button>' +
+    '<button class="btn btn-danger" data-action="confirm">Confirm</button></div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('[data-action="cancel"]').onclick = function() { overlay.remove(); };
+  overlay.querySelector('[data-action="confirm"]').onclick = function() { overlay.remove(); onConfirm(); };
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+}
+
+/* ============ GENERATE SAMPLE DATA (for demo) ============ */
+function generateSampleData() {
+  const categories = ['Food', 'Beverage', 'Retail'];
+  AppState.settings.categories = categories;
+  const baseAmounts = { Food: 4500, Beverage: 1800, Retail: 800 };
+  const dayMultipliers = [0.7, 0.8, 0.85, 0.9, 1.15, 1.35, 1.25]; /* Sun-Sat */
+
+  const start = new Date('2025-04-01');
+  const end = new Date('2026-02-06');
+  const sales = [];
+  const empHours = [];
+  const employees = ['Alex R', 'Jordan M', 'Taylor S', 'Morgan K', 'Casey P', 'Riley B'];
+
+  const totalDays = Math.round((end - start) / 86400000);
+  for (let di = 0; di <= totalDays; di++) {
+    const d = new Date(start.getTime() + di * 86400000);
+    const ds = dateStr(d);
+    const dow = d.getDay();
+    const weekNum = Math.floor(di / 7);
+    const trendFactor = 1 + (weekNum * 0.003); /* slight upward trend */
+    const noise = () => 0.85 + Math.random() * 0.3;
+
+    categories.forEach(cat => {
+      const base = baseAmounts[cat] * dayMultipliers[dow] * trendFactor * noise();
+      sales.push({ date: ds, category: cat, amount: Math.round(base) });
+    });
+
+    /* Employee hours */
+    const dailyTotal = (baseAmounts.Food + baseAmounts.Beverage + baseAmounts.Retail) *
+      dayMultipliers[dow] * trendFactor;
+    const targetHours = dailyTotal / AppState.settings.salesPerHour;
+    const numWorking = dow === 0 ? 3 : (dow >= 5 ? 5 : 4);
+    for (let i = 0; i < numWorking; i++) {
+      const hrs = Math.min(AppState.settings.maxHoursPerDay, (targetHours / numWorking) * (0.8 + Math.random() * 0.4));
+      empHours.push({ date: ds, employee: employees[i], hours: Math.round(hrs * 2) / 2 });
+    }
+  }
+
+  AppState.salesData = sales;
+  AppState.employeeHours = empHours;
+  runForecast();
+  showPage('dashboard');
+  toast('Sample data loaded! ~10 months of history.', 'success');
+}
+
+/* ============ CHECK TRIGGER MESSAGE ============ */
+async function checkTriggerMessage() {
+  try {
+    if (window.Poe && window.Poe.getTriggerMessage) {
+      const msg = await window.Poe.getTriggerMessage();
+      if (msg && msg.content && msg.content.trim().length > 20) {
+        /* Try to parse as sales data */
+        document.getElementById('salesInput').value = msg.content;
+        showPage('sales');
+        toast('Data detected from chat message. Review and click Import.', 'info');
+      }
+    }
+  } catch (e) {
+    /* Silently ignore if Poe API not available */
+  }
+}
+
+/* ============ INIT ============ */
+function init() {
+  renderDashboard();
+  checkTriggerMessage();
+}
+
+init();
+</script>
+</body>
+</html>
+
