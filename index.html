@@ -877,6 +877,7 @@ button {
     <div class="modal-box" style="padding:0; max-width:100%; height:100vh;">
         <div class="modal-close-x" onclick="closeModal('staffModal')">✕</div>
         <iframe
+            id="staffModalIframe"
             src="https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html"
             style="width:100%; height:100%; border:none;">
         </iframe>
@@ -1031,7 +1032,7 @@ function openModal(id) {
 
     if (id === "staffModal") {
         setTimeout(() => {
-            const iframe = document.getElementById("staffIframe");
+            const iframe = document.getElementById("staffModalIframe");
             if (iframe && iframe.contentWindow) {
                 iframe.contentWindow.postMessage(
                     "runScrollToFirstIncomplete",
@@ -1041,8 +1042,6 @@ function openModal(id) {
         }, 150);
     }
 }
-
-window.scrollToFirstIncomplete = scrollToFirstIncomplete;
 
 function closeModal(id) {
     const el = document.getElementById(id);
@@ -1300,6 +1299,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
