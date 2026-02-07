@@ -402,11 +402,18 @@ select.form-input { appearance: auto; }
           <button class="btn btn-sm btn-secondary" onclick="showHoursFormatHelp()">&#x2139; Format Help</button>
         </div>
         <div id="hoursFormatHelp" style="display:none; margin-bottom: 16px; padding: 16px; background: var(--info-bg); border-radius: 8px; font-size: 13px; color: var(--text);">
-          <strong>Accepted format:</strong><br><br>
+          <strong>Accepted formats (auto-detected):</strong><br><br>
+          <strong>1. POS Time &amp; Attendance Report</strong> (paste the full report directly):<br>
+          <code style="display:block;white-space:pre;overflow-x:auto;margin:6px 0;font-size:11px;line-height:1.4;">============================================
+ ID  Emp Last  Emp First  Date       Time In            Time Out           Total Hrs  Total Mins
+============================================
+3366  L         Rosel      7/8/2025   07/08/25 08:24 AM  07/08/25 02:00 PM   5          36</code>
+          Split shifts (same employee, same date) are automatically combined.<br><br>
+          <strong>2. CSV / Tab-separated</strong>:<br>
           <code>Date, Employee, Hours</code><br>
           <code>2025-04-01, John Smith, 8.5</code><br>
           <code>2025-04-01, Jane Doe, 7.0</code><br><br>
-          Dates can be YYYY-MM-DD or MM/DD/YYYY. CSV or tab-separated.
+          Dates can be YYYY-MM-DD, MM/DD/YYYY, or M/D/YYYY.
         </div>
         <textarea class="form-input" id="hoursInput" placeholder="Paste employee hours data here..."></textarea>
         <div style="margin-top: 12px; display: flex; gap: 10px;">
@@ -977,34 +984,125 @@ function importSalesData() {
   }
 }
 
+/**
+ * Detect if text is the POS "Time and Attendance" fixed-width report format.
+ * Checks for the characteristic header with Emp Last, Emp First, Time In, Total Hrs.
+ */
+function isPOSTimeAttendanceFormat(text) {
+  if (/Emp\s+Last/i.test(text) && /Emp\s+First/i.test(text) && /Time\s+In/i.test(text) && /Total\s+Hrs/i.test(text)) return true;
+  if (/^={10,}/m.test(text) && /\bID\b/i.test(text) && /Total\s+Mins/i.test(text)) return true;
+  return false;
+}
+
+/**
+ * Parse the POS "Time and Attendance" fixed-width report format.
+ * Columns: ID | Emp Last | Emp First | Date | Time In | Time Out | Total Hrs | Total Mins
+ * Multiple entries per employee per day (split shifts) are aggregated into total daily hours.
+ * Returns array of {date, employee, hours} with hours as decimal (hrs + mins/60).
+ */
+function parseTimeAttendance(text) {
+  var lines = text.split('\n');
+  var rawEntries = [];
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+    /* Skip header / separator lines */
+    if (/^={5,}/.test(line)) continue;
+    if (/\bID\b.*Emp\s+Last/i.test(line)) continue;
+    if (/Emp\s+Last/i.test(line) && /Time\s+In/i.test(line)) continue;
+
+    /* Parse data rows: ID(number) LastName FirstName Date TimeIn TimeOut TotalHrs TotalMins */
+    /* Date column uses M/D/YYYY format. Total Hrs and Total Mins are the last two numbers. */
+    var match = line.match(/^\s*(\d+)\s+(\S+)\s+(\S+)\s+(\d{1,2}\/\d{1,2}\/\d{2,4})\s+/);
+    if (!match) continue;
+
+    var empLast = match[2];
+    var empFirst = match[3];
+    var dateRaw = match[4];
+
+    /* Extract Total Hrs and Total Mins from the end of the line */
+    var endNums = line.match(/(\d+)\s+(\d+)\s*$/);
+    if (!endNums) continue;
+
+    var totalHrs = parseInt(endNums[1], 10);
+    var totalMins = parseInt(endNums[2], 10);
+    var decimalHours = totalHrs + (totalMins / 60);
+
+    /* Build employee name as "First Last" */
+    var empName = empFirst + ' ' + empLast;
+
+    /* Parse date */
+    var parsedDate = parseDate(dateRaw);
+    if (!parsedDate) continue;
+
+    rawEntries.push({
+      date: parsedDate,
+      employee: empName,
+      hours: Math.round(decimalHours * 100) / 100
+    });
+  }
+
+  /* Aggregate split shifts: same employee + same date -> sum hours */
+  var agg = {};
+  for (var j = 0; j < rawEntries.length; j++) {
+    var entry = rawEntries[j];
+    var key = entry.date + '|' + entry.employee;
+    if (agg[key]) {
+      agg[key].hours = Math.round((agg[key].hours + entry.hours) * 100) / 100;
+    } else {
+      agg[key] = { date: entry.date, employee: entry.employee, hours: entry.hours };
+    }
+  }
+
+  var result = [];
+  var keys = Object.keys(agg);
+  for (var k = 0; k < keys.length; k++) {
+    result.push(agg[keys[k]]);
+  }
+  return result;
+}
+
 function importEmployeeHours() {
-  const raw = document.getElementById('hoursInput').value.trim();
+  var raw = document.getElementById('hoursInput').value.trim();
   if (!raw) { toast('Please paste some data first', 'error'); return; }
-  const rows = parseCSVRows(raw);
-  if (rows.length < 2) { toast('Need at least a header and one data row', 'error'); return; }
 
-  const header = rows[0].map(h => h.toLowerCase());
-  const dateIdx = Math.max(0, header.findIndex(h => h.includes('date')));
-  const empIdx = header.findIndex(h => h.includes('employee') || h.includes('name') || h.includes('staff'));
-  const hrsIdx = header.findIndex(h => h.includes('hour'));
-  const eI = empIdx >= 0 ? empIdx : 1;
-  const hI = hrsIdx >= 0 ? hrsIdx : 2;
-  let count = 0;
+  var count = 0;
 
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    if (r.length < 3) continue;
-    const d = parseDate(r[dateIdx]);
-    if (!d) continue;
-    const emp = r[eI].trim();
-    const hrs = parseFloat(r[hI]);
-    if (!emp || isNaN(hrs)) continue;
-    AppState.employeeHours.push({ date: d, employee: emp, hours: hrs });
-    count++;
+  /* Auto-detect POS Time & Attendance format vs CSV */
+  if (isPOSTimeAttendanceFormat(raw)) {
+    var records = parseTimeAttendance(raw);
+    for (var ti = 0; ti < records.length; ti++) {
+      AppState.employeeHours.push(records[ti]);
+      count++;
+    }
+  } else {
+    /* CSV parsing path */
+    var rows = parseCSVRows(raw);
+    if (rows.length < 2) { toast('Need at least a header and one data row', 'error'); return; }
+
+    var header = rows[0].map(function(h) { return h.toLowerCase(); });
+    var dateIdx = Math.max(0, header.findIndex(function(h) { return h.includes('date'); }));
+    var empIdx = header.findIndex(function(h) { return h.includes('employee') || h.includes('name') || h.includes('staff'); });
+    var hrsIdx = header.findIndex(function(h) { return h.includes('hour'); });
+    var eI = empIdx >= 0 ? empIdx : 1;
+    var hI = hrsIdx >= 0 ? hrsIdx : 2;
+
+    for (var i = 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (r.length < 3) continue;
+      var d = parseDate(r[dateIdx]);
+      if (!d) continue;
+      var emp = r[eI].trim();
+      var hrs = parseFloat(r[hI]);
+      if (!emp || isNaN(hrs)) continue;
+      AppState.employeeHours.push({ date: d, employee: emp, hours: hrs });
+      count++;
+    }
   }
 
   if (count > 0) {
-    AppState.employeeHours.sort((a,b) => a.date.localeCompare(b.date));
+    AppState.employeeHours.sort(function(a, b) { return a.date.localeCompare(b.date); });
     toast(count + ' employee hour records imported!', 'success');
     document.getElementById('hoursInput').value = '';
     renderHoursPage();
