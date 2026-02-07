@@ -487,7 +487,52 @@ button {
 #hemModal .results-box,
 #rushModal .results-box {
     margin-top: 12px;
-}    
+} 
+
+/* ==================================================
+   📱 MOBILE UX — ACCORDION + CHECKLIST MODAL
+================================================== */
+@media (max-width: 900px) {
+
+    /* Hide left embedded checklist */
+    .dashboard-left {
+        display: none;
+    }
+
+    /* Mobile checklist button */
+    .mobile-checklist-btn {
+        background: #fff;
+        padding: 14px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        font-weight: bold;
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        cursor: pointer;
+    }
+
+    /* Tile group headers become accordion triggers */
+    .tile-group-title {
+        cursor: pointer;
+        padding: 10px;
+        background: #f0f0f0;
+        border-radius: 8px;
+        margin-bottom: 6px;
+    }
+
+    /* Collapse tile sections by default */
+    .tile-group .tiles {
+        display: none;
+    }
+
+    /* Expanded section */
+    .tile-group.active .tiles {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+}
+    
 </style>
 </head>
 <body>
@@ -516,6 +561,10 @@ button {
     <!-- RIGHT: TILE SECTIONS -->
     <main class="dashboard-right">
         <div class="tile-section">
+                <!-- MOBILE CHECKLIST ENTRY POINT -->
+                <div class="mobile-checklist-btn" onclick="openModal('staffModal')">
+                    ✅ Manager Checklist
+                </div>
             <div class="tiles">
 
                 <!-- ===============================
@@ -820,6 +869,19 @@ button {
     </div>
 </div>
 
+<!-- ===============================
+     MANAGER CHECKLIST (MOBILE MODAL)
+=============================== -->
+<div id="staffModal" class="modal-overlay">
+    <div class="modal-box" style="padding:0; max-width:100%; height:100vh;">
+        <div class="modal-close-x" onclick="closeModal('staffModal')">✕</div>
+        <iframe
+            src="https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html"
+            style="width:100%; height:100%; border:none;">
+        </iframe>
+    </div>
+</div>
+    
 <!-- ===============================
      RUG CLEAN ESTIMATOR MODAL
 =============================== -->
@@ -1195,10 +1257,33 @@ fetch(WORKER_URL + "/google")
         const el = document.getElementById("google-rating");
         if (el) el.innerText = "Unavailable";
     });
+
+/* ==================================================
+   MOBILE ACCORDION LOGIC
+================================================== */
+document.addEventListener("DOMContentLoaded", function () {
+    if (window.innerWidth > 900) return;
+
+    const groups = document.querySelectorAll(".tile-group");
+
+    groups.forEach(group => {
+        const title = group.querySelector(".tile-group-title");
+        if (!title) return;
+
+        title.addEventListener("click", () => {
+            groups.forEach(g => {
+                if (g !== group) g.classList.remove("active");
+            });
+            group.classList.toggle("active");
+        });
+    });
+});
+    
 </script>
 
 </body>
 </html>
+
 
 
 
