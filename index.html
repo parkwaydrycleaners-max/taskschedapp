@@ -1042,6 +1042,8 @@ function openModal(id) {
     }
 }
 
+window.scrollToFirstIncomplete = scrollToFirstIncomplete;
+
 function closeModal(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
@@ -1298,6 +1300,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
