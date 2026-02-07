@@ -282,10 +282,10 @@ button {
 }
 
 /* Ensure natural flow */
-#hemModal *,
-#rugModal *,
-#rushModal *,
-#weddingModal * {
+#hemModal > *,
+#rugModal > *,
+#rushModal > *,
+#weddingModal > * {
     display: block;
 }
 
@@ -978,9 +978,6 @@ button {
 <!-- ===============================
      WEDDING DRESS CLEAN MODAL
 =============================== -->
-<!-- ===============================
-     WEDDING DRESS CLEAN MODAL
-=============================== -->
 <div id="weddingModal" class="modal-overlay">
     <div class="modal-box">
         <div class="modal-close-x" onclick="closeModal('weddingModal')">✕</div>
@@ -1083,12 +1080,10 @@ function openModal(id) {
     if (id === "staffModal") {
         setTimeout(() => {
             const iframe = document.getElementById("staffModalIframe");
-            if (iframe && iframe.contentWindow) {
-                iframe.contentWindow.postMessage(
-                    "runScrollToFirstIncomplete",
-                    "*"
-                );
-            }
+            iframe?.contentWindow?.postMessage(
+                "runScrollToFirstIncomplete",
+                "*"
+            );
         }, 150);
     }
 
@@ -1354,7 +1349,7 @@ fetch(WORKER_URL + "/google")
    MOBILE ACCORDION LOGIC
 ================================================== */
 document.addEventListener("DOMContentLoaded", function () {
-    if (window.innerWidth > 900) return;
+    if (matchMedia("(min-width: 901px)").matches) return;
 
     const groups = document.querySelectorAll(".tile-group");
 
@@ -1375,6 +1370,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
