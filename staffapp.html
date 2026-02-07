@@ -4482,6 +4482,9 @@
             updateDateDisplay();
             renderChecklists();
 
+            // ✅ Signal parent we are ready
+            window.parent.postMessage({ type: "checklistReady" }, "*");
+
             // Initialize Airtable sync
             initAirtable();
 
@@ -4546,9 +4549,9 @@
                 .catch(() => console.log('PWA: Service Worker skipped'));
         }
 
-        window.addEventListener("message", function (e) {
-    if (e.data === "scrollToNextTask") {
-        scrollToNextUndoneTask(); // ← your existing function
+    window.addEventListener("message", function (event) {
+    if (event.data && event.data.type === "scrollToNextUndoneTask") {
+        scrollToNextUndoneTask();
     }
 });
 
@@ -4556,4 +4559,5 @@
     </script>
 </body>
 </html>
+
 
