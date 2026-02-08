@@ -1458,7 +1458,7 @@ const Forecaster = {
     var methods = AppState.forecastMethods;
     var methodList = [];
     if (methods.movingAvg) methodList.push({ key: 'movingAvg', fn: function(d, n) { return Forecaster.movingAverage(d, 7, n); } });
-    if (methods.expSmooth) methodList.push({ key: 'expSmooth', fn: this.exponentialSmoothing });
+    if (methods.expSmooth) methodList.push({ key: 'expSmooth', fn: function(d, n) { return Forecaster.exponentialSmoothing(d, 0.3, n); } });
     if (methods.dayOfWeek) methodList.push({ key: 'dayOfWeek', fn: this.dayOfWeekPattern });
     if (methods.trend) methodList.push({ key: 'trend', fn: this.trendAndSeasonal });
     if (methods.yoy) methodList.push({ key: 'yoy', fn: this.yearOverYear });
