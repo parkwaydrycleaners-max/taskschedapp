@@ -679,6 +679,8 @@ const AppState = {
     expSmooth: true,
     dayOfWeek: true,
     trend: true,
+    yoy: true,
+    holtWinters: true,
     weather: true
   }
 };
@@ -1331,10 +1333,97 @@ const Forecaster = {
     return result;
   },
 
+  yearOverYear(dailySales, daysAhead) {
+    daysAhead = daysAhead || 14;
+    if (dailySales.length < 180) return []; /* need at least ~6 months */
+    /* Build lookup by date string */
+    var lookup = {};
+    dailySales.forEach(function(d) { lookup[d.date] = d.total; });
+    var lastDate = dailySales[dailySales.length - 1].date;
+    var result = [];
+    for (var i = 1; i <= daysAhead; i++) {
+      var fd = addDays(lastDate, i);
+      /* Try last 3 years, weight recent years more: yr-1 = 3x, yr-2 = 2x, yr-3 = 1x */
+      var sum = 0, wt = 0;
+      var weights = [3, 2, 1];
+      for (var yr = 1; yr <= 3; yr++) {
+        /* Same date last yr, +/- 3 days to handle leap years and find closest match */
+        var target = addDays(fd, -365 * yr);
+        var best = null;
+        for (var off = -3; off <= 3; off++) {
+          var check = addDays(target, off);
+          if (lookup[check] !== undefined) {
+            /* Prefer same day-of-week */
+            if (best === null || dayOfWeek(check) === dayOfWeek(fd)) {
+              best = lookup[check];
+              if (dayOfWeek(check) === dayOfWeek(fd)) break;
+            }
+          }
+        }
+        if (best !== null) {
+          sum += best * weights[yr - 1];
+          wt += weights[yr - 1];
+        }
+      }
+      var pred = wt > 0 ? sum / wt : 0;
+      result.push({ date: fd, predicted: pred, method: 'YoY' });
+    }
+    return result;
+  },
+
+  holtWinters(dailySales, daysAhead) {
+    daysAhead = daysAhead || 14;
+    var seasonLen = 7; /* weekly seasonality */
+    if (dailySales.length < seasonLen * 3) return []; /* need 3+ full cycles */
+    var n = dailySales.length;
+    var y = dailySales.map(function(d) { return d.total; });
+
+    /* Initialize level and trend from first two seasons */
+    var level = 0;
+    for (var si = 0; si < seasonLen; si++) level += y[si];
+    level /= seasonLen;
+    var trend = 0;
+    for (var ti = 0; ti < seasonLen; ti++) {
+      trend += (y[seasonLen + ti] - y[ti]) / seasonLen;
+    }
+    trend /= seasonLen;
+
+    /* Initialize seasonal indices from first season */
+    var seasonal = [];
+    for (var ji = 0; ji < seasonLen; ji++) {
+      seasonal.push(level > 0 ? y[ji] / level : 1);
+    }
+
+    /* Smoothing parameters */
+    var alpha = 0.3; /* level */
+    var beta = 0.05; /* trend */
+    var gamma = 0.3; /* seasonal */
+
+    /* Run through all data to update level, trend, seasonal */
+    for (var ki = 0; ki < n; ki++) {
+      var sIdx = ki % seasonLen;
+      var prevLevel = level;
+      level = alpha * (y[ki] / (seasonal[sIdx] || 1)) + (1 - alpha) * (level + trend);
+      trend = beta * (level - prevLevel) + (1 - beta) * trend;
+      seasonal[sIdx] = gamma * (y[ki] / (level || 1)) + (1 - gamma) * seasonal[sIdx];
+    }
+
+    /* Forecast ahead */
+    var lastDate = dailySales[n - 1].date;
+    var result = [];
+    for (var fi = 1; fi <= daysAhead; fi++) {
+      var fd = addDays(lastDate, fi);
+      var sF = seasonal[(n + fi - 1) % seasonLen] || 1;
+      var pred = Math.max(0, (level + trend * fi) * sF);
+      result.push({ date: fd, predicted: pred, method: 'Holt-Winters' });
+    }
+    return result;
+  },
+
   weatherAdjust(forecasts, weatherDataArr) {
     if (!weatherDataArr || weatherDataArr.length === 0) return forecasts;
-    const wMap = {};
-    weatherDataArr.forEach(w => { wMap[w.date] = w; });
+    var wMap = {};
+    weatherDataArr.forEach(function(w) { wMap[w.date] = w; });
     const s = AppState.settings;
     return forecasts.map(f => {
       const w = wMap[f.date];
@@ -1346,23 +1435,69 @@ const Forecaster = {
     });
   },
 
+  /* Backtest a single method to get its MAPE score (lower = better) */
+  _backtestMethod(methodFn, dailySales, testDays) {
+    testDays = testDays || 14;
+    if (dailySales.length < testDays + 14) return 999;
+    var train = dailySales.slice(0, -testDays);
+    var test = dailySales.slice(-testDays);
+    var preds = methodFn.call(this, train, testDays);
+    if (!preds || preds.length === 0) return 999;
+    var totalAbs = 0, totalActual = 0;
+    test.forEach(function(actual, i) {
+      if (preds[i]) {
+        totalAbs += Math.abs(actual.total - preds[i].predicted);
+        totalActual += actual.total;
+      }
+    });
+    return totalActual > 0 ? (totalAbs / totalActual) * 100 : 999;
+  },
+
   ensemble(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
-    const methods = AppState.forecastMethods;
-    const results = [];
-    if (methods.movingAvg) results.push(this.movingAverage(dailySales, 7, daysAhead));
-    if (methods.expSmooth) results.push(this.exponentialSmoothing(dailySales, 0.3, daysAhead));
-    if (methods.dayOfWeek) results.push(this.dayOfWeekPattern(dailySales, daysAhead));
-    if (methods.trend) results.push(this.trendAndSeasonal(dailySales, daysAhead));
+    var methods = AppState.forecastMethods;
+    var methodList = [];
+    if (methods.movingAvg) methodList.push({ key: 'movingAvg', fn: function(d, n) { return Forecaster.movingAverage(d, 7, n); } });
+    if (methods.expSmooth) methodList.push({ key: 'expSmooth', fn: this.exponentialSmoothing });
+    if (methods.dayOfWeek) methodList.push({ key: 'dayOfWeek', fn: this.dayOfWeekPattern });
+    if (methods.trend) methodList.push({ key: 'trend', fn: this.trendAndSeasonal });
+    if (methods.yoy) methodList.push({ key: 'yoy', fn: this.yearOverYear });
+    if (methods.holtWinters) methodList.push({ key: 'holtWinters', fn: this.holtWinters });
 
-    if (results.length === 0) return [];
+    if (methodList.length === 0) return [];
 
-    const combined = [];
-    for (let i = 0; i < daysAhead; i++) {
-      let sum = 0, cnt = 0;
-      results.forEach(r => { if (r[i]) { sum += r[i].predicted; cnt++; } });
-      const fd = results[0][i] ? results[0][i].date : addDays(dailySales[dailySales.length-1].date, i+1);
-      combined.push({ date: fd, predicted: cnt > 0 ? sum / cnt : 0, method: 'Ensemble' });
+    /* Compute accuracy weight for each method via backtesting */
+    var self = this;
+    var forecasts = [];
+    var weights = [];
+    methodList.forEach(function(m) {
+      var preds = m.fn.call(self, dailySales, daysAhead);
+      if (!preds || preds.length === 0) return;
+      var mape = self._backtestMethod(m.fn, dailySales, 14);
+      /* Convert MAPE to weight: lower error = higher weight. Floor at 1% to avoid div/0 */
+      var w = 1 / Math.max(mape, 1);
+      forecasts.push(preds);
+      weights.push(w);
+    });
+
+    if (forecasts.length === 0) return [];
+
+    /* Normalize weights */
+    var totalW = weights.reduce(function(s, w) { return s + w; }, 0);
+    var normWeights = weights.map(function(w) { return w / totalW; });
+
+    var combined = [];
+    for (var i = 0; i < daysAhead; i++) {
+      var sum = 0;
+      var fd = null;
+      forecasts.forEach(function(r, ri) {
+        if (r[i]) {
+          sum += r[i].predicted * normWeights[ri];
+          if (!fd) fd = r[i].date;
+        }
+      });
+      if (!fd) fd = addDays(dailySales[dailySales.length - 1].date, i + 1);
+      combined.push({ date: fd, predicted: sum, method: 'Weighted Ensemble' });
     }
 
     if (methods.weather) {
@@ -1809,7 +1944,9 @@ function renderMethodCards() {
     { key: 'movingAvg', name: 'Moving Average', desc: '7-day rolling average. Smooths short-term fluctuations.' },
     { key: 'expSmooth', name: 'Exponential Smoothing', desc: 'Weights recent data more heavily for responsiveness.' },
     { key: 'dayOfWeek', name: 'Day-of-Week Pattern', desc: 'Captures weekly seasonality (busy weekends, slow Mondays, etc).' },
-    { key: 'trend', name: 'Trend + Seasonal', desc: 'Linear trend with day-of-week adjustment. Captures growth or decline.' },
+    { key: 'trend', name: 'Trend + Seasonal', desc: '4-year regression with quarterly seasons and day-of-week patterns.' },
+    { key: 'yoy', name: 'Year-over-Year', desc: 'Uses same dates from past 1-3 years, weighted toward most recent year.' },
+    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Triple exponential smoothing. Captures level, trend, and weekly seasonality together.' },
     { key: 'weather', name: 'Weather Adjustment', desc: 'Reduces forecast for rain and extreme heat. Requires weather data.' }
   ];
   let html = '';
