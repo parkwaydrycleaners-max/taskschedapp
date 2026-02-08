@@ -450,8 +450,17 @@ select.form-input { appearance: auto; }
     </div>
     <div class="card">
       <div class="card-header">
-        <span class="card-title">14-Day Sales Forecast</span>
-        <button class="btn btn-sm btn-secondary" onclick="runForecast()">&#x1F504; Run Forecast</button>
+        <span class="card-title" id="forecastTitle">14-Day Sales Forecast</span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="forecastDaysSelect" class="form-input" style="width:auto;padding:4px 8px;font-size:13px;" onchange="changeForecastDays(this.value)">
+            <option value="3">3 Days</option>
+            <option value="7">7 Days</option>
+            <option value="14" selected>14 Days</option>
+            <option value="21">21 Days</option>
+            <option value="30">1 Month</option>
+          </select>
+          <button class="btn btn-sm btn-secondary" onclick="runForecast()">&#x1F504; Run Forecast</button>
+        </div>
       </div>
       <div class="chart-container" style="height:300px;"><canvas id="forecastChart"></canvas></div>
       <div class="table-wrap" style="margin-top: 16px;" id="forecastTable"></div>
@@ -638,7 +647,8 @@ const AppState = {
     rainAdj: 15,
     heatThresh: 95,
     heatAdj: 10,
-    categories: []
+    categories: [],
+    forecastDays: 14
   },
   forecastMethods: {
     movingAvg: true,
@@ -657,19 +667,28 @@ const CHART_COLORS = ['#f59e0b','#0ea5e9','#8b5cf6','#ec4899','#10b981','#f97316
 /* ============ UTILITIES ============ */
 function fmt(n) { return AppState.settings.currency + Number(n||0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
 function fmtDec(n) { return Number(n||0).toFixed(1); }
-function dateStr(d) { const dt = new Date(d); return dt.toISOString().split('T')[0]; }
+function dateStr(d) {
+  var dt = new Date(d);
+  var yy = dt.getFullYear();
+  var mm = String(dt.getMonth() + 1).padStart(2, '0');
+  var dd = String(dt.getDate()).padStart(2, '0');
+  return yy + '-' + mm + '-' + dd;
+}
 function parseDate(s) {
   if (!s) return null;
   s = s.trim();
-  /* Try ISO first */
-  let d = new Date(s);
-  if (!isNaN(d.getTime()) && s.match(/\d{4}/)) return dateStr(d);
-  /* MM/DD/YYYY */
-  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  /* YYYY-MM-DD or YYYY/MM/DD — parse as local to avoid timezone shift */
+  var iso = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (iso) {
+    var d1 = new Date(parseInt(iso[1],10), parseInt(iso[2],10) - 1, parseInt(iso[3],10));
+    if (!isNaN(d1.getTime())) return dateStr(d1);
+  }
+  /* MM/DD/YYYY or M/D/YYYY or MM/DD/YY */
+  var m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
   if (m) {
-    const yr = m[3].length === 2 ? '20' + m[3] : m[3];
-    d = new Date(yr + '-' + m[1].padStart(2,'0') + '-' + m[2].padStart(2,'0'));
-    if (!isNaN(d.getTime())) return dateStr(d);
+    var yr = m[3].length === 2 ? '20' + m[3] : m[3];
+    var d2 = new Date(parseInt(yr,10), parseInt(m[1],10) - 1, parseInt(m[2],10));
+    if (!isNaN(d2.getTime())) return dateStr(d2);
   }
   return null;
 }
@@ -889,11 +908,16 @@ function parseSalesReport(text) {
     records.push({
       date: parsedDate,
       dry: left.dryAmt || 0,
+      dryPcs: left.dryPcs || 0,
       laundry: left.laundAmt || 0,
+      laundryPcs: left.laundPcs || 0,
       alterations: left.alterAmt || 0,
+      alterPcs: left.alterPcs || 0,
       press: right.pressAmt || 0,
+      pressPcs: left.pressPcs || 0,
       dc: right.dcAmt || 0,
-      total: right.totalAmt || 0
+      total: right.totalAmt || 0,
+      totalPcs: right.totalPcs || 0
     });
   }
 
@@ -909,19 +933,24 @@ function importSalesData() {
   /* Auto-detect POS report format vs CSV */
   if (isPOSReportFormat(raw)) {
     var records = parseSalesReport(raw);
-    var catNames = ['Dry Cleaning', 'Laundry', 'Alterations', 'Press', 'DC'];
-    var catKeys = ['dry', 'laundry', 'alterations', 'press', 'dc'];
+    /* Combine Dry+Laundry into "Dry Cleaning / Laundry", rename DC to Discount, include pieces */
+    var catNames = ['Dry Cleaning / Laundry', 'Alterations', 'Press', 'Discount'];
     catNames.forEach(function(c) {
       if (!AppState.settings.categories.includes(c)) AppState.settings.categories.push(c);
     });
     for (var ri2 = 0; ri2 < records.length; ri2++) {
       var rec = records[ri2];
-      for (var ci = 0; ci < catKeys.length; ci++) {
-        var amt2 = rec[catKeys[ci]];
-        /* Import even zero amounts for completeness */
-        AppState.salesData.push({ date: rec.date, category: catNames[ci], amount: amt2 });
-        count++;
-      }
+      /* Combined Dry + Laundry amount and pieces */
+      var dlAmt = (rec.dry || 0) + (rec.laundry || 0);
+      var dlPcs = (rec.dryPcs || 0) + (rec.laundryPcs || 0);
+      AppState.salesData.push({ date: rec.date, category: 'Dry Cleaning / Laundry', amount: dlAmt, pieces: dlPcs });
+      count++;
+      AppState.salesData.push({ date: rec.date, category: 'Alterations', amount: rec.alterations || 0, pieces: rec.alterPcs || 0 });
+      count++;
+      AppState.salesData.push({ date: rec.date, category: 'Press', amount: rec.press || 0, pieces: rec.pressPcs || 0 });
+      count++;
+      AppState.salesData.push({ date: rec.date, category: 'Discount', amount: rec.dc || 0, pieces: 0 });
+      count++;
     }
   } else {
     /* CSV parsing path */
@@ -1430,13 +1459,24 @@ function renderWeatherPreview() {
 }
 
 /* ============ RUN FORECAST ============ */
+function changeForecastDays(val) {
+  AppState.settings.forecastDays = parseInt(val, 10) || 14;
+  var titleEl = document.getElementById('forecastTitle');
+  if (titleEl) titleEl.textContent = val + '-Day Sales Forecast';
+  runForecast();
+  renderForecastChart();
+  renderForecastTable();
+  renderRecommendedHours();
+}
+
 function runForecast() {
-  const daily = getDailySales();
+  var days = AppState.settings.forecastDays || 14;
+  var daily = getDailySales();
   if (daily.length < 7) {
     AppState.forecastCache = [];
     return;
   }
-  AppState.forecastCache = Forecaster.ensemble(daily, 14);
+  AppState.forecastCache = Forecaster.ensemble(daily, days);
 }
 
 function recalcHours() {
@@ -1459,14 +1499,15 @@ function renderDashboard() {
   const avgDaily = last7.length > 0 ? totalLast7 / last7.length : 0;
   const change = totalPrev7 > 0 ? ((totalLast7 - totalPrev7) / totalPrev7 * 100) : 0;
 
-  const forecastTotal = AppState.forecastCache.slice(0, 7).reduce((s,f) => s + f.predicted, 0);
-  const forecastHours = AppState.forecastCache.slice(0, 7).reduce((s,f) => s + calculateDailyHours(f.predicted), 0);
+  var fd = AppState.settings.forecastDays || 14;
+  var forecastTotal = AppState.forecastCache.reduce(function(s,f) { return s + f.predicted; }, 0);
+  var forecastHours = AppState.forecastCache.reduce(function(s,f) { return s + calculateDailyHours(f.predicted); }, 0);
 
   document.getElementById('dashStats').innerHTML =
     statCard('Last 7 Days', fmt(totalLast7), change, true) +
     statCard('Avg Daily Sales', fmt(avgDaily), null) +
-    statCard('Next 7 Days (Forecast)', fmt(forecastTotal), null) +
-    statCard('Forecast Hours (7 days)', fmtDec(forecastHours) + ' hrs', null);
+    statCard('Next ' + fd + ' Days (Forecast)', fmt(forecastTotal), null) +
+    statCard('Forecast Hours (' + fd + 'd)', fmtDec(forecastHours) + ' hrs', null);
 
   /* Week schedule */
   const monday = getMonday(today());
@@ -1545,10 +1586,13 @@ function renderSalesTable() {
 
   /* Show most recent 200 rows */
   const show = data.slice(-200).reverse();
-  let html = '<table><thead><tr><th>Date</th><th>Day</th><th>Category</th><th style="text-align:right">Amount</th></tr></thead><tbody>';
+  var hasPieces = show.some(function(s) { return s.pieces > 0; });
+  var pcsHeader = hasPieces ? '<th style="text-align:right">Pieces</th>' : '';
+  let html = '<table><thead><tr><th>Date</th><th>Day</th><th>Category</th>' + pcsHeader + '<th style="text-align:right">Amount</th></tr></thead><tbody>';
   show.forEach(s => {
+    var pcsCell = hasPieces ? '<td style="text-align:right">' + (s.pieces || 0) + '</td>' : '';
     html += '<tr><td>' + s.date + '</td><td>' + DAYS[dayOfWeek(s.date)] + '</td><td>' +
-      '<span class="badge badge-info">' + s.category + '</span></td>' +
+      '<span class="badge badge-info">' + s.category + '</span></td>' + pcsCell +
       '<td style="text-align:right;font-weight:600;">' + fmt(s.amount) + '</td></tr>';
   });
   html += '</tbody></table>';
@@ -2139,6 +2183,9 @@ function importAllData(event) {
       if (data.weatherData) AppState.weatherData = data.weatherData;
       if (data.settings) Object.assign(AppState.settings, data.settings);
       if (data.forecastMethods) Object.assign(AppState.forecastMethods, data.forecastMethods);
+      /* Sync forecast days dropdown */
+      var fdSel = document.getElementById('forecastDaysSelect');
+      if (fdSel && AppState.settings.forecastDays) fdSel.value = String(AppState.settings.forecastDays);
       runForecast();
       toast('Data imported! ' + (AppState.salesData.length) + ' sales records, ' +
         (AppState.employeeHours.length) + ' hour records.', 'success');
