@@ -576,18 +576,31 @@ select.form-input { appearance: auto; }
         </div>
       </div>
       <div class="card">
-        <div class="card-title" style="margin-bottom:16px;">&#x1F4B5; Labor Targets</div>
+        <div class="card-title" style="margin-bottom:16px;">&#x1F4B5; Labor &amp; Productivity</div>
         <div class="form-group">
-          <label class="form-label">Target Labor Cost % of Sales</label>
-          <input class="form-input" id="setLaborPct" type="number" step="0.5" placeholder="30">
+          <label class="form-label">Pieces Per Labor Hour (primary driver)</label>
+          <input class="form-input" id="setPiecesPerHour" type="number" step="0.5" placeholder="8">
+          <span style="font-size:11px;color:var(--muted);display:block;margin-top:3px;">How many pieces 1 employee processes per hour. Used to calculate staffing from forecasted pieces.</span>
         </div>
         <div class="form-group">
           <label class="form-label">Average Hourly Wage ($)</label>
           <input class="form-input" id="setAvgWage" type="number" step="0.25" placeholder="18">
         </div>
         <div class="form-group">
-          <label class="form-label">Sales Per Labor Hour ($ target)</label>
+          <label class="form-label">Target Labor Cost % of Sales</label>
+          <input class="form-input" id="setLaborPct" type="number" step="0.5" placeholder="30">
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">
+            <input type="checkbox" id="setMaxLaborPctCap" style="width:18px;height:18px;" checked>
+            Cap hours if labor cost exceeds target %
+          </label>
+          <span style="font-size:11px;color:var(--muted);display:block;margin-top:3px;">If enabled, recommended hours will be reduced when labor cost would exceed the target % of forecasted sales.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sales Per Labor Hour ($ fallback)</label>
           <input class="form-input" id="setSalesPerHour" type="number" step="1" placeholder="60">
+          <span style="font-size:11px;color:var(--muted);display:block;margin-top:3px;">Used as fallback when piece data is unavailable.</span>
         </div>
       </div>
       <div class="card">
@@ -659,8 +672,10 @@ const AppState = {
     maxTotalHoursWeek: 600,
     minHoursDay: 16,
     laborPct: 30,
+    maxLaborPctCap: true,
     avgWage: 18,
     salesPerHour: 60,
+    piecesPerHour: 8,
     rainAdj: 15,
     heatThresh: 95,
     heatAdj: 10,
@@ -1540,11 +1555,43 @@ function isClosedDate(dateString) {
   return false;
 }
 
+function getPiecesPerDollar() {
+  /* Calculate historical avg pieces-per-dollar from sales data */
+  var totalPcs = 0, totalAmt = 0;
+  AppState.salesData.forEach(function(r) {
+    if (r.pieces && r.pieces > 0 && r.amount > 0) {
+      totalPcs += r.pieces;
+      totalAmt += r.amount;
+    }
+  });
+  if (totalAmt > 0 && totalPcs > 0) return totalPcs / totalAmt;
+  return 0;
+}
+
 function calculateDailyHours(forecastedSales, dateString) {
   /* If date provided and it's a closed day, return 0 */
   if (dateString && isClosedDate(dateString)) return 0;
   var s = AppState.settings;
-  var hours = forecastedSales / (s.salesPerHour || 60);
+  var piecesRatio = getPiecesPerDollar();
+  var hours;
+
+  if (piecesRatio > 0 && s.piecesPerHour > 0) {
+    /* PRIMARY: Pieces-based formula */
+    var estimatedPieces = forecastedSales * piecesRatio;
+    hours = estimatedPieces / s.piecesPerHour;
+  } else {
+    /* FALLBACK: Dollar-based if no piece data available */
+    hours = forecastedSales / (s.salesPerHour || 60);
+  }
+
+  /* HYBRID CAP: If enabled, cap hours so labor cost stays under target % */
+  if (s.maxLaborPctCap && s.laborPct > 0 && s.avgWage > 0 && forecastedSales > 0) {
+    var maxLaborDollars = forecastedSales * (s.laborPct / 100);
+    var maxHoursFromLabor = maxLaborDollars / s.avgWage;
+    hours = Math.min(hours, maxHoursFromLabor);
+  }
+
+  /* Apply min/max daily and weekly caps */
   hours = Math.max(s.minHoursDay || 0, Math.min(hours, s.maxTotalHoursDay || 999));
   var openDaysPerWeek = 7 - ((s.closedDays || []).length);
   var weeklyBudgetPerDay = (s.maxTotalHoursWeek || 9999) / (openDaysPerWeek || 7);
@@ -2256,6 +2303,8 @@ function loadSettings() {
   document.getElementById('setLaborPct').value = s.laborPct;
   document.getElementById('setAvgWage').value = s.avgWage;
   document.getElementById('setSalesPerHour').value = s.salesPerHour;
+  document.getElementById('setPiecesPerHour').value = s.piecesPerHour;
+  document.getElementById('setMaxLaborPctCap').checked = s.maxLaborPctCap !== false;
   document.getElementById('setRainAdj').value = s.rainAdj;
   document.getElementById('setHeatThresh').value = s.heatThresh;
   document.getElementById('setHeatAdj').value = s.heatAdj;
@@ -2368,6 +2417,8 @@ async function saveSettings() {
   s.laborPct = parseFloat(document.getElementById('setLaborPct').value) || 30;
   s.avgWage = parseFloat(document.getElementById('setAvgWage').value) || 18;
   s.salesPerHour = parseFloat(document.getElementById('setSalesPerHour').value) || 60;
+  s.piecesPerHour = parseFloat(document.getElementById('setPiecesPerHour').value) || 8;
+  s.maxLaborPctCap = document.getElementById('setMaxLaborPctCap').checked;
   s.rainAdj = parseFloat(document.getElementById('setRainAdj').value) || 15;
   s.heatThresh = parseFloat(document.getElementById('setHeatThresh').value) || 95;
   s.heatAdj = parseFloat(document.getElementById('setHeatAdj').value) || 10;
