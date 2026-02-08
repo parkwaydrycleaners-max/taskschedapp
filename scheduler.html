@@ -633,6 +633,11 @@ select.form-input { appearance: auto; }
           <label class="form-label">Heat Adjustment % (reduce sales by)</label>
           <input class="form-input" id="setHeatAdj" type="number" step="1" placeholder="10">
         </div>
+        <div id="actualWeatherImpact" style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;display:none;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--fg);">&#x1F4CA; Actual Weather Impact from Data</div>
+          <div id="weatherImpactContent"></div>
+          <span style="font-size:11px;color:var(--muted);display:block;margin-top:8px;">Compares average daily sales on weather-affected days vs. normal days using your imported sales + weather data.</span>
+        </div>
       </div>
     </div>
     <div class="grid-2">
@@ -1065,6 +1070,7 @@ function importSalesData() {
     document.getElementById('salesInput').value = '';
     renderSalesPage();
     renderActualPiecesMetrics();
+    renderWeatherImpact();
     runForecast();
   } else {
     toast('No valid records found. Check format.', 'error');
@@ -1648,6 +1654,106 @@ function renderActualPiecesMetrics() {
   tbody.innerHTML = rows;
 }
 
+function computeWeatherImpact() {
+  /* Cross-reference weather data with daily total sales to find real % impact */
+  var s = AppState.settings;
+  var wMap = {};
+  AppState.weatherData.forEach(function(w) {
+    if (w.source === 'historical') wMap[w.date] = w;
+  });
+  /* Aggregate daily total sales */
+  var salesByDate = {};
+  AppState.salesData.forEach(function(r) {
+    if (r.amount > 0) salesByDate[r.date] = (salesByDate[r.date] || 0) + r.amount;
+  });
+  /* Classify each date */
+  var normalDays = [], rainyDays = [], hotDays = [], rainyHotDays = [];
+  var heatThresh = s.heatThresh || 95;
+  Object.keys(salesByDate).forEach(function(dt) {
+    var w = wMap[dt];
+    if (!w) return;
+    if (isClosedDate(dt)) return;
+    var sale = salesByDate[dt];
+    var isRainy = w.rain > 2;
+    var isHot = w.tempMax > heatThresh;
+    if (isRainy && isHot) { rainyHotDays.push(sale); }
+    else if (isRainy) { rainyDays.push(sale); }
+    else if (isHot) { hotDays.push(sale); }
+    else { normalDays.push(sale); }
+  });
+  return { normalDays: normalDays, rainyDays: rainyDays, hotDays: hotDays, rainyHotDays: rainyHotDays, heatThresh: heatThresh };
+}
+
+function renderWeatherImpact() {
+  var container = document.getElementById('actualWeatherImpact');
+  if (!container) return;
+  var m = computeWeatherImpact();
+  var totalMatched = m.normalDays.length + m.rainyDays.length + m.hotDays.length + m.rainyHotDays.length;
+  if (totalMatched < 5 || m.normalDays.length < 3) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = '';
+  var avg = function(arr) { return arr.length > 0 ? arr.reduce(function(a,b){return a+b;},0) / arr.length : 0; };
+  var fmt = function(n) { return AppState.settings.currency + Math.round(n).toLocaleString(); };
+  var normalAvg = avg(m.normalDays);
+  var s = AppState.settings;
+  var html = '<table style="width:100%;font-size:13px;border-collapse:collapse;">';
+  html += '<thead><tr style="border-bottom:1px solid var(--border);">';
+  html += '<th style="text-align:left;padding:5px 6px;color:var(--muted);font-weight:600;">Condition</th>';
+  html += '<th style="text-align:right;padding:5px 6px;color:var(--muted);font-weight:600;">Days</th>';
+  html += '<th style="text-align:right;padding:5px 6px;color:var(--muted);font-weight:600;">Avg Sales</th>';
+  html += '<th style="text-align:right;padding:5px 6px;color:var(--muted);font-weight:600;">Actual %</th>';
+  html += '<th style="text-align:right;padding:5px 6px;color:var(--muted);font-weight:600;">Your Setting</th>';
+  html += '</tr></thead><tbody>';
+  /* Normal row */
+  html += '<tr style="border-bottom:1px solid var(--border);">';
+  html += '<td style="padding:5px 6px;">&#x2600;&#xFE0F; Normal</td>';
+  html += '<td style="text-align:right;padding:5px 6px;">' + m.normalDays.length + '</td>';
+  html += '<td style="text-align:right;padding:5px 6px;">' + fmt(normalAvg) + '</td>';
+  html += '<td style="text-align:right;padding:5px 6px;color:var(--muted);">baseline</td>';
+  html += '<td style="text-align:right;padding:5px 6px;color:var(--muted);">—</td></tr>';
+  /* Rain row */
+  if (m.rainyDays.length > 0) {
+    var rainAvg = avg(m.rainyDays);
+    var rainPct = normalAvg > 0 ? ((normalAvg - rainAvg) / normalAvg * 100) : 0;
+    var rainColor = rainPct > 0 ? 'var(--danger, #e53e3e)' : 'var(--success, #38a169)';
+    html += '<tr style="border-bottom:1px solid var(--border);">';
+    html += '<td style="padding:5px 6px;">&#x1F327;&#xFE0F; Rainy</td>';
+    html += '<td style="text-align:right;padding:5px 6px;">' + m.rainyDays.length + '</td>';
+    html += '<td style="text-align:right;padding:5px 6px;">' + fmt(rainAvg) + '</td>';
+    html += '<td style="text-align:right;padding:5px 6px;font-weight:700;color:' + rainColor + ';">' + (rainPct > 0 ? '-' : '+') + Math.abs(rainPct).toFixed(1) + '%</td>';
+    html += '<td style="text-align:right;padding:5px 6px;">-' + s.rainAdj + '%</td></tr>';
+  }
+  /* Heat row */
+  if (m.hotDays.length > 0) {
+    var hotAvg = avg(m.hotDays);
+    var hotPct = normalAvg > 0 ? ((normalAvg - hotAvg) / normalAvg * 100) : 0;
+    var hotColor = hotPct > 0 ? 'var(--danger, #e53e3e)' : 'var(--success, #38a169)';
+    html += '<tr style="border-bottom:1px solid var(--border);">';
+    html += '<td style="padding:5px 6px;">&#x1F525; Hot (&gt;' + m.heatThresh + '&deg;F)</td>';
+    html += '<td style="text-align:right;padding:5px 6px;">' + m.hotDays.length + '</td>';
+    html += '<td style="text-align:right;padding:5px 6px;">' + fmt(hotAvg) + '</td>';
+    html += '<td style="text-align:right;padding:5px 6px;font-weight:700;color:' + hotColor + ';">' + (hotPct > 0 ? '-' : '+') + Math.abs(hotPct).toFixed(1) + '%</td>';
+    html += '<td style="text-align:right;padding:5px 6px;">-' + s.heatAdj + '%</td></tr>';
+  }
+  /* Rain+Heat row */
+  if (m.rainyHotDays.length > 0) {
+    var bothAvg = avg(m.rainyHotDays);
+    var bothPct = normalAvg > 0 ? ((normalAvg - bothAvg) / normalAvg * 100) : 0;
+    var bothColor = bothPct > 0 ? 'var(--danger, #e53e3e)' : 'var(--success, #38a169)';
+    html += '<tr style="border-bottom:1px solid var(--border);">';
+    html += '<td style="padding:5px 6px;">&#x26C8;&#xFE0F; Rain + Hot</td>';
+    html += '<td style="text-align:right;padding:5px 6px;">' + m.rainyHotDays.length + '</td>';
+    html += '<td style="text-align:right;padding:5px 6px;">' + fmt(bothAvg) + '</td>';
+    html += '<td style="text-align:right;padding:5px 6px;font-weight:700;color:' + bothColor + ';">' + (bothPct > 0 ? '-' : '+') + Math.abs(bothPct).toFixed(1) + '%</td>';
+    var combinedSetting = (100 - (100 - s.rainAdj) * (100 - s.heatAdj) / 100).toFixed(1);
+    html += '<td style="text-align:right;padding:5px 6px;">-' + combinedSetting + '%</td></tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('weatherImpactContent').innerHTML = html;
+}
+
 function calculateDailyHours(forecastedSales, dateString) {
   /* If date provided and it's a closed day, return 0 */
   if (dateString && isClosedDate(dateString)) return 0;
@@ -1743,6 +1849,7 @@ async function fetchWeatherData() {
     statusEl.innerHTML = '<span style="color:var(--success);">&#x2714;</span> Weather data loaded: ' +
       AppState.weatherData.length + ' days';
     renderWeatherPreview();
+    renderWeatherImpact();
     toast('Weather data fetched!', 'success');
     runForecast();
   } catch (err) {
@@ -2392,6 +2499,7 @@ function loadSettings() {
   renderClosedDaysChecks();
   renderHolidaysList();
   renderActualPiecesMetrics();
+  renderWeatherImpact();
 }
 
 var HOLIDAY_LABELS = {
@@ -2599,6 +2707,7 @@ function importAllData(event) {
       var fdSel = document.getElementById('forecastDaysSelect');
       if (fdSel && AppState.settings.forecastDays) fdSel.value = String(AppState.settings.forecastDays);
       renderActualPiecesMetrics();
+      renderWeatherImpact();
       runForecast();
       toast('Data imported! ' + (AppState.salesData.length) + ' sales records, ' +
         (AppState.employeeHours.length) + ' hour records.', 'success');
