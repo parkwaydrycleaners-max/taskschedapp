@@ -1250,34 +1250,58 @@ const Forecaster = {
   trendAndSeasonal(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 14) return [];
-    /* Linear regression on recent data */
-    const recent = dailySales.slice(-60);
-    const n = recent.length;
-    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-    for (let i = 0; i < n; i++) {
+    /* Linear regression on up to 4 years (~1461 days) of data */
+    var windowSize = Math.min(dailySales.length, 1461);
+    var recent = dailySales.slice(-windowSize);
+    var n = recent.length;
+    var sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+    for (var i = 0; i < n; i++) {
       sumX += i; sumY += recent[i].total; sumXY += i * recent[i].total; sumXX += i * i;
     }
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
+    var denom = n * sumXX - sumX * sumX;
+    var slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+    var intercept = (sumY - slope * sumX) / n;
 
-    /* Day of week seasonal factors */
-    const dayAvg = [0,0,0,0,0,0,0];
-    const dayCnt = [0,0,0,0,0,0,0];
-    const overallAvg = sumY / n;
-    recent.forEach(d => {
-      const dow = dayOfWeek(d.date);
-      dayAvg[dow] += d.total;
-      dayCnt[dow]++;
+    /* Quarterly seasonal factors (Q1=Jan-Mar, Q2=Apr-Jun, Q3=Jul-Sep, Q4=Oct-Dec) */
+    var qSum = [0, 0, 0, 0];
+    var qCnt = [0, 0, 0, 0];
+    var overallAvg = sumY / n;
+    recent.forEach(function(d) {
+      var month = parseInt(d.date.slice(5, 7), 10);
+      var q = Math.floor((month - 1) / 3); /* 0=Q1, 1=Q2, 2=Q3, 3=Q4 */
+      qSum[q] += d.total;
+      qCnt[q]++;
     });
-    const seasonal = dayAvg.map((sum, i) => dayCnt[i] > 0 ? (sum / dayCnt[i]) / (overallAvg || 1) : 1);
+    var qSeasonal = qSum.map(function(s, qi) {
+      return qCnt[qi] > 0 ? (s / qCnt[qi]) / (overallAvg || 1) : 1;
+    });
 
-    const lastDate = dailySales[dailySales.length - 1].date;
-    const result = [];
-    for (let i = 1; i <= daysAhead; i++) {
-      const fd = addDays(lastDate, i);
-      const dow = dayOfWeek(fd);
-      const trendVal = intercept + slope * (n - 1 + i);
-      const prediction = Math.max(0, trendVal * seasonal[dow]);
+    /* Also compute day-of-week factors from last 8 weeks for weekly micro-pattern */
+    var dowData = dailySales.slice(-56);
+    var dowSum = [0,0,0,0,0,0,0];
+    var dowCnt = [0,0,0,0,0,0,0];
+    var dowOverall = 0;
+    dowData.forEach(function(d) {
+      var dow = dayOfWeek(d.date);
+      dowSum[dow] += d.total;
+      dowCnt[dow]++;
+      dowOverall += d.total;
+    });
+    var dowAvg = dowOverall / (dowData.length || 1);
+    var dowFactor = dowSum.map(function(s, di) {
+      return dowCnt[di] > 0 ? (s / dowCnt[di]) / (dowAvg || 1) : 1;
+    });
+
+    var lastDate = dailySales[dailySales.length - 1].date;
+    var result = [];
+    for (var fi = 1; fi <= daysAhead; fi++) {
+      var fd = addDays(lastDate, fi);
+      var fMonth = parseInt(fd.slice(5, 7), 10);
+      var fQ = Math.floor((fMonth - 1) / 3);
+      var fDow = dayOfWeek(fd);
+      var trendVal = intercept + slope * (n - 1 + fi);
+      /* Apply quarterly season * day-of-week micro-pattern */
+      var prediction = Math.max(0, trendVal * qSeasonal[fQ] * dowFactor[fDow]);
       result.push({ date: fd, predicted: prediction, method: 'Trend+Season' });
     }
     return result;
