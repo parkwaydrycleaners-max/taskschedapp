@@ -602,6 +602,22 @@ select.form-input { appearance: auto; }
           <input class="form-input" id="setSalesPerHour" type="number" step="1" placeholder="60">
           <span style="font-size:11px;color:var(--muted);display:block;margin-top:3px;">Used as fallback when piece data is unavailable.</span>
         </div>
+        <div id="actualPiecesMetrics" style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;display:none;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--fg);">&#x1F4CA; Actual Pieces/Hour from Data</div>
+          <div id="actualPphOverall" style="font-size:13px;margin-bottom:8px;color:var(--fg);"></div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;" id="actualPphTable">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);">
+                <th style="text-align:left;padding:4px 6px;color:var(--muted);font-weight:600;">Day</th>
+                <th style="text-align:right;padding:4px 6px;color:var(--muted);font-weight:600;">Pieces</th>
+                <th style="text-align:right;padding:4px 6px;color:var(--muted);font-weight:600;">Hours</th>
+                <th style="text-align:right;padding:4px 6px;color:var(--muted);font-weight:600;">Pcs/Hr</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <span style="font-size:11px;color:var(--muted);display:block;margin-top:6px;">Computed from imported sales &amp; time attendance data. Compare with your setting above.</span>
+        </div>
       </div>
       <div class="card">
         <div class="card-title" style="margin-bottom:16px;">&#x1F326; Weather Adjustments</div>
@@ -1048,6 +1064,7 @@ function importSalesData() {
     toast(count + ' sales records imported!', 'success');
     document.getElementById('salesInput').value = '';
     renderSalesPage();
+    renderActualPiecesMetrics();
     runForecast();
   } else {
     toast('No valid records found. Check format.', 'error');
@@ -1176,6 +1193,7 @@ function importEmployeeHours() {
     toast(count + ' employee hour records imported!', 'success');
     document.getElementById('hoursInput').value = '';
     renderHoursPage();
+    renderActualPiecesMetrics();
   } else {
     toast('No valid records found. Check format.', 'error');
   }
@@ -1566,6 +1584,68 @@ function getPiecesPerDollar() {
   });
   if (totalAmt > 0 && totalPcs > 0) return totalPcs / totalAmt;
   return 0;
+}
+
+function computeActualPiecesPerHour() {
+  /* Join sales (pieces) with employee hours by date, overall + by day-of-week */
+  var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var pcsBy = {}; /* date -> total pieces */
+  var hrsBy = {}; /* date -> total hours */
+  AppState.salesData.forEach(function(r) {
+    if (r.pieces && r.pieces > 0) {
+      pcsBy[r.date] = (pcsBy[r.date] || 0) + r.pieces;
+    }
+  });
+  AppState.employeeHours.forEach(function(r) {
+    if (r.hours && r.hours > 0) {
+      hrsBy[r.date] = (hrsBy[r.date] || 0) + r.hours;
+    }
+  });
+  /* Intersect dates that have both pieces and hours */
+  var dowPcs = [0,0,0,0,0,0,0];
+  var dowHrs = [0,0,0,0,0,0,0];
+  var totalPcs = 0, totalHrs = 0, matchDays = 0;
+  Object.keys(pcsBy).forEach(function(dt) {
+    if (hrsBy[dt] && hrsBy[dt] > 0 && pcsBy[dt] > 0) {
+      var dow = dayOfWeek(dt);
+      dowPcs[dow] += pcsBy[dt];
+      dowHrs[dow] += hrsBy[dt];
+      totalPcs += pcsBy[dt];
+      totalHrs += hrsBy[dt];
+      matchDays++;
+    }
+  });
+  return { dayNames: dayNames, dowPcs: dowPcs, dowHrs: dowHrs, totalPcs: totalPcs, totalHrs: totalHrs, matchDays: matchDays };
+}
+
+function renderActualPiecesMetrics() {
+  var container = document.getElementById('actualPiecesMetrics');
+  if (!container) return;
+  var m = computeActualPiecesPerHour();
+  if (m.matchDays === 0) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = '';
+  var overallPph = m.totalHrs > 0 ? (m.totalPcs / m.totalHrs).toFixed(1) : '—';
+  document.getElementById('actualPphOverall').innerHTML =
+    '<strong>Overall average:</strong> <span style="font-size:18px;font-weight:800;color:var(--accent);">' +
+    overallPph + '</span> pcs/hr <span style="color:var(--muted);">(' + m.matchDays + ' days matched)</span>';
+  var tbody = document.querySelector('#actualPphTable tbody');
+  var rows = '';
+  for (var i = 1; i <= 7; i++) {
+    var d = i % 7; /* Mon=1..Sat=6, Sun=0 */
+    var pcs = m.dowPcs[d];
+    var hrs = m.dowHrs[d];
+    var pph = hrs > 0 ? (pcs / hrs).toFixed(1) : '—';
+    var dim = hrs === 0 ? 'opacity:0.4;' : '';
+    rows += '<tr style="border-bottom:1px solid var(--border);' + dim + '">' +
+      '<td style="padding:4px 6px;font-weight:600;">' + m.dayNames[d] + '</td>' +
+      '<td style="text-align:right;padding:4px 6px;">' + Math.round(pcs).toLocaleString() + '</td>' +
+      '<td style="text-align:right;padding:4px 6px;">' + hrs.toFixed(1) + '</td>' +
+      '<td style="text-align:right;padding:4px 6px;font-weight:700;color:var(--accent);">' + pph + '</td></tr>';
+  }
+  tbody.innerHTML = rows;
 }
 
 function calculateDailyHours(forecastedSales, dateString) {
@@ -2311,6 +2391,7 @@ function loadSettings() {
   renderCategoriesList();
   renderClosedDaysChecks();
   renderHolidaysList();
+  renderActualPiecesMetrics();
 }
 
 var HOLIDAY_LABELS = {
@@ -2517,6 +2598,7 @@ function importAllData(event) {
       /* Sync forecast days dropdown */
       var fdSel = document.getElementById('forecastDaysSelect');
       if (fdSel && AppState.settings.forecastDays) fdSel.value = String(AppState.settings.forecastDays);
+      renderActualPiecesMetrics();
       runForecast();
       toast('Data imported! ' + (AppState.salesData.length) + ' sales records, ' +
         (AppState.employeeHours.length) + ' hour records.', 'success');
