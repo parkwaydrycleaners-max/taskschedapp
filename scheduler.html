@@ -1661,25 +1661,26 @@ function computeWeatherImpact() {
   AppState.weatherData.forEach(function(w) {
     if (w.source === 'historical') wMap[w.date] = w;
   });
-  /* Aggregate daily total sales */
-  var salesByDate = {};
+  /* Aggregate daily total sales and pieces */
+  var salesByDate = {}, piecesByDate = {};
   AppState.salesData.forEach(function(r) {
     if (r.amount > 0) salesByDate[r.date] = (salesByDate[r.date] || 0) + r.amount;
+    if (r.pieces && r.pieces > 0) piecesByDate[r.date] = (piecesByDate[r.date] || 0) + r.pieces;
   });
-  /* Classify each date */
+  /* Classify each date — store {sale, pieces} objects */
   var normalDays = [], rainyDays = [], hotDays = [], rainyHotDays = [];
   var heatThresh = s.heatThresh || 95;
   Object.keys(salesByDate).forEach(function(dt) {
     var w = wMap[dt];
     if (!w) return;
     if (isClosedDate(dt)) return;
-    var sale = salesByDate[dt];
+    var entry = { sale: salesByDate[dt], pieces: piecesByDate[dt] || 0 };
     var isRainy = w.rain > 2;
     var isHot = w.tempMax > heatThresh;
-    if (isRainy && isHot) { rainyHotDays.push(sale); }
-    else if (isRainy) { rainyDays.push(sale); }
-    else if (isHot) { hotDays.push(sale); }
-    else { normalDays.push(sale); }
+    if (isRainy && isHot) { rainyHotDays.push(entry); }
+    else if (isRainy) { rainyDays.push(entry); }
+    else if (isHot) { hotDays.push(entry); }
+    else { normalDays.push(entry); }
   });
   return { normalDays: normalDays, rainyDays: rainyDays, hotDays: hotDays, rainyHotDays: rainyHotDays, heatThresh: heatThresh };
 }
@@ -1694,63 +1695,69 @@ function renderWeatherImpact() {
     return;
   }
   container.style.display = '';
-  var avg = function(arr) { return arr.length > 0 ? arr.reduce(function(a,b){return a+b;},0) / arr.length : 0; };
+  var avgSale = function(arr) { return arr.length > 0 ? arr.reduce(function(a,b){return a+b.sale;},0) / arr.length : 0; };
+  var avgPcs = function(arr) { return arr.length > 0 ? arr.reduce(function(a,b){return a+b.pieces;},0) / arr.length : 0; };
   var fmt = function(n) { return AppState.settings.currency + Math.round(n).toLocaleString(); };
-  var normalAvg = avg(m.normalDays);
+  var normalSaleAvg = avgSale(m.normalDays);
+  var normalPcsAvg = avgPcs(m.normalDays);
+  var hasPieces = normalPcsAvg > 0;
   var s = AppState.settings;
-  var html = '<table style="width:100%;font-size:13px;border-collapse:collapse;">';
+  var th = 'style="text-align:right;padding:5px 6px;color:var(--muted);font-weight:600;"';
+  var html = '<div style="overflow-x:auto;"><table style="width:100%;font-size:13px;border-collapse:collapse;white-space:nowrap;">';
   html += '<thead><tr style="border-bottom:1px solid var(--border);">';
   html += '<th style="text-align:left;padding:5px 6px;color:var(--muted);font-weight:600;">Condition</th>';
-  html += '<th style="text-align:right;padding:5px 6px;color:var(--muted);font-weight:600;">Days</th>';
-  html += '<th style="text-align:right;padding:5px 6px;color:var(--muted);font-weight:600;">Avg Sales</th>';
-  html += '<th style="text-align:right;padding:5px 6px;color:var(--muted);font-weight:600;">Actual %</th>';
-  html += '<th style="text-align:right;padding:5px 6px;color:var(--muted);font-weight:600;">Your Setting</th>';
+  html += '<th ' + th + '>Days</th>';
+  if (hasPieces) {
+    html += '<th ' + th + '>Avg Pcs</th>';
+    html += '<th ' + th + '>Pcs %</th>';
+  }
+  html += '<th ' + th + '>Avg Sales</th>';
+  html += '<th ' + th + '>Sales %</th>';
+  html += '<th ' + th + '>Setting</th>';
   html += '</tr></thead><tbody>';
-  /* Normal row */
+
+  function weatherRow(label, arr, settingPct) {
+    var saleAvg = avgSale(arr);
+    var pcsAvgVal = avgPcs(arr);
+    var salePct = normalSaleAvg > 0 ? ((normalSaleAvg - saleAvg) / normalSaleAvg * 100) : 0;
+    var pcsPct = normalPcsAvg > 0 ? ((normalPcsAvg - pcsAvgVal) / normalPcsAvg * 100) : 0;
+    var saleColor = salePct > 0 ? 'var(--danger, #e53e3e)' : 'var(--success, #38a169)';
+    var pcsColor = pcsPct > 0 ? 'var(--danger, #e53e3e)' : 'var(--success, #38a169)';
+    var td = 'style="text-align:right;padding:5px 6px;"';
+    var r = '<tr style="border-bottom:1px solid var(--border);">';
+    r += '<td style="padding:5px 6px;">' + label + '</td>';
+    r += '<td ' + td + '>' + arr.length + '</td>';
+    if (hasPieces) {
+      r += '<td ' + td + '>' + Math.round(pcsAvgVal).toLocaleString() + '</td>';
+      r += '<td style="text-align:right;padding:5px 6px;font-weight:700;color:' + pcsColor + ';">' + (pcsPct > 0 ? '-' : '+') + Math.abs(pcsPct).toFixed(1) + '%</td>';
+    }
+    r += '<td ' + td + '>' + fmt(saleAvg) + '</td>';
+    r += '<td style="text-align:right;padding:5px 6px;font-weight:700;color:' + saleColor + ';">' + (salePct > 0 ? '-' : '+') + Math.abs(salePct).toFixed(1) + '%</td>';
+    r += '<td ' + td + '>' + settingPct + '</td></tr>';
+    return r;
+  }
+
+  /* Normal baseline row */
+  var tdB = 'style="text-align:right;padding:5px 6px;"';
   html += '<tr style="border-bottom:1px solid var(--border);">';
   html += '<td style="padding:5px 6px;">&#x2600;&#xFE0F; Normal</td>';
-  html += '<td style="text-align:right;padding:5px 6px;">' + m.normalDays.length + '</td>';
-  html += '<td style="text-align:right;padding:5px 6px;">' + fmt(normalAvg) + '</td>';
+  html += '<td ' + tdB + '>' + m.normalDays.length + '</td>';
+  if (hasPieces) {
+    html += '<td ' + tdB + '>' + Math.round(normalPcsAvg).toLocaleString() + '</td>';
+    html += '<td style="text-align:right;padding:5px 6px;color:var(--muted);">baseline</td>';
+  }
+  html += '<td ' + tdB + '>' + fmt(normalSaleAvg) + '</td>';
   html += '<td style="text-align:right;padding:5px 6px;color:var(--muted);">baseline</td>';
   html += '<td style="text-align:right;padding:5px 6px;color:var(--muted);">—</td></tr>';
-  /* Rain row */
-  if (m.rainyDays.length > 0) {
-    var rainAvg = avg(m.rainyDays);
-    var rainPct = normalAvg > 0 ? ((normalAvg - rainAvg) / normalAvg * 100) : 0;
-    var rainColor = rainPct > 0 ? 'var(--danger, #e53e3e)' : 'var(--success, #38a169)';
-    html += '<tr style="border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:5px 6px;">&#x1F327;&#xFE0F; Rainy</td>';
-    html += '<td style="text-align:right;padding:5px 6px;">' + m.rainyDays.length + '</td>';
-    html += '<td style="text-align:right;padding:5px 6px;">' + fmt(rainAvg) + '</td>';
-    html += '<td style="text-align:right;padding:5px 6px;font-weight:700;color:' + rainColor + ';">' + (rainPct > 0 ? '-' : '+') + Math.abs(rainPct).toFixed(1) + '%</td>';
-    html += '<td style="text-align:right;padding:5px 6px;">-' + s.rainAdj + '%</td></tr>';
-  }
-  /* Heat row */
-  if (m.hotDays.length > 0) {
-    var hotAvg = avg(m.hotDays);
-    var hotPct = normalAvg > 0 ? ((normalAvg - hotAvg) / normalAvg * 100) : 0;
-    var hotColor = hotPct > 0 ? 'var(--danger, #e53e3e)' : 'var(--success, #38a169)';
-    html += '<tr style="border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:5px 6px;">&#x1F525; Hot (&gt;' + m.heatThresh + '&deg;F)</td>';
-    html += '<td style="text-align:right;padding:5px 6px;">' + m.hotDays.length + '</td>';
-    html += '<td style="text-align:right;padding:5px 6px;">' + fmt(hotAvg) + '</td>';
-    html += '<td style="text-align:right;padding:5px 6px;font-weight:700;color:' + hotColor + ';">' + (hotPct > 0 ? '-' : '+') + Math.abs(hotPct).toFixed(1) + '%</td>';
-    html += '<td style="text-align:right;padding:5px 6px;">-' + s.heatAdj + '%</td></tr>';
-  }
-  /* Rain+Heat row */
+
+  if (m.rainyDays.length > 0) html += weatherRow('&#x1F327;&#xFE0F; Rainy', m.rainyDays, '-' + s.rainAdj + '%');
+  if (m.hotDays.length > 0) html += weatherRow('&#x1F525; Hot (&gt;' + m.heatThresh + '&deg;F)', m.hotDays, '-' + s.heatAdj + '%');
   if (m.rainyHotDays.length > 0) {
-    var bothAvg = avg(m.rainyHotDays);
-    var bothPct = normalAvg > 0 ? ((normalAvg - bothAvg) / normalAvg * 100) : 0;
-    var bothColor = bothPct > 0 ? 'var(--danger, #e53e3e)' : 'var(--success, #38a169)';
-    html += '<tr style="border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:5px 6px;">&#x26C8;&#xFE0F; Rain + Hot</td>';
-    html += '<td style="text-align:right;padding:5px 6px;">' + m.rainyHotDays.length + '</td>';
-    html += '<td style="text-align:right;padding:5px 6px;">' + fmt(bothAvg) + '</td>';
-    html += '<td style="text-align:right;padding:5px 6px;font-weight:700;color:' + bothColor + ';">' + (bothPct > 0 ? '-' : '+') + Math.abs(bothPct).toFixed(1) + '%</td>';
     var combinedSetting = (100 - (100 - s.rainAdj) * (100 - s.heatAdj) / 100).toFixed(1);
-    html += '<td style="text-align:right;padding:5px 6px;">-' + combinedSetting + '%</td></tr>';
+    html += weatherRow('&#x26C8;&#xFE0F; Rain + Hot', m.rainyHotDays, '-' + combinedSetting + '%');
   }
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
+  html += '<p style="font-size:11px;color:var(--muted);margin-top:6px;font-style:italic;">&#x1F4A1; Pieces are more reliable than $ for weather impact — prices may fluctuate over time.</p>';
   document.getElementById('weatherImpactContent').innerHTML = html;
 }
 
@@ -1805,9 +1812,15 @@ async function fetchWeatherData() {
   statusEl.innerHTML = '<span class="spinner"></span> Fetching weather data...';
 
   try {
-    /* Historical last 30 days */
+    /* Historical: go back to earliest sales data, minimum 30 days */
     const endDate = today();
-    const startDate = addDays(endDate, -30);
+    var earliestSale = endDate;
+    if (AppState.salesData.length > 0) {
+      var sorted = AppState.salesData.map(function(r) { return r.date; }).sort();
+      if (sorted[0] < earliestSale) earliestSale = sorted[0];
+    }
+    var minStart = addDays(endDate, -30);
+    const startDate = earliestSale < minStart ? earliestSale : minStart;
     const histUrl = 'https://archive-api.open-meteo.com/v1/archive?latitude=' + s.lat + '&longitude=' + s.lon +
       '&start_date=' + startDate + '&end_date=' + endDate +
       '&daily=temperature_2m_max,precipitation_sum,weathercode&temperature_unit=fahrenheit&timezone=auto';
@@ -1847,7 +1860,7 @@ async function fetchWeatherData() {
     }
 
     statusEl.innerHTML = '<span style="color:var(--success);">&#x2714;</span> Weather data loaded: ' +
-      AppState.weatherData.length + ' days';
+      AppState.weatherData.length + ' days (' + startDate + ' to ' + endDate + ' + 14-day forecast)';
     renderWeatherPreview();
     renderWeatherImpact();
     toast('Weather data fetched!', 'success');
