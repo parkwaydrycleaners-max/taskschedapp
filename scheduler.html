@@ -2967,7 +2967,7 @@ function wizImportHours() {
   var statusEl = document.getElementById('wizHoursStatus');
   if (!raw) { statusEl.textContent = 'Please paste data first.'; statusEl.style.color = 'var(--danger)'; return; }
   document.getElementById('hoursInput').value = raw;
-  importHoursData();
+  importEmployeeHours();
   var ct = AppState.employeeHours.length;
   if (ct > 0) {
     statusEl.textContent = '✓ ' + ct + ' hour records imported!';
