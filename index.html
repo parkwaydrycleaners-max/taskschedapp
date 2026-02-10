@@ -792,7 +792,16 @@ button {
                                          19.8 19.8 0 0 1-3.1-8.7
                                          A2 2 0 0 1 4.1 2h3"/>
                             </svg>
-                            Missed Calls and Voicemail
+                            Missed Calls
+                        </div>
+
+                        <div class="tile" onclick="openModal('voicemailModal')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="6" width="18" height="12" rx="2"/>
+                                <circle cx="7" cy="12" r="2"/>
+                                <circle cx="17" cy="12" r="2"/>
+                            </svg>
+                            Voicemail
                         </div>
 
                           <div class="tile" onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
@@ -1105,6 +1114,48 @@ button {
         <button class="close-btn" onclick="closeModal('weddingModal')">Close</button>
     </div>
 </div>
+
+<!-- ===============================
+     VOICEMAIL INSTRUCTIONS MODAL
+=============================== -->
+<div id="voicemailModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-close-x" onclick="closeModal('voicemailModal')">✕</div>
+
+        <h2>Check Voicemail</h2>
+
+        <p><strong>To check your voicemail from the landline:</strong></p>
+
+        <ol style="padding-left: 18px; margin-top: 10px;">
+            <li>
+                Pick up the phone and dial  
+                <strong>*98</strong>
+            </li>
+            <li>
+                Press the <strong>Green</strong> button to call
+            </li>
+            <li>
+                When prompted for a password, enter:
+                <div style="
+                    background:#f9f9f9;
+                    padding:10px;
+                    border-radius:8px;
+                    text-align:center;
+                    font-size:1.3rem;
+                    font-weight:bold;
+                    margin-top:8px;
+                ">
+                    Voicemail PIN: 7777
+                </div>
+            </li>
+        </ol>
+
+        <button class="close-btn" onclick="closeModal('voicemailModal')">
+            Close
+        </button>
+    </div>
+</div>
+    
 <!-- ===============================
      FOOTER
 =============================== -->
@@ -1423,6 +1474,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
 
