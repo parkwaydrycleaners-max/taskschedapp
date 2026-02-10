@@ -493,6 +493,7 @@ select.form-input { appearance: auto; }
     <div class="card">
       <div class="card-header"><span class="card-title">Forecast Accuracy (Backtest)</span></div>
       <div id="accuracyMetrics" class="grid-3"></div>
+      <div id="perMethodTable" style="margin-top:16px;"></div>
     </div>
   </div>
 
@@ -1646,7 +1647,8 @@ const Forecaster = {
         }
       });
       if (!fd) fd = addDays(dailySales[dailySales.length - 1].date, i + 1);
-      combined.push({ date: fd, predicted: sum, method: 'Weighted Ensemble' });
+      var hAdj = holidayProximityAdj(fd);
+      combined.push({ date: fd, predicted: sum * hAdj, method: 'Weighted Ensemble', holidayAdj: hAdj });
     }
 
     if (methods.weather) {
@@ -1687,6 +1689,32 @@ function isClosedDate(dateString) {
     if (s.holidays.includes(mmdd)) return true;
   }
   return false;
+}
+
+function holidayProximityAdj(dateString) {
+  /* Returns a multiplier based on distance to nearest holiday.
+     Before holiday: Day-3 +5%, Day-2 +10%, Day-1 +15% (pre-holiday rush)
+     After holiday: Day+1 -10%, Day+2 -5% (post-holiday lull) */
+  var holidays = AppState.settings.holidays || [];
+  if (holidays.length === 0) return 1;
+  var year = parseInt(dateString.slice(0, 4), 10);
+  var dMs = new Date(dateString + 'T12:00:00').getTime();
+  var bestDiff = Infinity;
+  for (var hi = 0; hi < holidays.length; hi++) {
+    var mmdd = holidays[hi];
+    for (var yo = -1; yo <= 1; yo++) {
+      var hMs = new Date((year + yo) + '-' + mmdd + 'T12:00:00').getTime();
+      if (isNaN(hMs)) continue;
+      var diff = Math.round((dMs - hMs) / 86400000);
+      if (Math.abs(diff) < Math.abs(bestDiff)) bestDiff = diff;
+    }
+  }
+  if (bestDiff === -3) return 1.05;
+  if (bestDiff === -2) return 1.10;
+  if (bestDiff === -1) return 1.15;
+  if (bestDiff === 1) return 0.90;
+  if (bestDiff === 2) return 0.95;
+  return 1;
 }
 
 function getPiecesPerDollar() {
@@ -2351,7 +2379,7 @@ function renderForecastTable() {
   var pRatio = getPiecesPerDollar();
   let html = '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast Sales</th>' +
     '<th style="text-align:right">Est. Pieces</th><th style="text-align:right">Rec. Hours</th>' +
-    '<th>Weather</th></tr></thead><tbody>';
+    '<th>Holiday</th><th>Weather</th></tr></thead><tbody>';
   AppState.forecastCache.forEach(function(f) {
     var closed = isClosedDate(f.date);
     var hours = calculateDailyHours(f.predicted, f.date);
@@ -2360,6 +2388,12 @@ function renderForecastTable() {
     var salesStr = closed ? '<span style="color:var(--muted);">CLOSED</span>' : fmt(f.predicted);
     var pcsStr = closed ? '0' : String(estPcs);
     var hoursStr = closed ? '0' : fmtDec(hours);
+    /* Holiday proximity badge */
+    var hAdj = f.holidayAdj || 1;
+    var hBadge = '';
+    if (hAdj > 1) { var pct = Math.round((hAdj - 1) * 100); hBadge = '🎉 <span style="background:#d4edda;color:#155724;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">HOLIDAY +' + pct + '%</span>'; }
+    else if (hAdj < 1) { var pct2 = Math.round((1 - hAdj) * 100); hBadge = '<span style="background:#f8d7da;color:#721c24;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">POST-HOL -' + pct2 + '%</span>'; }
+    else { hBadge = '<span style="color:var(--muted);">—</span>'; }
     /* Weather effect: UP, DOWN, or NONE based on weatherAdj */
     var wEffect = '—';
     if (w) {
@@ -2371,7 +2405,7 @@ function renderForecastTable() {
       '<td style="text-align:right;font-weight:600;">' + salesStr + '</td>' +
       '<td style="text-align:right;font-weight:600;">' + pcsStr + '</td>' +
       '<td style="text-align:right;color:var(--accent);font-weight:600;">' + hoursStr + '</td>' +
-      '<td>' + wEffect + '</td></tr>';
+      '<td>' + hBadge + '</td><td>' + wEffect + '</td></tr>';
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
@@ -2381,14 +2415,57 @@ function renderAccuracy() {
   const daily = getDailySales();
   const result = Forecaster.backtest(daily);
   const wrap = document.getElementById('accuracyMetrics');
+  const pmWrap = document.getElementById('perMethodTable');
   if (!result) {
     wrap.innerHTML = '<div style="grid-column:1/-1;"><p style="color:var(--muted);font-size:13px;">Need at least 21 days of data for accuracy backtesting.</p></div>';
+    pmWrap.innerHTML = '';
     return;
   }
   wrap.innerHTML =
     '<div class="stat-card"><div class="stat-label">MAPE (Accuracy)</div><div class="stat-value">' + result.mape.toFixed(1) + '%</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>' +
     '<div class="stat-card"><div class="stat-label">Avg Bias</div><div class="stat-value">' + fmt(result.bias) + '</div><div style="font-size:12px;color:var(--muted);">Negative = under-forecast</div></div>' +
     '<div class="stat-card"><div class="stat-label">MAE</div><div class="stat-value">' + fmt(result.mae) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
+  /* Per-method backtesting dashboard */
+  var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
+  var mFns = {
+    movingAvg: function(d,n){ return Forecaster.movingAverage(d,7,n); },
+    expSmooth: function(d,n){ return Forecaster.exponentialSmoothing(d,0.3,n); },
+    dayOfWeek: Forecaster.dayOfWeekPattern,
+    trend: Forecaster.trendAndSeasonal,
+    yoy: Forecaster.yearOverYear,
+    holtWinters: Forecaster.holtWinters
+  };
+  var rows = [];
+  var totalW = 0;
+  var keys = Object.keys(mNames);
+  keys.forEach(function(k) {
+    if (!AppState.forecastMethods[k]) { rows.push({ key:k, on:false, mape:null, w:0 }); return; }
+    var mape = Forecaster._backtestMethod(mFns[k], daily, 14);
+    var w = 1 / Math.max(mape, 1);
+    totalW += w;
+    rows.push({ key:k, on:true, mape:mape, w:w });
+  });
+  var pmHtml = '<table><thead><tr><th>Method</th><th>Status</th><th style="text-align:right">MAPE</th><th>Rating</th><th style="text-align:right">Weight %</th></tr></thead><tbody>';
+  rows.forEach(function(r) {
+    var name = mNames[r.key];
+    if (!r.on) {
+      pmHtml += '<tr style="opacity:0.45;"><td>' + name + '</td><td>OFF</td><td style="text-align:right">—</td><td>—</td><td style="text-align:right">—</td></tr>';
+      return;
+    }
+    var rating, rColor;
+    if (r.mape < 10) { rating = 'Excellent'; rColor = 'var(--success)'; }
+    else if (r.mape < 20) { rating = 'Good'; rColor = 'var(--accent)'; }
+    else if (r.mape < 35) { rating = 'Fair'; rColor = 'var(--warning, orange)'; }
+    else { rating = 'Poor'; rColor = 'var(--danger)'; }
+    var wPct = totalW > 0 ? ((r.w / totalW) * 100).toFixed(1) : '0.0';
+    pmHtml += '<tr><td><strong>' + name + '</strong></td><td style="color:var(--success);font-weight:600;">ON</td>';
+    pmHtml += '<td style="text-align:right;font-weight:600;">' + r.mape.toFixed(1) + '%</td>';
+    pmHtml += '<td style="color:' + rColor + ';font-weight:600;">' + rating + '</td>';
+    pmHtml += '<td style="text-align:right;font-weight:600;">' + wPct + '%</td></tr>';
+  });
+  pmHtml += '</tbody></table>';
+  pmHtml += '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Weight = 1/MAPE normalized. Lower MAPE → higher contribution to ensemble.</p>';
+  pmWrap.innerHTML = pmHtml;
 }
 
 /* ============ RENDER ANALYTICS PAGE ============ */
