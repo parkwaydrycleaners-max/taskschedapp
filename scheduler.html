@@ -157,6 +157,31 @@ select.form-input { appearance: auto; }
 .modal p { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
+/* Setup Wizard */
+.wizard-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.wizard-box {
+  background: var(--card); border-radius: var(--radius); padding: 32px; max-width: 520px;
+  width: 100%; box-shadow: 0 24px 80px rgba(0,0,0,0.35); border: 1px solid var(--border);
+}
+.wizard-box h2 { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+.wizard-box .wizard-sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+.wizard-box .wizard-step { display: none; }
+.wizard-box .wizard-step.active { display: block; }
+.wizard-box label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: var(--text); }
+.wizard-box .form-input { width: 100%; margin-bottom: 16px; }
+.wizard-row { display: flex; gap: 12px; }
+.wizard-row > div { flex: 1; }
+.wizard-dots { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; }
+.wizard-dots span {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--border); transition: background 0.2s;
+}
+.wizard-dots span.active { background: var(--accent); }
+.wizard-nav { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+
 /* Badge */
 .badge {
   display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px;
@@ -673,6 +698,81 @@ select.form-input { appearance: auto; }
 </main>
 
 <div class="toast-container" id="toastContainer"></div>
+
+<!-- Setup Wizard -->
+<div class="wizard-overlay" id="setupWizard" style="display:none;">
+<div class="wizard-box">
+  <h2>⚡ Welcome to StaffCast</h2>
+  <p class="wizard-sub">Let's set up your business in a few quick steps.</p>
+  <div class="wizard-dots" id="wizDots">
+    <span class="active"></span><span></span><span></span>
+  </div>
+
+  <!-- Step 1: Business Info -->
+  <div class="wizard-step active" id="wizStep1">
+    <label for="wizBizName">Business Name</label>
+    <input class="form-input" id="wizBizName" placeholder="e.g. Parkway Dry Cleaners">
+    <div class="wizard-row">
+      <div>
+        <label for="wizCurrency">Currency Symbol</label>
+        <input class="form-input" id="wizCurrency" placeholder="$" maxlength="3" value="$">
+      </div>
+      <div>
+        <label for="wizZipCode">Zip Code (for weather)</label>
+        <input class="form-input" id="wizZipCode" placeholder="e.g. 90210" maxlength="10">
+      </div>
+    </div>
+    <div class="wizard-nav">
+      <button class="btn btn-secondary" onclick="skipWizard()">Skip Setup</button>
+      <button class="btn btn-primary" onclick="wizardNext(2)">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Staffing Params -->
+  <div class="wizard-step" id="wizStep2">
+    <div class="wizard-row">
+      <div>
+        <label for="wizPiecesPerHour">Pieces / Hour per Employee</label>
+        <input class="form-input" id="wizPiecesPerHour" type="number" step="0.5" placeholder="8" value="8">
+      </div>
+      <div>
+        <label for="wizAvgWage">Avg Hourly Wage ($)</label>
+        <input class="form-input" id="wizAvgWage" type="number" step="0.25" placeholder="18" value="18">
+      </div>
+    </div>
+    <div class="wizard-row">
+      <div>
+        <label for="wizLaborPct">Target Labor Cost %</label>
+        <input class="form-input" id="wizLaborPct" type="number" step="0.5" placeholder="30" value="30">
+      </div>
+      <div>
+        <label for="wizMinHours">Min Hours / Day</label>
+        <input class="form-input" id="wizMinHours" type="number" step="0.5" placeholder="16" value="16">
+      </div>
+    </div>
+    <div class="wizard-nav">
+      <button class="btn btn-secondary" onclick="wizardNext(1)">← Back</button>
+      <button class="btn btn-primary" onclick="wizardNext(3)">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Data Import prompt -->
+  <div class="wizard-step" id="wizStep3">
+    <p style="color:var(--text); font-size:15px; margin-bottom:12px;">
+      <strong>Almost done!</strong> You'll need to import your POS Sales Report to start forecasting.
+    </p>
+    <p style="color:var(--muted); font-size:13px; margin-bottom:6px;">
+      ✅ Paste your "Sales Report By Category" on the <strong>Sales Data</strong> page<br>
+      ✅ Paste "Time and Attendance" on the <strong>Staff Hours</strong> page<br>
+      ✅ Then hit <strong>Run Forecast</strong> on the Dashboard
+    </p>
+    <div class="wizard-nav" style="margin-top:20px;">
+      <button class="btn btn-secondary" onclick="wizardNext(2)">← Back</button>
+      <button class="btn btn-primary" onclick="finishWizard()">Go to Sales Data →</button>
+    </div>
+  </div>
+</div>
+</div>
 
 <script>
 /* ============ APP STATE ============ */
@@ -2795,10 +2895,47 @@ async function checkTriggerMessage() {
   }
 }
 
+/* ============ SETUP WIZARD ============ */
+function showSetupWizard() {
+  document.getElementById('setupWizard').style.display = 'flex';
+}
+function skipWizard() {
+  document.getElementById('setupWizard').style.display = 'none';
+}
+function wizardNext(step) {
+  for (var ws = 1; ws <= 3; ws++) {
+    var el = document.getElementById('wizStep' + ws);
+    if (el) el.classList.toggle('active', ws === step);
+  }
+  var dots = document.querySelectorAll('#wizDots span');
+  dots.forEach(function(d, i) { d.classList.toggle('active', i === step - 1); });
+}
+function finishWizard() {
+  /* Save wizard values into AppState settings */
+  var s = AppState.settings;
+  var biz = document.getElementById('wizBizName').value.trim();
+  if (biz) s.bizName = biz;
+  var cur = document.getElementById('wizCurrency').value.trim();
+  if (cur) s.currency = cur;
+  s.zipCode = document.getElementById('wizZipCode').value.trim();
+  s.piecesPerHour = parseFloat(document.getElementById('wizPiecesPerHour').value) || 8;
+  s.avgWage = parseFloat(document.getElementById('wizAvgWage').value) || 18;
+  s.laborPct = parseFloat(document.getElementById('wizLaborPct').value) || 30;
+  s.minHoursDay = parseFloat(document.getElementById('wizMinHours').value) || 16;
+  /* Close wizard and navigate to Sales Data page */
+  document.getElementById('setupWizard').style.display = 'none';
+  showPage('sales');
+  toast('Settings saved! Now paste your Sales Report below.', 'success');
+}
+
 /* ============ INIT ============ */
 function init() {
   renderDashboard();
   checkTriggerMessage();
+  /* Show wizard if no data and no business name configured */
+  if (AppState.salesData.length === 0 && !AppState.settings.bizName) {
+    showSetupWizard();
+  }
 }
 
 init();
