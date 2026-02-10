@@ -997,7 +997,8 @@ function importSalesData() {
       count++;
       AppState.salesData.push({ date: rec.date, category: 'Press', amount: rec.press || 0, pieces: rec.pressPcs || 0 });
       count++;
-      AppState.salesData.push({ date: rec.date, category: 'Discount', amount: rec.dc || 0, pieces: 0 });
+      /* DC is a discount (deduction) — negate so summing categories gives correct total */
+      AppState.salesData.push({ date: rec.date, category: 'Discount', amount: -(rec.dc || 0), pieces: 0 });
       count++;
     }
   } else {
