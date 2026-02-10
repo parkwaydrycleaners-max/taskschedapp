@@ -2379,7 +2379,7 @@ function renderForecastTable() {
   var pRatio = getPiecesPerDollar();
   let html = '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast Sales</th>' +
     '<th style="text-align:right">Est. Pieces</th><th style="text-align:right">Rec. Hours</th>' +
-    '<th>Holiday</th><th>Weather</th></tr></thead><tbody>';
+    '<th style="text-align:right">Est. Cost</th><th>Holiday</th><th>Weather</th></tr></thead><tbody>';
   AppState.forecastCache.forEach(function(f) {
     var closed = isClosedDate(f.date);
     var hours = calculateDailyHours(f.predicted, f.date);
@@ -2405,6 +2405,7 @@ function renderForecastTable() {
       '<td style="text-align:right;font-weight:600;">' + salesStr + '</td>' +
       '<td style="text-align:right;font-weight:600;">' + pcsStr + '</td>' +
       '<td style="text-align:right;color:var(--accent);font-weight:600;">' + hoursStr + '</td>' +
+      '<td style="text-align:right;font-weight:600;">' + (closed ? '$0' : fmt(hours * (AppState.settings.avgWage || 18))) + '</td>' +
       '<td>' + hBadge + '</td><td>' + wEffect + '</td></tr>';
   });
   html += '</tbody></table>';
