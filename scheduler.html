@@ -701,11 +701,11 @@ select.form-input { appearance: auto; }
 
 <!-- Setup Wizard -->
 <div class="wizard-overlay" id="setupWizard" style="display:none;">
-<div class="wizard-box">
+<div class="wizard-box" style="max-width:580px;">
   <h2>⚡ Welcome to StaffCast</h2>
   <p class="wizard-sub">Let's set up your business in a few quick steps.</p>
   <div class="wizard-dots" id="wizDots">
-    <span class="active"></span><span></span><span></span>
+    <span class="active"></span><span></span><span></span><span></span><span></span>
   </div>
 
   <!-- Step 1: Business Info -->
@@ -728,8 +728,47 @@ select.form-input { appearance: auto; }
     </div>
   </div>
 
-  <!-- Step 2: Staffing Params -->
+  <!-- Step 2: Paste Sales Data -->
   <div class="wizard-step" id="wizStep2">
+    <label>Paste your POS "Sales Report By Category"</label>
+    <textarea class="form-input" id="wizSalesInput" rows="7" style="font-size:12px;font-family:monospace;resize:vertical;" placeholder="Paste the full Sales Report By Category here..."></textarea>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <button class="btn btn-primary" onclick="wizImportSales()" style="font-size:13px;">Import Sales Data</button>
+      <span id="wizSalesStatus" style="font-size:13px;color:var(--muted);"></span>
+    </div>
+    <div class="wizard-nav">
+      <button class="btn btn-secondary" onclick="wizardNext(1)">← Back</button>
+      <button class="btn btn-primary" onclick="wizardNext(3)">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Paste Staff Hours -->
+  <div class="wizard-step" id="wizStep3">
+    <label>Paste your POS "Time and Attendance" report</label>
+    <textarea class="form-input" id="wizHoursInput" rows="7" style="font-size:12px;font-family:monospace;resize:vertical;" placeholder="Paste the Time and Attendance report here..."></textarea>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <button class="btn btn-primary" onclick="wizImportHours()" style="font-size:13px;">Import Staff Hours</button>
+      <span id="wizHoursStatus" style="font-size:13px;color:var(--muted);"></span>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Optional — but needed to calculate your actual pieces per labor hour.</p>
+    <div class="wizard-nav">
+      <button class="btn btn-secondary" onclick="wizardNext(2)">← Back</button>
+      <button class="btn btn-primary" onclick="wizShowMetrics()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Step 4: Show Current Metrics -->
+  <div class="wizard-step" id="wizStep4">
+    <div id="wizMetricsDisplay" style="margin-bottom:16px;"></div>
+    <div class="wizard-nav">
+      <button class="btn btn-secondary" onclick="wizardNext(3)">← Back</button>
+      <button class="btn btn-primary" onclick="wizardNext(5)">Configure Settings →</button>
+    </div>
+  </div>
+
+  <!-- Step 5: Staffing Settings -->
+  <div class="wizard-step" id="wizStep5">
+    <p style="font-size:14px;font-weight:600;margin-bottom:14px;">Set your staffing targets</p>
     <div class="wizard-row">
       <div>
         <label for="wizPiecesPerHour">Pieces / Hour per Employee</label>
@@ -751,24 +790,8 @@ select.form-input { appearance: auto; }
       </div>
     </div>
     <div class="wizard-nav">
-      <button class="btn btn-secondary" onclick="wizardNext(1)">← Back</button>
-      <button class="btn btn-primary" onclick="wizardNext(3)">Next →</button>
-    </div>
-  </div>
-
-  <!-- Step 3: Data Import prompt -->
-  <div class="wizard-step" id="wizStep3">
-    <p style="color:var(--text); font-size:15px; margin-bottom:12px;">
-      <strong>Almost done!</strong> You'll need to import your POS Sales Report to start forecasting.
-    </p>
-    <p style="color:var(--muted); font-size:13px; margin-bottom:6px;">
-      ✅ Paste your "Sales Report By Category" on the <strong>Sales Data</strong> page<br>
-      ✅ Paste "Time and Attendance" on the <strong>Staff Hours</strong> page<br>
-      ✅ Then hit <strong>Run Forecast</strong> on the Dashboard
-    </p>
-    <div class="wizard-nav" style="margin-top:20px;">
-      <button class="btn btn-secondary" onclick="wizardNext(2)">← Back</button>
-      <button class="btn btn-primary" onclick="finishWizard()">Go to Sales Data →</button>
+      <button class="btn btn-secondary" onclick="wizardNext(4)">← Back</button>
+      <button class="btn btn-primary" onclick="finishWizard()">Finish Setup ✓</button>
     </div>
   </div>
 </div>
@@ -2325,18 +2348,30 @@ function renderForecastTable() {
     wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;">Import sales data to see forecasts.</p>';
     return;
   }
+  var pRatio = getPiecesPerDollar();
   let html = '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast Sales</th>' +
-    '<th style="text-align:right">Rec. Hours</th><th>Weather</th></tr></thead><tbody>';
+    '<th style="text-align:right">Est. Pieces</th><th style="text-align:right">Rec. Hours</th>' +
+    '<th>Weather</th></tr></thead><tbody>';
   AppState.forecastCache.forEach(function(f) {
     var closed = isClosedDate(f.date);
     var hours = calculateDailyHours(f.predicted, f.date);
+    var estPcs = closed ? 0 : Math.round(f.predicted * pRatio);
     var w = AppState.weatherData.find(function(wd) { return wd.date === f.date; });
     var salesStr = closed ? '<span style="color:var(--muted);">CLOSED</span>' : fmt(f.predicted);
+    var pcsStr = closed ? '0' : String(estPcs);
     var hoursStr = closed ? '0' : fmtDec(hours);
+    /* Weather effect: UP, DOWN, or NONE based on weatherAdj */
+    var wEffect = '—';
+    if (w) {
+      var adj = f.weatherAdj || 1;
+      if (adj < 1) wEffect = weatherEmoji(w.code) + ' <span style="color:var(--danger);font-weight:600;">▼ DOWN</span>';
+      else wEffect = weatherEmoji(w.code) + ' <span style="color:var(--muted);">NONE</span>';
+    }
     html += '<tr style="' + (closed ? 'opacity:0.5;' : '') + '"><td>' + f.date + '</td><td>' + DAYS[dayOfWeek(f.date)] + '</td>' +
       '<td style="text-align:right;font-weight:600;">' + salesStr + '</td>' +
+      '<td style="text-align:right;font-weight:600;">' + pcsStr + '</td>' +
       '<td style="text-align:right;color:var(--accent);font-weight:600;">' + hoursStr + '</td>' +
-      '<td>' + (w ? weatherEmoji(w.code) + ' ' + Math.round(w.tempMax) + '\u00B0' : '—') + '</td></tr>';
+      '<td>' + wEffect + '</td></tr>';
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
@@ -2896,6 +2931,7 @@ async function checkTriggerMessage() {
 }
 
 /* ============ SETUP WIZARD ============ */
+var WIZ_STEPS = 5;
 function showSetupWizard() {
   document.getElementById('setupWizard').style.display = 'flex';
 }
@@ -2903,12 +2939,70 @@ function skipWizard() {
   document.getElementById('setupWizard').style.display = 'none';
 }
 function wizardNext(step) {
-  for (var ws = 1; ws <= 3; ws++) {
+  for (var ws = 1; ws <= WIZ_STEPS; ws++) {
     var el = document.getElementById('wizStep' + ws);
     if (el) el.classList.toggle('active', ws === step);
   }
   var dots = document.querySelectorAll('#wizDots span');
   dots.forEach(function(d, i) { d.classList.toggle('active', i === step - 1); });
+}
+function wizImportSales() {
+  var raw = document.getElementById('wizSalesInput').value.trim();
+  var statusEl = document.getElementById('wizSalesStatus');
+  if (!raw) { statusEl.textContent = 'Please paste data first.'; statusEl.style.color = 'var(--danger)'; return; }
+  /* Temporarily put data into the main import field and trigger import */
+  document.getElementById('salesInput').value = raw;
+  importSalesData();
+  var ct = AppState.salesData.length;
+  if (ct > 0) {
+    statusEl.textContent = '✓ ' + ct + ' records imported!';
+    statusEl.style.color = 'var(--success)';
+  } else {
+    statusEl.textContent = 'No valid records found. Check format.';
+    statusEl.style.color = 'var(--danger)';
+  }
+}
+function wizImportHours() {
+  var raw = document.getElementById('wizHoursInput').value.trim();
+  var statusEl = document.getElementById('wizHoursStatus');
+  if (!raw) { statusEl.textContent = 'Please paste data first.'; statusEl.style.color = 'var(--danger)'; return; }
+  document.getElementById('hoursInput').value = raw;
+  importHoursData();
+  var ct = AppState.employeeHours.length;
+  if (ct > 0) {
+    statusEl.textContent = '✓ ' + ct + ' hour records imported!';
+    statusEl.style.color = 'var(--success)';
+  } else {
+    statusEl.textContent = 'No valid records found. Check format.';
+    statusEl.style.color = 'var(--danger)';
+  }
+}
+function wizShowMetrics() {
+  /* Compute and display actual labor & productivity metrics */
+  var metrics = computeActualPiecesPerHour();
+  var html = '<p style="font-size:14px;font-weight:700;margin-bottom:12px;">Your Current Labor & Productivity</p>';
+  if (metrics.matchDays > 0) {
+    var overallPPH = (metrics.totalPcs / metrics.totalHrs).toFixed(1);
+    var avgDailyPcs = (metrics.totalPcs / metrics.matchDays).toFixed(0);
+    var avgDailyHrs = (metrics.totalHrs / metrics.matchDays).toFixed(1);
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">';
+    html += '<div class="stat-card" style="padding:14px;"><div class="stat-label">PIECES / LABOR HOUR</div><div class="stat-value" style="color:var(--accent);">' + overallPPH + '</div></div>';
+    html += '<div class="stat-card" style="padding:14px;"><div class="stat-label">DAYS WITH DATA</div><div class="stat-value">' + metrics.matchDays + '</div></div>';
+    html += '<div class="stat-card" style="padding:14px;"><div class="stat-label">AVG DAILY PIECES</div><div class="stat-value">' + avgDailyPcs + '</div></div>';
+    html += '<div class="stat-card" style="padding:14px;"><div class="stat-label">AVG DAILY HOURS</div><div class="stat-value">' + avgDailyHrs + '</div></div>';
+    html += '</div>';
+    html += '<p style="font-size:13px;color:var(--muted);">Based on ' + metrics.matchDays + ' days of overlapping sales + attendance data. Use this to set your targets on the next step.</p>';
+  } else if (AppState.salesData.length > 0) {
+    var pRatio = getPiecesPerDollar();
+    var daily = getDailySales();
+    var avgSales = daily.length > 0 ? daily.reduce(function(a,b){return a+b.total;},0) / daily.length : 0;
+    html += '<div class="stat-card" style="padding:14px;margin-bottom:12px;"><div class="stat-label">AVG DAILY SALES</div><div class="stat-value">' + fmt(avgSales) + '</div></div>';
+    html += '<p style="font-size:13px;color:var(--muted);">No staff hours imported — add Time & Attendance data to see actual pieces per labor hour. You can set targets manually on the next step.</p>';
+  } else {
+    html += '<p style="font-size:13px;color:var(--muted);">No data imported yet. You can go back to import data, or skip ahead to set targets manually.</p>';
+  }
+  document.getElementById('wizMetricsDisplay').innerHTML = html;
+  wizardNext(4);
 }
 function finishWizard() {
   /* Save wizard values into AppState settings */
@@ -2922,10 +3016,10 @@ function finishWizard() {
   s.avgWage = parseFloat(document.getElementById('wizAvgWage').value) || 18;
   s.laborPct = parseFloat(document.getElementById('wizLaborPct').value) || 30;
   s.minHoursDay = parseFloat(document.getElementById('wizMinHours').value) || 16;
-  /* Close wizard and navigate to Sales Data page */
+  /* Close wizard and navigate to dashboard */
   document.getElementById('setupWizard').style.display = 'none';
-  showPage('sales');
-  toast('Settings saved! Now paste your Sales Report below.', 'success');
+  showPage('dashboard');
+  toast('Setup complete! Run Forecast to generate staffing recommendations.', 'success');
 }
 
 /* ============ INIT ============ */
