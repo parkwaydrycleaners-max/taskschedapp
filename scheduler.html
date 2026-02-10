@@ -256,7 +256,7 @@ select.form-input { appearance: auto; }
     <span>Smart Scheduling</span>
   </div>
   <div class="sidebar-nav">
-    <button class="nav-item active" onclick="showPage('dashboard')" data-page="dashboard">
+    <button class="nav-item" onclick="showPage('dashboard')" data-page="dashboard">
       <span class="nav-icon">&#x1F4CA;</span> Dashboard
     </button>
     <button class="nav-item" onclick="showPage('sales')" data-page="sales">
@@ -284,8 +284,60 @@ select.form-input { appearance: auto; }
 
 <main class="main">
 
+  <!-- ==================== WELCOME / IMPORT ==================== -->
+  <div class="page" id="page-welcome">
+    <div style="max-width:640px;margin:0 auto;padding:24px 0;">
+      <div style="text-align:center;margin-bottom:32px;">
+        <div style="font-size:48px;margin-bottom:8px;">&#x26A1;</div>
+        <h2 style="font-size:28px;font-weight:800;margin:0 0 6px;">Welcome to StaffCast</h2>
+        <p style="color:var(--muted);font-size:15px;margin:0;">Import your data to get started with smart scheduling.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:12px;">&#x1F4E4; Quick Import (JSON Backup)</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Have a previous StaffCast export? Load everything at once.</p>
+        <button class="btn btn-primary" onclick="document.getElementById('welcomeImportJson').click()">&#x1F4C1; Import JSON File</button>
+        <input type="file" id="welcomeImportJson" accept=".json" style="display:none" onchange="importAllData(event)">
+      </div>
+
+      <div style="text-align:center;color:var(--muted);font-size:13px;margin:18px 0;font-weight:600;">— OR import manually —</div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:4px;">&#x1F4B0; Sales Data</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Paste your POS Sales Report or CSV data below.</p>
+        <textarea class="form-input" id="welcomeSalesInput" placeholder="Paste sales data here (POS Report, CSV, or tab-separated)..." style="min-height:100px;"></textarea>
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-primary" onclick="welcomeImportSales()">&#x1F4C4; Import Sales</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('welcomeSalesFile').click()">&#x1F4C1; Upload File</button>
+          <input type="file" id="welcomeSalesFile" accept=".csv,.tsv,.txt" style="display:none" onchange="welcomeHandleSalesFile(event)">
+          <span id="welcomeSalesStatus" style="font-size:12px;color:var(--muted);"></span>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:4px;">&#x1F465; Staff Hours</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Paste your POS Time &amp; Attendance report or CSV data.</p>
+        <textarea class="form-input" id="welcomeHoursInput" placeholder="Paste employee hours data here (POS Time & Attendance or CSV)..." style="min-height:100px;"></textarea>
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-primary" onclick="welcomeImportHours()">&#x1F4C4; Import Hours</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('welcomeHoursFile').click()">&#x1F4C1; Upload File</button>
+          <input type="file" id="welcomeHoursFile" accept=".csv,.tsv,.txt" style="display:none" onchange="welcomeHandleHoursFile(event)">
+          <span id="welcomeHoursStatus" style="font-size:12px;color:var(--muted);"></span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:24px;">
+        <button class="btn btn-primary" id="welcomeContinueBtn" style="display:none;font-size:16px;padding:12px 32px;" onclick="showPage('dashboard')">&#x2705; Continue to Dashboard</button>
+      </div>
+
+      <div style="text-align:center;margin-top:20px;">
+        <button style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;" onclick="generateSampleData()">or load sample data to explore</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ==================== DASHBOARD ==================== -->
-  <div class="page active" id="page-dashboard">
+  <div class="page" id="page-dashboard"><!-- activated by init -->
     <div class="page-header">
       <h2>Dashboard</h2>
       <p>Weekly overview and recommended staff hours</p>
@@ -795,6 +847,18 @@ function showPage(name) {
   if (page) page.classList.add('active');
   const nav = document.querySelector('[data-page="' + name + '"]');
   if (nav) nav.classList.add('active');
+  /* Toggle sidebar visibility on welcome vs other pages */
+  var sidebar = document.getElementById('sidebar');
+  var hamburger = document.querySelector('.hamburger');
+  if (name === 'welcome') {
+    sidebar.style.display = 'none';
+    if (hamburger) hamburger.style.display = 'none';
+    document.querySelector('.main').style.marginLeft = '0';
+  } else {
+    sidebar.style.display = '';
+    if (hamburger) hamburger.style.display = '';
+    document.querySelector('.main').style.marginLeft = '';
+  }
   if (name === 'dashboard') renderDashboard();
   else if (name === 'sales') renderSalesPage();
   else if (name === 'hours') renderHoursPage();
@@ -2808,9 +2872,79 @@ async function checkTriggerMessage() {
   }
 }
 
+/* ============ WELCOME PAGE HELPERS ============ */
+function hasData() {
+  return AppState.salesData.length > 0 || AppState.employeeHours.length > 0;
+}
+
+function welcomeUpdateContinue() {
+  var btn = document.getElementById('welcomeContinueBtn');
+  if (btn) btn.style.display = hasData() ? '' : 'none';
+}
+
+function welcomeImportSales() {
+  var el = document.getElementById('welcomeSalesInput');
+  if (!el) return;
+  document.getElementById('salesInput').value = el.value;
+  importSalesData();
+  var count = AppState.salesData.length;
+  var status = document.getElementById('welcomeSalesStatus');
+  if (count > 0) {
+    status.innerHTML = '<span style="color:var(--success);">&#x2714; ' + count + ' records loaded</span>';
+    el.value = '';
+  } else {
+    status.innerHTML = '<span style="color:var(--danger);">No valid records found</span>';
+  }
+  welcomeUpdateContinue();
+}
+
+function welcomeHandleSalesFile(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('welcomeSalesInput').value = e.target.result;
+    welcomeImportSales();
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function welcomeImportHours() {
+  var el = document.getElementById('welcomeHoursInput');
+  if (!el) return;
+  document.getElementById('hoursInput').value = el.value;
+  importEmployeeHours();
+  var count = AppState.employeeHours.length;
+  var status = document.getElementById('welcomeHoursStatus');
+  if (count > 0) {
+    status.innerHTML = '<span style="color:var(--success);">&#x2714; ' + count + ' records loaded</span>';
+    el.value = '';
+  } else {
+    status.innerHTML = '<span style="color:var(--danger);">No valid records found</span>';
+  }
+  welcomeUpdateContinue();
+}
+
+function welcomeHandleHoursFile(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('welcomeHoursInput').value = e.target.result;
+    welcomeImportHours();
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
 /* ============ INIT ============ */
 function init() {
-  renderDashboard();
+  if (hasData()) {
+    showPage('dashboard');
+  } else {
+    showPage('welcome');
+  }
   checkTriggerMessage();
 }
 
