@@ -833,15 +833,10 @@
             if (document.visibilityState === 'visible') {
                 const today = getTodayString();
                 if (dateInput.value !== today) {
-                    showConfirm(
-                        '📅 A new day has started. Update the date to today (' + new Date().toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'}) + ')?',
-                        function() {
-                            dateInput.value = today;
-                            checkDateWarning();
-                            generateReport();
-                        }
-                    );
+                    dateInput.value = today;
                     checkDateWarning();
+                    generateReport();
+                    showAlert('📅 The date has been updated to today. A new day has started since this page was last used.');
                 }
             }
         });
@@ -1084,7 +1079,7 @@
                 return;
             }
 
-            const dateObj = new Date(date);
+            const dateObj = new Date(date + 'T00:00:00');
             const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
             // Get all values
@@ -1198,7 +1193,8 @@
                 '<p style="color:var(--red-text);font-weight:700;font-size:1.1rem;margin-bottom:0.75rem">⚠️ Variance Detected</p>' +
                 '<p style="color:var(--text);margin-bottom:0.5rem">' + variances.join(' &nbsp;|&nbsp; ') + '</p>' +
                 '<p style="color:var(--text);margin-bottom:1rem">Please provide an explanation for the variance before sending this report:</p>' +
-                '<textarea id="varianceExplanation" style="width:100%;min-height:100px;padding:0.75rem;font-size:1rem;font-family:inherit;border:2px solid #dc3545;border-radius:6px;background:var(--input-bg);color:var(--text);resize:vertical;margin-bottom:1rem" placeholder="Explain why the reconciliation is not balanced..."></textarea>' +
+                '<textarea id="varianceExplanation" style="width:100%;min-height:100px;padding:0.75rem;font-size:1rem;font-family:inherit;border:2px solid #dc3545;border-radius:6px;background:var(--input-bg);color:var(--text);resize:vertical;margin-bottom:0.5rem" placeholder="Explain why the reconciliation is not balanced..."></textarea>' +
+                '<p class="char-count" style="font-size:0.85rem;margin-bottom:1rem;color:var(--red-text)">0/20 characters</p>' +
                 '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">' +
                 '<button class="cancel-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Cancel</button>' +
                 '<button class="submit-btn" style="padding:0.75rem;background:#4a90e2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Submit & Copy</button>' +
@@ -1210,13 +1206,21 @@
             if (existing) textArea.value = existing;
             textArea.focus();
 
+            var charCount = m.querySelector('.char-count');
+            textArea.addEventListener('input', function() {
+                var len = textArea.value.trim().length;
+                charCount.textContent = len + '/20 characters';
+                charCount.style.color = len >= 20 ? 'var(--green-text)' : 'var(--red-text)';
+            });
+
             m.querySelector('.cancel-btn').onclick = function() { m.remove(); };
             m.querySelector('.submit-btn').onclick = function() {
                 var explanation = textArea.value.trim();
-                if (!explanation) {
+                if (explanation.length < 20) {
                     textArea.style.borderColor = '#dc3545';
                     textArea.style.boxShadow = '0 0 0 3px rgba(220,53,69,0.25)';
-                    textArea.setAttribute('placeholder', '⚠️ Explanation is required before copying the report!');
+                    charCount.textContent = explanation.length + '/20 characters — please provide a detailed explanation';
+                    charCount.style.color = 'var(--red-text)';
                     return;
                 }
                 m.remove();
@@ -1227,7 +1231,7 @@
         function proceedWithDateCheck() {
             var selected = document.getElementById('reconciliationDate').value;
             if (selected && selected !== getTodayString()) {
-                var dateObj = new Date(selected);
+                var dateObj = new Date(selected + 'T00:00:00');
                 var dateLabel = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
                 showAlert('🚫 Cannot copy report — the date is <strong>' + dateLabel + '</strong>, which is not today.<br><br>Please update the date to today before copying.');
                 return;
@@ -1377,7 +1381,7 @@
 
                 return `
                     <div class="history-item ${allOK ? 'balanced' : 'unbalanced'}">
-                        <div class="history-date">${new Date(r.date).toLocaleDateString('en-US', {weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'})} ${allOK ? '✓' : '⚠'}</div>
+                        <div class="history-date">${new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', {weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'})} ${allOK ? '✓' : '⚠'}</div>
                         <div class="history-details">
                             <div><strong>Card:</strong> Actual: ${fmt(r.card.totalCCActual)} | POS: ${fmt(r.card.totalPOSCard)} | Balance: ${fmt(r.card.balance)} ${cardOK ? '✓' : ''}</div>
                             <div><strong>Cash:</strong> Register: ${fmt(r.cash.totalRegisterSales)} | POS: ${fmt(r.cash.totalPOSCash)} | Balance: ${fmt(r.cash.balance)} ${cashOK ? '✓' : ''}</div>
