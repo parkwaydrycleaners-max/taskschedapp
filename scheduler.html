@@ -1107,8 +1107,7 @@ function importSalesData() {
   if (!raw) { toast('Please paste some data first', 'error'); return; }
 
   var count = 0;
-  AppState.salesData = [];
-  AppState.settings.categories = [];
+  var incoming = [];
 
   /* Auto-detect POS report format vs CSV */
   if (isPOSReportFormat(raw)) {
@@ -1123,15 +1122,11 @@ function importSalesData() {
       /* Combined Dry + Laundry amount and pieces */
       var dlAmt = (rec.dry || 0) + (rec.laundry || 0);
       var dlPcs = (rec.dryPcs || 0) + (rec.laundryPcs || 0);
-      AppState.salesData.push({ date: rec.date, category: 'Dry Cleaning / Laundry', amount: dlAmt, pieces: dlPcs });
-      count++;
-      AppState.salesData.push({ date: rec.date, category: 'Alterations', amount: rec.alterations || 0, pieces: rec.alterPcs || 0 });
-      count++;
-      AppState.salesData.push({ date: rec.date, category: 'Press', amount: rec.press || 0, pieces: rec.pressPcs || 0 });
-      count++;
+      incoming.push({ date: rec.date, category: 'Dry Cleaning / Laundry', amount: dlAmt, pieces: dlPcs });
+      incoming.push({ date: rec.date, category: 'Alterations', amount: rec.alterations || 0, pieces: rec.alterPcs || 0 });
+      incoming.push({ date: rec.date, category: 'Press', amount: rec.press || 0, pieces: rec.pressPcs || 0 });
       /* DC is a discount (deduction) — negate so summing categories gives correct total */
-      AppState.salesData.push({ date: rec.date, category: 'Discount', amount: -(rec.dc || 0), pieces: 0 });
-      count++;
+      incoming.push({ date: rec.date, category: 'Discount', amount: -(rec.dc || 0), pieces: 0 });
     }
   } else {
     /* CSV parsing path */
@@ -1161,9 +1156,8 @@ function importSalesData() {
         var cat = r[cI].trim();
         var amt = parseFloat(r[aI].replace(/[$,]/g, ''));
         if (isNaN(amt)) continue;
-        AppState.salesData.push({ date: d, category: cat, amount: amt });
+        incoming.push({ date: d, category: cat, amount: amt });
         if (!AppState.settings.categories.includes(cat)) AppState.settings.categories.push(cat);
-        count++;
       }
     } else {
       /* Wide format: Date, Cat1, Cat2, ... */
@@ -1176,14 +1170,26 @@ function importSalesData() {
         for (var j = 1; j < rw.length && j <= cats.length; j++) {
           var amtw = parseFloat(rw[j].replace(/[$,]/g, ''));
           if (isNaN(amtw)) continue;
-          AppState.salesData.push({ date: dw, category: cats[j-1], amount: amtw });
-          count++;
+          incoming.push({ date: dw, category: cats[j-1], amount: amtw });
         }
       }
     }
   }
 
+  count = incoming.length;
   if (count > 0) {
+    /* Dedup-merge: incoming records replace existing records with same date+category,
+       existing records for dates NOT in the import are preserved */
+    var incomingKeys = {};
+    incoming.forEach(function(r) { incomingKeys[r.date + '|' + r.category] = true; });
+    AppState.salesData = AppState.salesData.filter(function(r) {
+      return !incomingKeys[r.date + '|' + r.category];
+    });
+    AppState.salesData = AppState.salesData.concat(incoming);
+    /* Rebuild categories list */
+    var catSet = {};
+    AppState.salesData.forEach(function(r) { catSet[r.category] = true; });
+    AppState.settings.categories = Object.keys(catSet);
     AppState.salesData.sort(function(a,b) { return a.date.localeCompare(b.date); });
     toast(count + ' sales records imported!', 'success');
     document.getElementById('salesInput').value = '';
@@ -1279,15 +1285,13 @@ function importEmployeeHours() {
   var raw = document.getElementById('hoursInput').value.trim();
   if (!raw) { toast('Please paste some data first', 'error'); return; }
 
-  AppState.employeeHours = [];
-  var count = 0;
+  var incomingHrs = [];
 
   /* Auto-detect POS Time & Attendance format vs CSV */
   if (isPOSTimeAttendanceFormat(raw)) {
     var records = parseTimeAttendance(raw);
     for (var ti = 0; ti < records.length; ti++) {
-      AppState.employeeHours.push(records[ti]);
-      count++;
+      incomingHrs.push(records[ti]);
     }
   } else {
     /* CSV parsing path */
@@ -1309,12 +1313,19 @@ function importEmployeeHours() {
       var emp = r[eI].trim();
       var hrs = parseFloat(r[hI]);
       if (!emp || isNaN(hrs)) continue;
-      AppState.employeeHours.push({ date: d, employee: emp, hours: hrs });
-      count++;
+      incomingHrs.push({ date: d, employee: emp, hours: hrs });
     }
   }
 
+  var count = incomingHrs.length;
   if (count > 0) {
+    /* Dedup-merge: replace existing records with same date+employee, keep the rest */
+    var hKeys = {};
+    incomingHrs.forEach(function(r) { hKeys[r.date + '|' + r.employee] = true; });
+    AppState.employeeHours = AppState.employeeHours.filter(function(r) {
+      return !hKeys[r.date + '|' + r.employee];
+    });
+    AppState.employeeHours = AppState.employeeHours.concat(incomingHrs);
     AppState.employeeHours.sort(function(a, b) { return a.date.localeCompare(b.date); });
     toast(count + ' employee hour records imported!', 'success');
     document.getElementById('hoursInput').value = '';
