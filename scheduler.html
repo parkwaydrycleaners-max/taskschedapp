@@ -1107,6 +1107,8 @@ function importSalesData() {
   if (!raw) { toast('Please paste some data first', 'error'); return; }
 
   var count = 0;
+  AppState.salesData = [];
+  AppState.settings.categories = [];
 
   /* Auto-detect POS report format vs CSV */
   if (isPOSReportFormat(raw)) {
@@ -1277,6 +1279,7 @@ function importEmployeeHours() {
   var raw = document.getElementById('hoursInput').value.trim();
   if (!raw) { toast('Please paste some data first', 'error'); return; }
 
+  AppState.employeeHours = [];
   var count = 0;
 
   /* Auto-detect POS Time & Attendance format vs CSV */
