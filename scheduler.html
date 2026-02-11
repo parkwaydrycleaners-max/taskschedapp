@@ -485,6 +485,7 @@ select.form-input { appearance: auto; }
             <option value="30">1 Month</option>
           </select>
           <button class="btn btn-sm btn-secondary" onclick="runForecast()">&#x1F504; Run Forecast</button>
+          <button class="btn btn-sm btn-secondary" onclick="saveForeccastSnapshot()" style="margin-left:4px;">💾 Save</button>
         </div>
       </div>
       <div class="chart-container" style="height:300px;"><canvas id="forecastChart"></canvas></div>
@@ -494,6 +495,10 @@ select.form-input { appearance: auto; }
       <div class="card-header"><span class="card-title">Forecast Accuracy (Backtest)</span></div>
       <div id="accuracyMetrics" class="grid-3"></div>
       <div id="perMethodTable" style="margin-top:16px;"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Forecast vs Actual Comparison</span></div>
+      <div id="fvsActualWrap"></div>
     </div>
   </div>
 
@@ -842,7 +847,8 @@ const AppState = {
     yoy: true,
     holtWinters: true,
     weather: true
-  }
+  },
+  savedForecasts: []
 };
 
 const chartInstances = {};
@@ -2321,6 +2327,7 @@ function renderForecastPage() {
   renderForecastChart();
   renderForecastTable();
   renderAccuracy();
+  renderFvsActual();
   renderWeatherPreview();
 }
 
@@ -2467,6 +2474,66 @@ function renderAccuracy() {
   pmHtml += '</tbody></table>';
   pmHtml += '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Weight = 1/MAPE normalized. Lower MAPE → higher contribution to ensemble.</p>';
   pmWrap.innerHTML = pmHtml;
+}
+
+function saveForeccastSnapshot() {
+  if (AppState.forecastCache.length === 0) { toast('Run a forecast first', 'error'); return; }
+  var today = new Date().toISOString().slice(0, 10);
+  var snap = { savedDate: today, entries: AppState.forecastCache.map(function(f) { return { date: f.date, predicted: f.predicted }; }) };
+  AppState.savedForecasts.push(snap);
+  if (AppState.savedForecasts.length > 20) AppState.savedForecasts.shift();
+  toast('Forecast snapshot saved (' + snap.entries.length + ' days)');
+  renderFvsActual();
+}
+
+function removeForecastSnapshot(idx) {
+  AppState.savedForecasts.splice(idx, 1);
+  renderFvsActual();
+}
+
+function renderFvsActual() {
+  var wrap = document.getElementById('fvsActualWrap');
+  if (!wrap) return;
+  if (AppState.savedForecasts.length === 0) {
+    wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;">No saved forecasts yet. Click 💾 Save after running a forecast.</p>';
+    return;
+  }
+  var daily = getDailySales();
+  var dailyMap = {};
+  daily.forEach(function(d) { dailyMap[d.date] = d.total; });
+  var allHtml = '';
+  AppState.savedForecasts.forEach(function(snap, si) {
+    var tHtml = '<div style="margin-bottom:20px;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
+    tHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+    tHtml += '<strong style="font-size:13px;">Snapshot from ' + snap.savedDate + '</strong>';
+    tHtml += '<button class="btn btn-sm" style="color:var(--danger);font-size:12px;padding:2px 8px;" onclick="removeForecastSnapshot(' + si + ')">✕ Remove</button></div>';
+    tHtml += '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast</th><th style="text-align:right">Actual</th><th style="text-align:right">Diff</th><th style="text-align:right">Error %</th></tr></thead><tbody>';
+    var totAbs = 0, totAct = 0, totBias = 0, matched = 0;
+    snap.entries.forEach(function(e) {
+      var actual = dailyMap[e.date];
+      var dayName = DAYS[dayOfWeek(e.date)];
+      if (actual !== undefined) {
+        var diff = actual - e.predicted;
+        var errPct = actual > 0 ? ((diff / actual) * 100) : 0;
+        var diffColor = diff >= 0 ? 'var(--success)' : 'var(--danger)';
+        tHtml += '<tr><td>' + e.date + '</td><td>' + dayName + '</td><td style="text-align:right">' + fmt(e.predicted) + '</td><td style="text-align:right">' + fmt(actual) + '</td>';
+        tHtml += '<td style="text-align:right;color:' + diffColor + ';font-weight:600;">' + (diff >= 0 ? '+' : '') + fmt(diff) + '</td>';
+        tHtml += '<td style="text-align:right;">' + errPct.toFixed(1) + '%</td></tr>';
+        totAbs += Math.abs(diff); totAct += actual; totBias += diff; matched++;
+      } else {
+        tHtml += '<tr style="opacity:0.5;"><td>' + e.date + '</td><td>' + dayName + '</td><td style="text-align:right">' + fmt(e.predicted) + '</td><td style="text-align:right;color:var(--muted);">pending</td><td style="text-align:right">—</td><td style="text-align:right">—</td></tr>';
+      }
+    });
+    tHtml += '</tbody></table>';
+    if (matched > 0) {
+      var mape = totAct > 0 ? ((totAbs / totAct) * 100).toFixed(1) : '—';
+      var avgBias = (totBias / matched).toFixed(0);
+      tHtml += '<p style="font-size:12px;color:var(--muted);margin-top:6px;">MAPE: <strong>' + mape + '%</strong> · Avg Bias: <strong>' + fmt(parseFloat(avgBias)) + '</strong> (' + matched + ' days with actuals)</p>';
+    }
+    tHtml += '</div>';
+    allHtml += tHtml;
+  });
+  wrap.innerHTML = allHtml;
 }
 
 /* ============ RENDER ANALYTICS PAGE ============ */
@@ -2892,7 +2959,8 @@ function exportAllData() {
     employeeHours: AppState.employeeHours,
     weatherData: AppState.weatherData,
     settings: AppState.settings,
-    forecastMethods: AppState.forecastMethods
+    forecastMethods: AppState.forecastMethods,
+    savedForecasts: AppState.savedForecasts
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -2916,6 +2984,7 @@ function importAllData(event) {
       if (data.weatherData) AppState.weatherData = data.weatherData;
       if (data.settings) Object.assign(AppState.settings, data.settings);
       if (data.forecastMethods) Object.assign(AppState.forecastMethods, data.forecastMethods);
+      if (data.savedForecasts) AppState.savedForecasts = data.savedForecasts;
       /* Sync forecast days dropdown */
       var fdSel = document.getElementById('forecastDaysSelect');
       if (fdSel && AppState.settings.forecastDays) fdSel.value = String(AppState.settings.forecastDays);
