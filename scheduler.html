@@ -508,6 +508,7 @@ select.form-input { appearance: auto; }
       <div class="card-header"><span class="card-title">Forecast Accuracy (Backtest)</span></div>
       <div id="accuracyMetrics" class="grid-3"></div>
       <div id="perMethodTable" style="margin-top:16px;"></div>
+      <div id="weightSlidersWrap" style="margin-top:16px;padding:0 4px;"></div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -873,6 +874,7 @@ const AppState = {
     holtWinters: true,
     weather: true
   },
+  manualWeights: null, /* null = auto (MAPE-based); object = {movingAvg:0.2, ...} */
   savedForecasts: []
 };
 
@@ -1713,16 +1715,21 @@ const Forecaster = {
 
     if (methodList.length === 0) return [];
 
-    /* Compute accuracy weight for each method via backtesting */
+    /* Compute weights: use manual if set, else MAPE-based */
     var self = this;
+    var mw = AppState.manualWeights;
     var forecasts = [];
     var weights = [];
     methodList.forEach(function(m) {
       var preds = m.fn.call(self, dailySales, daysAhead);
       if (!preds || preds.length === 0) return;
-      var mape = self._backtestMethod(m.fn, dailySales, 14);
-      /* Convert MAPE to weight: lower error = higher weight. Floor at 1% to avoid div/0 */
-      var w = 1 / Math.max(mape, 1);
+      var w;
+      if (mw && mw[m.key] != null) {
+        w = mw[m.key];
+      } else {
+        var mape = self._backtestMethod(m.fn, dailySales, 14);
+        w = 1 / Math.max(mape, 1);
+      }
       forecasts.push(preds);
       weights.push(w);
     });
@@ -1731,6 +1738,7 @@ const Forecaster = {
 
     /* Normalize weights */
     var totalW = weights.reduce(function(s, w) { return s + w; }, 0);
+    if (totalW === 0) totalW = 1;
     var normWeights = weights.map(function(w) { return w / totalW; });
 
     var combined = [];
@@ -2612,6 +2620,75 @@ function renderAccuracy() {
   pmHtml += '</tbody></table>';
   pmHtml += '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Weight = 1/MAPE normalized. Lower MAPE → higher contribution to ensemble.</p>';
   pmWrap.innerHTML = pmHtml;
+  renderWeightSliders();
+}
+
+function renderWeightSliders() {
+  var wrap = document.getElementById('weightSlidersWrap');
+  if (!wrap) return;
+  var mNames = { movingAvg:'Moving Avg', expSmooth:'Exp. Smooth', dayOfWeek:'Day-of-Week', trend:'Trend+Season', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
+  var keys = Object.keys(mNames);
+  var mw = AppState.manualWeights;
+  var isManual = mw !== null;
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+  html += '<span style="font-weight:700;font-size:13px;">Weight Sliders</span>';
+  html += '<label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;">';
+  html += '<input type="checkbox" id="manualWeightToggle" ' + (isManual ? 'checked' : '') + ' onchange="toggleManualWeights()">';
+  html += ' Manual Weights</label></div>';
+  if (!isManual) {
+    html += '<p style="font-size:12px;color:var(--muted);">Enable Manual Weights to adjust sliders. Currently using auto MAPE-based weights.</p>';
+    wrap.innerHTML = html;
+    return;
+  }
+  html += '<div style="display:grid;grid-template-columns:110px 1fr 50px;gap:6px 10px;align-items:center;">';
+  keys.forEach(function(k) {
+    if (!AppState.forecastMethods[k]) return;
+    var val = mw[k] != null ? mw[k] : 50;
+    html += '<label style="font-size:12px;font-weight:600;">' + mNames[k] + '</label>';
+    html += '<input type="range" min="0" max="100" value="' + val + '" ';
+    html += 'oninput="onWeightSlider(\'' + k + '\',this.value)" ';
+    html += 'style="width:100%;accent-color:var(--accent);height:6px;">';
+    html += '<span id="wSliderVal_' + k + '" style="font-size:12px;font-weight:700;text-align:right;">' + val + '</span>';
+  });
+  html += '</div>';
+  html += '<button class="btn btn-sm" style="margin-top:10px;font-size:11px;" onclick="resetManualWeights()">Reset to Equal</button>';
+  wrap.innerHTML = html;
+}
+
+var _sliderDebounce = null;
+function onWeightSlider(key, val) {
+  val = parseInt(val);
+  if (!AppState.manualWeights) AppState.manualWeights = {};
+  AppState.manualWeights[key] = val;
+  var lbl = document.getElementById('wSliderVal_' + key);
+  if (lbl) lbl.textContent = val;
+  clearTimeout(_sliderDebounce);
+  _sliderDebounce = setTimeout(function() {
+    runForecast();
+    renderForecastChart();
+    renderForecastTable();
+  }, 300);
+}
+
+function toggleManualWeights() {
+  var cb = document.getElementById('manualWeightToggle');
+  if (cb && cb.checked) {
+    AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50 };
+  } else {
+    AppState.manualWeights = null;
+  }
+  renderWeightSliders();
+  runForecast();
+  renderForecastChart();
+  renderForecastTable();
+}
+
+function resetManualWeights() {
+  AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50 };
+  renderWeightSliders();
+  runForecast();
+  renderForecastChart();
+  renderForecastTable();
 }
 
 function saveForeccastSnapshot() {
@@ -3120,6 +3197,7 @@ function exportAllData() {
     weatherData: AppState.weatherData,
     settings: AppState.settings,
     forecastMethods: AppState.forecastMethods,
+    manualWeights: AppState.manualWeights,
     savedForecasts: AppState.savedForecasts
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -3144,6 +3222,7 @@ function importAllData(event) {
       if (data.weatherData) AppState.weatherData = data.weatherData;
       if (data.settings) Object.assign(AppState.settings, data.settings);
       if (data.forecastMethods) Object.assign(AppState.forecastMethods, data.forecastMethods);
+      if (data.manualWeights !== undefined) AppState.manualWeights = data.manualWeights;
       if (data.savedForecasts) AppState.savedForecasts = data.savedForecasts;
       /* Sync forecast days dropdown */
       var fdSel = document.getElementById('forecastDaysSelect');
