@@ -488,6 +488,19 @@ select.form-input { appearance: auto; }
           <button class="btn btn-sm btn-secondary" onclick="saveForeccastSnapshot()" style="margin-left:4px;">💾 Save</button>
         </div>
       </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:0 16px 8px;">
+        <label style="font-size:12px;color:var(--muted);font-weight:600;">METRIC</label>
+        <select id="fcMetricToggle" class="form-input" style="width:auto;padding:3px 8px;font-size:13px;" onchange="renderForecastChart()">
+          <option value="sales" selected>Sales ($)</option>
+          <option value="pieces">Pieces</option>
+        </select>
+        <span style="border-left:1px solid var(--border);height:20px;"></span>
+        <label style="font-size:12px;color:var(--muted);font-weight:600;">COMPARE FROM</label>
+        <input type="date" id="fcCompareFrom" class="form-input" style="width:auto;padding:3px 8px;font-size:13px;" onchange="renderForecastChart()">
+        <label style="font-size:12px;color:var(--muted);font-weight:600;">TO</label>
+        <input type="date" id="fcCompareTo" class="form-input" style="width:auto;padding:3px 8px;font-size:13px;" onchange="renderForecastChart()">
+        <button class="btn btn-sm" style="font-size:11px;padding:3px 10px;" onclick="clearFcCompare()">Clear</button>
+      </div>
       <div class="chart-container" style="height:300px;"><canvas id="forecastChart"></canvas></div>
       <div class="table-wrap" style="margin-top: 16px;" id="forecastTable"></div>
     </div>
@@ -1174,15 +1187,11 @@ function importSalesData() {
       /* Combined Dry + Laundry amount and pieces */
       var dlAmt = (rec.dry || 0) + (rec.laundry || 0);
       var dlPcs = (rec.dryPcs || 0) + (rec.laundryPcs || 0);
-      var altAmt = rec.alterations || 0;
-      var prsAmt = rec.press || 0;
       incoming.push({ date: rec.date, category: 'Dry Cleaning / Laundry', amount: dlAmt, pieces: dlPcs });
-      incoming.push({ date: rec.date, category: 'Alterations', amount: altAmt, pieces: rec.alterPcs || 0 });
-      incoming.push({ date: rec.date, category: 'Press', amount: prsAmt, pieces: rec.pressPcs || 0 });
-      /* Derive discount so category sum = report totalAmt exactly */
-      var catSum = dlAmt + altAmt + prsAmt;
-      var discAmt = rec.total > 0 ? -(catSum - rec.total) : -(rec.dc || 0);
-      incoming.push({ date: rec.date, category: 'Discount', amount: discAmt, pieces: 0 });
+      incoming.push({ date: rec.date, category: 'Alterations', amount: rec.alterations || 0, pieces: rec.alterPcs || 0 });
+      incoming.push({ date: rec.date, category: 'Press', amount: rec.press || 0, pieces: rec.pressPcs || 0 });
+      /* DC is a discount (deduction) — negate so summing categories gives correct total */
+      incoming.push({ date: rec.date, category: 'Discount', amount: -(rec.dc || 0), pieces: 0 });
     }
   } else {
     /* CSV parsing path */
@@ -2431,19 +2440,66 @@ function toggleMethod(key) {
   renderForecastTable();
 }
 
+function clearFcCompare() {
+  document.getElementById('fcCompareFrom').value = '';
+  document.getElementById('fcCompareTo').value = '';
+  renderForecastChart();
+}
+
+function getDailyPieces() {
+  var map = {};
+  AppState.salesData.forEach(function(r) {
+    if (r.pieces && r.pieces > 0) map[r.date] = (map[r.date] || 0) + r.pieces;
+  });
+  return Object.entries(map).sort(function(a,b){return a[0].localeCompare(b[0]);})
+    .map(function(e){return {date:e[0], total:e[1]};});
+}
+
 function renderForecastChart() {
-  const daily = getDailySales();
-  const last30 = daily.slice(-30);
-  const labels = [...last30.map(d => d.date.slice(5)), ...AppState.forecastCache.map(f => f.date.slice(5))];
-  const actual = [...last30.map(d => d.total), ...AppState.forecastCache.map(() => null)];
-  const forecast = [...last30.map(() => null), ...AppState.forecastCache.map(f => f.predicted)];
-  /* Connect the lines */
-  if (last30.length > 0 && AppState.forecastCache.length > 0) {
+  var metric = (document.getElementById('fcMetricToggle') || {}).value || 'sales';
+  var isPcs = metric === 'pieces';
+  var pRatio = getPiecesPerDollar();
+  var fromDate = (document.getElementById('fcCompareFrom') || {}).value || '';
+  var toDate = (document.getElementById('fcCompareTo') || {}).value || '';
+  var daily = isPcs ? getDailyPieces() : getDailySales();
+  var fc = AppState.forecastCache;
+  /* Compare mode: show forecast overlaid on actuals for same date range */
+  if (fromDate && toDate && fc.length > 0) {
+    var actSlice = daily.filter(function(d){return d.date >= fromDate && d.date <= toDate;});
+    var fcSlice = fc.filter(function(f){return f.date >= fromDate && f.date <= toDate;});
+    var allDates = {};
+    actSlice.forEach(function(d){allDates[d.date]=true;});
+    fcSlice.forEach(function(f){allDates[f.date]=true;});
+    var dates = Object.keys(allDates).sort();
+    var actMap = {}; actSlice.forEach(function(d){actMap[d.date]=d.total;});
+    var fcMap = {}; fcSlice.forEach(function(f){
+      fcMap[f.date] = isPcs ? Math.round(f.predicted * pRatio) : f.predicted;
+    });
+    var labels = dates.map(function(d){return d.slice(5);});
+    var actData = dates.map(function(d){return actMap[d] != null ? actMap[d] : null;});
+    var fcData = dates.map(function(d){return fcMap[d] != null ? fcMap[d] : null;});
+    var lbl = isPcs ? 'Pieces' : 'Sales';
+    renderLineChart('forecastChart', labels, [
+      {label:'Actual '+lbl, data:actData, color:CHART_COLORS[0]},
+      {label:'Forecast '+lbl, data:fcData, color:CHART_COLORS[1], dashed:true}
+    ]);
+    return;
+  }
+  /* Default mode: recent actuals + future forecast */
+  var last30 = daily.slice(-30);
+  var defLabels = last30.map(function(d){return d.date.slice(5);}).concat(
+    fc.map(function(f){return f.date.slice(5);}));
+  var actual = last30.map(function(d){return d.total;}).concat(
+    fc.map(function(){return null;}));
+  var forecast = last30.map(function(){return null;}).concat(
+    fc.map(function(f){return isPcs ? Math.round(f.predicted * pRatio) : f.predicted;}));
+  if (last30.length > 0 && fc.length > 0) {
     forecast[last30.length - 1] = last30[last30.length - 1].total;
   }
-  renderLineChart('forecastChart', labels, [
-    { label: 'Actual Sales', data: actual, color: CHART_COLORS[0] },
-    { label: 'Forecast', data: forecast, color: CHART_COLORS[1], dashed: true }
+  var lbl2 = isPcs ? 'Pieces' : 'Sales';
+  renderLineChart('forecastChart', defLabels, [
+    {label:'Actual '+lbl2, data:actual, color:CHART_COLORS[0]},
+    {label:'Forecast '+lbl2, data:forecast, color:CHART_COLORS[1], dashed:true}
   ]);
 }
 
