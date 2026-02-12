@@ -510,7 +510,19 @@ select.form-input { appearance: auto; }
       <div id="perMethodTable" style="margin-top:16px;"></div>
     </div>
     <div class="card">
-      <div class="card-header"><span class="card-title">Forecast vs Actual Comparison</span></div>
+      <div class="card-header">
+        <span class="card-title">Forecast vs Actual Comparison</span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="backtestDays" class="form-input" style="width:auto;padding:3px 8px;font-size:13px;">
+            <option value="7">Last 7 days</option>
+            <option value="14" selected>Last 14 days</option>
+            <option value="21">Last 21 days</option>
+            <option value="30">Last 30 days</option>
+          </select>
+          <button class="btn btn-sm btn-secondary" onclick="runBacktestComparison()">🔬 Run Backtest</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);padding:0 16px 4px;">Holds out the last N days of your actual data, forecasts them, and compares to real values.</p>
       <div id="fvsActualWrap"></div>
     </div>
   </div>
@@ -2617,11 +2629,33 @@ function removeForecastSnapshot(idx) {
   renderFvsActual();
 }
 
+function runBacktestComparison() {
+  var daily = getDailySales();
+  var nDays = parseInt((document.getElementById('backtestDays') || {}).value) || 14;
+  if (daily.length < nDays + 14) { toast('Not enough data for ' + nDays + '-day backtest', 'error'); return; }
+  var trainData = daily.slice(0, -nDays);
+  var testData = daily.slice(-nDays);
+  var predictions = Forecaster.ensemble(trainData, nDays);
+  if (!predictions || predictions.length === 0) { toast('Backtest produced no results', 'error'); return; }
+  var snap = { savedDate: 'Backtest ' + nDays + 'd (cutoff ' + trainData[trainData.length - 1].date + ')', isBacktest: true, entries: [] };
+  for (var i = 0; i < nDays; i++) {
+    var actual = testData[i] ? testData[i].total : null;
+    var pred = predictions[i] ? predictions[i].predicted : 0;
+    var dt = testData[i] ? testData[i].date : (predictions[i] ? predictions[i].date : '');
+    snap.entries.push({ date: dt, predicted: pred, actual: actual });
+  }
+  /* Replace any existing backtest snap, keep manual ones */
+  AppState.savedForecasts = AppState.savedForecasts.filter(function(s) { return !s.isBacktest; });
+  AppState.savedForecasts.unshift(snap);
+  toast('Backtest complete: ' + nDays + ' days compared');
+  renderFvsActual();
+}
+
 function renderFvsActual() {
   var wrap = document.getElementById('fvsActualWrap');
   if (!wrap) return;
   if (AppState.savedForecasts.length === 0) {
-    wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;">No saved forecasts yet. Click 💾 Save after running a forecast.</p>';
+    wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;">Click 🔬 Run Backtest to compare forecast accuracy against your actual data.</p>';
     return;
   }
   var daily = getDailySales();
@@ -2631,14 +2665,14 @@ function renderFvsActual() {
   AppState.savedForecasts.forEach(function(snap, si) {
     var tHtml = '<div style="margin-bottom:20px;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
     tHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
-    tHtml += '<strong style="font-size:13px;">Snapshot from ' + snap.savedDate + '</strong>';
+    tHtml += '<strong style="font-size:13px;">' + snap.savedDate + '</strong>';
     tHtml += '<button class="btn btn-sm" style="color:var(--danger);font-size:12px;padding:2px 8px;" onclick="removeForecastSnapshot(' + si + ')">✕ Remove</button></div>';
     tHtml += '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast</th><th style="text-align:right">Actual</th><th style="text-align:right">Diff</th><th style="text-align:right">Error %</th></tr></thead><tbody>';
     var totAbs = 0, totAct = 0, totBias = 0, matched = 0;
     snap.entries.forEach(function(e) {
-      var actual = dailyMap[e.date];
+      var actual = e.actual != null ? e.actual : dailyMap[e.date];
       var dayName = DAYS[dayOfWeek(e.date)];
-      if (actual !== undefined) {
+      if (actual != null && actual !== undefined) {
         var diff = actual - e.predicted;
         var errPct = actual > 0 ? ((diff / actual) * 100) : 0;
         var diffColor = diff >= 0 ? 'var(--success)' : 'var(--danger)';
