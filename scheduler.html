@@ -502,13 +502,13 @@ select.form-input { appearance: auto; }
         <button class="btn btn-sm" style="font-size:11px;padding:3px 10px;" onclick="clearFcCompare()">Clear</button>
       </div>
       <div class="chart-container" style="height:300px;"><canvas id="forecastChart"></canvas></div>
+      <div id="weightSlidersWrap" style="margin-top:12px;padding:0 16px;"></div>
       <div class="table-wrap" style="margin-top: 16px;" id="forecastTable"></div>
     </div>
     <div class="card">
       <div class="card-header"><span class="card-title">Forecast Accuracy (Backtest)</span></div>
       <div id="accuracyMetrics" class="grid-3"></div>
       <div id="perMethodTable" style="margin-top:16px;"></div>
-      <div id="weightSlidersWrap" style="margin-top:16px;padding:0 4px;"></div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -2423,6 +2423,7 @@ function showHoursFormatHelp() {
 function renderForecastPage() {
   renderMethodCards();
   runForecast();
+  renderWeightSliders();
   renderForecastChart();
   renderForecastTable();
   renderAccuracy();
@@ -2667,7 +2668,7 @@ function onWeightSlider(key, val) {
     runForecast();
     renderForecastChart();
     renderForecastTable();
-  }, 300);
+  }, 150);
 }
 
 function toggleManualWeights() {
