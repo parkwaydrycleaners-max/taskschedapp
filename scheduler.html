@@ -997,8 +997,8 @@ function parseSalesReport(text) {
       inDataBlock = true;
       continue;
     }
-    /* Detect right-page header: contains "Press Amt" and "DC Amt" or "Total Amt" but NOT "Drop" */
-    if (!(/Drop\b/i.test(line)) && /Press\s+Amt/i.test(line) && (/DC\s+Amt/i.test(line) || /Total\s+Amt/i.test(line))) {
+    /* Detect right-page header: either "Press Amt"+"DC Amt"/"Total Amt" OR just "Total Pcs"+"Total Amt" without "Drop" */
+    if (!(/Drop\b/i.test(line)) && ((/Press\s+Amt/i.test(line) && (/DC\s+Amt/i.test(line) || /Total\s+Amt/i.test(line))) || (/Total\s+Pcs/i.test(line) && /Total\s+Amt/i.test(line)))) {
       if (currentType && currentBlock.length > 0) {
         if (currentType === 'left') leftPages.push(currentBlock);
         else rightPages.push(currentBlock);
@@ -1043,7 +1043,11 @@ function parseSalesReport(text) {
     var lPage = leftPages[pg] || [];
     var rPage = rightPages[pg] || [];
 
-    /* Parse left-page rows for this page: only rows starting with a date */
+    /* Parse left-page rows using $-aware token extraction.
+       Expected column pattern: P A P A P A P [A A] where P=pieces(no $), A=amount(has $).
+       When a Pcs field is 0 it's blank in the report, so we use $ markers to stay aligned.
+       If left row has 9 cols (includes pressAmt+dcAmt), right page has only 2 (totalPcs/Amt).
+       If left row has 7 cols (up to pressPcs), right page has 4 (pressAmt,dcAmt,totalPcs,totalAmt). */
     var pageLeftRows = [];
     for (var li2 = 0; li2 < lPage.length; li2++) {
       var lRow = lPage[li2];
@@ -1051,14 +1055,40 @@ function parseSalesReport(text) {
       if (!dateMatch) continue;
       var dateStr2 = dateMatch[1];
       var numPart = lRow.substring(dateMatch[0].length);
-      var nums = numPart.match(/-?[\d,]+\.?\d*/g) || [];
-      var values = nums.map(function(n) { return parseFloat(n.replace(/,/g, '')); });
+      /* Extract tokens keeping $ prefix info */
+      var tokenRegex = /(\$-?[\d,]+\.?\d*|-?[\d,]+\.?\d*)/g;
+      var tokens = [];
+      var tm;
+      while ((tm = tokenRegex.exec(numPart)) !== null) {
+        var raw = tm[1];
+        var isAmt = raw.charAt(0) === '$';
+        tokens.push({ v: parseFloat(raw.replace(/[$,]/g, '')), isAmt: isAmt });
+      }
+      /* Walk tokens against expected pattern: P A P A P A P A A
+         When we expect P but see $amount, the P was blank (0). */
+      var expected = ['P','A','P','A','P','A','P','A','A'];
+      var vals = [];
+      var ti2 = 0;
+      for (var ei = 0; ei < expected.length; ei++) {
+        if (ti2 >= tokens.length) { vals.push(0); continue; }
+        if (expected[ei] === 'P') {
+          if (tokens[ti2].isAmt) { vals.push(0); } /* blank Pcs field */
+          else { vals.push(tokens[ti2].v); ti2++; }
+        } else {
+          vals.push(tokens[ti2].v); ti2++;
+        }
+      }
+      /* Detect if this row actually had pressAmt+dcAmt (9-col format) or only 7 cols.
+         If tokens consumed <= 7 and no more $ tokens, it's the old 7-col format. */
+      var hasAllAmts = ti2 >= 8; /* consumed at least 8 tokens → 9-col format */
       pageLeftRows.push({
         date: dateStr2,
-        dryPcs: values[0] || 0, dryAmt: values[1] || 0,
-        laundPcs: values[2] || 0, laundAmt: values[3] || 0,
-        alterPcs: values[4] || 0, alterAmt: values[5] || 0,
-        pressPcs: values[6] || 0
+        dryPcs: vals[0], dryAmt: vals[1],
+        laundPcs: vals[2], laundAmt: vals[3],
+        alterPcs: vals[4], alterAmt: vals[5],
+        pressPcs: vals[6],
+        pressAmt: hasAllAmts ? vals[7] : -1,
+        dcAmt: hasAllAmts ? vals[8] : -1
       });
     }
 
@@ -1074,27 +1104,49 @@ function parseSalesReport(text) {
       var rNums = rRow.match(/-?[\d,]+\.?\d*/g) || [];
       if (rNums.length === 0) continue;
       var rValues = rNums.map(function(n) { return parseFloat(n.replace(/,/g, '')); });
-      pageRightRows.push({
-        pressAmt: rValues[0] || 0, dcAmt: rValues[1] || 0,
-        totalPcs: rValues[2] || 0, totalAmt: rValues[3] || 0
-      });
+      pageRightRows.push(rValues);
     }
 
-    /* Merge this page's rows: left row i pairs with right row i */
+    /* Merge this page's rows: left row i pairs with right row i.
+       Format detection: if left row has pressAmt >= 0, it's the 9-col format
+       (right page has only totalPcs + totalAmt). Otherwise it's the old 7-col
+       format (right page has pressAmt, dcAmt, totalPcs, totalAmt). */
     for (var mi = 0; mi < pageLeftRows.length; mi++) {
       var left = pageLeftRows[mi];
-      var right = pageRightRows[mi] || {};
+      var rv = pageRightRows[mi] || [];
       var normDate = left.date.replace(/\//g, '-');
       var parsedDate = parseDate(normDate);
       if (!parsedDate) continue;
+      var pressAmt, dcAmt, totalPcs, totalAmt, pressPcs = 0;
+      if (left.pressAmt >= 0) {
+        /* 9-col format: pressAmt + dcAmt on left; right has [totalPcs, totalAmt] */
+        pressAmt = left.pressAmt;
+        dcAmt = left.dcAmt >= 0 ? left.dcAmt : 0;
+        totalPcs = rv[0] || 0;
+        totalAmt = rv[1] || 0;
+      } else if (rv.length >= 5) {
+        /* 5-col right: Press Pcs, Press Amt, DC Amt, Total Pcs, Total Amt */
+        pressPcs = rv[0] || 0;
+        pressAmt = rv[1] || 0;
+        dcAmt = rv[2] || 0;
+        totalPcs = rv[3] || 0;
+        totalAmt = rv[4] || 0;
+      } else {
+        /* fallback 4-col right */
+        pressAmt = rv[0] || 0;
+        dcAmt = rv[1] || 0;
+        totalPcs = rv[2] || 0;
+        totalAmt = rv[3] || 0;
+      }
+      var finalPressPcs = pressPcs > 0 ? pressPcs : (left.pressPcs || 0);
       records.push({
         date: parsedDate,
         dry: left.dryAmt || 0, dryPcs: left.dryPcs || 0,
         laundry: left.laundAmt || 0, laundryPcs: left.laundPcs || 0,
         alterations: left.alterAmt || 0, alterPcs: left.alterPcs || 0,
-        press: right.pressAmt || 0, pressPcs: left.pressPcs || 0,
-        dc: right.dcAmt || 0,
-        total: right.totalAmt || 0, totalPcs: right.totalPcs || 0
+        press: pressAmt, pressPcs: finalPressPcs,
+        dc: dcAmt,
+        total: totalAmt, totalPcs: totalPcs
       });
     }
   }
@@ -1107,6 +1159,7 @@ function importSalesData() {
   if (!raw) { toast('Please paste some data first', 'error'); return; }
 
   var count = 0;
+  var incoming = [];
 
   /* Auto-detect POS report format vs CSV */
   if (isPOSReportFormat(raw)) {
@@ -1121,15 +1174,15 @@ function importSalesData() {
       /* Combined Dry + Laundry amount and pieces */
       var dlAmt = (rec.dry || 0) + (rec.laundry || 0);
       var dlPcs = (rec.dryPcs || 0) + (rec.laundryPcs || 0);
-      AppState.salesData.push({ date: rec.date, category: 'Dry Cleaning / Laundry', amount: dlAmt, pieces: dlPcs });
-      count++;
-      AppState.salesData.push({ date: rec.date, category: 'Alterations', amount: rec.alterations || 0, pieces: rec.alterPcs || 0 });
-      count++;
-      AppState.salesData.push({ date: rec.date, category: 'Press', amount: rec.press || 0, pieces: rec.pressPcs || 0 });
-      count++;
-      /* DC is a discount (deduction) — negate so summing categories gives correct total */
-      AppState.salesData.push({ date: rec.date, category: 'Discount', amount: -(rec.dc || 0), pieces: 0 });
-      count++;
+      var altAmt = rec.alterations || 0;
+      var prsAmt = rec.press || 0;
+      incoming.push({ date: rec.date, category: 'Dry Cleaning / Laundry', amount: dlAmt, pieces: dlPcs });
+      incoming.push({ date: rec.date, category: 'Alterations', amount: altAmt, pieces: rec.alterPcs || 0 });
+      incoming.push({ date: rec.date, category: 'Press', amount: prsAmt, pieces: rec.pressPcs || 0 });
+      /* Derive discount so category sum = report totalAmt exactly */
+      var catSum = dlAmt + altAmt + prsAmt;
+      var discAmt = rec.total > 0 ? -(catSum - rec.total) : -(rec.dc || 0);
+      incoming.push({ date: rec.date, category: 'Discount', amount: discAmt, pieces: 0 });
     }
   } else {
     /* CSV parsing path */
@@ -1159,9 +1212,8 @@ function importSalesData() {
         var cat = r[cI].trim();
         var amt = parseFloat(r[aI].replace(/[$,]/g, ''));
         if (isNaN(amt)) continue;
-        AppState.salesData.push({ date: d, category: cat, amount: amt });
+        incoming.push({ date: d, category: cat, amount: amt });
         if (!AppState.settings.categories.includes(cat)) AppState.settings.categories.push(cat);
-        count++;
       }
     } else {
       /* Wide format: Date, Cat1, Cat2, ... */
@@ -1174,14 +1226,26 @@ function importSalesData() {
         for (var j = 1; j < rw.length && j <= cats.length; j++) {
           var amtw = parseFloat(rw[j].replace(/[$,]/g, ''));
           if (isNaN(amtw)) continue;
-          AppState.salesData.push({ date: dw, category: cats[j-1], amount: amtw });
-          count++;
+          incoming.push({ date: dw, category: cats[j-1], amount: amtw });
         }
       }
     }
   }
 
+  count = incoming.length;
   if (count > 0) {
+    /* Dedup-merge: incoming records replace existing records with same date+category,
+       existing records for dates NOT in the import are preserved */
+    var incomingKeys = {};
+    incoming.forEach(function(r) { incomingKeys[r.date + '|' + r.category] = true; });
+    AppState.salesData = AppState.salesData.filter(function(r) {
+      return !incomingKeys[r.date + '|' + r.category];
+    });
+    AppState.salesData = AppState.salesData.concat(incoming);
+    /* Rebuild categories list */
+    var catSet = {};
+    AppState.salesData.forEach(function(r) { catSet[r.category] = true; });
+    AppState.settings.categories = Object.keys(catSet);
     AppState.salesData.sort(function(a,b) { return a.date.localeCompare(b.date); });
     toast(count + ' sales records imported!', 'success');
     document.getElementById('salesInput').value = '';
@@ -1277,14 +1341,13 @@ function importEmployeeHours() {
   var raw = document.getElementById('hoursInput').value.trim();
   if (!raw) { toast('Please paste some data first', 'error'); return; }
 
-  var count = 0;
+  var incomingHrs = [];
 
   /* Auto-detect POS Time & Attendance format vs CSV */
   if (isPOSTimeAttendanceFormat(raw)) {
     var records = parseTimeAttendance(raw);
     for (var ti = 0; ti < records.length; ti++) {
-      AppState.employeeHours.push(records[ti]);
-      count++;
+      incomingHrs.push(records[ti]);
     }
   } else {
     /* CSV parsing path */
@@ -1306,12 +1369,19 @@ function importEmployeeHours() {
       var emp = r[eI].trim();
       var hrs = parseFloat(r[hI]);
       if (!emp || isNaN(hrs)) continue;
-      AppState.employeeHours.push({ date: d, employee: emp, hours: hrs });
-      count++;
+      incomingHrs.push({ date: d, employee: emp, hours: hrs });
     }
   }
 
+  var count = incomingHrs.length;
   if (count > 0) {
+    /* Dedup-merge: replace existing records with same date+employee, keep the rest */
+    var hKeys = {};
+    incomingHrs.forEach(function(r) { hKeys[r.date + '|' + r.employee] = true; });
+    AppState.employeeHours = AppState.employeeHours.filter(function(r) {
+      return !hKeys[r.date + '|' + r.employee];
+    });
+    AppState.employeeHours = AppState.employeeHours.concat(incomingHrs);
     AppState.employeeHours.sort(function(a, b) { return a.date.localeCompare(b.date); });
     toast(count + ' employee hour records imported!', 'success');
     document.getElementById('hoursInput').value = '';
