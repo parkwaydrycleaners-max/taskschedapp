@@ -4482,17 +4482,63 @@
             updateDateDisplay();
             renderChecklists();
 
-            // ✅ Signal parent we are ready
-            window.parent.postMessage({ type: "checklistReady" }, "*");
-
             // Initialize Airtable sync
             initAirtable();
 
             // Initialize browser notifications
             initNotifications();
 
+            // Start day-change watcher
+            startDayChangeWatcher();
+
             // Scroll to first incomplete task after load
             scrollToFirstIncomplete();
+        }
+
+        // ========== AUTO DAY CHANGE DETECTION ==========
+        // Tracks the date when the page was last active
+        let lastKnownDate = new Date().toDateString();
+
+        function checkForDayChange() {
+            const currentDate = new Date().toDateString();
+            if (currentDate !== lastKnownDate) {
+                console.log('Day changed from', lastKnownDate, 'to', currentDate);
+                lastKnownDate = currentDate;
+
+                // Reset to today
+                selectedDate = new Date();
+                loadState(); // This auto-resets completed tasks for new day
+                updateDateDisplay();
+                renderChecklists();
+                document.body.classList.remove('viewing-past');
+
+                // Re-sync with Airtable for the new day
+                if (airtableConfig) {
+                    // Clear cached daily record so it finds/creates today's record
+                    dailyRecordId = null;
+                    pullFromAirtable();
+                }
+
+                // Clear historical data cache
+                historicalCompletedData = {};
+
+                showToast('📅 New day! Checklist has been reset.', 'success');
+            }
+        }
+
+        function startDayChangeWatcher() {
+            // Check every 60 seconds
+            setInterval(checkForDayChange, 60000);
+
+            // Also check when tab becomes visible again (e.g. employee switches back to tab)
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    checkForDayChange();
+                }
+            });
+
+            // Also check on window focus (covers more browsers/embed scenarios)
+            window.addEventListener('focus', checkForDayChange);
         }
 
         // Register Service Worker for PWA offline capability
@@ -4549,17 +4595,7 @@
                 .catch(() => console.log('PWA: Service Worker skipped'));
         }
 
-        window.addEventListener("message", function (event) {
-    if (event.data === "runScrollToFirstIncomplete") {
-        scrollToFirstIncomplete();
-    }
-});
-
         init();
     </script>
 </body>
 </html>
-
-
-
-
