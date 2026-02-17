@@ -1523,35 +1523,25 @@ const Forecaster = {
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    /* Collect values by day-of-week from last 12 weeks, use weighted median */
-    var dayBuckets = [[],[],[],[],[],[],[]];
+    /* Recency-weighted mean by day-of-week, skip closed/$0 days */
+    var dayAvg = [0,0,0,0,0,0,0];
+    var dayCnt = [0,0,0,0,0,0,0];
     var recent = dailySales.slice(-84);
     recent.forEach(function(d, idx) {
-      if (d.total <= 0 || isClosedDate(d.date)) return; /* skip closed days */
+      if (d.total <= 0 || isClosedDate(d.date)) return;
       var dow = dayOfWeek(d.date);
-      var weight = 1 + (idx / recent.length); /* recency weight */
-      dayBuckets[dow].push({ val: d.total, w: weight });
+      var weight = 1 + (idx / recent.length);
+      dayAvg[dow] += d.total * weight;
+      dayCnt[dow] += weight;
     });
-    function weightedMedian(items) {
-      if (items.length === 0) return 0;
-      items.sort(function(a, b) { return a.val - b.val; });
-      var totalW = items.reduce(function(s, i) { return s + i.w; }, 0);
-      var half = totalW / 2;
-      var cumW = 0;
-      for (var i = 0; i < items.length; i++) {
-        cumW += items[i].w;
-        if (cumW >= half) return items[i].val;
-      }
-      return items[items.length - 1].val;
-    }
-    var dayMedian = dayBuckets.map(function(b) { return weightedMedian(b); });
+    for (var j = 0; j < 7; j++) { dayAvg[j] = dayCnt[j] > 0 ? dayAvg[j] / dayCnt[j] : 0; }
 
     var lastDate = dailySales[dailySales.length - 1].date;
     var result = [];
     for (var i = 1; i <= daysAhead; i++) {
       var fd = addDays(lastDate, i);
       var dow = dayOfWeek(fd);
-      result.push({ date: fd, predicted: dayMedian[dow], method: 'Day Pattern' });
+      result.push({ date: fd, predicted: dayAvg[dow], method: 'Day Pattern' });
     }
     return result;
   },
@@ -1785,7 +1775,7 @@ const Forecaster = {
       var bestMape = 999;
       candidates.forEach(function(c) { if (c.mape != null && c.mape < bestMape) bestMape = c.mape; });
       if (bestMape < 999) {
-        var threshold = bestMape * 1.5;
+        var threshold = bestMape * 1.3;
         candidates = candidates.filter(function(c) { return c.mape == null || c.mape <= threshold; });
       }
     }
