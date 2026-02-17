@@ -2059,26 +2059,26 @@ function renderWeatherImpact() {
 }
 
 function getLearnedWeatherAdj() {
-  /* Derive graduated rain + heat % impact from actual sales+weather history */
+  /* Derive graduated rain + heat % impact from actual pieces+weather history */
   var s = AppState.settings;
   var wMap = {};
   AppState.weatherData.forEach(function(w) { if (w.source === 'historical') wMap[w.date] = w; });
-  var salesByDate = {};
+  var pcsByDate = {};
   AppState.salesData.forEach(function(r) {
-    if (r.amount > 0) salesByDate[r.date] = (salesByDate[r.date] || 0) + r.amount;
+    if (r.pieces && r.pieces > 0) pcsByDate[r.date] = (pcsByDate[r.date] || 0) + r.pieces;
   });
   var heatThresh = s.heatThresh || 95;
   /* Rain buckets: none(0-2mm), light(2-5mm), moderate(5-15mm), heavy(15+mm) */
   var buckets = { dry: [], light: [], moderate: [], heavy: [], hot: [] };
-  Object.keys(salesByDate).forEach(function(dt) {
+  Object.keys(pcsByDate).forEach(function(dt) {
     var w = wMap[dt];
     if (!w || isClosedDate(dt)) return;
-    var sale = salesByDate[dt];
-    if (w.tempMax > heatThresh && w.rain <= 2) { buckets.hot.push(sale); return; }
-    if (w.rain <= 2) { buckets.dry.push(sale); }
-    else if (w.rain <= 5) { buckets.light.push(sale); }
-    else if (w.rain <= 15) { buckets.moderate.push(sale); }
-    else { buckets.heavy.push(sale); }
+    var pcs = pcsByDate[dt];
+    if (w.tempMax > heatThresh && w.rain <= 2) { buckets.hot.push(pcs); return; }
+    if (w.rain <= 2) { buckets.dry.push(pcs); }
+    else if (w.rain <= 5) { buckets.light.push(pcs); }
+    else if (w.rain <= 15) { buckets.moderate.push(pcs); }
+    else { buckets.heavy.push(pcs); }
   });
   if (buckets.dry.length < 5) return null;
   var avg = function(arr) { return arr.reduce(function(a,b){return a+b;},0) / arr.length; };
