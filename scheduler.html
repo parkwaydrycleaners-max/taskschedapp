@@ -1485,39 +1485,73 @@ const Forecaster = {
     alpha = alpha || 0.3;
     daysAhead = daysAhead || 14;
     if (dailySales.length === 0) return [];
-    let level = dailySales[0].total;
-    for (let i = 1; i < dailySales.length; i++) {
+    var level = dailySales[0].total;
+    for (var i = 1; i < dailySales.length; i++) {
       level = alpha * dailySales[i].total + (1 - alpha) * level;
     }
-    const lastDate = dailySales[dailySales.length - 1].date;
-    const result = [];
-    for (let i = 1; i <= daysAhead; i++) {
-      result.push({ date: addDays(lastDate, i), predicted: level, method: 'Exp Smooth' });
+    var lastDate = dailySales[dailySales.length - 1].date;
+    var result = [];
+    for (var i2 = 1; i2 <= daysAhead; i2++) {
+      result.push({ date: addDays(lastDate, i2), predicted: level, method: 'Exp Smooth' });
     }
     return result;
+  },
+
+  expSmoothAutoTune(dailySales, daysAhead) {
+    /* Try multiple alpha values, pick the one with lowest backtest error */
+    var alphas = [0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6];
+    var self = this;
+    var bestAlpha = 0.3;
+    var bestMape = 999;
+    if (dailySales.length >= 28) {
+      var train = dailySales.slice(0, -14);
+      var test = dailySales.slice(-14);
+      alphas.forEach(function(a) {
+        var preds = self.exponentialSmoothing(train, a, 14);
+        if (!preds || preds.length === 0) return;
+        var totAbs = 0, totAct = 0;
+        test.forEach(function(act, i) {
+          if (preds[i]) { totAbs += Math.abs(act.total - preds[i].predicted); totAct += act.total; }
+        });
+        var mape = totAct > 0 ? (totAbs / totAct) * 100 : 999;
+        if (mape < bestMape) { bestMape = mape; bestAlpha = a; }
+      });
+    }
+    return self.exponentialSmoothing(dailySales, bestAlpha, daysAhead);
   },
 
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    const dayAvg = [0,0,0,0,0,0,0];
-    const dayCnt = [0,0,0,0,0,0,0];
-    /* Weight recent data more heavily */
-    const recent = dailySales.slice(-56);
-    recent.forEach((d, idx) => {
-      const dow = dayOfWeek(d.date);
-      const weight = 1 + (idx / recent.length);
-      dayAvg[dow] += d.total * weight;
-      dayCnt[dow] += weight;
+    /* Collect values by day-of-week from last 12 weeks, use weighted median */
+    var dayBuckets = [[],[],[],[],[],[],[]];
+    var recent = dailySales.slice(-84);
+    recent.forEach(function(d, idx) {
+      if (d.total <= 0 || isClosedDate(d.date)) return; /* skip closed days */
+      var dow = dayOfWeek(d.date);
+      var weight = 1 + (idx / recent.length); /* recency weight */
+      dayBuckets[dow].push({ val: d.total, w: weight });
     });
-    for (let i = 0; i < 7; i++) { dayAvg[i] = dayCnt[i] > 0 ? dayAvg[i] / dayCnt[i] : 0; }
+    function weightedMedian(items) {
+      if (items.length === 0) return 0;
+      items.sort(function(a, b) { return a.val - b.val; });
+      var totalW = items.reduce(function(s, i) { return s + i.w; }, 0);
+      var half = totalW / 2;
+      var cumW = 0;
+      for (var i = 0; i < items.length; i++) {
+        cumW += items[i].w;
+        if (cumW >= half) return items[i].val;
+      }
+      return items[items.length - 1].val;
+    }
+    var dayMedian = dayBuckets.map(function(b) { return weightedMedian(b); });
 
-    const lastDate = dailySales[dailySales.length - 1].date;
-    const result = [];
-    for (let i = 1; i <= daysAhead; i++) {
-      const fd = addDays(lastDate, i);
-      const dow = dayOfWeek(fd);
-      result.push({ date: fd, predicted: dayAvg[dow], method: 'Day Pattern' });
+    var lastDate = dailySales[dailySales.length - 1].date;
+    var result = [];
+    for (var i = 1; i <= daysAhead; i++) {
+      var fd = addDays(lastDate, i);
+      var dow = dayOfWeek(fd);
+      result.push({ date: fd, predicted: dayMedian[dow], method: 'Day Pattern' });
     }
     return result;
   },
@@ -1673,14 +1707,26 @@ const Forecaster = {
     if (!weatherDataArr || weatherDataArr.length === 0) return forecasts;
     var wMap = {};
     weatherDataArr.forEach(function(w) { wMap[w.date] = w; });
-    const s = AppState.settings;
-    return forecasts.map(f => {
-      const w = wMap[f.date];
+    var s = AppState.settings;
+    /* Use data-learned weather impact if enough history, else manual settings */
+    var learned = getLearnedWeatherAdj();
+    var rainPct = learned ? learned.rain : s.rainAdj;
+    var heatPct = learned ? learned.heat : s.heatAdj;
+    var comboPct = learned ? learned.combo : null;
+    var heatThresh = s.heatThresh || 95;
+    return forecasts.map(function(f) {
+      var w = wMap[f.date];
       if (!w) return f;
-      let adj = 1;
-      if (w.rain > 2) adj *= (1 - s.rainAdj / 100);
-      if (w.tempMax > s.heatThresh) adj *= (1 - s.heatAdj / 100);
-      return { ...f, predicted: f.predicted * adj, weatherAdj: adj };
+      var isRainy = w.rain > 2;
+      var isHot = w.tempMax > heatThresh;
+      var adj = 1;
+      if (isRainy && isHot && comboPct != null) {
+        adj = 1 - comboPct / 100;
+      } else {
+        if (isRainy) adj *= (1 - rainPct / 100);
+        if (isHot) adj *= (1 - heatPct / 100);
+      }
+      return Object.assign({}, f, { predicted: f.predicted * adj, weatherAdj: adj, weatherSource: learned ? 'learned' : 'manual' });
     });
   },
 
@@ -1694,7 +1740,7 @@ const Forecaster = {
     if (!preds || preds.length === 0) return 999;
     var totalAbs = 0, totalActual = 0;
     test.forEach(function(actual, i) {
-      if (preds[i]) {
+      if (preds[i] && actual.total > 0 && !isClosedDate(actual.date)) {
         totalAbs += Math.abs(actual.total - preds[i].predicted);
         totalActual += actual.total;
       }
@@ -1707,7 +1753,7 @@ const Forecaster = {
     var methods = AppState.forecastMethods;
     var methodList = [];
     if (methods.movingAvg) methodList.push({ key: 'movingAvg', fn: function(d, n) { return Forecaster.movingAverage(d, 7, n); } });
-    if (methods.expSmooth) methodList.push({ key: 'expSmooth', fn: function(d, n) { return Forecaster.exponentialSmoothing(d, 0.3, n); } });
+    if (methods.expSmooth) methodList.push({ key: 'expSmooth', fn: function(d, n) { return Forecaster.expSmoothAutoTune(d, n); } });
     if (methods.dayOfWeek) methodList.push({ key: 'dayOfWeek', fn: this.dayOfWeekPattern });
     if (methods.trend) methodList.push({ key: 'trend', fn: this.trendAndSeasonal });
     if (methods.yoy) methodList.push({ key: 'yoy', fn: this.yearOverYear });
@@ -1715,24 +1761,37 @@ const Forecaster = {
 
     if (methodList.length === 0) return [];
 
-    /* Compute weights: use manual if set, else MAPE-based */
+    /* Compute weights: use manual if set, else MAPE-based with auto-exclusion */
     var self = this;
     var mw = AppState.manualWeights;
-    var forecasts = [];
-    var weights = [];
+    var candidates = [];
     methodList.forEach(function(m) {
       var preds = m.fn.call(self, dailySales, daysAhead);
       if (!preds || preds.length === 0) return;
-      var w;
+      var w, mape = null;
       if (mw && mw[m.key] != null) {
         w = mw[m.key];
       } else {
-        var mape = self._backtestMethod(m.fn, dailySales, 14);
+        mape = self._backtestMethod(m.fn, dailySales, 14);
         w = 1 / Math.max(mape, 1);
       }
-      forecasts.push(preds);
-      weights.push(w);
+      candidates.push({ preds: preds, w: w, mape: mape });
     });
+
+    if (candidates.length === 0) return [];
+
+    /* Auto-exclude: drop methods with MAPE > 1.5x the best (only when not manual) */
+    if (!mw) {
+      var bestMape = 999;
+      candidates.forEach(function(c) { if (c.mape != null && c.mape < bestMape) bestMape = c.mape; });
+      if (bestMape < 999) {
+        var threshold = bestMape * 1.5;
+        candidates = candidates.filter(function(c) { return c.mape == null || c.mape <= threshold; });
+      }
+    }
+
+    var forecasts = candidates.map(function(c) { return c.preds; });
+    var weights = candidates.map(function(c) { return c.w; });
 
     if (forecasts.length === 0) return [];
 
@@ -1768,17 +1827,19 @@ const Forecaster = {
     const trainData = dailySales.slice(0, -testDays);
     const testData = dailySales.slice(-testDays);
     const predictions = this.ensemble(trainData, testDays);
-    let totalErr = 0, totalAbs = 0, totalActual = 0;
-    testData.forEach((actual, i) => {
-      if (predictions[i]) {
-        const err = actual.total - predictions[i].predicted;
+    var totalErr = 0, totalAbs = 0, totalActual = 0, counted = 0;
+    testData.forEach(function(actual, i) {
+      if (predictions[i] && actual.total > 0 && !isClosedDate(actual.date)) {
+        var err = actual.total - predictions[i].predicted;
         totalErr += err;
         totalAbs += Math.abs(err);
         totalActual += actual.total;
+        counted++;
       }
     });
-    const mape = totalActual > 0 ? (totalAbs / totalActual) * 100 : 0;
-    return { mape: mape, bias: totalErr / testDays, mae: totalAbs / testDays };
+    var denom = counted || 1;
+    var mape = totalActual > 0 ? (totalAbs / totalActual) * 100 : 0;
+    return { mape: mape, bias: totalErr / denom, mae: totalAbs / denom };
   }
 };
 
@@ -2002,6 +2063,29 @@ function renderWeatherImpact() {
   html += '</tbody></table></div>';
   html += '<p style="font-size:11px;color:var(--muted);margin-top:6px;font-style:italic;">&#x1F4A1; Pieces are more reliable than $ for weather impact — prices may fluctuate over time.</p>';
   document.getElementById('weatherImpactContent').innerHTML = html;
+}
+
+function getLearnedWeatherAdj() {
+  /* Derive rain/heat/combo % impact from actual sales+weather history */
+  var m = computeWeatherImpact();
+  var total = m.normalDays.length + m.rainyDays.length + m.hotDays.length + m.rainyHotDays.length;
+  if (total < 10 || m.normalDays.length < 5) return null; /* not enough data */
+  var avg = function(arr) { return arr.length > 0 ? arr.reduce(function(a,b){return a+b.sale;},0) / arr.length : 0; };
+  var base = avg(m.normalDays);
+  if (base <= 0) return null;
+  var result = { rain: 0, heat: 0, combo: 0 };
+  if (m.rainyDays.length >= 3) {
+    result.rain = Math.max(0, (base - avg(m.rainyDays)) / base * 100);
+  }
+  if (m.hotDays.length >= 3) {
+    result.heat = Math.max(0, (base - avg(m.hotDays)) / base * 100);
+  }
+  if (m.rainyHotDays.length >= 2) {
+    result.combo = Math.max(0, (base - avg(m.rainyHotDays)) / base * 100);
+  } else {
+    result.combo = 100 - (100 - result.rain) * (100 - result.heat) / 100;
+  }
+  return result;
 }
 
 function calculateDailyHours(forecastedSales, dateString) {
@@ -2548,12 +2632,17 @@ function renderForecastTable() {
     if (hAdj > 1) { var pct = Math.round((hAdj - 1) * 100); hBadge = '🎉 <span style="background:#d4edda;color:#155724;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">HOLIDAY +' + pct + '%</span>'; }
     else if (hAdj < 1) { var pct2 = Math.round((1 - hAdj) * 100); hBadge = '<span style="background:#f8d7da;color:#721c24;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">POST-HOL -' + pct2 + '%</span>'; }
     else { hBadge = '<span style="color:var(--muted);">—</span>'; }
-    /* Weather effect: UP, DOWN, or NONE based on weatherAdj */
+    /* Weather effect: show % adj and source */
     var wEffect = '—';
     if (w) {
       var adj = f.weatherAdj || 1;
-      if (adj < 1) wEffect = weatherEmoji(w.code) + ' <span style="color:var(--danger);font-weight:600;">▼ DOWN</span>';
-      else wEffect = weatherEmoji(w.code) + ' <span style="color:var(--muted);">NONE</span>';
+      var src = f.weatherSource === 'learned' ? '📊' : '';
+      if (adj < 1) {
+        var wPct = Math.round((1 - adj) * 100);
+        wEffect = weatherEmoji(w.code) + ' <span style="color:var(--danger);font-weight:600;">▼ -' + wPct + '%</span>' + src;
+      } else {
+        wEffect = weatherEmoji(w.code) + ' <span style="color:var(--muted);">NONE</span>';
+      }
     }
     html += '<tr style="' + (closed ? 'opacity:0.5;' : '') + '"><td>' + f.date + '</td><td>' + DAYS[dayOfWeek(f.date)] + '</td>' +
       '<td style="text-align:right;font-weight:600;">' + salesStr + '</td>' +
@@ -2584,7 +2673,7 @@ function renderAccuracy() {
   var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
   var mFns = {
     movingAvg: function(d,n){ return Forecaster.movingAverage(d,7,n); },
-    expSmooth: function(d,n){ return Forecaster.exponentialSmoothing(d,0.3,n); },
+    expSmooth: function(d,n){ return Forecaster.expSmoothAutoTune(d,n); },
     dayOfWeek: Forecaster.dayOfWeekPattern,
     trend: Forecaster.trendAndSeasonal,
     yoy: Forecaster.yearOverYear,
