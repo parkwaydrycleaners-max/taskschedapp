@@ -1698,23 +1698,26 @@ const Forecaster = {
     var wMap = {};
     weatherDataArr.forEach(function(w) { wMap[w.date] = w; });
     var s = AppState.settings;
-    /* Use data-learned weather impact if enough history, else manual settings */
     var learned = getLearnedWeatherAdj();
-    var rainPct = learned ? learned.rain : s.rainAdj;
-    var heatPct = learned ? learned.heat : s.heatAdj;
-    var comboPct = learned ? learned.combo : null;
     var heatThresh = s.heatThresh || 95;
     return forecasts.map(function(f) {
       var w = wMap[f.date];
       if (!w) return f;
-      var isRainy = w.rain > 2;
-      var isHot = w.tempMax > heatThresh;
       var adj = 1;
-      if (isRainy && isHot && comboPct != null) {
-        adj = 1 - comboPct / 100;
+      var isHot = w.tempMax > heatThresh;
+      /* Graduated rain adjustment */
+      if (learned && learned.graduated) {
+        if (w.rain > 15) adj *= (1 - learned.heavyRain / 100);
+        else if (w.rain > 5) adj *= (1 - learned.moderateRain / 100);
+        else if (w.rain > 2) adj *= (1 - learned.lightRain / 100);
+        if (isHot) adj *= (1 - learned.heat / 100);
       } else {
-        if (isRainy) adj *= (1 - rainPct / 100);
-        if (isHot) adj *= (1 - heatPct / 100);
+        /* Fallback: scale manual setting by rain intensity */
+        var rainBase = s.rainAdj || 15;
+        if (w.rain > 15) adj *= (1 - rainBase * 1.5 / 100);
+        else if (w.rain > 5) adj *= (1 - rainBase / 100);
+        else if (w.rain > 2) adj *= (1 - rainBase * 0.5 / 100);
+        if (isHot) adj *= (1 - (s.heatAdj || 10) / 100);
       }
       return Object.assign({}, f, { predicted: f.predicted * adj, weatherAdj: adj, weatherSource: learned ? 'learned' : 'manual' });
     });
@@ -2056,26 +2059,40 @@ function renderWeatherImpact() {
 }
 
 function getLearnedWeatherAdj() {
-  /* Derive rain/heat/combo % impact from actual sales+weather history */
-  var m = computeWeatherImpact();
-  var total = m.normalDays.length + m.rainyDays.length + m.hotDays.length + m.rainyHotDays.length;
-  if (total < 10 || m.normalDays.length < 5) return null; /* not enough data */
-  var avg = function(arr) { return arr.length > 0 ? arr.reduce(function(a,b){return a+b.sale;},0) / arr.length : 0; };
-  var base = avg(m.normalDays);
+  /* Derive graduated rain + heat % impact from actual sales+weather history */
+  var s = AppState.settings;
+  var wMap = {};
+  AppState.weatherData.forEach(function(w) { if (w.source === 'historical') wMap[w.date] = w; });
+  var salesByDate = {};
+  AppState.salesData.forEach(function(r) {
+    if (r.amount > 0) salesByDate[r.date] = (salesByDate[r.date] || 0) + r.amount;
+  });
+  var heatThresh = s.heatThresh || 95;
+  /* Rain buckets: none(0-2mm), light(2-5mm), moderate(5-15mm), heavy(15+mm) */
+  var buckets = { dry: [], light: [], moderate: [], heavy: [], hot: [] };
+  Object.keys(salesByDate).forEach(function(dt) {
+    var w = wMap[dt];
+    if (!w || isClosedDate(dt)) return;
+    var sale = salesByDate[dt];
+    if (w.tempMax > heatThresh && w.rain <= 2) { buckets.hot.push(sale); return; }
+    if (w.rain <= 2) { buckets.dry.push(sale); }
+    else if (w.rain <= 5) { buckets.light.push(sale); }
+    else if (w.rain <= 15) { buckets.moderate.push(sale); }
+    else { buckets.heavy.push(sale); }
+  });
+  if (buckets.dry.length < 5) return null;
+  var avg = function(arr) { return arr.reduce(function(a,b){return a+b;},0) / arr.length; };
+  var base = avg(buckets.dry);
   if (base <= 0) return null;
-  var result = { rain: 0, heat: 0, combo: 0 };
-  if (m.rainyDays.length >= 3) {
-    result.rain = Math.max(0, (base - avg(m.rainyDays)) / base * 100);
-  }
-  if (m.hotDays.length >= 3) {
-    result.heat = Math.max(0, (base - avg(m.hotDays)) / base * 100);
-  }
-  if (m.rainyHotDays.length >= 2) {
-    result.combo = Math.max(0, (base - avg(m.rainyHotDays)) / base * 100);
-  } else {
-    result.combo = 100 - (100 - result.rain) * (100 - result.heat) / 100;
-  }
-  return result;
+  var pct = function(arr) { return arr.length >= 2 ? Math.max(0, (base - avg(arr)) / base * 100) : 0; };
+  return {
+    graduated: true,
+    lightRain: pct(buckets.light),
+    moderateRain: pct(buckets.moderate),
+    heavyRain: pct(buckets.heavy),
+    heat: pct(buckets.hot),
+    counts: { dry: buckets.dry.length, light: buckets.light.length, moderate: buckets.moderate.length, heavy: buckets.heavy.length, hot: buckets.hot.length }
+  };
 }
 
 function calculateDailyHours(forecastedSales, dateString) {
