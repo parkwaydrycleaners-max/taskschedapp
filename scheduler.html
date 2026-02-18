@@ -2898,44 +2898,66 @@ function showHoursFormatHelp() {
 
 /* ============ RENDER FORECAST PAGE ============ */
 function renderForecastPage() {
-  renderMethodCards();
   runForecast();
   renderWeightSliders();
   renderForecastChart();
   renderForecastTable();
   renderAccuracy();
+  renderMethodCards(); /* after renderAccuracy so _methodExclusion is available */
   renderFvsActual();
   renderWeatherPreview();
 }
 
 function renderMethodCards() {
   const methods = [
-    { key: 'movingAvg', name: 'Moving Average', desc: '7-day rolling average. Smooths short-term fluctuations.' },
-    { key: 'expSmooth', name: 'Exponential Smoothing', desc: 'Weights recent data more heavily for responsiveness.' },
-    { key: 'dayOfWeek', name: 'Day-of-Week Pattern', desc: 'Captures weekly seasonality (busy weekends, slow Mondays, etc).' },
-    { key: 'trend', name: 'Trend + Seasonal', desc: '4-year regression with quarterly seasons and day-of-week patterns.' },
-    { key: 'yoy', name: 'Year-over-Year', desc: 'Uses same dates from past 1-3 years, weighted toward most recent year.' },
-    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Triple exponential smoothing. Captures level, trend, and weekly seasonality together.' },
+    { key: 'movingAvg', name: 'Moving Average', desc: 'DOW-aware average of last 6 weeks per weekday.' },
+    { key: 'expSmooth', name: 'Exponential Smoothing', desc: 'DOW-aware smoothing. Auto-tunes responsiveness via walk-forward CV.' },
+    { key: 'dayOfWeek', name: 'Day-of-Week Pattern', desc: 'Trimmed mean per weekday from last 20 weeks, recency-weighted.' },
+    { key: 'trend', name: 'Trend + Seasonal', desc: 'Recency-weighted regression with quarterly + DOW seasonal factors.' },
+    { key: 'yoy', name: 'Year-over-Year', desc: 'Growth-adjusted lookup across 1-4 prior years, same DOW matching.' },
+    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Auto-tuned triple exponential smoothing. Level + trend + weekly seasonality.' },
     { key: 'weather', name: 'Weather Adjustment', desc: 'Reduces forecast for rain and extreme heat. Requires weather data.' }
   ];
   let html = '';
+  var excl = AppState._methodExclusion || {};
   methods.forEach(m => {
-    html += '<div class="method-card' + (AppState.forecastMethods[m.key] ? ' selected' : '') +
-      '" onclick="toggleMethod(\'' + m.key + '\')">' +
-      '<h4>' + (AppState.forecastMethods[m.key] ? '&#x2714; ' : '') + m.name + '</h4>' +
-      '<p>' + m.desc + '</p></div>';
+    var isOn = AppState.forecastMethods[m.key];
+    var isExcluded = isOn && excl[m.key] && excl[m.key].excluded;
+    var cardClass = 'method-card';
+    var badge = '';
+    if (isOn && !isExcluded) {
+      cardClass += ' selected';
+      badge = '&#x2714; ';
+    } else if (isOn && isExcluded) {
+      badge = '&#x26A0; ';
+    }
+    var exclNote = isExcluded ? '<span style="color:var(--danger);font-size:11px;font-weight:600;display:block;margin-top:2px;">Auto-excluded (MAPE ' + excl[m.key].mape.toFixed(0) + '%)</span>' : '';
+    html += '<div class="' + cardClass + '"' +
+      (isExcluded ? ' style="border-color:var(--danger);opacity:0.65;"' : '') +
+      ' onclick="toggleMethod(\'' + m.key + '\')">' +
+      '<h4>' + badge + m.name + '</h4>' +
+      '<p>' + m.desc + '</p>' + exclNote + '</div>';
   });
   document.getElementById('methodCards').innerHTML = html;
-  const active = Object.values(AppState.forecastMethods).filter(Boolean).length;
-  document.getElementById('forecastActiveMethod').textContent = active + ' methods active';
+  var activeCount = 0, excludedCount = 0;
+  Object.keys(AppState.forecastMethods).forEach(function(k) {
+    if (AppState.forecastMethods[k]) {
+      if (excl[k] && excl[k].excluded) excludedCount++;
+      else activeCount++;
+    }
+  });
+  var statusText = activeCount + ' methods active';
+  if (excludedCount > 0) statusText += ', ' + excludedCount + ' auto-excluded';
+  document.getElementById('forecastActiveMethod').textContent = statusText;
 }
 
 function toggleMethod(key) {
   AppState.forecastMethods[key] = !AppState.forecastMethods[key];
-  renderMethodCards();
   runForecast();
   renderForecastChart();
   renderForecastTable();
+  renderAccuracy();
+  renderMethodCards(); /* after renderAccuracy so exclusion info refreshes */
 }
 
 function clearFcCompare() {
@@ -3105,13 +3127,23 @@ function renderAccuracy() {
   var totalW = 0;
   var keys = Object.keys(mNames);
   keys.forEach(function(k) {
-    if (!AppState.forecastMethods[k]) { rows.push({ key:k, on:false, mape:null, mapePcs:null, w:0 }); return; }
+    if (!AppState.forecastMethods[k]) { rows.push({ key:k, on:false, mape:null, mapePcs:null, w:0, excluded:false }); return; }
     var mape = Forecaster._backtestMethod(mFns[k], daily, 7);
     var mapePcs = hasPcs ? Forecaster._backtestMethod(mFns[k], dailyPcs, 7) : null;
-    var w = 1 / Math.pow(Math.max(mape, 1), 2); /* squared inverse, matches ensemble */
-    totalW += w;
-    rows.push({ key:k, on:true, mape:mape, mapePcs:mapePcs, w:w });
+    var w = 1 / Math.pow(Math.max(mape, 1), 2);
+    rows.push({ key:k, on:true, mape:mape, mapePcs:mapePcs, w:w, excluded:false });
   });
+  /* Determine auto-exclusion (mirrors ensemble logic: > 1.3× best MAPE) */
+  var bestMape = 999;
+  rows.forEach(function(r) { if (r.on && r.mape != null && r.mape < bestMape) bestMape = r.mape; });
+  var exclThreshold = bestMape < 999 ? bestMape * 1.3 : 999;
+  rows.forEach(function(r) {
+    if (r.on && r.mape != null && r.mape > exclThreshold) { r.excluded = true; r.w = 0; }
+  });
+  rows.forEach(function(r) { if (r.on && !r.excluded) totalW += r.w; });
+  /* Store exclusion info for method cards */
+  AppState._methodExclusion = {};
+  rows.forEach(function(r) { AppState._methodExclusion[r.key] = { excluded: r.excluded, mape: r.mape }; });
   var pmHtml = '<table><thead><tr><th>Method</th><th>Status</th><th style="text-align:right">$ MAPE</th>';
   if (hasPcs) pmHtml += '<th style="text-align:right">Pcs MAPE</th>';
   pmHtml += '<th>Rating</th><th style="text-align:right">Weight %</th></tr></thead><tbody>';
@@ -3128,6 +3160,15 @@ function renderAccuracy() {
     else if (r.mape < 20) { rating = 'Good'; rColor = 'var(--accent)'; }
     else if (r.mape < 35) { rating = 'Fair'; rColor = 'var(--warning, orange)'; }
     else { rating = 'Poor'; rColor = 'var(--danger)'; }
+    if (r.excluded) {
+      pmHtml += '<tr style="opacity:0.55;"><td><strong>' + name + '</strong></td>';
+      pmHtml += '<td style="color:var(--danger);font-weight:600;">EXCLUDED</td>';
+      pmHtml += '<td style="text-align:right;font-weight:600;">' + r.mape.toFixed(1) + '%</td>';
+      if (hasPcs) pmHtml += '<td style="text-align:right;font-weight:600;color:var(--accent);">' + (r.mapePcs != null ? r.mapePcs.toFixed(1) + '%' : '—') + '</td>';
+      pmHtml += '<td style="color:' + rColor + ';font-weight:600;">' + rating + '</td>';
+      pmHtml += '<td style="text-align:right;font-weight:600;color:var(--muted);">0%</td></tr>';
+      return;
+    }
     var wPct = totalW > 0 ? ((r.w / totalW) * 100).toFixed(1) : '0.0';
     pmHtml += '<tr><td><strong>' + name + '</strong></td><td style="color:var(--success);font-weight:600;">ON</td>';
     pmHtml += '<td style="text-align:right;font-weight:600;">' + r.mape.toFixed(1) + '%</td>';
@@ -3136,7 +3177,9 @@ function renderAccuracy() {
     pmHtml += '<td style="text-align:right;font-weight:600;">' + wPct + '%</td></tr>';
   });
   pmHtml += '</tbody></table>';
-  pmHtml += '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Weight = 1/MAPE normalized. Lower MAPE → higher contribution to ensemble.' + (hasPcs ? ' Pieces MAPE runs the same methods on piece counts directly.' : '') + '</p>';
+  var exclCount = rows.filter(function(r){ return r.excluded; }).length;
+  var exclNote = exclCount > 0 ? ' <span style="color:var(--danger);">' + exclCount + ' method' + (exclCount > 1 ? 's' : '') + ' auto-excluded (MAPE &gt; ' + exclThreshold.toFixed(0) + '%).</span>' : '';
+  pmHtml += '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Weight = 1/MAPE² normalized. Lower MAPE → higher weight.' + exclNote + (hasPcs ? ' Pieces MAPE runs the same methods on piece counts directly.' : '') + '</p>';
   pmWrap.innerHTML = pmHtml;
   renderWeightSliders();
 }
