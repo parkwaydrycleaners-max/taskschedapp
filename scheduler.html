@@ -865,6 +865,8 @@ const AppState = {
   weatherData: [],
   forecastCache: [],
   forecastCachePcs: [],
+  lastBacktest: null,
+  lastBacktestPcs: null,
   settings: {
     bizName: '',
     currency: '$',
@@ -1303,6 +1305,23 @@ function importSalesData() {
     toast("Today's partial data (" + todayStr + ') excluded — will be forecasted instead', 'info');
   }
 
+  /* Exclude days where all categories sum to $0 and 0 pieces (empty/zero days) */
+  var dayTotals = {};
+  incoming.forEach(function(r) {
+    if (!dayTotals[r.date]) dayTotals[r.date] = { amt: 0, pcs: 0 };
+    dayTotals[r.date].amt += Math.abs(r.amount || 0);
+    dayTotals[r.date].pcs += (r.pieces || 0);
+  });
+  var zeroDays = {};
+  Object.keys(dayTotals).forEach(function(dt) {
+    if (dayTotals[dt].amt <= 0 && dayTotals[dt].pcs <= 0) zeroDays[dt] = true;
+  });
+  var zeroCount = Object.keys(zeroDays).length;
+  if (zeroCount > 0) {
+    incoming = incoming.filter(function(r) { return !zeroDays[r.date]; });
+    toast(zeroCount + ' zero-total day(s) excluded from import', 'info');
+  }
+
   count = incoming.length;
   if (count > 0) {
     /* Dedup-merge: incoming records replace existing records with same date+category,
@@ -1493,7 +1512,9 @@ function getDailySales(salesArr) {
   (salesArr || AppState.salesData).forEach(s => {
     map[s.date] = (map[s.date] || 0) + s.amount;
   });
-  return Object.entries(map).sort((a,b) => a[0].localeCompare(b[0])).map(([date, total]) => ({ date, total }));
+  return Object.entries(map).sort((a,b) => a[0].localeCompare(b[0]))
+    .filter(([date, total]) => total > 0 && !isClosedDate(date))
+    .map(([date, total]) => ({ date, total }));
 }
 
 function getDailySalesByCategory() {
@@ -2349,13 +2370,21 @@ function runForecast() {
     AppState.forecastCachePcs = [];
     return;
   }
-  AppState.forecastCache = Forecaster.ensemble(daily, days);
+  /* Check if adjustments help via backtest — skip them if they hurt */
+  var bt = daily.length >= 21 ? Forecaster.backtest(daily) : null;
+  AppState.lastBacktest = bt;
+  var useRaw = bt && !bt.adjHelps;
+  AppState.forecastCache = Forecaster.ensemble(daily, days, useRaw ? { raw: true } : undefined);
   /* Also run ensemble on pieces data for direct pieces forecasting */
   var dailyPcs = getDailyPieces();
   if (dailyPcs.length >= 7) {
-    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days);
+    var btPcs = dailyPcs.length >= 21 ? Forecaster.backtest(dailyPcs) : null;
+    AppState.lastBacktestPcs = btPcs;
+    var useRawPcs = btPcs && !btPcs.adjHelps;
+    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days, useRawPcs ? { raw: true } : undefined);
   } else {
     AppState.forecastCachePcs = [];
+    AppState.lastBacktestPcs = null;
   }
 }
 
@@ -2505,6 +2534,8 @@ function confirmClearSales() {
     AppState.salesData = [];
     AppState.forecastCache = [];
     AppState.forecastCachePcs = [];
+    AppState.lastBacktest = null;
+    AppState.lastBacktestPcs = null;
     renderSalesPage();
     toast('All sales data cleared', 'info');
   });
@@ -2676,6 +2707,7 @@ function getDailyPieces() {
     if (r.pieces && r.pieces > 0) map[r.date] = (map[r.date] || 0) + r.pieces;
   });
   return Object.entries(map).sort(function(a,b){return a[0].localeCompare(b[0]);})
+    .filter(function(e){ return e[1] > 0 && !isClosedDate(e[0]); })
     .map(function(e){return {date:e[0], total:e[1]};});
 }
 
@@ -2784,8 +2816,9 @@ function renderForecastTable() {
 function renderAccuracy() {
   const daily = getDailySales();
   const dailyPcs = getDailyPieces();
-  const result = Forecaster.backtest(daily);
-  const resultPcs = dailyPcs.length >= 21 ? Forecaster.backtest(dailyPcs) : null;
+  /* Use cached backtest from runForecast if available, else compute */
+  const result = AppState.lastBacktest || Forecaster.backtest(daily);
+  const resultPcs = AppState.lastBacktestPcs || (dailyPcs.length >= 21 ? Forecaster.backtest(dailyPcs) : null);
   const wrap = document.getElementById('accuracyMetrics');
   const pmWrap = document.getElementById('perMethodTable');
   if (!result) {
