@@ -865,8 +865,6 @@ const AppState = {
   weatherData: [],
   forecastCache: [],
   forecastCachePcs: [],
-  lastBacktest: null,
-  lastBacktestPcs: null,
   settings: {
     bizName: '',
     currency: '$',
@@ -1513,7 +1511,6 @@ function getDailySales(salesArr) {
     map[s.date] = (map[s.date] || 0) + s.amount;
   });
   return Object.entries(map).sort((a,b) => a[0].localeCompare(b[0]))
-    .filter(([date, total]) => total > 0)
     .map(([date, total]) => ({ date, total }));
 }
 
@@ -2370,21 +2367,13 @@ function runForecast() {
     AppState.forecastCachePcs = [];
     return;
   }
-  /* Check if adjustments help via backtest — skip them if they hurt */
-  var bt = daily.length >= 21 ? Forecaster.backtest(daily) : null;
-  AppState.lastBacktest = bt;
-  var useRaw = bt && !bt.adjHelps;
-  AppState.forecastCache = Forecaster.ensemble(daily, days, useRaw ? { raw: true } : undefined);
+  AppState.forecastCache = Forecaster.ensemble(daily, days);
   /* Also run ensemble on pieces data for direct pieces forecasting */
   var dailyPcs = getDailyPieces();
   if (dailyPcs.length >= 7) {
-    var btPcs = dailyPcs.length >= 21 ? Forecaster.backtest(dailyPcs) : null;
-    AppState.lastBacktestPcs = btPcs;
-    var useRawPcs = btPcs && !btPcs.adjHelps;
-    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days, useRawPcs ? { raw: true } : undefined);
+    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days);
   } else {
     AppState.forecastCachePcs = [];
-    AppState.lastBacktestPcs = null;
   }
 }
 
@@ -2534,8 +2523,6 @@ function confirmClearSales() {
     AppState.salesData = [];
     AppState.forecastCache = [];
     AppState.forecastCachePcs = [];
-    AppState.lastBacktest = null;
-    AppState.lastBacktestPcs = null;
     renderSalesPage();
     toast('All sales data cleared', 'info');
   });
@@ -2816,9 +2803,8 @@ function renderForecastTable() {
 function renderAccuracy() {
   const daily = getDailySales();
   const dailyPcs = getDailyPieces();
-  /* Use cached backtest from runForecast if available, else compute */
-  const result = AppState.lastBacktest || Forecaster.backtest(daily);
-  const resultPcs = AppState.lastBacktestPcs || (dailyPcs.length >= 21 ? Forecaster.backtest(dailyPcs) : null);
+  const result = Forecaster.backtest(daily);
+  const resultPcs = dailyPcs.length >= 21 ? Forecaster.backtest(dailyPcs) : null;
   const wrap = document.getElementById('accuracyMetrics');
   const pmWrap = document.getElementById('perMethodTable');
   if (!result) {
