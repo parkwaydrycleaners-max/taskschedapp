@@ -678,6 +678,21 @@ select.form-input { appearance: auto; }
       </div>
       <div class="card">
         <div class="card-title" style="margin-bottom:16px;">&#x1F326; Weather Adjustments</div>
+        <div class="form-group">
+          <label class="form-label" style="margin-bottom:8px;">Business Hours (for rain timing)</label>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <div style="flex:1;">
+              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Open</label>
+              <input class="form-input" id="setBizOpen" type="number" min="0" max="23" step="1" placeholder="7" style="font-size:16px;">
+            </div>
+            <span style="color:var(--muted);margin-top:16px;">to</span>
+            <div style="flex:1;">
+              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Close</label>
+              <input class="form-input" id="setBizClose" type="number" min="0" max="23" step="1" placeholder="19" style="font-size:16px;">
+            </div>
+            <span style="font-size:11px;color:var(--muted);margin-top:16px;flex:2;">Only rain during these hours affects forecast</span>
+          </div>
+        </div>
         <div style="margin-bottom:14px;">
           <label class="form-label" style="margin-bottom:10px;">Rain Adjustment % (reduce pcs by severity)</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
@@ -865,6 +880,8 @@ const AppState = {
     avgWage: 18,
     salesPerHour: 60,
     piecesPerHour: 8,
+    bizOpen: 7,
+    bizClose: 19,
     rainAdjLight: 8,
     rainAdjMod: 15,
     rainAdjHeavy: 25,
@@ -1720,17 +1737,19 @@ const Forecaster = {
       if (!w) return f;
       var adj = 1;
       var isHot = w.tempMax > heatThresh;
+      /* Use business-hours rain when available */
+      var rn = (w.bizRain != null) ? w.bizRain : w.rain;
       /* Graduated rain adjustment */
       if (learned && learned.graduated) {
-        if (w.rain > 15) adj *= (1 - learned.heavyRain / 100);
-        else if (w.rain > 5) adj *= (1 - learned.moderateRain / 100);
-        else if (w.rain > 2) adj *= (1 - learned.lightRain / 100);
+        if (rn > 15) adj *= (1 - learned.heavyRain / 100);
+        else if (rn > 5) adj *= (1 - learned.moderateRain / 100);
+        else if (rn > 2) adj *= (1 - learned.lightRain / 100);
         if (isHot) adj *= (1 - learned.heat / 100);
       } else {
         /* Fallback: use manual graduated rain settings */
-        if (w.rain > 15) adj *= (1 - (s.rainAdjHeavy || 25) / 100);
-        else if (w.rain > 5) adj *= (1 - (s.rainAdjMod || 15) / 100);
-        else if (w.rain > 2) adj *= (1 - (s.rainAdjLight || 8) / 100);
+        if (rn > 15) adj *= (1 - (s.rainAdjHeavy || 25) / 100);
+        else if (rn > 5) adj *= (1 - (s.rainAdjMod || 15) / 100);
+        else if (rn > 2) adj *= (1 - (s.rainAdjLight || 8) / 100);
         if (isHot) adj *= (1 - (s.heatAdj || 10) / 100);
       }
       return Object.assign({}, f, { predicted: f.predicted * adj, weatherAdj: adj, weatherSource: learned ? 'learned' : 'manual' });
@@ -1986,7 +2005,8 @@ function computeWeatherImpact() {
     if (!w) return;
     if (isClosedDate(dt)) return;
     var entry = { sale: salesByDate[dt], pieces: piecesByDate[dt] || 0 };
-    var isRainy = w.rain > 2;
+    var rn = (w.bizRain != null) ? w.bizRain : w.rain;
+    var isRainy = rn > 2;
     var isHot = w.tempMax > heatThresh;
     if (isRainy && isHot) { rainyHotDays.push(entry); }
     else if (isRainy) { rainyDays.push(entry); }
@@ -2082,16 +2102,18 @@ function getLearnedWeatherAdj() {
     if (r.pieces && r.pieces > 0) pcsByDate[r.date] = (pcsByDate[r.date] || 0) + r.pieces;
   });
   var heatThresh = s.heatThresh || 95;
+  /* Use business-hours rain (bizRain) when available, fall back to total daily rain */
   /* Rain buckets: none(0-2mm), light(2-5mm), moderate(5-15mm), heavy(15+mm) */
   var buckets = { dry: [], light: [], moderate: [], heavy: [], hot: [] };
   Object.keys(pcsByDate).forEach(function(dt) {
     var w = wMap[dt];
     if (!w || isClosedDate(dt)) return;
     var pcs = pcsByDate[dt];
-    if (w.tempMax > heatThresh && w.rain <= 2) { buckets.hot.push(pcs); return; }
-    if (w.rain <= 2) { buckets.dry.push(pcs); }
-    else if (w.rain <= 5) { buckets.light.push(pcs); }
-    else if (w.rain <= 15) { buckets.moderate.push(pcs); }
+    var rn = (w.bizRain != null) ? w.bizRain : w.rain;
+    if (w.tempMax > heatThresh && rn <= 2) { buckets.hot.push(pcs); return; }
+    if (rn <= 2) { buckets.dry.push(pcs); }
+    else if (rn <= 5) { buckets.light.push(pcs); }
+    else if (rn <= 15) { buckets.moderate.push(pcs); }
     else { buckets.heavy.push(pcs); }
   });
   if (buckets.dry.length < 5) return null;
@@ -2171,24 +2193,41 @@ async function fetchWeatherData() {
     const startDate = earliestSale < minStart ? earliestSale : minStart;
     const histUrl = 'https://archive-api.open-meteo.com/v1/archive?latitude=' + s.lat + '&longitude=' + s.lon +
       '&start_date=' + startDate + '&end_date=' + endDate +
-      '&daily=temperature_2m_max,precipitation_sum,weathercode&temperature_unit=fahrenheit&timezone=auto';
+      '&daily=temperature_2m_max,precipitation_sum,weathercode&hourly=precipitation&temperature_unit=fahrenheit&timezone=auto';
 
     /* Forecast next 14 days */
     const fcstUrl = 'https://api.open-meteo.com/v1/forecast?latitude=' + s.lat + '&longitude=' + s.lon +
-      '&daily=temperature_2m_max,precipitation_probability_max,weathercode&temperature_unit=fahrenheit&timezone=auto&forecast_days=14';
+      '&daily=temperature_2m_max,precipitation_probability_max,weathercode&hourly=precipitation_probability,precipitation&temperature_unit=fahrenheit&timezone=auto&forecast_days=14';
 
     const [histRes, fcstRes] = await Promise.all([fetch(histUrl), fetch(fcstUrl)]);
     const histData = await histRes.json();
     const fcstData = await fcstRes.json();
 
+    /* Helper: sum hourly precip within business hours for a given date */
+    var bizOpen = s.bizOpen || 7;
+    var bizClose = s.bizClose || 19;
+    function sumBizRain(hourlyTimes, hourlyVals, dateStr) {
+      var total = 0;
+      for (var h = 0; h < hourlyTimes.length; h++) {
+        if (hourlyTimes[h].substring(0, 10) !== dateStr) continue;
+        var hr = parseInt(hourlyTimes[h].substring(11, 13));
+        if (hr >= bizOpen && hr < bizClose) total += (hourlyVals[h] || 0);
+      }
+      return total;
+    }
+
     AppState.weatherData = [];
 
     if (histData.daily) {
+      var hHourlyT = (histData.hourly && histData.hourly.time) || [];
+      var hHourlyP = (histData.hourly && histData.hourly.precipitation) || [];
       histData.daily.time.forEach((t, i) => {
+        var bizRain = hHourlyT.length > 0 ? sumBizRain(hHourlyT, hHourlyP, t) : null;
         AppState.weatherData.push({
           date: t,
           tempMax: histData.daily.temperature_2m_max[i],
           rain: histData.daily.precipitation_sum[i],
+          bizRain: bizRain,
           code: histData.daily.weathercode[i],
           source: 'historical'
         });
@@ -2196,11 +2235,15 @@ async function fetchWeatherData() {
     }
 
     if (fcstData.daily) {
+      var fHourlyT = (fcstData.hourly && fcstData.hourly.time) || [];
+      var fHourlyP = (fcstData.hourly && fcstData.hourly.precipitation) || [];
       fcstData.daily.time.forEach((t, i) => {
+        var bizRain = fHourlyT.length > 0 ? sumBizRain(fHourlyT, fHourlyP, t) : null;
         AppState.weatherData.push({
           date: t,
           tempMax: fcstData.daily.temperature_2m_max[i],
           rain: fcstData.daily.precipitation_probability_max[i],
+          bizRain: bizRain,
           code: fcstData.daily.weathercode[i],
           source: 'forecast'
         });
@@ -3120,6 +3163,8 @@ function loadSettings() {
   document.getElementById('setSalesPerHour').value = s.salesPerHour;
   document.getElementById('setPiecesPerHour').value = s.piecesPerHour;
   document.getElementById('setMaxLaborPctCap').checked = s.maxLaborPctCap !== false;
+  document.getElementById('setBizOpen').value = s.bizOpen;
+  document.getElementById('setBizClose').value = s.bizClose;
   document.getElementById('setRainAdjLight').value = s.rainAdjLight;
   document.getElementById('setRainAdjMod').value = s.rainAdjMod;
   document.getElementById('setRainAdjHeavy').value = s.rainAdjHeavy;
@@ -3238,6 +3283,8 @@ async function saveSettings() {
   s.salesPerHour = parseFloat(document.getElementById('setSalesPerHour').value) || 60;
   s.piecesPerHour = parseFloat(document.getElementById('setPiecesPerHour').value) || 8;
   s.maxLaborPctCap = document.getElementById('setMaxLaborPctCap').checked;
+  s.bizOpen = parseInt(document.getElementById('setBizOpen').value) || 7;
+  s.bizClose = parseInt(document.getElementById('setBizClose').value) || 19;
   s.rainAdjLight = parseFloat(document.getElementById('setRainAdjLight').value) || 8;
   s.rainAdjMod = parseFloat(document.getElementById('setRainAdjMod').value) || 15;
   s.rainAdjHeavy = parseFloat(document.getElementById('setRainAdjHeavy').value) || 25;
