@@ -919,7 +919,14 @@ const CHART_COLORS = ['#f59e0b','#0ea5e9','#8b5cf6','#ec4899','#10b981','#f97316
 function fmt(n) { return AppState.settings.currency + Number(n||0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
 function fmtDec(n) { return Number(n||0).toFixed(1); }
 function dateStr(d) {
-  var dt = new Date(d);
+  /* Ensure we interpret as LOCAL time, never UTC */
+  var dt;
+  if (typeof d === 'string') {
+    /* "YYYY-MM-DD" would parse as UTC — append T12:00:00 to keep it local */
+    dt = new Date(d.length === 10 ? d + 'T12:00:00' : d);
+  } else {
+    dt = new Date(d);
+  }
   var yy = dt.getFullYear();
   var mm = String(dt.getMonth() + 1).padStart(2, '0');
   var dd = String(dt.getDate()).padStart(2, '0');
@@ -1285,6 +1292,14 @@ function importSalesData() {
         }
       }
     }
+  }
+
+  /* Exclude current (incomplete) day — partial data would skew the forecast */
+  var todayStr = today();
+  var beforeFilter = incoming.length;
+  incoming = incoming.filter(function(r) { return r.date !== todayStr; });
+  if (incoming.length < beforeFilter) {
+    toast("Today's partial data (" + todayStr + ') excluded — will be forecasted instead', 'info');
   }
 
   count = incoming.length;
@@ -2847,8 +2862,8 @@ function resetManualWeights() {
 
 function saveForeccastSnapshot() {
   if (AppState.forecastCache.length === 0) { toast('Run a forecast first', 'error'); return; }
-  var today = new Date().toISOString().slice(0, 10);
-  var snap = { savedDate: today, entries: AppState.forecastCache.map(function(f) { return { date: f.date, predicted: f.predicted }; }) };
+  var todayDt = dateStr(new Date());
+  var snap = { savedDate: todayDt, entries: AppState.forecastCache.map(function(f) { return { date: f.date, predicted: f.predicted }; }) };
   AppState.savedForecasts.push(snap);
   if (AppState.savedForecasts.length > 20) AppState.savedForecasts.shift();
   toast('Forecast snapshot saved (' + snap.entries.length + ' days)');
