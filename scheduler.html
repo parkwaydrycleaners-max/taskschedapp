@@ -1712,7 +1712,7 @@ const Forecaster = {
     /* Quarterly seasonal factors — clean days only */
     var qSum = [0, 0, 0, 0];
     var qCnt = [0, 0, 0, 0];
-    var overallAvg = sumY / n;
+    var overallAvg = sumW > 0 ? sumWY / sumW : 0;
     recent.forEach(function(d) {
       if (!isCleanDay(d)) return;
       var month = parseInt(d.date.slice(5, 7), 10);
