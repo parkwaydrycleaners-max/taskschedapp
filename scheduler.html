@@ -678,9 +678,22 @@ select.form-input { appearance: auto; }
       </div>
       <div class="card">
         <div class="card-title" style="margin-bottom:16px;">&#x1F326; Weather Adjustments</div>
-        <div class="form-group">
-          <label class="form-label">Rain Adjustment % (reduce sales by)</label>
-          <input class="form-input" id="setRainAdj" type="number" step="1" placeholder="15">
+        <div style="margin-bottom:14px;">
+          <label class="form-label" style="margin-bottom:10px;">Rain Adjustment % (reduce pcs by severity)</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div>
+              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">🌦️ Light (2-5mm)</label>
+              <input class="form-input" id="setRainAdjLight" type="number" step="1" placeholder="8" style="font-size:16px;">
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">🌧️ Moderate (5-15mm)</label>
+              <input class="form-input" id="setRainAdjMod" type="number" step="1" placeholder="15" style="font-size:16px;">
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">⛈️ Heavy (15mm+)</label>
+              <input class="form-input" id="setRainAdjHeavy" type="number" step="1" placeholder="25" style="font-size:16px;">
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Extreme Heat Threshold (&deg;F)</label>
@@ -852,7 +865,9 @@ const AppState = {
     avgWage: 18,
     salesPerHour: 60,
     piecesPerHour: 8,
-    rainAdj: 15,
+    rainAdjLight: 8,
+    rainAdjMod: 15,
+    rainAdjHeavy: 25,
     heatThresh: 95,
     heatAdj: 10,
     categories: [],
@@ -1712,11 +1727,10 @@ const Forecaster = {
         else if (w.rain > 2) adj *= (1 - learned.lightRain / 100);
         if (isHot) adj *= (1 - learned.heat / 100);
       } else {
-        /* Fallback: scale manual setting by rain intensity */
-        var rainBase = s.rainAdj || 15;
-        if (w.rain > 15) adj *= (1 - rainBase * 1.5 / 100);
-        else if (w.rain > 5) adj *= (1 - rainBase / 100);
-        else if (w.rain > 2) adj *= (1 - rainBase * 0.5 / 100);
+        /* Fallback: use manual graduated rain settings */
+        if (w.rain > 15) adj *= (1 - (s.rainAdjHeavy || 25) / 100);
+        else if (w.rain > 5) adj *= (1 - (s.rainAdjMod || 15) / 100);
+        else if (w.rain > 2) adj *= (1 - (s.rainAdjLight || 8) / 100);
         if (isHot) adj *= (1 - (s.heatAdj || 10) / 100);
       }
       return Object.assign({}, f, { predicted: f.predicted * adj, weatherAdj: adj, weatherSource: learned ? 'learned' : 'manual' });
@@ -2047,10 +2061,10 @@ function renderWeatherImpact() {
   html += '<td style="text-align:right;padding:5px 6px;color:var(--muted);">baseline</td>';
   html += '<td style="text-align:right;padding:5px 6px;color:var(--muted);">—</td></tr>';
 
-  if (m.rainyDays.length > 0) html += weatherRow('&#x1F327;&#xFE0F; Rainy', m.rainyDays, '-' + s.rainAdj + '%');
+  if (m.rainyDays.length > 0) html += weatherRow('&#x1F327;&#xFE0F; Rainy', m.rainyDays, '-' + s.rainAdjLight + '/' + s.rainAdjMod + '/' + s.rainAdjHeavy + '%');
   if (m.hotDays.length > 0) html += weatherRow('&#x1F525; Hot (&gt;' + m.heatThresh + '&deg;F)', m.hotDays, '-' + s.heatAdj + '%');
   if (m.rainyHotDays.length > 0) {
-    var combinedSetting = (100 - (100 - s.rainAdj) * (100 - s.heatAdj) / 100).toFixed(1);
+    var combinedSetting = (100 - (100 - s.rainAdjMod) * (100 - s.heatAdj) / 100).toFixed(1);
     html += weatherRow('&#x26C8;&#xFE0F; Rain + Hot', m.rainyHotDays, '-' + combinedSetting + '%');
   }
   html += '</tbody></table></div>';
@@ -3106,7 +3120,9 @@ function loadSettings() {
   document.getElementById('setSalesPerHour').value = s.salesPerHour;
   document.getElementById('setPiecesPerHour').value = s.piecesPerHour;
   document.getElementById('setMaxLaborPctCap').checked = s.maxLaborPctCap !== false;
-  document.getElementById('setRainAdj').value = s.rainAdj;
+  document.getElementById('setRainAdjLight').value = s.rainAdjLight;
+  document.getElementById('setRainAdjMod').value = s.rainAdjMod;
+  document.getElementById('setRainAdjHeavy').value = s.rainAdjHeavy;
   document.getElementById('setHeatThresh').value = s.heatThresh;
   document.getElementById('setHeatAdj').value = s.heatAdj;
   renderCategoriesList();
@@ -3222,7 +3238,9 @@ async function saveSettings() {
   s.salesPerHour = parseFloat(document.getElementById('setSalesPerHour').value) || 60;
   s.piecesPerHour = parseFloat(document.getElementById('setPiecesPerHour').value) || 8;
   s.maxLaborPctCap = document.getElementById('setMaxLaborPctCap').checked;
-  s.rainAdj = parseFloat(document.getElementById('setRainAdj').value) || 15;
+  s.rainAdjLight = parseFloat(document.getElementById('setRainAdjLight').value) || 8;
+  s.rainAdjMod = parseFloat(document.getElementById('setRainAdjMod').value) || 15;
+  s.rainAdjHeavy = parseFloat(document.getElementById('setRainAdjHeavy').value) || 25;
   s.heatThresh = parseFloat(document.getElementById('setHeatThresh').value) || 95;
   s.heatAdj = parseFloat(document.getElementById('setHeatAdj').value) || 10;
 
