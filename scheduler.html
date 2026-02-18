@@ -727,6 +727,18 @@ select.form-input { appearance: auto; }
     </div>
     <div class="grid-2">
       <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">📉 Minimum Sales Threshold</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Days with total sales below this amount are treated as anomalies (e.g. one-off transaction on a mostly-closed day) and excluded from forecast calculations.</p>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="setMinThresholdOn" onchange="document.getElementById('setMinThreshold').disabled=!this.checked"> Enable
+          </label>
+          <div style="flex:1;">
+            <input class="form-input" id="setMinThreshold" type="number" step="50" placeholder="200" style="font-size:16px;">
+          </div>
+        </div>
+      </div>
+      <div class="card">
         <div class="card-title" style="margin-bottom:16px;">&#x1F6D1; Closed Days</div>
         <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Select days of the week when you are closed. Forecast will show $0 and 0 hours for these days.</p>
         <div id="closedDaysChecks" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
@@ -888,6 +900,8 @@ const AppState = {
     rainAdjHeavy: 25,
     heatThresh: 95,
     heatAdj: 10,
+    minSalesThreshold: 200,
+    minSalesThresholdOn: true,
     categories: [],
     forecastDays: 14,
     closedDays: [0], /* 0=Sun, 1=Mon ... 6=Sat */
@@ -1537,11 +1551,16 @@ const Forecaster = {
     windowSize = windowSize || 7;
     daysAhead = daysAhead || 14;
     if (dailySales.length === 0) return [];
-    const lastDate = dailySales[dailySales.length - 1].date;
-    const recent = dailySales.slice(-windowSize);
-    const avg = recent.reduce((s,d) => s + d.total, 0) / recent.length;
-    const result = [];
-    for (let i = 1; i <= daysAhead; i++) {
+    var lastDate = dailySales[dailySales.length - 1].date;
+    /* Collect last `windowSize` CLEAN days (skip zeros/anomalies) */
+    var clean = [];
+    for (var ci = dailySales.length - 1; ci >= 0 && clean.length < windowSize; ci--) {
+      if (isCleanDay(dailySales[ci])) clean.push(dailySales[ci].total);
+    }
+    if (clean.length === 0) return [];
+    var avg = clean.reduce(function(s,v){return s+v;}, 0) / clean.length;
+    var result = [];
+    for (var i = 1; i <= daysAhead; i++) {
       result.push({ date: addDays(lastDate, i), predicted: avg, method: 'Moving Avg' });
     }
     return result;
@@ -1551,8 +1570,14 @@ const Forecaster = {
     alpha = alpha || 0.3;
     daysAhead = daysAhead || 14;
     if (dailySales.length === 0) return [];
-    var level = dailySales[0].total;
-    for (var i = 1; i < dailySales.length; i++) {
+    /* Initialize from first clean day */
+    var level = 0;
+    for (var init = 0; init < dailySales.length; init++) {
+      if (isCleanDay(dailySales[init])) { level = dailySales[init].total; break; }
+    }
+    if (level === 0) return [];
+    for (var i = init + 1; i < dailySales.length; i++) {
+      if (!isCleanDay(dailySales[i])) continue; /* skip zeros/anomalies */
       level = alpha * dailySales[i].total + (1 - alpha) * level;
     }
     var lastDate = dailySales[dailySales.length - 1].date;
@@ -1577,7 +1602,7 @@ const Forecaster = {
         if (!preds || preds.length === 0) return;
         var totAbs = 0, totAct = 0;
         test.forEach(function(act, i) {
-          if (preds[i]) { totAbs += Math.abs(act.total - preds[i].predicted); totAct += act.total; }
+          if (preds[i] && isCleanDay(act)) { totAbs += Math.abs(act.total - preds[i].predicted); totAct += act.total; }
         });
         var mape = totAct > 0 ? (totAbs / totAct) * 100 : 999;
         if (mape < bestMape) { bestMape = mape; bestAlpha = a; }
@@ -1589,12 +1614,12 @@ const Forecaster = {
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    /* Recency-weighted mean by day-of-week, skip closed/$0 days */
+    /* Recency-weighted mean by day-of-week, skip unclean days */
     var dayAvg = [0,0,0,0,0,0,0];
     var dayCnt = [0,0,0,0,0,0,0];
     var recent = dailySales.slice(-84);
     recent.forEach(function(d, idx) {
-      if (d.total <= 0 || isClosedDate(d.date)) return;
+      if (!isCleanDay(d)) return;
       var dow = dayOfWeek(d.date);
       var weight = 1 + (idx / recent.length);
       dayAvg[dow] += d.total * weight;
@@ -1615,25 +1640,28 @@ const Forecaster = {
   trendAndSeasonal(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 14) return [];
-    /* Linear regression on up to 4 years (~1461 days) of data */
+    /* Linear regression on up to 4 years (~1461 days) — clean days only */
     var windowSize = Math.min(dailySales.length, 1461);
     var recent = dailySales.slice(-windowSize);
-    var n = recent.length;
-    var sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-    for (var i = 0; i < n; i++) {
+    var n = 0, sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+    for (var i = 0; i < recent.length; i++) {
+      if (!isCleanDay(recent[i])) continue;
       sumX += i; sumY += recent[i].total; sumXY += i * recent[i].total; sumXX += i * i;
+      n++;
     }
+    if (n < 7) return [];
     var denom = n * sumXX - sumX * sumX;
     var slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
     var intercept = (sumY - slope * sumX) / n;
 
-    /* Quarterly seasonal factors (Q1=Jan-Mar, Q2=Apr-Jun, Q3=Jul-Sep, Q4=Oct-Dec) */
+    /* Quarterly seasonal factors — clean days only */
     var qSum = [0, 0, 0, 0];
     var qCnt = [0, 0, 0, 0];
     var overallAvg = sumY / n;
     recent.forEach(function(d) {
+      if (!isCleanDay(d)) return;
       var month = parseInt(d.date.slice(5, 7), 10);
-      var q = Math.floor((month - 1) / 3); /* 0=Q1, 1=Q2, 2=Q3, 3=Q4 */
+      var q = Math.floor((month - 1) / 3);
       qSum[q] += d.total;
       qCnt[q]++;
     });
@@ -1641,18 +1669,20 @@ const Forecaster = {
       return qCnt[qi] > 0 ? (s / qCnt[qi]) / (overallAvg || 1) : 1;
     });
 
-    /* Also compute day-of-week factors from last 8 weeks for weekly micro-pattern */
+    /* Day-of-week factors from last 8 weeks — clean days only */
     var dowData = dailySales.slice(-56);
     var dowSum = [0,0,0,0,0,0,0];
     var dowCnt = [0,0,0,0,0,0,0];
     var dowOverall = 0;
     dowData.forEach(function(d) {
+      if (!isCleanDay(d)) return;
       var dow = dayOfWeek(d.date);
       dowSum[dow] += d.total;
       dowCnt[dow]++;
       dowOverall += d.total;
     });
-    var dowAvg = dowOverall / (dowData.length || 1);
+    var dowCleanCount = dowCnt.reduce(function(a,b){return a+b;},0);
+    var dowAvg = dowCleanCount > 0 ? dowOverall / dowCleanCount : 1;
     var dowFactor = dowSum.map(function(s, di) {
       return dowCnt[di] > 0 ? (s / dowCnt[di]) / (dowAvg || 1) : 1;
     });
@@ -1675,9 +1705,9 @@ const Forecaster = {
   yearOverYear(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 180) return []; /* need at least ~6 months */
-    /* Build lookup by date string */
+    /* Build lookup by date string — only clean days */
     var lookup = {};
-    dailySales.forEach(function(d) { lookup[d.date] = d.total; });
+    dailySales.forEach(function(d) { if (isCleanDay(d)) lookup[d.date] = d.total; });
     var lastDate = dailySales[dailySales.length - 1].date;
     var result = [];
     for (var i = 1; i <= daysAhead; i++) {
@@ -1713,46 +1743,51 @@ const Forecaster = {
   holtWinters(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     var seasonLen = 7; /* weekly seasonality */
-    if (dailySales.length < seasonLen * 3) return []; /* need 3+ full cycles */
+    if (dailySales.length < seasonLen * 3) return [];
     var n = dailySales.length;
-    var y = dailySales.map(function(d) { return d.total; });
 
-    /* Initialize level and trend from first two seasons */
-    var level = 0;
-    for (var si = 0; si < seasonLen; si++) level += y[si];
-    level /= seasonLen;
-    var trend = 0;
-    for (var ti = 0; ti < seasonLen; ti++) {
-      trend += (y[seasonLen + ti] - y[ti]) / seasonLen;
+    /* Initialize from first season of CLEAN data */
+    var initSum = 0, initCnt = 0;
+    for (var si = 0; si < Math.min(seasonLen * 2, n); si++) {
+      if (isCleanDay(dailySales[si])) { initSum += dailySales[si].total; initCnt++; }
     }
-    trend /= seasonLen;
+    if (initCnt === 0) return [];
+    var level = initSum / initCnt;
+    var trend = 0;
 
-    /* Initialize seasonal indices from first season */
-    var seasonal = [];
-    for (var ji = 0; ji < seasonLen; ji++) {
-      seasonal.push(level > 0 ? y[ji] / level : 1);
+    /* Initialize seasonal indices by day-of-week from first 4 weeks of clean data */
+    var seasonal = [1, 1, 1, 1, 1, 1, 1];
+    var sDow = [0,0,0,0,0,0,0], sCnt = [0,0,0,0,0,0,0];
+    var initWindow = Math.min(28, n);
+    for (var iw = 0; iw < initWindow; iw++) {
+      if (!isCleanDay(dailySales[iw])) continue;
+      var dw = dayOfWeek(dailySales[iw].date);
+      sDow[dw] += dailySales[iw].total;
+      sCnt[dw]++;
+    }
+    for (var sd = 0; sd < 7; sd++) {
+      seasonal[sd] = sCnt[sd] > 0 ? (sDow[sd] / sCnt[sd]) / level : 1;
     }
 
     /* Smoothing parameters */
-    var alpha = 0.3; /* level */
-    var beta = 0.05; /* trend */
-    var gamma = 0.3; /* seasonal */
+    var alpha = 0.3, beta = 0.05, gamma = 0.3;
 
-    /* Run through all data to update level, trend, seasonal */
+    /* Run through all data — use day-of-week for seasonal index, skip unclean */
     for (var ki = 0; ki < n; ki++) {
-      var sIdx = ki % seasonLen;
+      if (!isCleanDay(dailySales[ki])) continue; /* skip zeros/anomalies */
+      var sIdx = dayOfWeek(dailySales[ki].date);
       var prevLevel = level;
-      level = alpha * (y[ki] / (seasonal[sIdx] || 1)) + (1 - alpha) * (level + trend);
+      level = alpha * (dailySales[ki].total / (seasonal[sIdx] || 1)) + (1 - alpha) * (level + trend);
       trend = beta * (level - prevLevel) + (1 - beta) * trend;
-      seasonal[sIdx] = gamma * (y[ki] / (level || 1)) + (1 - gamma) * seasonal[sIdx];
+      seasonal[sIdx] = gamma * (dailySales[ki].total / (level || 1)) + (1 - gamma) * seasonal[sIdx];
     }
 
-    /* Forecast ahead */
+    /* Forecast ahead — use day-of-week for seasonal factor */
     var lastDate = dailySales[n - 1].date;
     var result = [];
     for (var fi = 1; fi <= daysAhead; fi++) {
       var fd = addDays(lastDate, fi);
-      var sF = seasonal[(n + fi - 1) % seasonLen] || 1;
+      var sF = seasonal[dayOfWeek(fd)] || 1;
       var pred = Math.max(0, (level + trend * fi) * sF);
       result.push({ date: fd, predicted: pred, method: 'Holt-Winters' });
     }
@@ -1800,7 +1835,7 @@ const Forecaster = {
     if (!preds || preds.length === 0) return 999;
     var totalAbs = 0, totalActual = 0;
     test.forEach(function(actual, i) {
-      if (preds[i] && actual.total > 0 && !isClosedDate(actual.date)) {
+      if (preds[i] && isCleanDay(actual)) {
         totalAbs += Math.abs(actual.total - preds[i].predicted);
         totalActual += actual.total;
       }
@@ -1880,6 +1915,24 @@ const Forecaster = {
       }
     }
 
+    /* Weekly average smoothing: blend each day with its 7-day window average
+       to reduce daily noise. Uses 20% weekly average + 80% daily prediction. */
+    if (combined.length >= 7) {
+      var smoothFactor = 0.2; /* 20% weekly influence */
+      for (var wi = 0; wi < combined.length; wi++) {
+        /* Build a window of up to 7 days centered on wi */
+        var wStart = Math.max(0, wi - 3);
+        var wEnd = Math.min(combined.length - 1, wi + 3);
+        var wSum = 0, wCnt = 0;
+        for (var wj = wStart; wj <= wEnd; wj++) {
+          wSum += combined[wj].predicted;
+          wCnt++;
+        }
+        var weekAvg = wSum / wCnt;
+        combined[wi].predicted = combined[wi].predicted * (1 - smoothFactor) + weekAvg * smoothFactor;
+      }
+    }
+
     if (!opts.raw && methods.weather) {
       return this.weatherAdjust(combined, AppState.weatherData);
     }
@@ -1898,7 +1951,7 @@ const Forecaster = {
     function calcStats(predictions) {
       var totalErr = 0, totalAbs = 0, totalActual = 0, counted = 0;
       testData.forEach(function(actual, i) {
-        if (predictions[i] && actual.total > 0 && !isClosedDate(actual.date)) {
+        if (predictions[i] && isCleanDay(actual)) {
           var err = actual.total - predictions[i].predicted;
           totalErr += err;
           totalAbs += Math.abs(err);
@@ -1933,6 +1986,16 @@ function isClosedDate(dateString) {
     if (s.holidays.includes(mmdd)) return true;
   }
   return false;
+}
+
+/* Returns true if a data point is a valid business day worth using in forecasts.
+   Filters: zeros, closed dates, and below-threshold anomaly days. */
+function isCleanDay(d) {
+  if (!d || d.total <= 0) return false;
+  if (isClosedDate(d.date)) return false;
+  var s = AppState.settings;
+  if (s.minSalesThresholdOn && s.minSalesThreshold > 0 && d.total < s.minSalesThreshold) return false;
+  return true;
 }
 
 function holidayProximityAdj(dateString) {
@@ -2055,7 +2118,7 @@ function computeWeatherImpact() {
   Object.keys(salesByDate).forEach(function(dt) {
     var w = wMap[dt];
     if (!w) return;
-    if (isClosedDate(dt)) return;
+    if (!isCleanDay({ date: dt, total: salesByDate[dt] })) return;
     var entry = { sale: salesByDate[dt], pieces: piecesByDate[dt] || 0 };
     var rn = (w.bizRain != null) ? w.bizRain : w.rain;
     var isRainy = rn > 2;
@@ -2157,9 +2220,14 @@ function getLearnedWeatherAdj() {
   /* Use business-hours rain (bizRain) when available, fall back to total daily rain */
   /* Rain buckets: none(0-2mm), light(2-5mm), moderate(5-15mm), heavy(15+mm) */
   var buckets = { dry: [], light: [], moderate: [], heavy: [], hot: [] };
+  /* Build dollar totals for isCleanDay check */
+  var salByDate = {};
+  AppState.salesData.forEach(function(r) { salByDate[r.date] = (salByDate[r.date] || 0) + r.amount; });
   Object.keys(pcsByDate).forEach(function(dt) {
     var w = wMap[dt];
-    if (!w || isClosedDate(dt)) return;
+    if (!w) return;
+    /* Use isCleanDay logic: skip closed, zero, sub-threshold days */
+    if (!isCleanDay({ date: dt, total: salByDate[dt] || 0 })) return;
     var pcs = pcsByDate[dt];
     var rn = (w.bizRain != null) ? w.bizRain : w.rain;
     if (w.tempMax > heatThresh && rn <= 2) { buckets.hot.push(pcs); return; }
@@ -3277,6 +3345,9 @@ function loadSettings() {
   document.getElementById('setRainAdjHeavy').value = s.rainAdjHeavy;
   document.getElementById('setHeatThresh').value = s.heatThresh;
   document.getElementById('setHeatAdj').value = s.heatAdj;
+  document.getElementById('setMinThresholdOn').checked = s.minSalesThresholdOn !== false;
+  document.getElementById('setMinThreshold').value = s.minSalesThreshold;
+  document.getElementById('setMinThreshold').disabled = !document.getElementById('setMinThresholdOn').checked;
   renderCategoriesList();
   renderClosedDaysChecks();
   renderHolidaysList();
@@ -3397,6 +3468,8 @@ async function saveSettings() {
   s.rainAdjHeavy = parseFloat(document.getElementById('setRainAdjHeavy').value) || 25;
   s.heatThresh = parseFloat(document.getElementById('setHeatThresh').value) || 95;
   s.heatAdj = parseFloat(document.getElementById('setHeatAdj').value) || 10;
+  s.minSalesThresholdOn = document.getElementById('setMinThresholdOn').checked;
+  s.minSalesThreshold = parseFloat(document.getElementById('setMinThreshold').value) || 200;
 
   /* Read closed days checkboxes */
   s.closedDays = [];
