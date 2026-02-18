@@ -864,6 +864,7 @@ const AppState = {
   employeeHours: [],
   weatherData: [],
   forecastCache: [],
+  forecastCachePcs: [],
   settings: {
     bizName: '',
     currency: '$',
@@ -2146,20 +2147,24 @@ function getLearnedWeatherAdj() {
   };
 }
 
-function calculateDailyHours(forecastedSales, dateString) {
+function calculateDailyHours(forecastedSales, dateString, forecastedPieces) {
   /* If date provided and it's a closed day, return 0 */
   if (dateString && isClosedDate(dateString)) return 0;
   var s = AppState.settings;
-  var piecesRatio = getPiecesPerDollar();
   var hours;
 
-  if (piecesRatio > 0 && s.piecesPerHour > 0) {
-    /* PRIMARY: Pieces-based formula */
-    var estimatedPieces = forecastedSales * piecesRatio;
-    hours = estimatedPieces / s.piecesPerHour;
+  if (forecastedPieces > 0 && s.piecesPerHour > 0) {
+    /* PRIMARY: Direct pieces forecast / pieces-per-hour */
+    hours = forecastedPieces / s.piecesPerHour;
   } else {
-    /* FALLBACK: Dollar-based if no piece data available */
-    hours = forecastedSales / (s.salesPerHour || 60);
+    var piecesRatio = getPiecesPerDollar();
+    if (piecesRatio > 0 && s.piecesPerHour > 0) {
+      /* SECONDARY: Estimate pieces from $ forecast */
+      hours = (forecastedSales * piecesRatio) / s.piecesPerHour;
+    } else {
+      /* FALLBACK: Dollar-based if no piece data available */
+      hours = forecastedSales / (s.salesPerHour || 60);
+    }
   }
 
   /* HYBRID CAP: If enabled, cap hours so labor cost stays under target % */
@@ -2323,9 +2328,17 @@ function runForecast() {
   var daily = getDailySales();
   if (daily.length < 7) {
     AppState.forecastCache = [];
+    AppState.forecastCachePcs = [];
     return;
   }
   AppState.forecastCache = Forecaster.ensemble(daily, days);
+  /* Also run ensemble on pieces data for direct pieces forecasting */
+  var dailyPcs = getDailyPieces();
+  if (dailyPcs.length >= 7) {
+    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days);
+  } else {
+    AppState.forecastCachePcs = [];
+  }
 }
 
 function recalcHours() {
@@ -2350,7 +2363,9 @@ function renderDashboard() {
 
   var fd = AppState.settings.forecastDays || 14;
   var forecastTotal = AppState.forecastCache.reduce(function(s,f) { return s + f.predicted; }, 0);
-  var forecastHours = AppState.forecastCache.reduce(function(s,f) { return s + calculateDailyHours(f.predicted, f.date); }, 0);
+  var pcsFcMap2 = {};
+  AppState.forecastCachePcs.forEach(function(p) { pcsFcMap2[p.date] = p.predicted; });
+  var forecastHours = AppState.forecastCache.reduce(function(s,f) { return s + calculateDailyHours(f.predicted, f.date, pcsFcMap2[f.date] != null ? Math.round(pcsFcMap2[f.date]) : undefined); }, 0);
 
   document.getElementById('dashStats').innerHTML =
     statCard('Last 7 Days', fmt(totalLast7), change, true) +
@@ -2369,7 +2384,8 @@ function renderDashboard() {
     const forecast = AppState.forecastCache.find(f => f.date === d);
     const sales = actual ? actual.total : (forecast ? forecast.predicted : null);
     var closed = isClosedDate(d);
-    const hours = (sales !== null && !closed) ? calculateDailyHours(sales, d) : (closed ? 0 : null);
+    var dayPcsFc = pcsFcMap2[d] != null ? Math.round(pcsFcMap2[d]) : undefined;
+    const hours = (sales !== null && !closed) ? calculateDailyHours(sales, d, dayPcsFc) : (closed ? 0 : null);
     const weather = AppState.weatherData.find(w => w.date === d);
 
     dayCols += '<div class="day-col' + (isToday ? ' today' : '') + (closed ? ' closed' : '') + '">' +
@@ -2406,8 +2422,10 @@ function renderDashSalesChart(daily) {
 }
 
 function renderDashHoursChart(daily, actualHoursMap) {
+  var pcsMap = {};
+  getDailyPieces().forEach(function(p) { pcsMap[p.date] = p.total; });
   const last30 = daily.slice(-30);
-  const recommended = last30.map(function(d) { return calculateDailyHours(d.total, d.date); });
+  const recommended = last30.map(function(d) { return calculateDailyHours(d.total, d.date, pcsMap[d.date]); });
   const actual = last30.map(d => actualHoursMap[d.date] || null);
   renderLineChart('dashHoursChart', last30.map(d => d.date.slice(5)), [
     { label: 'Recommended', data: recommended, color: CHART_COLORS[0] },
@@ -2468,6 +2486,7 @@ function confirmClearSales() {
   showModal('Clear All Sales Data?', 'This will permanently remove all imported sales records. This action cannot be undone.', function() {
     AppState.salesData = [];
     AppState.forecastCache = [];
+    AppState.forecastCachePcs = [];
     renderSalesPage();
     toast('All sales data cleared', 'info');
   });
@@ -2494,9 +2513,12 @@ function renderRecommendedHours() {
   const maxWeek = AppState.settings.maxTotalHoursWeek || 9999;
   let prevMonday = null;
 
+  var pcsFcMap3 = {};
+  AppState.forecastCachePcs.forEach(function(p) { pcsFcMap3[p.date] = p.predicted; });
   AppState.forecastCache.forEach(function(f, idx) {
     var closed = isClosedDate(f.date);
-    var hours = calculateDailyHours(f.predicted, f.date);
+    var dayPcsFc3 = pcsFcMap3[f.date] != null ? Math.round(pcsFcMap3[f.date]) : undefined;
+    var hours = calculateDailyHours(f.predicted, f.date, dayPcsFc3);
     const actual = actualMap[f.date];
     const monday = getMonday(f.date);
 
@@ -2646,7 +2668,9 @@ function renderForecastChart() {
   var fromDate = (document.getElementById('fcCompareFrom') || {}).value || '';
   var toDate = (document.getElementById('fcCompareTo') || {}).value || '';
   var daily = isPcs ? getDailyPieces() : getDailySales();
-  var fc = AppState.forecastCache;
+  /* Use real pieces forecast when available, fallback to $ × ratio */
+  var fc = isPcs && AppState.forecastCachePcs.length > 0 ? AppState.forecastCachePcs : AppState.forecastCache;
+  var needConvert = isPcs && AppState.forecastCachePcs.length === 0;
   /* Compare mode: show forecast overlaid on actuals for same date range */
   if (fromDate && toDate && fc.length > 0) {
     var actSlice = daily.filter(function(d){return d.date >= fromDate && d.date <= toDate;});
@@ -2657,7 +2681,7 @@ function renderForecastChart() {
     var dates = Object.keys(allDates).sort();
     var actMap = {}; actSlice.forEach(function(d){actMap[d.date]=d.total;});
     var fcMap = {}; fcSlice.forEach(function(f){
-      fcMap[f.date] = isPcs ? Math.round(f.predicted * pRatio) : f.predicted;
+      fcMap[f.date] = needConvert ? Math.round(f.predicted * pRatio) : (isPcs ? Math.round(f.predicted) : f.predicted);
     });
     var labels = dates.map(function(d){return d.slice(5);});
     var actData = dates.map(function(d){return actMap[d] != null ? actMap[d] : null;});
@@ -2676,7 +2700,7 @@ function renderForecastChart() {
   var actual = last30.map(function(d){return d.total;}).concat(
     fc.map(function(){return null;}));
   var forecast = last30.map(function(){return null;}).concat(
-    fc.map(function(f){return isPcs ? Math.round(f.predicted * pRatio) : f.predicted;}));
+    fc.map(function(f){return needConvert ? Math.round(f.predicted * pRatio) : (isPcs ? Math.round(f.predicted) : f.predicted);}));
   if (last30.length > 0 && fc.length > 0) {
     forecast[last30.length - 1] = last30[last30.length - 1].total;
   }
@@ -2694,16 +2718,21 @@ function renderForecastTable() {
     return;
   }
   var pRatio = getPiecesPerDollar();
+  /* Build pieces forecast lookup for direct pieces forecast */
+  var pcsFcMap = {};
+  AppState.forecastCachePcs.forEach(function(p) { pcsFcMap[p.date] = p.predicted; });
+  var hasPcsFc = AppState.forecastCachePcs.length > 0;
   let html = '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast Sales</th>' +
-    '<th style="text-align:right">Est. Pieces</th><th style="text-align:right">Rec. Hours</th>' +
+    '<th style="text-align:right">' + (hasPcsFc ? 'Forecast Pcs' : 'Est. Pieces') + '</th><th style="text-align:right">Rec. Hours</th>' +
     '<th style="text-align:right">Est. Cost</th><th>Holiday</th><th>Weather</th></tr></thead><tbody>';
   AppState.forecastCache.forEach(function(f) {
     var closed = isClosedDate(f.date);
-    var hours = calculateDailyHours(f.predicted, f.date);
-    var estPcs = closed ? 0 : Math.round(f.predicted * pRatio);
+    /* Use direct pieces forecast when available, fallback to $ × ratio */
+    var fcPcs = hasPcsFc && pcsFcMap[f.date] != null ? Math.round(pcsFcMap[f.date]) : Math.round(f.predicted * pRatio);
+    var hours = calculateDailyHours(f.predicted, f.date, fcPcs);
     var w = AppState.weatherData.find(function(wd) { return wd.date === f.date; });
     var salesStr = closed ? '<span style="color:var(--muted);">CLOSED</span>' : fmt(f.predicted);
-    var pcsStr = closed ? '0' : String(estPcs);
+    var pcsStr = closed ? '0' : String(fcPcs);
     var hoursStr = closed ? '0' : fmtDec(hours);
     /* Holiday proximity badge */
     var hAdj = f.holidayAdj || 1;
@@ -2736,7 +2765,9 @@ function renderForecastTable() {
 
 function renderAccuracy() {
   const daily = getDailySales();
+  const dailyPcs = getDailyPieces();
   const result = Forecaster.backtest(daily);
+  const resultPcs = dailyPcs.length >= 21 ? Forecaster.backtest(dailyPcs) : null;
   const wrap = document.getElementById('accuracyMetrics');
   const pmWrap = document.getElementById('perMethodTable');
   if (!result) {
@@ -2744,10 +2775,13 @@ function renderAccuracy() {
     pmWrap.innerHTML = '';
     return;
   }
-  wrap.innerHTML =
-    '<div class="stat-card"><div class="stat-label">MAPE (Accuracy)</div><div class="stat-value">' + result.mape.toFixed(1) + '%</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>' +
-    '<div class="stat-card"><div class="stat-label">Avg Bias</div><div class="stat-value">' + fmt(result.bias) + '</div><div style="font-size:12px;color:var(--muted);">Negative = under-forecast</div></div>' +
-    '<div class="stat-card"><div class="stat-label">MAE</div><div class="stat-value">' + fmt(result.mae) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
+  var mHtml = '<div class="stat-card"><div class="stat-label">$ MAPE</div><div class="stat-value">' + result.mape.toFixed(1) + '%</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
+  if (resultPcs) {
+    mHtml += '<div class="stat-card"><div class="stat-label">Pieces MAPE</div><div class="stat-value" style="color:var(--accent);">' + resultPcs.mape.toFixed(1) + '%</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
+  }
+  mHtml += '<div class="stat-card"><div class="stat-label">$ Avg Bias</div><div class="stat-value">' + fmt(result.bias) + '</div><div style="font-size:12px;color:var(--muted);">Negative = under-forecast</div></div>';
+  mHtml += '<div class="stat-card"><div class="stat-label">$ MAE</div><div class="stat-value">' + fmt(result.mae) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
+  wrap.innerHTML = mHtml;
   /* Per-method backtesting dashboard */
   var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
   var mFns = {
@@ -2758,21 +2792,27 @@ function renderAccuracy() {
     yoy: Forecaster.yearOverYear,
     holtWinters: Forecaster.holtWinters
   };
+  var hasPcs = dailyPcs.length >= 21;
   var rows = [];
   var totalW = 0;
   var keys = Object.keys(mNames);
   keys.forEach(function(k) {
-    if (!AppState.forecastMethods[k]) { rows.push({ key:k, on:false, mape:null, w:0 }); return; }
+    if (!AppState.forecastMethods[k]) { rows.push({ key:k, on:false, mape:null, mapePcs:null, w:0 }); return; }
     var mape = Forecaster._backtestMethod(mFns[k], daily, 14);
+    var mapePcs = hasPcs ? Forecaster._backtestMethod(mFns[k], dailyPcs, 14) : null;
     var w = 1 / Math.max(mape, 1);
     totalW += w;
-    rows.push({ key:k, on:true, mape:mape, w:w });
+    rows.push({ key:k, on:true, mape:mape, mapePcs:mapePcs, w:w });
   });
-  var pmHtml = '<table><thead><tr><th>Method</th><th>Status</th><th style="text-align:right">MAPE</th><th>Rating</th><th style="text-align:right">Weight %</th></tr></thead><tbody>';
+  var pmHtml = '<table><thead><tr><th>Method</th><th>Status</th><th style="text-align:right">$ MAPE</th>';
+  if (hasPcs) pmHtml += '<th style="text-align:right">Pcs MAPE</th>';
+  pmHtml += '<th>Rating</th><th style="text-align:right">Weight %</th></tr></thead><tbody>';
   rows.forEach(function(r) {
     var name = mNames[r.key];
     if (!r.on) {
-      pmHtml += '<tr style="opacity:0.45;"><td>' + name + '</td><td>OFF</td><td style="text-align:right">—</td><td>—</td><td style="text-align:right">—</td></tr>';
+      pmHtml += '<tr style="opacity:0.45;"><td>' + name + '</td><td>OFF</td><td style="text-align:right">—</td>';
+      if (hasPcs) pmHtml += '<td style="text-align:right">—</td>';
+      pmHtml += '<td>—</td><td style="text-align:right">—</td></tr>';
       return;
     }
     var rating, rColor;
@@ -2783,11 +2823,12 @@ function renderAccuracy() {
     var wPct = totalW > 0 ? ((r.w / totalW) * 100).toFixed(1) : '0.0';
     pmHtml += '<tr><td><strong>' + name + '</strong></td><td style="color:var(--success);font-weight:600;">ON</td>';
     pmHtml += '<td style="text-align:right;font-weight:600;">' + r.mape.toFixed(1) + '%</td>';
+    if (hasPcs) pmHtml += '<td style="text-align:right;font-weight:600;color:var(--accent);">' + (r.mapePcs != null ? r.mapePcs.toFixed(1) + '%' : '—') + '</td>';
     pmHtml += '<td style="color:' + rColor + ';font-weight:600;">' + rating + '</td>';
     pmHtml += '<td style="text-align:right;font-weight:600;">' + wPct + '%</td></tr>';
   });
   pmHtml += '</tbody></table>';
-  pmHtml += '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Weight = 1/MAPE normalized. Lower MAPE → higher contribution to ensemble.</p>';
+  pmHtml += '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Weight = 1/MAPE normalized. Lower MAPE → higher contribution to ensemble.' + (hasPcs ? ' Pieces MAPE runs the same methods on piece counts directly.' : '') + '</p>';
   pmWrap.innerHTML = pmHtml;
   renderWeightSliders();
 }
