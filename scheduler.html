@@ -1513,7 +1513,7 @@ function getDailySales(salesArr) {
     map[s.date] = (map[s.date] || 0) + s.amount;
   });
   return Object.entries(map).sort((a,b) => a[0].localeCompare(b[0]))
-    .filter(([date, total]) => total > 0 && !isClosedDate(date))
+    .filter(([date, total]) => total > 0)
     .map(([date, total]) => ({ date, total }));
 }
 
@@ -2707,7 +2707,7 @@ function getDailyPieces() {
     if (r.pieces && r.pieces > 0) map[r.date] = (map[r.date] || 0) + r.pieces;
   });
   return Object.entries(map).sort(function(a,b){return a[0].localeCompare(b[0]);})
-    .filter(function(e){ return e[1] > 0 && !isClosedDate(e[0]); })
+    .filter(function(e){ return e[1] > 0; })
     .map(function(e){return {date:e[0], total:e[1]};});
 }
 
