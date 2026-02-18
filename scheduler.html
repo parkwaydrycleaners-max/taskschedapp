@@ -1650,9 +1650,9 @@ const Forecaster = {
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    /* Collect clean values per DOW from last 12 weeks, then trimmed recency-weighted mean */
+    /* Collect clean values per DOW from last 20 weeks, then trimmed recency-weighted mean */
     var dowVals = [[],[],[],[],[],[],[]];
-    var recent = dailySales.slice(-84);
+    var recent = dailySales.slice(-140);
     recent.forEach(function(d, idx) {
       if (!isCleanDay(d)) return;
       var dow = dayOfWeek(d.date);
@@ -1689,19 +1689,25 @@ const Forecaster = {
   trendAndSeasonal(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 14) return [];
-    /* Linear regression on up to 4 years (~1461 days) — clean days only */
+    /* Recency-weighted linear regression on up to 4 years — clean days only.
+       Recent data gets exponentially more weight (half-life ~180 days). */
     var windowSize = Math.min(dailySales.length, 1461);
     var recent = dailySales.slice(-windowSize);
-    var n = 0, sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+    var halfLife = 180;
+    var decay = Math.log(2) / halfLife;
+    var n = 0, sumWX = 0, sumWY = 0, sumWXY = 0, sumWXX = 0, sumW = 0;
     for (var i = 0; i < recent.length; i++) {
       if (!isCleanDay(recent[i])) continue;
-      sumX += i; sumY += recent[i].total; sumXY += i * recent[i].total; sumXX += i * i;
+      var age = recent.length - 1 - i; /* days from end */
+      var w = Math.exp(-decay * age);
+      sumW += w; sumWX += w * i; sumWY += w * recent[i].total;
+      sumWXY += w * i * recent[i].total; sumWXX += w * i * i;
       n++;
     }
     if (n < 7) return [];
-    var denom = n * sumXX - sumX * sumX;
-    var slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
-    var intercept = (sumY - slope * sumX) / n;
+    var denom = sumW * sumWXX - sumWX * sumWX;
+    var slope = denom !== 0 ? (sumW * sumWXY - sumWX * sumWY) / denom : 0;
+    var intercept = (sumWY - slope * sumWX) / sumW;
 
     /* Quarterly seasonal factors — clean days only */
     var qSum = [0, 0, 0, 0];
@@ -1753,25 +1759,51 @@ const Forecaster = {
 
   yearOverYear(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
-    if (dailySales.length < 180) return []; /* need at least ~6 months */
+    if (dailySales.length < 180) return [];
     /* Build lookup by date string — only clean days */
     var lookup = {};
     dailySales.forEach(function(d) { if (isCleanDay(d)) lookup[d.date] = d.total; });
+
+    /* Compute annual growth rates to scale prior-year values to current level.
+       Compare overlapping 90-day windows year-over-year. */
+    var growthByYear = {}; /* yr offset → growth multiplier */
+    var n = dailySales.length;
+    var recentClean = [];
+    for (var ri = Math.max(0, n - 90); ri < n; ri++) {
+      if (isCleanDay(dailySales[ri])) recentClean.push(dailySales[ri]);
+    }
+    var recentAvg = recentClean.length > 0 ? recentClean.reduce(function(s,d){return s+d.total;},0) / recentClean.length : 0;
+    for (var gyr = 1; gyr <= 4; gyr++) {
+      var priorClean = [];
+      for (var pi = 0; pi < n; pi++) {
+        if (!isCleanDay(dailySales[pi])) continue;
+        var daysBack = Math.round((new Date(dailySales[n-1].date + 'T12:00:00') - new Date(dailySales[pi].date + 'T12:00:00')) / 86400000);
+        if (daysBack >= gyr * 365 - 45 && daysBack <= gyr * 365 + 45) {
+          priorClean.push(dailySales[pi]);
+        }
+      }
+      if (priorClean.length >= 10 && recentAvg > 0) {
+        var priorAvg = priorClean.reduce(function(s,d){return s+d.total;},0) / priorClean.length;
+        growthByYear[gyr] = priorAvg > 0 ? recentAvg / priorAvg : 1;
+      } else {
+        growthByYear[gyr] = 1;
+      }
+    }
+
     var lastDate = dailySales[dailySales.length - 1].date;
     var result = [];
     for (var i = 1; i <= daysAhead; i++) {
       var fd = addDays(lastDate, i);
-      /* Try last 3 years, weight recent years more: yr-1 = 3x, yr-2 = 2x, yr-3 = 1x */
+      /* Try last 4 years (leverage full 2022-2026 span), weight recent more */
       var sum = 0, wt = 0;
-      var weights = [3, 2, 1];
-      for (var yr = 1; yr <= 3; yr++) {
-        /* Same date last yr, +/- 3 days to handle leap years and find closest match */
+      var weights = [4, 2, 1, 0.5];
+      for (var yr = 1; yr <= 4; yr++) {
         var target = addDays(fd, -365 * yr);
         var best = null;
-        for (var off = -3; off <= 3; off++) {
+        /* Search ±7 days for same-DOW match (wider window for leap years + gaps) */
+        for (var off = -7; off <= 7; off++) {
           var check = addDays(target, off);
           if (lookup[check] !== undefined) {
-            /* Prefer same day-of-week */
             if (best === null || dayOfWeek(check) === dayOfWeek(fd)) {
               best = lookup[check];
               if (dayOfWeek(check) === dayOfWeek(fd)) break;
@@ -1779,7 +1811,8 @@ const Forecaster = {
           }
         }
         if (best !== null) {
-          sum += best * weights[yr - 1];
+          /* Scale by growth factor to bring past values to current level */
+          sum += best * (growthByYear[yr] || 1) * weights[yr - 1];
           wt += weights[yr - 1];
         }
       }
@@ -1824,8 +1857,8 @@ const Forecaster = {
     }
     if (recentCnt > 0) level = recentSum / recentCnt;
 
-    /* Run through data — only last 6 months for faster adaptation */
-    var startIdx = Math.max(0, n - 182);
+    /* Run through data — last 1 year for better seasonal estimates with 4yr data */
+    var startIdx = Math.max(0, n - 365);
     for (var ki = startIdx; ki < n; ki++) {
       if (!isCleanDay(dailySales[ki])) continue;
       var sIdx = dayOfWeek(dailySales[ki].date);
@@ -1945,7 +1978,7 @@ const Forecaster = {
     opts = opts || {};
     var methods = AppState.forecastMethods;
     var methodList = [];
-    if (methods.movingAvg) methodList.push({ key: 'movingAvg', fn: function(d, n) { return Forecaster.movingAverage(d, 4, n); } });
+    if (methods.movingAvg) methodList.push({ key: 'movingAvg', fn: function(d, n) { return Forecaster.movingAverage(d, 6, n); } });
     if (methods.expSmooth) methodList.push({ key: 'expSmooth', fn: function(d, n) { return Forecaster.expSmoothAutoTune(d, n); } });
     if (methods.dayOfWeek) methodList.push({ key: 'dayOfWeek', fn: this.dayOfWeekPattern });
     if (methods.trend) methodList.push({ key: 'trend', fn: this.trendAndSeasonal });
@@ -3060,7 +3093,7 @@ function renderAccuracy() {
   /* Per-method backtesting dashboard */
   var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
   var mFns = {
-    movingAvg: function(d,n){ return Forecaster.movingAverage(d,4,n); },
+    movingAvg: function(d,n){ return Forecaster.movingAverage(d,6,n); },
     expSmooth: function(d,n){ return Forecaster.expSmoothAutoTune(d,n); },
     dayOfWeek: Forecaster.dayOfWeekPattern,
     trend: Forecaster.trendAndSeasonal,
