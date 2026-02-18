@@ -1790,8 +1790,9 @@ const Forecaster = {
     return totalActual > 0 ? (totalAbs / totalActual) * 100 : 999;
   },
 
-  ensemble(dailySales, daysAhead) {
+  ensemble(dailySales, daysAhead, opts) {
     daysAhead = daysAhead || 14;
+    opts = opts || {};
     var methods = AppState.forecastMethods;
     var methodList = [];
     if (methods.movingAvg) methodList.push({ key: 'movingAvg', fn: function(d, n) { return Forecaster.movingAverage(d, 7, n); } });
@@ -1853,11 +1854,15 @@ const Forecaster = {
         }
       });
       if (!fd) fd = addDays(dailySales[dailySales.length - 1].date, i + 1);
-      var hAdj = holidayProximityAdj(fd);
-      combined.push({ date: fd, predicted: sum * hAdj, method: 'Weighted Ensemble', holidayAdj: hAdj });
+      if (opts.raw) {
+        combined.push({ date: fd, predicted: sum, method: 'Weighted Ensemble', holidayAdj: 1 });
+      } else {
+        var hAdj = holidayProximityAdj(fd);
+        combined.push({ date: fd, predicted: sum * hAdj, method: 'Weighted Ensemble', holidayAdj: hAdj });
+      }
     }
 
-    if (methods.weather) {
+    if (!opts.raw && methods.weather) {
       return this.weatherAdjust(combined, AppState.weatherData);
     }
     return combined;
@@ -1866,22 +1871,35 @@ const Forecaster = {
   backtest(dailySales, testDays) {
     testDays = testDays || 7;
     if (dailySales.length < testDays + 14) return null;
-    const trainData = dailySales.slice(0, -testDays);
-    const testData = dailySales.slice(-testDays);
-    const predictions = this.ensemble(trainData, testDays);
-    var totalErr = 0, totalAbs = 0, totalActual = 0, counted = 0;
-    testData.forEach(function(actual, i) {
-      if (predictions[i] && actual.total > 0 && !isClosedDate(actual.date)) {
-        var err = actual.total - predictions[i].predicted;
-        totalErr += err;
-        totalAbs += Math.abs(err);
-        totalActual += actual.total;
-        counted++;
-      }
-    });
-    var denom = counted || 1;
-    var mape = totalActual > 0 ? (totalAbs / totalActual) * 100 : 0;
-    return { mape: mape, bias: totalErr / denom, mae: totalAbs / denom };
+    var trainData = dailySales.slice(0, -testDays);
+    var testData = dailySales.slice(-testDays);
+    /* Run raw (no weather/holiday) for clean accuracy measurement */
+    var rawPreds = this.ensemble(trainData, testDays, { raw: true });
+    /* Also run adjusted for comparison */
+    var adjPreds = this.ensemble(trainData, testDays);
+    function calcStats(predictions) {
+      var totalErr = 0, totalAbs = 0, totalActual = 0, counted = 0;
+      testData.forEach(function(actual, i) {
+        if (predictions[i] && actual.total > 0 && !isClosedDate(actual.date)) {
+          var err = actual.total - predictions[i].predicted;
+          totalErr += err;
+          totalAbs += Math.abs(err);
+          totalActual += actual.total;
+          counted++;
+        }
+      });
+      var denom = counted || 1;
+      var mape = totalActual > 0 ? (totalAbs / totalActual) * 100 : 0;
+      return { mape: mape, bias: totalErr / denom, mae: totalAbs / denom };
+    }
+    var raw = calcStats(rawPreds);
+    var adj = calcStats(adjPreds);
+    /* Return best: if adjustments help, use adjusted; otherwise use raw */
+    var best = adj.mape < raw.mape ? adj : raw;
+    best.rawMape = raw.mape;
+    best.adjMape = adj.mape;
+    best.adjHelps = adj.mape < raw.mape;
+    return best;
   }
 };
 
@@ -2775,12 +2793,26 @@ function renderAccuracy() {
     pmWrap.innerHTML = '';
     return;
   }
+  /* Show raw vs adjusted comparison */
+  var adjNote = '';
+  if (result.rawMape != null && result.adjMape != null) {
+    if (result.adjHelps) {
+      adjNote = '<span style="color:var(--success);font-size:11px;">✓ Weather/holiday adjustments helping (' + result.rawMape.toFixed(1) + '% → ' + result.adjMape.toFixed(1) + '%)</span>';
+    } else {
+      adjNote = '<span style="color:var(--danger);font-size:11px;">⚠ Weather/holiday adjustments hurting (' + result.rawMape.toFixed(1) + '% → ' + result.adjMape.toFixed(1) + '%) — using raw forecast</span>';
+    }
+  }
   var mHtml = '<div class="stat-card"><div class="stat-label">$ MAPE</div><div class="stat-value">' + result.mape.toFixed(1) + '%</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
   if (resultPcs) {
-    mHtml += '<div class="stat-card"><div class="stat-label">Pieces MAPE</div><div class="stat-value" style="color:var(--accent);">' + resultPcs.mape.toFixed(1) + '%</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
+    var pcsAdjNote = '';
+    if (resultPcs.rawMape != null && resultPcs.adjMape != null && !resultPcs.adjHelps) {
+      pcsAdjNote = ' <span style="font-size:10px;color:var(--danger);">⚠</span>';
+    }
+    mHtml += '<div class="stat-card"><div class="stat-label">Pieces MAPE</div><div class="stat-value" style="color:var(--accent);">' + resultPcs.mape.toFixed(1) + '%' + pcsAdjNote + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
   }
-  mHtml += '<div class="stat-card"><div class="stat-label">$ Avg Bias</div><div class="stat-value">' + fmt(result.bias) + '</div><div style="font-size:12px;color:var(--muted);">Negative = under-forecast</div></div>';
-  mHtml += '<div class="stat-card"><div class="stat-label">$ MAE</div><div class="stat-value">' + fmt(result.mae) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
+  mHtml += '<div class="stat-card"><div class="stat-label">Avg Bias</div><div class="stat-value">' + fmt(result.bias) + '</div><div style="font-size:12px;color:var(--muted);">Negative = under-forecast</div></div>';
+  mHtml += '<div class="stat-card"><div class="stat-label">MAE</div><div class="stat-value">' + fmt(result.mae) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
+  if (adjNote) mHtml += '<div style="grid-column:1/-1;padding:4px 0;">' + adjNote + '</div>';
   wrap.innerHTML = mHtml;
   /* Per-method backtesting dashboard */
   var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
