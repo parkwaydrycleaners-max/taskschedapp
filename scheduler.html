@@ -922,6 +922,7 @@ const AppState = {
     weather: true
   },
   manualWeights: null, /* null = auto (MAPE-based); object = {movingAvg:0.2, ...} */
+  autoDisabled: {}, /* methods auto-disabled due to poor accuracy */
   savedForecasts: []
 };
 
@@ -2045,21 +2046,13 @@ const Forecaster = {
       }
     }
 
-    /* Bias correction: measure recent over/under-forecasting and compensate.
-       Uses a short lookback (last 14 days) to estimate systematic bias as a ratio. */
-    if (dailySales.length >= 28) {
-      var bcTrain = dailySales.slice(0, -7);
-      var bcTest = dailySales.slice(-7);
-      var bcPreds = [];
-      /* Quick ensemble of same methods on train data */
-      var bcForecasts = candidates.map(function(c) {
-        return c.preds; /* reuse existing, they're close enough for bias measurement */
-      });
-      /* Instead of re-running, measure bias from actual recent data vs DOW prediction */
+    /* Bias correction: only in non-raw path so backtest can isolate weather/holiday effect.
+       Measures recent systematic error and compensates. */
+    if (!opts.raw && dailySales.length >= 28) {
       var biasSum = 0, biasCnt = 0;
+      var bcTest = dailySales.slice(-7);
       bcTest.forEach(function(d) {
         if (!isCleanDay(d)) return;
-        /* Find the ensemble's implicit prediction for this day by DOW pattern */
         var dowIdx = dayOfWeek(d.date);
         var dowSum = 0, dowC = 0;
         for (var bi = Math.max(0, dailySales.length - 56); bi < dailySales.length - 7; bi++) {
@@ -2073,10 +2066,8 @@ const Forecaster = {
         }
       });
       if (biasCnt >= 3) {
-        var biasRatio = biasSum / biasCnt; /* >1 = under-forecasting, <1 = over-forecasting */
-        /* Clamp to ±15% correction */
-        biasRatio = Math.max(0.85, Math.min(1.15, biasRatio));
-        if (Math.abs(biasRatio - 1) > 0.02) { /* only apply if meaningful */
+        var biasRatio = Math.max(0.85, Math.min(1.15, biasSum / biasCnt));
+        if (Math.abs(biasRatio - 1) > 0.02) {
           combined.forEach(function(f) { f.predicted *= biasRatio; });
         }
       }
@@ -2418,22 +2409,25 @@ function getLearnedWeatherAdj() {
     else if (rn <= 15) { buckets.moderate.push(pcs); }
     else { buckets.heavy.push(pcs); }
   });
-  if (buckets.dry.length < 8) return null; /* need solid baseline */
+  if (buckets.dry.length < 5) return null; /* need reasonable baseline */
   var avg = function(arr) { return arr.reduce(function(a,b){return a+b;},0) / arr.length; };
   var base = avg(buckets.dry);
   if (base <= 0) return null;
-  /* Require at least 4 samples per bucket and cap adjustment at 35% */
-  var pct = function(arr) {
-    if (arr.length < 4) return 0; /* not enough confidence */
-    var diff = Math.max(0, (base - avg(arr)) / base * 100);
-    return Math.min(diff, 35); /* cap at 35% max adjustment */
+  /* Per-bucket: use learned value if ≥3 samples, otherwise fall back to manual setting.
+     Cap any single adjustment at 40%. */
+  var pctOrManual = function(arr, manualPct) {
+    if (arr.length >= 3) {
+      var diff = Math.max(0, (base - avg(arr)) / base * 100);
+      return Math.min(diff, 40);
+    }
+    return manualPct; /* fall back to manual setting */
   };
   return {
     graduated: true,
-    lightRain: pct(buckets.light),
-    moderateRain: pct(buckets.moderate),
-    heavyRain: pct(buckets.heavy),
-    heat: pct(buckets.hot),
+    lightRain: pctOrManual(buckets.light, s.rainAdjLight || 8),
+    moderateRain: pctOrManual(buckets.moderate, s.rainAdjMod || 15),
+    heavyRain: pctOrManual(buckets.heavy, s.rainAdjHeavy || 25),
+    heat: pctOrManual(buckets.hot, s.heatAdj || 10),
     counts: { dry: buckets.dry.length, light: buckets.light.length, moderate: buckets.moderate.length, heavy: buckets.heavy.length, hot: buckets.hot.length }
   };
 }
@@ -2922,42 +2916,50 @@ function renderMethodCards() {
   var excl = AppState._methodExclusion || {};
   methods.forEach(m => {
     var isOn = AppState.forecastMethods[m.key];
-    var isExcluded = isOn && excl[m.key] && excl[m.key].excluded;
+    var isAutoOff = !!AppState.autoDisabled[m.key];
+    var mapeVal = excl[m.key] && excl[m.key].mape != null && excl[m.key].mape < 900 ? excl[m.key].mape : null;
     var cardClass = 'method-card';
     var badge = '';
-    if (isOn && !isExcluded) {
+    var extraStyle = '';
+    var exclNote = '';
+    if (isOn) {
       cardClass += ' selected';
       badge = '&#x2714; ';
-    } else if (isOn && isExcluded) {
+    } else if (isAutoOff) {
       badge = '&#x26A0; ';
+      extraStyle = ' style="border-color:var(--danger);opacity:0.65;"';
+      exclNote = '<span style="color:var(--danger);font-size:11px;font-weight:600;display:block;margin-top:2px;">Auto-disabled' + (mapeVal != null ? ' (MAPE ' + mapeVal.toFixed(0) + '%)' : '') + ' — click to re-enable</span>';
     }
-    var exclNote = isExcluded ? '<span style="color:var(--danger);font-size:11px;font-weight:600;display:block;margin-top:2px;">Auto-excluded (MAPE ' + excl[m.key].mape.toFixed(0) + '%)</span>' : '';
-    html += '<div class="' + cardClass + '"' +
-      (isExcluded ? ' style="border-color:var(--danger);opacity:0.65;"' : '') +
+    html += '<div class="' + cardClass + '"' + extraStyle +
       ' onclick="toggleMethod(\'' + m.key + '\')">' +
       '<h4>' + badge + m.name + '</h4>' +
       '<p>' + m.desc + '</p>' + exclNote + '</div>';
   });
   document.getElementById('methodCards').innerHTML = html;
-  var activeCount = 0, excludedCount = 0;
-  Object.keys(AppState.forecastMethods).forEach(function(k) {
-    if (AppState.forecastMethods[k]) {
-      if (excl[k] && excl[k].excluded) excludedCount++;
-      else activeCount++;
-    }
+  var activeCount = 0, autoOffCount = 0, manualOffCount = 0;
+  ['movingAvg','expSmooth','dayOfWeek','trend','yoy','holtWinters','weather'].forEach(function(k) {
+    if (AppState.forecastMethods[k]) activeCount++;
+    else if (AppState.autoDisabled[k]) autoOffCount++;
+    else manualOffCount++;
   });
-  var statusText = activeCount + ' methods active';
-  if (excludedCount > 0) statusText += ', ' + excludedCount + ' auto-excluded';
+  var statusText = activeCount + ' active';
+  if (autoOffCount > 0) statusText += ', ' + autoOffCount + ' auto-disabled';
+  if (manualOffCount > 0) statusText += ', ' + manualOffCount + ' off';
   document.getElementById('forecastActiveMethod').textContent = statusText;
 }
 
 function toggleMethod(key) {
+  var wasOff = !AppState.forecastMethods[key];
   AppState.forecastMethods[key] = !AppState.forecastMethods[key];
+  /* Clear auto-disabled flag when user manually re-enables */
+  if (wasOff && AppState.autoDisabled[key]) {
+    delete AppState.autoDisabled[key];
+  }
   runForecast();
   renderForecastChart();
   renderForecastTable();
   renderAccuracy();
-  renderMethodCards(); /* after renderAccuracy so exclusion info refreshes */
+  renderMethodCards();
 }
 
 function clearFcCompare() {
@@ -3126,59 +3128,80 @@ function renderAccuracy() {
   var rows = [];
   var totalW = 0;
   var keys = Object.keys(mNames);
+  /* Backtest ALL 6 methods (even disabled ones) to determine accuracy */
   keys.forEach(function(k) {
-    if (!AppState.forecastMethods[k]) { rows.push({ key:k, on:false, mape:null, mapePcs:null, w:0, excluded:false }); return; }
     var mape = Forecaster._backtestMethod(mFns[k], daily, 7);
     var mapePcs = hasPcs ? Forecaster._backtestMethod(mFns[k], dailyPcs, 7) : null;
-    var w = 1 / Math.pow(Math.max(mape, 1), 2);
-    rows.push({ key:k, on:true, mape:mape, mapePcs:mapePcs, w:w, excluded:false });
+    var isOn = !!AppState.forecastMethods[k];
+    var w = isOn ? 1 / Math.pow(Math.max(mape, 1), 2) : 0;
+    rows.push({ key:k, on:isOn, mape:mape, mapePcs:mapePcs, w:w, excluded:false });
   });
-  /* Determine auto-exclusion (mirrors ensemble logic: > 1.3× best MAPE) */
+  /* Determine auto-exclusion threshold: > 1.3× best ON method's MAPE */
   var bestMape = 999;
   rows.forEach(function(r) { if (r.on && r.mape != null && r.mape < bestMape) bestMape = r.mape; });
   var exclThreshold = bestMape < 999 ? bestMape * 1.3 : 999;
+  var needsRerun = false;
   rows.forEach(function(r) {
-    if (r.on && r.mape != null && r.mape > exclThreshold) { r.excluded = true; r.w = 0; }
+    if (r.on && r.mape != null && r.mape > exclThreshold) {
+      r.excluded = true; r.w = 0;
+      /* Auto-disable: turn off the method and mark as auto-disabled */
+      AppState.forecastMethods[r.key] = false;
+      AppState.autoDisabled[r.key] = true;
+      needsRerun = true;
+    }
   });
+  /* If any methods were just auto-disabled, re-run forecast */
+  if (needsRerun) {
+    runForecast();
+    renderForecastChart();
+    renderForecastTable();
+  }
   rows.forEach(function(r) { if (r.on && !r.excluded) totalW += r.w; });
   /* Store exclusion info for method cards */
   AppState._methodExclusion = {};
-  rows.forEach(function(r) { AppState._methodExclusion[r.key] = { excluded: r.excluded, mape: r.mape }; });
+  rows.forEach(function(r) { AppState._methodExclusion[r.key] = { excluded: r.excluded, mape: r.mape, autoOff: !!AppState.autoDisabled[r.key] }; });
   var pmHtml = '<table><thead><tr><th>Method</th><th>Status</th><th style="text-align:right">$ MAPE</th>';
   if (hasPcs) pmHtml += '<th style="text-align:right">Pcs MAPE</th>';
   pmHtml += '<th>Rating</th><th style="text-align:right">Weight %</th></tr></thead><tbody>';
   rows.forEach(function(r) {
     var name = mNames[r.key];
-    if (!r.on) {
-      pmHtml += '<tr style="opacity:0.45;"><td>' + name + '</td><td>OFF</td><td style="text-align:right">—</td>';
-      if (hasPcs) pmHtml += '<td style="text-align:right">—</td>';
-      pmHtml += '<td>—</td><td style="text-align:right">—</td></tr>';
-      return;
-    }
     var rating, rColor;
-    if (r.mape < 10) { rating = 'Excellent'; rColor = 'var(--success)'; }
-    else if (r.mape < 20) { rating = 'Good'; rColor = 'var(--accent)'; }
-    else if (r.mape < 35) { rating = 'Fair'; rColor = 'var(--warning, orange)'; }
-    else { rating = 'Poor'; rColor = 'var(--danger)'; }
-    if (r.excluded) {
+    if (r.mape != null && r.mape < 900) {
+      if (r.mape < 10) { rating = 'Excellent'; rColor = 'var(--success)'; }
+      else if (r.mape < 20) { rating = 'Good'; rColor = 'var(--accent)'; }
+      else if (r.mape < 35) { rating = 'Fair'; rColor = 'var(--warning, orange)'; }
+      else { rating = 'Poor'; rColor = 'var(--danger)'; }
+    } else { rating = '—'; rColor = 'var(--muted)'; }
+    var mapeStr = (r.mape != null && r.mape < 900) ? r.mape.toFixed(1) + '%' : '—';
+    var pcsStr = (r.mapePcs != null && r.mapePcs < 900) ? r.mapePcs.toFixed(1) + '%' : '—';
+    if (r.excluded || AppState.autoDisabled[r.key]) {
+      /* Auto-disabled method — show MAPE but marked as auto-off */
       pmHtml += '<tr style="opacity:0.55;"><td><strong>' + name + '</strong></td>';
-      pmHtml += '<td style="color:var(--danger);font-weight:600;">EXCLUDED</td>';
-      pmHtml += '<td style="text-align:right;font-weight:600;">' + r.mape.toFixed(1) + '%</td>';
-      if (hasPcs) pmHtml += '<td style="text-align:right;font-weight:600;color:var(--accent);">' + (r.mapePcs != null ? r.mapePcs.toFixed(1) + '%' : '—') + '</td>';
+      pmHtml += '<td style="color:var(--danger);font-weight:600;">AUTO-OFF</td>';
+      pmHtml += '<td style="text-align:right;font-weight:600;">' + mapeStr + '</td>';
+      if (hasPcs) pmHtml += '<td style="text-align:right;font-weight:600;color:var(--accent);">' + pcsStr + '</td>';
       pmHtml += '<td style="color:' + rColor + ';font-weight:600;">' + rating + '</td>';
       pmHtml += '<td style="text-align:right;font-weight:600;color:var(--muted);">0%</td></tr>';
       return;
     }
+    if (!r.on) {
+      pmHtml += '<tr style="opacity:0.45;"><td>' + name + '</td><td>OFF</td>';
+      pmHtml += '<td style="text-align:right">' + mapeStr + '</td>';
+      if (hasPcs) pmHtml += '<td style="text-align:right">' + pcsStr + '</td>';
+      pmHtml += '<td style="color:' + rColor + ';">' + rating + '</td>';
+      pmHtml += '<td style="text-align:right">—</td></tr>';
+      return;
+    }
     var wPct = totalW > 0 ? ((r.w / totalW) * 100).toFixed(1) : '0.0';
     pmHtml += '<tr><td><strong>' + name + '</strong></td><td style="color:var(--success);font-weight:600;">ON</td>';
-    pmHtml += '<td style="text-align:right;font-weight:600;">' + r.mape.toFixed(1) + '%</td>';
-    if (hasPcs) pmHtml += '<td style="text-align:right;font-weight:600;color:var(--accent);">' + (r.mapePcs != null ? r.mapePcs.toFixed(1) + '%' : '—') + '</td>';
+    pmHtml += '<td style="text-align:right;font-weight:600;">' + mapeStr + '</td>';
+    if (hasPcs) pmHtml += '<td style="text-align:right;font-weight:600;color:var(--accent);">' + pcsStr + '</td>';
     pmHtml += '<td style="color:' + rColor + ';font-weight:600;">' + rating + '</td>';
     pmHtml += '<td style="text-align:right;font-weight:600;">' + wPct + '%</td></tr>';
   });
   pmHtml += '</tbody></table>';
-  var exclCount = rows.filter(function(r){ return r.excluded; }).length;
-  var exclNote = exclCount > 0 ? ' <span style="color:var(--danger);">' + exclCount + ' method' + (exclCount > 1 ? 's' : '') + ' auto-excluded (MAPE &gt; ' + exclThreshold.toFixed(0) + '%).</span>' : '';
+  var autoOffCount = rows.filter(function(r){ return r.excluded || AppState.autoDisabled[r.key]; }).length;
+  var exclNote = autoOffCount > 0 ? ' <span style="color:var(--danger);">' + autoOffCount + ' method' + (autoOffCount > 1 ? 's' : '') + ' auto-disabled (MAPE &gt; ' + exclThreshold.toFixed(0) + '%). Click toggle to re-enable.</span>' : '';
   pmHtml += '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Weight = 1/MAPE² normalized. Lower MAPE → higher weight.' + exclNote + (hasPcs ? ' Pieces MAPE runs the same methods on piece counts directly.' : '') + '</p>';
   pmWrap.innerHTML = pmHtml;
   renderWeightSliders();
