@@ -1344,7 +1344,7 @@ function importSalesData() {
       return !incomingKeys[r.date + '|' + r.category];
     });
     AppState.salesData = AppState.salesData.concat(incoming);
-    invalidateDollarCache();
+    _salesDollarMap = null; /* Invalidate dollar cache for isCleanDay */
     /* Rebuild categories list */
     var catSet = {};
     AppState.salesData.forEach(function(r) { catSet[r.category] = true; });
@@ -1916,22 +1916,26 @@ const Forecaster = {
       }
     }
 
-    /* Weekly average smoothing: blend each day with its 7-day window average
-       to reduce daily noise. Uses 20% weekly average + 80% daily prediction. */
-    if (combined.length >= 7) {
-      var smoothFactor = 0.2; /* 20% weekly influence */
-      for (var wi = 0; wi < combined.length; wi++) {
-        /* Build a window of up to 7 days centered on wi */
-        var wStart = Math.max(0, wi - 3);
-        var wEnd = Math.min(combined.length - 1, wi + 3);
-        var wSum = 0, wCnt = 0;
-        for (var wj = wStart; wj <= wEnd; wj++) {
-          wSum += combined[wj].predicted;
-          wCnt++;
+    /* Weekly average anchor: blend each day's forecast with the historical
+       weekly average for that day-of-week. Uses clean historical data only.
+       Light touch (10%) to reduce noise without losing day-specific signal. */
+    if (!opts.raw && dailySales.length >= 14) {
+      var dowAvgH = [0,0,0,0,0,0,0], dowCntH = [0,0,0,0,0,0,0];
+      dailySales.forEach(function(d) {
+        if (isCleanDay(d)) {
+          var di = dayOfWeek(d.date);
+          dowAvgH[di] += d.total;
+          dowCntH[di]++;
         }
-        var weekAvg = wSum / wCnt;
-        combined[wi].predicted = combined[wi].predicted * (1 - smoothFactor) + weekAvg * smoothFactor;
-      }
+      });
+      for (var dxi = 0; dxi < 7; dxi++) { if (dowCntH[dxi] > 0) dowAvgH[dxi] /= dowCntH[dxi]; }
+      var smoothFactor = 0.1;
+      combined.forEach(function(f) {
+        var di = dayOfWeek(f.date);
+        if (dowAvgH[di] > 0) {
+          f.predicted = f.predicted * (1 - smoothFactor) + dowAvgH[di] * smoothFactor;
+        }
+      });
     }
 
     if (!opts.raw && methods.weather) {
@@ -1961,7 +1965,7 @@ const Forecaster = {
         }
       });
       var denom = counted || 1;
-      var mape = totalActual > 0 ? (totalAbs / totalActual) * 100 : 0;
+      var mape = totalActual > 0 ? (totalAbs / totalActual) * 100 : 999;
       return { mape: mape, bias: totalErr / denom, mae: totalAbs / denom };
     }
     var raw = calcStats(rawPreds);
@@ -1990,38 +1994,29 @@ function isClosedDate(dateString) {
 }
 
 /* Returns true if a data point is a valid business day worth using in forecasts.
-   Filters: zeros, closed dates, and below-threshold anomaly days. */
-/* isCleanDay(d) — filter anomaly days.
-   d = {date, total}.  When _isPiecesMode is true, total is piece count so
-   the $-based threshold must be checked against actual dollar sales for that
-   date, not the piece count. */
-var _dollarByDate = null;
-function _getDollarByDate() {
-  if (_dollarByDate) return _dollarByDate;
-  _dollarByDate = {};
-  AppState.salesData.forEach(function(r) {
-    _dollarByDate[r.date] = (_dollarByDate[r.date] || 0) + r.amount;
-  });
-  return _dollarByDate;
+   Filters: zeros, closed dates, and below-threshold anomaly days.
+   Always checks dollar threshold against actual dollar sales (not piece counts). */
+var _salesDollarMap = null;
+function getSalesDollarMap() {
+  if (!_salesDollarMap) {
+    _salesDollarMap = {};
+    AppState.salesData.forEach(function(r) {
+      _salesDollarMap[r.date] = (_salesDollarMap[r.date] || 0) + r.amount;
+    });
+  }
+  return _salesDollarMap;
 }
-function invalidateDollarCache() { _dollarByDate = null; }
-
-/* Module-level flag — set to true when running pieces pipeline */
-var _isPiecesMode = false;
-
 function isCleanDay(d) {
   if (!d || d.total <= 0) return false;
   if (isClosedDate(d.date)) return false;
   var s = AppState.settings;
   if (s.minSalesThresholdOn && s.minSalesThreshold > 0) {
-    if (_isPiecesMode) {
-      /* Look up the $ amount for this date instead of comparing pieces to $ threshold */
-      var dollarMap = _getDollarByDate();
-      var dollarTotal = dollarMap[d.date] || 0;
-      if (dollarTotal < s.minSalesThreshold) return false;
-    } else {
-      if (d.total < s.minSalesThreshold) return false;
-    }
+    /* Always compare dollar amount for this date, even when d.total is pieces */
+    var dolMap = getSalesDollarMap();
+    var dollarAmt = dolMap[d.date];
+    if (dollarAmt != null && dollarAmt < s.minSalesThreshold) return false;
+    /* Fallback: if no dollar data found, use d.total (assumes dollar context) */
+    if (dollarAmt == null && d.total < s.minSalesThreshold) return false;
   }
   return true;
 }
@@ -2248,14 +2243,12 @@ function getLearnedWeatherAdj() {
   /* Use business-hours rain (bizRain) when available, fall back to total daily rain */
   /* Rain buckets: none(0-2mm), light(2-5mm), moderate(5-15mm), heavy(15+mm) */
   var buckets = { dry: [], light: [], moderate: [], heavy: [], hot: [] };
-  /* Build dollar totals for isCleanDay check */
-  var salByDate = {};
-  AppState.salesData.forEach(function(r) { salByDate[r.date] = (salByDate[r.date] || 0) + r.amount; });
+  var dolMap = getSalesDollarMap();
   Object.keys(pcsByDate).forEach(function(dt) {
     var w = wMap[dt];
     if (!w) return;
-    /* Use isCleanDay logic: skip closed, zero, sub-threshold days */
-    if (!isCleanDay({ date: dt, total: salByDate[dt] || 0 })) return;
+    /* Use isCleanDay: skip closed, zero, sub-threshold days (checks dollar amounts) */
+    if (!isCleanDay({ date: dt, total: dolMap[dt] || 0 })) return;
     var pcs = pcsByDate[dt];
     var rn = (w.bizRain != null) ? w.bizRain : w.rain;
     if (w.tempMax > heatThresh && rn <= 2) { buckets.hot.push(pcs); return; }
@@ -2467,9 +2460,7 @@ function runForecast() {
   /* Also run ensemble on pieces data for direct pieces forecasting */
   var dailyPcs = getDailyPieces();
   if (dailyPcs.length >= 7) {
-    _isPiecesMode = true;
-    try { AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days); }
-    finally { _isPiecesMode = false; }
+    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days);
   } else {
     AppState.forecastCachePcs = [];
   }
@@ -2619,6 +2610,7 @@ function showSalesFormatHelp() {
 function confirmClearSales() {
   showModal('Clear All Sales Data?', 'This will permanently remove all imported sales records. This action cannot be undone.', function() {
     AppState.salesData = [];
+    _salesDollarMap = null;
     AppState.forecastCache = [];
     AppState.forecastCachePcs = [];
     renderSalesPage();
@@ -2902,10 +2894,7 @@ function renderAccuracy() {
   const daily = getDailySales();
   const dailyPcs = getDailyPieces();
   const result = Forecaster.backtest(daily);
-  _isPiecesMode = true;
-  var resultPcs = null;
-  try { resultPcs = dailyPcs.length >= 21 ? Forecaster.backtest(dailyPcs) : null; }
-  finally { _isPiecesMode = false; }
+  const resultPcs = dailyPcs.length >= 21 ? Forecaster.backtest(dailyPcs) : null;
   const wrap = document.getElementById('accuracyMetrics');
   const pmWrap = document.getElementById('perMethodTable');
   if (!result) {
@@ -2922,13 +2911,14 @@ function renderAccuracy() {
       adjNote = '<span style="color:var(--danger);font-size:11px;">⚠ Weather/holiday adjustments hurting (' + result.rawMape.toFixed(1) + '% → ' + result.adjMape.toFixed(1) + '%) — using raw forecast</span>';
     }
   }
-  var mHtml = '<div class="stat-card"><div class="stat-label">$ MAPE</div><div class="stat-value">' + result.mape.toFixed(1) + '%</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
-  if (resultPcs) {
+  var fmtMape = function(m) { return m >= 900 ? 'N/A' : m.toFixed(1) + '%'; };
+  var mHtml = '<div class="stat-card"><div class="stat-label">$ MAPE</div><div class="stat-value">' + fmtMape(result.mape) + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
+  if (resultPcs && resultPcs.mape < 900) {
     var pcsAdjNote = '';
     if (resultPcs.rawMape != null && resultPcs.adjMape != null && !resultPcs.adjHelps) {
       pcsAdjNote = ' <span style="font-size:10px;color:var(--danger);">⚠</span>';
     }
-    mHtml += '<div class="stat-card"><div class="stat-label">Pieces MAPE</div><div class="stat-value" style="color:var(--accent);">' + resultPcs.mape.toFixed(1) + '%' + pcsAdjNote + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
+    mHtml += '<div class="stat-card"><div class="stat-label">Pieces MAPE</div><div class="stat-value" style="color:var(--accent);">' + fmtMape(resultPcs.mape) + pcsAdjNote + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
   }
   mHtml += '<div class="stat-card"><div class="stat-label">Avg Bias</div><div class="stat-value">' + fmt(result.bias) + '</div><div style="font-size:12px;color:var(--muted);">Negative = under-forecast</div></div>';
   mHtml += '<div class="stat-card"><div class="stat-label">MAE</div><div class="stat-value">' + fmt(result.mae) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
@@ -2951,12 +2941,7 @@ function renderAccuracy() {
   keys.forEach(function(k) {
     if (!AppState.forecastMethods[k]) { rows.push({ key:k, on:false, mape:null, mapePcs:null, w:0 }); return; }
     var mape = Forecaster._backtestMethod(mFns[k], daily, 14);
-    var mapePcs = null;
-    if (hasPcs) {
-      _isPiecesMode = true;
-      try { mapePcs = Forecaster._backtestMethod(mFns[k], dailyPcs, 14); }
-      finally { _isPiecesMode = false; }
-    }
+    var mapePcs = hasPcs ? Forecaster._backtestMethod(mFns[k], dailyPcs, 14) : null;
     var w = 1 / Math.max(mape, 1);
     totalW += w;
     rows.push({ key:k, on:true, mape:mape, mapePcs:mapePcs, w:w });
@@ -3597,7 +3582,7 @@ function importAllData(event) {
   reader.onload = function(e) {
     try {
       const data = JSON.parse(e.target.result);
-      if (data.salesData) AppState.salesData = data.salesData;
+      if (data.salesData) { AppState.salesData = data.salesData; _salesDollarMap = null; }
       if (data.employeeHours) AppState.employeeHours = data.employeeHours;
       if (data.weatherData) AppState.weatherData = data.weatherData;
       if (data.settings) Object.assign(AppState.settings, data.settings);
@@ -3607,7 +3592,6 @@ function importAllData(event) {
       /* Sync forecast days dropdown */
       var fdSel = document.getElementById('forecastDaysSelect');
       if (fdSel && AppState.settings.forecastDays) fdSel.value = String(AppState.settings.forecastDays);
-      invalidateDollarCache();
       renderActualPiecesMetrics();
       renderWeatherImpact();
       runForecast();
@@ -3674,6 +3658,7 @@ function generateSampleData() {
   }
 
   AppState.salesData = sales;
+  _salesDollarMap = null;
   AppState.employeeHours = empHours;
   runForecast();
   showPage('dashboard');
