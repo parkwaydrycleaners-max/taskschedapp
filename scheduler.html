@@ -1650,25 +1650,38 @@ const Forecaster = {
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    /* Recency-weighted mean by day-of-week, skip unclean days */
-    var dayAvg = [0,0,0,0,0,0,0];
-    var dayCnt = [0,0,0,0,0,0,0];
+    /* Collect clean values per DOW from last 12 weeks, then trimmed recency-weighted mean */
+    var dowVals = [[],[],[],[],[],[],[]];
     var recent = dailySales.slice(-84);
     recent.forEach(function(d, idx) {
       if (!isCleanDay(d)) return;
       var dow = dayOfWeek(d.date);
-      var weight = 1 + (idx / recent.length);
-      dayAvg[dow] += d.total * weight;
-      dayCnt[dow] += weight;
+      dowVals[dow].push({ val: d.total, weight: 1 + (idx / recent.length) });
     });
-    for (var j = 0; j < 7; j++) { dayAvg[j] = dayCnt[j] > 0 ? dayAvg[j] / dayCnt[j] : 0; }
+    var dayAvg = [0,0,0,0,0,0,0];
+    for (var j = 0; j < 7; j++) {
+      var arr = dowVals[j];
+      if (arr.length === 0) continue;
+      /* Trimmed mean: remove top/bottom outlier if >= 4 samples */
+      if (arr.length >= 4) {
+        arr.sort(function(a,b) { return a.val - b.val; });
+        arr = arr.slice(1, -1); /* trim highest and lowest */
+      }
+      var wSum = 0, wCnt = 0;
+      arr.forEach(function(e) { wSum += e.val * e.weight; wCnt += e.weight; });
+      dayAvg[j] = wCnt > 0 ? wSum / wCnt : 0;
+    }
+    /* Fill missing DOWs with overall average */
+    var oSum = 0, oCnt = 0;
+    for (var k = 0; k < 7; k++) { if (dayAvg[k] > 0) { oSum += dayAvg[k]; oCnt++; } }
+    var oAvg = oCnt > 0 ? oSum / oCnt : 0;
+    for (var k2 = 0; k2 < 7; k2++) { if (dayAvg[k2] === 0) dayAvg[k2] = oAvg; }
 
     var lastDate = dailySales[dailySales.length - 1].date;
     var result = [];
     for (var i = 1; i <= daysAhead; i++) {
       var fd = addDays(lastDate, i);
-      var dow = dayOfWeek(fd);
-      result.push({ date: fd, predicted: dayAvg[dow], method: 'Day Pattern' });
+      result.push({ date: fd, predicted: dayAvg[dayOfWeek(fd)], method: 'Day Pattern' });
     }
     return result;
   },
@@ -1776,26 +1789,25 @@ const Forecaster = {
     return result;
   },
 
-  holtWinters(dailySales, daysAhead) {
+  _holtWintersCore(dailySales, daysAhead, alpha, beta, gamma) {
     daysAhead = daysAhead || 14;
-    var seasonLen = 7; /* weekly seasonality */
-    if (dailySales.length < seasonLen * 3) return [];
+    var seasonLen = 7;
     var n = dailySales.length;
+    if (n < seasonLen * 3) return [];
 
-    /* Initialize from first season of CLEAN data */
+    /* Initialize level from ALL clean data (more stable than first 2 weeks) */
     var initSum = 0, initCnt = 0;
-    for (var si = 0; si < Math.min(seasonLen * 2, n); si++) {
+    for (var si = 0; si < n; si++) {
       if (isCleanDay(dailySales[si])) { initSum += dailySales[si].total; initCnt++; }
     }
     if (initCnt === 0) return [];
     var level = initSum / initCnt;
     var trend = 0;
 
-    /* Initialize seasonal indices by day-of-week from first 4 weeks of clean data */
-    var seasonal = [1, 1, 1, 1, 1, 1, 1];
+    /* Initialize seasonal indices by DOW from ALL clean data */
+    var seasonal = [1,1,1,1,1,1,1];
     var sDow = [0,0,0,0,0,0,0], sCnt = [0,0,0,0,0,0,0];
-    var initWindow = Math.min(28, n);
-    for (var iw = 0; iw < initWindow; iw++) {
+    for (var iw = 0; iw < n; iw++) {
       if (!isCleanDay(dailySales[iw])) continue;
       var dw = dayOfWeek(dailySales[iw].date);
       sDow[dw] += dailySales[iw].total;
@@ -1805,12 +1817,17 @@ const Forecaster = {
       seasonal[sd] = sCnt[sd] > 0 ? (sDow[sd] / sCnt[sd]) / level : 1;
     }
 
-    /* Smoothing parameters */
-    var alpha = 0.3, beta = 0.05, gamma = 0.3;
+    /* Re-init level from recent data (last 4 weeks) for recency */
+    var recentSum = 0, recentCnt = 0;
+    for (var ri = Math.max(0, n - 28); ri < n; ri++) {
+      if (isCleanDay(dailySales[ri])) { recentSum += dailySales[ri].total; recentCnt++; }
+    }
+    if (recentCnt > 0) level = recentSum / recentCnt;
 
-    /* Run through all data — use day-of-week for seasonal index, skip unclean */
-    for (var ki = 0; ki < n; ki++) {
-      if (!isCleanDay(dailySales[ki])) continue; /* skip zeros/anomalies */
+    /* Run through data — only last 6 months for faster adaptation */
+    var startIdx = Math.max(0, n - 182);
+    for (var ki = startIdx; ki < n; ki++) {
+      if (!isCleanDay(dailySales[ki])) continue;
       var sIdx = dayOfWeek(dailySales[ki].date);
       var prevLevel = level;
       level = alpha * (dailySales[ki].total / (seasonal[sIdx] || 1)) + (1 - alpha) * (level + trend);
@@ -1818,7 +1835,6 @@ const Forecaster = {
       seasonal[sIdx] = gamma * (dailySales[ki].total / (level || 1)) + (1 - gamma) * seasonal[sIdx];
     }
 
-    /* Forecast ahead — use day-of-week for seasonal factor */
     var lastDate = dailySales[n - 1].date;
     var result = [];
     for (var fi = 1; fi <= daysAhead; fi++) {
@@ -1828,6 +1844,39 @@ const Forecaster = {
       result.push({ date: fd, predicted: pred, method: 'Holt-Winters' });
     }
     return result;
+  },
+
+  holtWinters(dailySales, daysAhead) {
+    /* Auto-tune: try parameter combos, pick best via walk-forward CV */
+    var paramSets = [
+      [0.2, 0.01, 0.15], [0.2, 0.05, 0.3], [0.3, 0.01, 0.2],
+      [0.3, 0.05, 0.3], [0.4, 0.02, 0.2], [0.4, 0.05, 0.35],
+      [0.5, 0.01, 0.15], [0.5, 0.05, 0.25]
+    ];
+    var self = this;
+    var bestParams = [0.3, 0.05, 0.3];
+    var bestMape = 999;
+    var testDays = 7;
+    if (dailySales.length >= 35) {
+      paramSets.forEach(function(p) {
+        var testEnd = dailySales.length;
+        var testStart = testEnd - testDays;
+        var train = dailySales.slice(0, testStart);
+        var test = dailySales.slice(testStart, testEnd);
+        var preds = self._holtWintersCore(train, testDays, p[0], p[1], p[2]);
+        if (!preds || preds.length === 0) return;
+        var totAbs = 0, totAct = 0;
+        test.forEach(function(act, i) {
+          if (preds[i] && isCleanDay(act)) {
+            totAbs += Math.abs(act.total - preds[i].predicted);
+            totAct += act.total;
+          }
+        });
+        var mape = totAct > 0 ? (totAbs / totAct) * 100 : 999;
+        if (mape < bestMape) { bestMape = mape; bestParams = p; }
+      });
+    }
+    return self._holtWintersCore(dailySales, daysAhead, bestParams[0], bestParams[1], bestParams[2]);
   },
 
   weatherAdjust(forecasts, weatherDataArr) {
@@ -1861,10 +1910,10 @@ const Forecaster = {
     });
   },
 
-  /* Walk-forward cross-validation: 3 folds × 7 days for stable MAPE */
+  /* Walk-forward cross-validation: 4 folds × 7 days for stable MAPE */
   _backtestMethod(methodFn, dailySales, testDays) {
     testDays = 7;
-    var folds = 3;
+    var folds = 4;
     var minTrain = 21;
     if (dailySales.length < minTrain + testDays * folds) {
       /* Not enough data for 3 folds — try single fold */
@@ -1963,6 +2012,43 @@ const Forecaster = {
       }
     }
 
+    /* Bias correction: measure recent over/under-forecasting and compensate.
+       Uses a short lookback (last 14 days) to estimate systematic bias as a ratio. */
+    if (dailySales.length >= 28) {
+      var bcTrain = dailySales.slice(0, -7);
+      var bcTest = dailySales.slice(-7);
+      var bcPreds = [];
+      /* Quick ensemble of same methods on train data */
+      var bcForecasts = candidates.map(function(c) {
+        return c.preds; /* reuse existing, they're close enough for bias measurement */
+      });
+      /* Instead of re-running, measure bias from actual recent data vs DOW prediction */
+      var biasSum = 0, biasCnt = 0;
+      bcTest.forEach(function(d) {
+        if (!isCleanDay(d)) return;
+        /* Find the ensemble's implicit prediction for this day by DOW pattern */
+        var dowIdx = dayOfWeek(d.date);
+        var dowSum = 0, dowC = 0;
+        for (var bi = Math.max(0, dailySales.length - 56); bi < dailySales.length - 7; bi++) {
+          if (isCleanDay(dailySales[bi]) && dayOfWeek(dailySales[bi].date) === dowIdx) {
+            dowSum += dailySales[bi].total; dowC++;
+          }
+        }
+        if (dowC > 0) {
+          biasSum += d.total / (dowSum / dowC);
+          biasCnt++;
+        }
+      });
+      if (biasCnt >= 3) {
+        var biasRatio = biasSum / biasCnt; /* >1 = under-forecasting, <1 = over-forecasting */
+        /* Clamp to ±15% correction */
+        biasRatio = Math.max(0.85, Math.min(1.15, biasRatio));
+        if (Math.abs(biasRatio - 1) > 0.02) { /* only apply if meaningful */
+          combined.forEach(function(f) { f.predicted *= biasRatio; });
+        }
+      }
+    }
+
     if (!opts.raw && methods.weather) {
       return this.weatherAdjust(combined, AppState.weatherData);
     }
@@ -1971,7 +2057,7 @@ const Forecaster = {
 
   backtest(dailySales, testDays) {
     testDays = 7;
-    var folds = 3;
+    var folds = 4;
     var minTrain = 21;
     if (dailySales.length < minTrain + testDays * folds) {
       if (dailySales.length < minTrain + testDays) return null;
@@ -2299,11 +2385,16 @@ function getLearnedWeatherAdj() {
     else if (rn <= 15) { buckets.moderate.push(pcs); }
     else { buckets.heavy.push(pcs); }
   });
-  if (buckets.dry.length < 5) return null;
+  if (buckets.dry.length < 8) return null; /* need solid baseline */
   var avg = function(arr) { return arr.reduce(function(a,b){return a+b;},0) / arr.length; };
   var base = avg(buckets.dry);
   if (base <= 0) return null;
-  var pct = function(arr) { return arr.length >= 2 ? Math.max(0, (base - avg(arr)) / base * 100) : 0; };
+  /* Require at least 4 samples per bucket and cap adjustment at 35% */
+  var pct = function(arr) {
+    if (arr.length < 4) return 0; /* not enough confidence */
+    var diff = Math.max(0, (base - avg(arr)) / base * 100);
+    return Math.min(diff, 35); /* cap at 35% max adjustment */
+  };
   return {
     graduated: true,
     lightRain: pct(buckets.light),
