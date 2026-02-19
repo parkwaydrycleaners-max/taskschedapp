@@ -1418,6 +1418,12 @@ function importSalesData() {
     });
     AppState.salesData = AppState.salesData.concat(incoming);
     _salesDollarMap = null; /* Invalidate dollar cache for isCleanDay */
+    /* Reset auto-disabled flags so methods are re-evaluated fresh on new data */
+    AppState.autoDisabled = {};
+    /* Re-enable all core methods for fresh evaluation */
+    ['movingAvg','expSmooth','dayOfWeek','trend','yoy','holtWinters','piecesFirst'].forEach(function(k) {
+      AppState.forecastMethods[k] = true;
+    });
     /* Rebuild categories list */
     var catSet = {};
     AppState.salesData.forEach(function(r) { catSet[r.category] = true; });
@@ -4686,6 +4692,7 @@ function exportAllData() {
     weatherData: AppState.weatherData,
     settings: AppState.settings,
     forecastMethods: AppState.forecastMethods,
+    autoDisabled: AppState.autoDisabled,
     manualWeights: AppState.manualWeights,
     savedForecasts: AppState.savedForecasts
   };
@@ -4711,6 +4718,8 @@ function importAllData(event) {
       if (data.weatherData) AppState.weatherData = data.weatherData;
       if (data.settings) Object.assign(AppState.settings, data.settings);
       if (data.forecastMethods) Object.assign(AppState.forecastMethods, data.forecastMethods);
+      if (data.autoDisabled) AppState.autoDisabled = data.autoDisabled;
+      else AppState.autoDisabled = {};
       if (data.manualWeights !== undefined) AppState.manualWeights = data.manualWeights;
       if (data.savedForecasts) AppState.savedForecasts = data.savedForecasts;
       /* Sync forecast days dropdown */
