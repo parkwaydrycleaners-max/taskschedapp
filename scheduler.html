@@ -525,7 +525,7 @@ select.form-input { appearance: auto; }
     </div>
     <div class="card">
       <div class="card-header"><span class="card-title">Forecast Accuracy (Backtest)</span></div>
-      <div id="accuracyMetrics" class="grid-3"></div>
+      <div id="accuracyMetrics" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;"></div>
       <div id="perMethodTable" style="margin-top:16px;"></div>
     </div>
     <div class="card">
@@ -3413,8 +3413,10 @@ function renderForecastTable() {
 function renderAccuracy() {
   const daily = getDailySales();
   const dailyPcs = getDailyPieces();
+  /* Run pieces backtest FIRST, then dollars */
+  const hasPcs = dailyPcs.length >= 21;
+  const resultPcs = hasPcs ? Forecaster.backtest(dailyPcs) : null;
   const result = Forecaster.backtest(daily);
-  const resultPcs = dailyPcs.length >= 21 ? Forecaster.backtest(dailyPcs) : null;
   const wrap = document.getElementById('accuracyMetrics');
   const pmWrap = document.getElementById('perMethodTable');
   if (!result) {
@@ -3432,18 +3434,34 @@ function renderAccuracy() {
     }
   }
   var fmtMape = function(m) { return m >= 900 ? 'N/A' : m.toFixed(1) + '%'; };
-  var mHtml = '<div class="stat-card"><div class="stat-label">$ MAPE</div><div class="stat-value">' + fmtMape(result.mape) + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
-  if (resultPcs && resultPcs.mape < 900) {
-    var pcsAdjNote = '';
-    if (resultPcs.rawMape != null && resultPcs.adjMape != null && !resultPcs.adjHelps) {
-      pcsAdjNote = ' <span style="font-size:10px;color:var(--danger);">⚠</span>';
-    }
-    mHtml += '<div class="stat-card"><div class="stat-label">Pieces MAPE</div><div class="stat-value" style="color:var(--accent);">' + fmtMape(resultPcs.mape) + pcsAdjNote + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
+  var na = '<span style="color:var(--muted);">N/A</span>';
+  /* Always show both Pieces and $ metrics — Pieces first */
+  /* Row 1: MAPE (Pieces, $) */
+  var pcsWarn = '';
+  if (resultPcs && resultPcs.rawMape != null && resultPcs.adjMape != null && !resultPcs.adjHelps) {
+    pcsWarn = ' <span style="font-size:10px;color:var(--danger);">⚠</span>';
   }
-  mHtml += '<div class="stat-card"><div class="stat-label">Avg Bias</div><div class="stat-value">' + fmt(result.bias) + '</div><div style="font-size:12px;color:var(--muted);">Negative = under-forecast</div></div>';
-  mHtml += '<div class="stat-card"><div class="stat-label">MAE</div><div class="stat-value">' + fmt(result.mae) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
+  var mHtml = '';
+  /* Header spanning full row */
+  mHtml += '<div style="grid-column:1/-1;display:flex;gap:12px;flex-wrap:wrap;">';
+  /* Pieces MAPE — first */
+  mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Pieces MAPE</div><div class="stat-value" style="color:var(--accent);">' + (resultPcs ? fmtMape(resultPcs.mape) + pcsWarn : na) + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
+  /* $ MAPE */
+  mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">$ MAPE</div><div class="stat-value">' + fmtMape(result.mape) + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
+  mHtml += '</div>';
+  /* Row 2: Bias (Pieces, $) */
+  mHtml += '<div style="grid-column:1/-1;display:flex;gap:12px;flex-wrap:wrap;">';
+  mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Pieces Bias</div><div class="stat-value" style="color:var(--accent);font-size:1.15rem;">' + (resultPcs ? resultPcs.bias.toFixed(1) : na) + '</div><div style="font-size:12px;color:var(--muted);">Negative = under-forecast</div></div>';
+  mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">$ Bias</div><div class="stat-value" style="font-size:1.15rem;">' + fmt(result.bias) + '</div><div style="font-size:12px;color:var(--muted);">Negative = under-forecast</div></div>';
+  mHtml += '</div>';
+  /* Row 3: MAE (Pieces, $) */
+  mHtml += '<div style="grid-column:1/-1;display:flex;gap:12px;flex-wrap:wrap;">';
+  mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Pieces MAE</div><div class="stat-value" style="color:var(--accent);font-size:1.15rem;">' + (resultPcs ? resultPcs.mae.toFixed(1) : na) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
+  mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">$ MAE</div><div class="stat-value" style="font-size:1.15rem;">' + fmt(result.mae) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
+  mHtml += '</div>';
   if (adjNote) mHtml += '<div style="grid-column:1/-1;padding:4px 0;">' + adjNote + '</div>';
   wrap.innerHTML = mHtml;
+
   /* Per-method backtesting dashboard */
   var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
   var mFns = {
@@ -3454,14 +3472,13 @@ function renderAccuracy() {
     yoy: Forecaster.yearOverYear,
     holtWinters: Forecaster.holtWinters
   };
-  var hasPcs = dailyPcs.length >= 21;
   var rows = [];
   var totalW = 0;
   var keys = Object.keys(mNames);
-  /* Backtest ALL 6 methods (even disabled ones) to determine accuracy */
+  /* Backtest ALL 6 methods (even disabled ones) — pieces first, then dollars */
   keys.forEach(function(k) {
-    var mape = Forecaster._backtestMethod(mFns[k], daily, 7);
     var mapePcs = hasPcs ? Forecaster._backtestMethod(mFns[k], dailyPcs, 7) : null;
+    var mape = Forecaster._backtestMethod(mFns[k], daily, 7);
     var isOn = !!AppState.forecastMethods[k];
     var w = isOn ? 1 / Math.pow(Math.max(mape, 1), 2) : 0;
     rows.push({ key:k, on:isOn, mape:mape, mapePcs:mapePcs, w:w, excluded:false });
@@ -3510,9 +3527,8 @@ function renderAccuracy() {
       AppState._methodExclusion[ek] = { excluded: true, mape: null, autoOff: true };
     }
   });
-  var pmHtml = '<table><thead><tr><th>Method</th><th>Status</th><th style="text-align:right">$ MAPE</th>';
-  if (hasPcs) pmHtml += '<th style="text-align:right">Pcs MAPE</th>';
-  pmHtml += '<th>Rating</th><th style="text-align:right">Weight %</th></tr></thead><tbody>';
+  /* Per-method table: always show both Pcs MAPE and $ MAPE columns */
+  var pmHtml = '<table><thead><tr><th>Method</th><th>Status</th><th style="text-align:right">Pcs MAPE</th><th style="text-align:right">$ MAPE</th><th>Rating</th><th style="text-align:right">Weight %</th></tr></thead><tbody>';
   rows.forEach(function(r) {
     var name = mNames[r.key];
     var rating, rColor;
@@ -3525,34 +3541,33 @@ function renderAccuracy() {
     var mapeStr = (r.mape != null && r.mape < 900) ? r.mape.toFixed(1) + '%' : '—';
     var pcsStr = (r.mapePcs != null && r.mapePcs < 900) ? r.mapePcs.toFixed(1) + '%' : '—';
     if (r.excluded || AppState.autoDisabled[r.key]) {
-      /* Auto-disabled method — show MAPE but marked as auto-off */
       pmHtml += '<tr style="opacity:0.55;"><td><strong>' + name + '</strong></td>';
       pmHtml += '<td style="color:var(--danger);font-weight:600;">AUTO-OFF</td>';
+      pmHtml += '<td style="text-align:right;font-weight:600;color:var(--accent);">' + pcsStr + '</td>';
       pmHtml += '<td style="text-align:right;font-weight:600;">' + mapeStr + '</td>';
-      if (hasPcs) pmHtml += '<td style="text-align:right;font-weight:600;color:var(--accent);">' + pcsStr + '</td>';
       pmHtml += '<td style="color:' + rColor + ';font-weight:600;">' + rating + '</td>';
       pmHtml += '<td style="text-align:right;font-weight:600;color:var(--muted);">0%</td></tr>';
       return;
     }
     if (!r.on) {
       pmHtml += '<tr style="opacity:0.45;"><td>' + name + '</td><td>OFF</td>';
+      pmHtml += '<td style="text-align:right;color:var(--accent);">' + pcsStr + '</td>';
       pmHtml += '<td style="text-align:right">' + mapeStr + '</td>';
-      if (hasPcs) pmHtml += '<td style="text-align:right">' + pcsStr + '</td>';
       pmHtml += '<td style="color:' + rColor + ';">' + rating + '</td>';
       pmHtml += '<td style="text-align:right">—</td></tr>';
       return;
     }
     var wPct = totalW > 0 ? ((r.w / totalW) * 100).toFixed(1) : '0.0';
     pmHtml += '<tr><td><strong>' + name + '</strong></td><td style="color:var(--success);font-weight:600;">ON</td>';
+    pmHtml += '<td style="text-align:right;font-weight:600;color:var(--accent);">' + pcsStr + '</td>';
     pmHtml += '<td style="text-align:right;font-weight:600;">' + mapeStr + '</td>';
-    if (hasPcs) pmHtml += '<td style="text-align:right;font-weight:600;color:var(--accent);">' + pcsStr + '</td>';
     pmHtml += '<td style="color:' + rColor + ';font-weight:600;">' + rating + '</td>';
     pmHtml += '<td style="text-align:right;font-weight:600;">' + wPct + '%</td></tr>';
   });
   pmHtml += '</tbody></table>';
   var autoOffCount = rows.filter(function(r){ return r.excluded || AppState.autoDisabled[r.key]; }).length;
   var exclNote = autoOffCount > 0 ? ' <span style="color:var(--danger);">' + autoOffCount + ' method' + (autoOffCount > 1 ? 's' : '') + ' auto-disabled (MAPE &gt; ' + exclThreshold.toFixed(0) + '%). Click toggle to re-enable.</span>' : '';
-  pmHtml += '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Weight = 1/MAPE² normalized. Lower MAPE → higher weight.' + exclNote + (hasPcs ? ' Pieces MAPE runs the same methods on piece counts directly.' : '') + '</p>';
+  pmHtml += '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Weight = 1/MAPE² normalized. Lower MAPE → higher weight.' + exclNote + ' Both Pieces and $ MAPE run the same methods independently.</p>';
   pmWrap.innerHTML = pmHtml;
   renderWeightSliders();
 }
