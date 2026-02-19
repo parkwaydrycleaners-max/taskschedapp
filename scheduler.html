@@ -984,6 +984,7 @@ const AppState = {
     trend: true,
     yoy: true,
     holtWinters: true,
+    piecesFirst: true,
     weather: true,
     seasonalEvents: true,
     winsorize: true,
@@ -1741,12 +1742,12 @@ const Forecaster = {
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    /* Collect clean values per DOW from last 12 weeks with exponential recency weighting.
-       Half-life = 28 days: data from 4 weeks ago gets 50% weight, 8 weeks → 25%. */
+    /* Collect clean values per DOW from last 8 weeks with exponential recency weighting.
+       Half-life = 21 days: data from 3 weeks ago gets 50% weight, 6 weeks → 25%. */
     var dowVals = [[],[],[],[],[],[],[]];
     var n = dailySales.length;
-    var lookback = Math.min(n, 84); /* 12 weeks */
-    var halfLife = 28;
+    var lookback = Math.min(n, 56); /* 8 weeks */
+    var halfLife = 21;
     for (var ri = n - lookback; ri < n; ri++) {
       var d = dailySales[ri];
       if (!isCleanDay(d)) continue;
@@ -1929,6 +1930,72 @@ const Forecaster = {
     return result;
   },
 
+  /* Pieces-first dollar forecasting: forecast piece volume by DOW, then multiply
+     by recent per-DOW $/piece ratio. Leverages the more stable pieces signal. */
+  piecesAsDollars(dailySales, daysAhead) {
+    daysAhead = daysAhead || 14;
+    var allPcs = getDailyPieces();
+    if (allPcs.length < 28) return [];
+    /* Only use pieces data up to the last date in dailySales to prevent leakage during backtest */
+    var lastTrainDate = dailySales[dailySales.length - 1].date;
+    var dailyPcs = allPcs.filter(function(p) { return p.date <= lastTrainDate; });
+    if (dailyPcs.length < 28) return [];
+    /* Build dollar lookup from training data */
+    var dollarMap = {};
+    dailySales.forEach(function(d) { if (isCleanDay(d)) dollarMap[d.date] = d.total; });
+    /* Compute per-DOW $/piece ratio from last 60 days of overlap */
+    var dppByDow = [[],[],[],[],[],[],[]];
+    var pcsN = dailyPcs.length;
+    for (var di = Math.max(0, pcsN - 60); di < pcsN; di++) {
+      var pd = dailyPcs[di];
+      var dollars = dollarMap[pd.date];
+      if (dollars != null && dollars > 0 && pd.total > 0) {
+        dppByDow[dayOfWeek(pd.date)].push(dollars / pd.total);
+      }
+    }
+    var avgDpp = [0,0,0,0,0,0,0];
+    var allDpp = 0, allCnt = 0;
+    for (var j = 0; j < 7; j++) {
+      if (dppByDow[j].length >= 2) {
+        avgDpp[j] = dppByDow[j].reduce(function(s,v){return s+v;},0) / dppByDow[j].length;
+      }
+      dppByDow[j].forEach(function(v){ allDpp += v; allCnt++; });
+    }
+    var fallback = allCnt > 0 ? allDpp / allCnt : 0;
+    if (fallback === 0) return [];
+    for (var j2 = 0; j2 < 7; j2++) { if (avgDpp[j2] === 0) avgDpp[j2] = fallback; }
+    /* Forecast pieces: recency-weighted DOW average (8 weeks, half-life 21 days) */
+    var pcsLookback = Math.min(pcsN, 56);
+    var pcsHL = 21;
+    var dowPcs = [[],[],[],[],[],[],[]];
+    for (var ri = pcsN - pcsLookback; ri < pcsN; ri++) {
+      var pp = dailyPcs[ri];
+      var age = pcsN - 1 - ri;
+      var w = Math.pow(0.5, age / pcsHL);
+      dowPcs[dayOfWeek(pp.date)].push({ val: pp.total, w: w });
+    }
+    var pcsAvg = [0,0,0,0,0,0,0];
+    for (var k = 0; k < 7; k++) {
+      if (dowPcs[k].length === 0) continue;
+      var ws = 0, wc = 0;
+      dowPcs[k].forEach(function(e){ ws += e.val * e.w; wc += e.w; });
+      pcsAvg[k] = wc > 0 ? ws / wc : 0;
+    }
+    var oSum = 0, oCnt = 0;
+    for (var m = 0; m < 7; m++) { if (pcsAvg[m] > 0) { oSum += pcsAvg[m]; oCnt++; } }
+    var oAvg = oCnt > 0 ? oSum / oCnt : 0;
+    for (var m2 = 0; m2 < 7; m2++) { if (pcsAvg[m2] === 0) pcsAvg[m2] = oAvg; }
+    /* Generate predictions: pieces × $/piece per DOW */
+    var lastDate = dailySales[dailySales.length - 1].date;
+    var result = [];
+    for (var fi = 1; fi <= daysAhead; fi++) {
+      var fd = addDays(lastDate, fi);
+      var fDow = dayOfWeek(fd);
+      result.push({ date: fd, predicted: Math.max(0, pcsAvg[fDow] * avgDpp[fDow]), method: 'Pcs\u00D7Price' });
+    }
+    return result;
+  },
+
   _holtWintersCore(dailySales, daysAhead, alpha, beta, gamma) {
     daysAhead = daysAhead || 14;
     var seasonLen = 7;
@@ -2097,6 +2164,7 @@ const Forecaster = {
     if (methods.trend) methodList.push({ key: 'trend', fn: this.trendAndSeasonal });
     if (methods.yoy) methodList.push({ key: 'yoy', fn: this.yearOverYear });
     if (methods.holtWinters) methodList.push({ key: 'holtWinters', fn: this.holtWinters });
+    if (methods.piecesFirst) methodList.push({ key: 'piecesFirst', fn: this.piecesAsDollars });
 
     if (methodList.length === 0) return [];
 
@@ -2182,8 +2250,8 @@ const Forecaster = {
           var rAvg = dowRecent[db].reduce(function(s,v){return s+v;},0) / dowRecent[db].length;
           var pAvg = dowPrior[db].reduce(function(s,v){return s+v;},0) / dowPrior[db].length;
           if (pAvg > 0) {
-            /* Cap correction at ±20% per DOW to prevent overcorrection */
-            dowBias[db] = Math.max(0.80, Math.min(1.20, rAvg / pAvg));
+            /* Cap correction at ±30% per DOW to prevent overcorrection */
+            dowBias[db] = Math.max(0.70, Math.min(1.30, rAvg / pAvg));
           }
         }
       }
@@ -2193,6 +2261,34 @@ const Forecaster = {
           f.predicted *= dowBias[fDow];
         }
       });
+    }
+
+    /* Monthly seasonal correction: compares the average sales in the same calendar month
+       from prior years against the overall average. If February historically runs 12% below
+       the annual mean, forecasts for February are nudged down. Requires ≥ 1 year of data. */
+    if (!opts.raw && dailySales.length >= 365) {
+      var monSum = new Array(12).fill(0), monCnt = new Array(12).fill(0);
+      var monAll = 0, monAllCnt = 0;
+      dailySales.forEach(function(d) {
+        if (!isCleanDay(d)) return;
+        var mi = parseInt(d.date.slice(5, 7), 10) - 1;
+        monSum[mi] += d.total; monCnt[mi]++;
+        monAll += d.total; monAllCnt++;
+      });
+      if (monAllCnt > 0) {
+        var monAvg = monAll / monAllCnt;
+        combined.forEach(function(f) {
+          var fMon = parseInt(f.date.slice(5, 7), 10) - 1;
+          if (monCnt[fMon] >= 20 && monAvg > 0) {
+            var monFactor = (monSum[fMon] / monCnt[fMon]) / monAvg;
+            /* Cap at ±15% to keep correction subtle */
+            monFactor = Math.max(0.85, Math.min(1.15, monFactor));
+            if (Math.abs(monFactor - 1) > 0.02) {
+              f.predicted *= monFactor;
+            }
+          }
+        });
+      }
     }
 
     /* Apply seasonal event adjustments (non-raw only) */
@@ -3209,10 +3305,11 @@ function renderMethodCards() {
   var coreMethods = [
     { key: 'movingAvg', name: 'Moving Average', desc: 'DOW-aware average of last 6 weeks per weekday.', group: 'core' },
     { key: 'expSmooth', name: 'Exp. Smoothing', desc: 'DOW-aware smoothing. Auto-tunes alpha via walk-forward CV.', group: 'core' },
-    { key: 'dayOfWeek', name: 'Day-of-Week', desc: 'Trimmed mean per weekday from last 20 weeks, recency-weighted.', group: 'core' },
+    { key: 'dayOfWeek', name: 'Day-of-Week', desc: 'Trimmed mean per weekday from last 8 weeks, recency-weighted.', group: 'core' },
     { key: 'trend', name: 'Trend + Seasonal', desc: 'Recency-weighted regression with quarterly + DOW factors.', group: 'core' },
-    { key: 'yoy', name: 'Year-over-Year', desc: 'Growth-adjusted lookup across 1-4 prior years, same DOW match.', group: 'core' },
-    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Auto-tuned triple exponential smoothing with weekly seasonality.', group: 'core' }
+    { key: 'yoy', name: 'Year-over-Year', desc: 'Growth-adjusted lookup across 1-2 prior years, windowed DOW match.', group: 'core' },
+    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Auto-tuned triple exponential smoothing with weekly seasonality.', group: 'core' },
+    { key: 'piecesFirst', name: 'Pcs\u00D7Price', desc: 'Forecasts piece volume by DOW then converts via recent $/piece ratio.', group: 'core' }
   ];
   var enhancers = [
     { key: 'weather', name: '🌦 Weather', desc: 'Adjusts forecasts for rain and extreme heat using learned patterns.', group: 'enhance' },
@@ -3486,14 +3583,15 @@ function renderAccuracy() {
   wrap.innerHTML = mHtml;
 
   /* Per-method backtesting dashboard */
-  var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
+  var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters', piecesFirst:'Pcs\u00D7Price' };
   var mFns = {
     movingAvg: function(d,n){ return Forecaster.movingAverage(d,6,n); },
     expSmooth: function(d,n){ return Forecaster.expSmoothAutoTune(d,n); },
     dayOfWeek: Forecaster.dayOfWeekPattern,
     trend: Forecaster.trendAndSeasonal,
     yoy: Forecaster.yearOverYear,
-    holtWinters: Forecaster.holtWinters
+    holtWinters: Forecaster.holtWinters,
+    piecesFirst: Forecaster.piecesAsDollars
   };
   var rows = [];
   var totalW = 0;
@@ -3598,7 +3696,7 @@ function renderAccuracy() {
 function renderWeightSliders() {
   var wrap = document.getElementById('weightSlidersWrap');
   if (!wrap) return;
-  var mNames = { movingAvg:'Moving Avg', expSmooth:'Exp. Smooth', dayOfWeek:'Day-of-Week', trend:'Trend+Season', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
+  var mNames = { movingAvg:'Moving Avg', expSmooth:'Exp. Smooth', dayOfWeek:'Day-of-Week', trend:'Trend+Season', yoy:'Year-over-Year', holtWinters:'Holt-Winters', piecesFirst:'Pcs\u00D7Price' };
   var keys = Object.keys(mNames);
   var mw = AppState.manualWeights;
   var isManual = mw !== null;
@@ -3645,7 +3743,7 @@ function onWeightSlider(key, val) {
 function toggleManualWeights() {
   var cb = document.getElementById('manualWeightToggle');
   if (cb && cb.checked) {
-    AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50 };
+    AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50, piecesFirst:50 };
   } else {
     AppState.manualWeights = null;
   }
@@ -3656,7 +3754,7 @@ function toggleManualWeights() {
 }
 
 function resetManualWeights() {
-  AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50 };
+  AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50, piecesFirst:50 };
   renderWeightSliders();
   runForecast();
   renderForecastChart();
