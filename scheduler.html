@@ -505,6 +505,17 @@ select.form-input { appearance: auto; }
       <div id="weightSlidersWrap" style="margin-top:12px;padding:0 16px;"></div>
       <div class="table-wrap" style="margin-top: 16px;" id="forecastTable"></div>
     </div>
+    <div class="card" id="catForecastCard" style="display:none;">
+      <div class="card-header">
+        <span class="card-title">&#128202; Category Forecast Breakdown</span>
+        <select id="catFcMetric" class="form-input" style="width:auto;padding:3px 8px;font-size:13px;" onchange="renderCategoryForecast()">
+          <option value="chart">Stacked Chart</option>
+          <option value="table">Table</option>
+        </select>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Per-category forecasts run independently and may not sum exactly to the total ensemble forecast.</p>
+      <div id="catForecastContent"></div>
+    </div>
     <div class="card">
       <div class="card-header"><span class="card-title">Forecast Accuracy (Backtest)</span></div>
       <div id="accuracyMetrics" class="grid-3"></div>
@@ -753,6 +764,18 @@ select.form-input { appearance: auto; }
         </div>
         <div id="holidaysList" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
       </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title" style="margin-bottom:16px;">&#x1F4C5; Seasonal Events</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Add recurring events that affect sales (e.g. prom season, back-to-school). The app learns actual impact from your historical data.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:end;">
+          <div><label style="font-size:11px;color:var(--muted);display:block;">Name</label><input class="form-input" id="newEventName" placeholder="e.g. Prom Season" style="width:160px;"></div>
+          <div><label style="font-size:11px;color:var(--muted);display:block;">Start (MM-DD)</label><input class="form-input" id="newEventStart" placeholder="04-01" style="width:100px;"></div>
+          <div><label style="font-size:11px;color:var(--muted);display:block;">End (MM-DD)</label><input class="form-input" id="newEventEnd" placeholder="05-15" style="width:100px;"></div>
+          <div><label style="font-size:11px;color:var(--muted);display:block;">Expected %</label><input class="form-input" id="newEventImpact" type="number" value="10" style="width:80px;" min="-50" max="100"></div>
+          <button class="btn btn-primary btn-sm" onclick="addSeasonalEvent()">Add</button>
+        </div>
+        <div id="eventsList"></div>
+      </div>
     </div>
     <div class="card">
       <div class="card-title" style="margin-bottom:16px;">&#x1F4C2; Sales Categories</div>
@@ -910,7 +933,8 @@ const AppState = {
       '07-04', /* Independence Day */
       '11-27', /* Thanksgiving (approx) */
       '12-25'  /* Christmas */
-    ]
+    ],
+    events: [] /* Seasonal events: [{name, startMmDd, endMmDd, expectedPct}] */
   },
   forecastMethods: {
     movingAvg: true,
@@ -923,6 +947,7 @@ const AppState = {
   },
   manualWeights: null, /* null = auto (MAPE-based); object = {movingAvg:0.2, ...} */
   autoDisabled: {}, /* methods auto-disabled due to poor accuracy */
+  catForecastCache: {}, /* per-category forecast results */
   savedForecasts: []
 };
 
@@ -1539,6 +1564,25 @@ function getDailySalesByCategory() {
   return map;
 }
 
+function getDailySalesForCat(cat) {
+  var map = {};
+  AppState.salesData.forEach(function(s) {
+    if (s.category === cat) map[s.date] = (map[s.date] || 0) + s.amount;
+  });
+  return Object.entries(map).sort(function(a,b){return a[0].localeCompare(b[0]);})
+    .map(function(e){return {date:e[0], total:e[1]};});
+}
+
+function getDailyPiecesForCat(cat) {
+  var map = {};
+  AppState.salesData.forEach(function(s) {
+    if (s.category === cat && s.pieces && s.pieces > 0) map[s.date] = (map[s.date] || 0) + s.pieces;
+  });
+  return Object.entries(map).sort(function(a,b){return a[0].localeCompare(b[0]);})
+    .filter(function(e){ return e[1] > 0; })
+    .map(function(e){return {date:e[0], total:e[1]};});
+}
+
 function getActualTotalHoursByDate() {
   const map = {};
   AppState.employeeHours.forEach(h => {
@@ -2071,6 +2115,20 @@ const Forecaster = {
           combined.forEach(function(f) { f.predicted *= biasRatio; });
         }
       }
+    }
+
+    /* Apply seasonal event adjustments (non-raw only) */
+    if (!opts.raw) {
+      _cachedEventImpacts = learnEventImpacts();
+      combined.forEach(function(f) {
+        var evResult = getEventAdj(f.date);
+        if (evResult.adj !== 1) {
+          f.predicted *= evResult.adj;
+          f.eventAdj = evResult.adj;
+          f.eventName = evResult.eventName;
+        }
+      });
+      _cachedEventImpacts = null;
     }
 
     if (!opts.raw && methods.weather) {
@@ -2608,22 +2666,69 @@ function changeForecastDays(val) {
   renderRecommendedHours();
 }
 
+function computeConfidenceIntervals(forecastArr, dailyData) {
+  /* Compute per-DOW forecast error std deviation from recent backtest residuals.
+     Uses last 28 clean days of data as a holdout to measure variance. */
+  if (!forecastArr || forecastArr.length === 0 || dailyData.length < 35) return;
+  var dowErrors = [[],[],[],[],[],[],[]]; /* per-DOW absolute % errors */
+  /* Walk-forward: test on last 28 days in 4 folds of 7 */
+  for (var fold = 0; fold < 4; fold++) {
+    var testEnd = dailyData.length - fold * 7;
+    var testStart = testEnd - 7;
+    if (testStart < 21) break;
+    var train = dailyData.slice(0, testStart);
+    var test = dailyData.slice(testStart, testEnd);
+    var preds = Forecaster.ensemble(train, 7, { raw: true });
+    test.forEach(function(act, i) {
+      if (!isCleanDay(act) || !preds[i]) return;
+      var pctErr = Math.abs(act.total - preds[i].predicted) / act.total;
+      dowErrors[dayOfWeek(act.date)].push(pctErr);
+    });
+  }
+  /* Compute mean absolute % error per DOW, use as ± band */
+  var dowSpread = [0.15,0.15,0.15,0.15,0.15,0.15,0.15]; /* default 15% */
+  for (var d = 0; d < 7; d++) {
+    if (dowErrors[d].length >= 2) {
+      var mean = dowErrors[d].reduce(function(s,v){return s+v;},0) / dowErrors[d].length;
+      dowSpread[d] = Math.min(mean * 1.2, 0.5); /* cap at 50% */
+    }
+  }
+  /* Apply to each forecast point */
+  forecastArr.forEach(function(f) {
+    var spread = dowSpread[dayOfWeek(f.date)];
+    f.ciHigh = f.predicted * (1 + spread);
+    f.ciLow = Math.max(0, f.predicted * (1 - spread));
+  });
+}
+
 function runForecast() {
   var days = AppState.settings.forecastDays || 14;
   var daily = getDailySales();
   if (daily.length < 7) {
     AppState.forecastCache = [];
     AppState.forecastCachePcs = [];
+    AppState.catForecastCache = {};
     return;
   }
   AppState.forecastCache = Forecaster.ensemble(daily, days);
+  computeConfidenceIntervals(AppState.forecastCache, daily);
   /* Also run ensemble on pieces data for direct pieces forecasting */
   var dailyPcs = getDailyPieces();
   if (dailyPcs.length >= 7) {
     AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days);
+    computeConfidenceIntervals(AppState.forecastCachePcs, dailyPcs);
   } else {
     AppState.forecastCachePcs = [];
   }
+  /* Per-category forecasts */
+  AppState.catForecastCache = {};
+  var cats = AppState.settings.categories.filter(function(c){ return c !== 'Discount'; });
+  cats.forEach(function(cat) {
+    var catDaily = getDailySalesForCat(cat);
+    if (catDaily.length >= 14) {
+      AppState.catForecastCache[cat] = Forecaster.ensemble(catDaily, days);
+    }
+  });
 }
 
 function recalcHours() {
@@ -2896,10 +3001,109 @@ function renderForecastPage() {
   renderWeightSliders();
   renderForecastChart();
   renderForecastTable();
+  renderCategoryForecast();
   renderAccuracy();
   renderMethodCards(); /* after renderAccuracy so _methodExclusion is available */
   renderFvsActual();
   renderWeatherPreview();
+}
+
+function renderCategoryForecast() {
+  var card = document.getElementById('catForecastCard');
+  var wrap = document.getElementById('catForecastContent');
+  var catCache = AppState.catForecastCache;
+  var cats = Object.keys(catCache);
+  if (cats.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  var mode = document.getElementById('catFcMetric').value;
+  if (mode === 'table') {
+    renderCatForecastTable(wrap, cats, catCache);
+  } else {
+    renderCatForecastChart(wrap, cats, catCache);
+  }
+}
+
+function renderCatForecastChart(wrap, cats, catCache) {
+  /* Stacked area chart for category forecasts */
+  var fc0 = AppState.forecastCache;
+  if (fc0.length === 0) { wrap.innerHTML = ''; return; }
+  var labels = fc0.map(function(f){ return f.date.slice(5); });
+  var html = '<div style="height:260px;position:relative;"><canvas id="catFcChart"></canvas></div>';
+  wrap.innerHTML = html;
+  var canvas = document.getElementById('catFcChart');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  if (chartInstances.catFcChart) { chartInstances.catFcChart.destroy(); }
+  var datasets = [];
+  cats.forEach(function(cat, ci) {
+    var fc = catCache[cat];
+    var data = fc0.map(function(f) {
+      var match = fc.find(function(c){ return c.date === f.date; });
+      return match ? Math.round(match.predicted) : 0;
+    });
+    datasets.push({
+      label: cat,
+      data: data,
+      backgroundColor: hexToRgba(CHART_COLORS[ci % CHART_COLORS.length], 0.55),
+      borderColor: CHART_COLORS[ci % CHART_COLORS.length],
+      borderWidth: 1.5,
+      fill: true,
+      pointRadius: 2,
+      tension: 0.3
+    });
+  });
+  chartInstances.catFcChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: labels, datasets: datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': ' + fmt(c.raw); } } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { stacked: true, beginAtZero: true, ticks: { callback: function(v){ return fmt(v); }, font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function renderCatForecastTable(wrap, cats, catCache) {
+  var fc0 = AppState.forecastCache;
+  if (fc0.length === 0) { wrap.innerHTML = ''; return; }
+  var html = '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Day</th>';
+  cats.forEach(function(c){ html += '<th style="text-align:right;">' + c + '</th>'; });
+  html += '<th style="text-align:right;font-weight:700;">Cat Sum</th><th style="text-align:right;font-weight:700;">Ensemble</th><th style="text-align:right;">Diff</th></tr></thead><tbody>';
+  fc0.forEach(function(f) {
+    var closed = isClosedDate(f.date);
+    var rowSum = 0;
+    html += '<tr style="' + (closed ? 'opacity:0.5;' : '') + '"><td>' + f.date + '</td><td>' + DAYS[dayOfWeek(f.date)] + '</td>';
+    cats.forEach(function(cat) {
+      var fc = catCache[cat];
+      var match = fc ? fc.find(function(c){ return c.date === f.date; }) : null;
+      var v = match ? match.predicted : 0;
+      rowSum += v;
+      html += '<td style="text-align:right;">' + (closed ? '—' : fmt(v)) + '</td>';
+    });
+    var ensV = f.predicted;
+    var diff = rowSum - ensV;
+    var diffPct = ensV > 0 ? Math.round((diff / ensV) * 100) : 0;
+    var diffColor = Math.abs(diffPct) > 10 ? 'var(--danger)' : 'var(--muted)';
+    html += '<td style="text-align:right;font-weight:600;">' + (closed ? '—' : fmt(rowSum)) + '</td>';
+    html += '<td style="text-align:right;font-weight:600;">' + (closed ? '—' : fmt(ensV)) + '</td>';
+    html += '<td style="text-align:right;font-size:11px;color:' + diffColor + ';">' + (closed ? '—' : (diff >= 0 ? '+' : '') + fmt(diff) + ' (' + diffPct + '%)') + '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+function hexToRgba(hex, alpha) {
+  if (!hex || hex.charAt(0) !== '#') return 'rgba(100,100,100,' + alpha + ')';
+  var r = parseInt(hex.slice(1,3), 16);
+  var g = parseInt(hex.slice(3,5), 16);
+  var b = parseInt(hex.slice(5,7), 16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
 }
 
 function renderMethodCards() {
@@ -3010,7 +3214,7 @@ function renderForecastChart() {
     ]);
     return;
   }
-  /* Default mode: recent actuals + future forecast */
+  /* Default mode: recent actuals + future forecast with confidence band */
   var last30 = daily.slice(-30);
   var defLabels = last30.map(function(d){return d.date.slice(5);}).concat(
     fc.map(function(f){return f.date.slice(5);}));
@@ -3021,11 +3225,36 @@ function renderForecastChart() {
   if (last30.length > 0 && fc.length > 0) {
     forecast[last30.length - 1] = last30[last30.length - 1].total;
   }
+  /* Build confidence interval bands */
+  var hasCI = fc.length > 0 && fc[0].ciHigh != null;
+  var ciHigh = null, ciLow = null;
+  if (hasCI) {
+    ciHigh = last30.map(function(){return null;}).concat(
+      fc.map(function(f){
+        var h = needConvert ? f.ciHigh * pRatio : f.ciHigh;
+        return isPcs ? Math.round(h) : h;
+      }));
+    ciLow = last30.map(function(){return null;}).concat(
+      fc.map(function(f){
+        var l = needConvert ? f.ciLow * pRatio : f.ciLow;
+        return isPcs ? Math.round(l) : l;
+      }));
+    /* Connect CI bands to last actual point for visual continuity */
+    if (last30.length > 0) {
+      ciHigh[last30.length - 1] = last30[last30.length - 1].total;
+      ciLow[last30.length - 1] = last30[last30.length - 1].total;
+    }
+  }
   var lbl2 = isPcs ? 'Pieces' : 'Sales';
-  renderLineChart('forecastChart', defLabels, [
+  var chartDatasets = [
     {label:'Actual '+lbl2, data:actual, color:CHART_COLORS[0]},
     {label:'Forecast '+lbl2, data:forecast, color:CHART_COLORS[1], dashed:true}
-  ]);
+  ];
+  if (hasCI) {
+    chartDatasets.push({label:'Upper Bound', data:ciHigh, color:CHART_COLORS[1], fill:'+1', lineWidth:0.5, dashed:true, pointRadius:0});
+    chartDatasets.push({label:'Lower Bound', data:ciLow, color:CHART_COLORS[1], fill:false, lineWidth:0.5, dashed:true, pointRadius:0});
+  }
+  renderLineChart('forecastChart', defLabels, chartDatasets);
 }
 
 function renderForecastTable() {
@@ -3039,8 +3268,10 @@ function renderForecastTable() {
   var pcsFcMap = {};
   AppState.forecastCachePcs.forEach(function(p) { pcsFcMap[p.date] = p.predicted; });
   var hasPcsFc = AppState.forecastCachePcs.length > 0;
-  let html = '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast Sales</th>' +
-    '<th style="text-align:right">' + (hasPcsFc ? 'Forecast Pcs' : 'Est. Pieces') + '</th><th style="text-align:right">Rec. Hours</th>' +
+  var hasCI = AppState.forecastCache.length > 0 && AppState.forecastCache[0].ciHigh != null;
+  let html = '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast Sales</th>';
+  if (hasCI) html += '<th style="text-align:right">Range</th>';
+  html += '<th style="text-align:right">' + (hasPcsFc ? 'Forecast Pcs' : 'Est. Pieces') + '</th><th style="text-align:right">Rec. Hours</th>' +
     '<th style="text-align:right">Est. Cost</th><th>Holiday</th><th>Weather</th></tr></thead><tbody>';
   AppState.forecastCache.forEach(function(f) {
     var closed = isClosedDate(f.date);
@@ -3057,6 +3288,13 @@ function renderForecastTable() {
     if (hAdj > 1) { var pct = Math.round((hAdj - 1) * 100); hBadge = '🎉 <span style="background:#d4edda;color:#155724;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">HOLIDAY +' + pct + '%</span>'; }
     else if (hAdj < 1) { var pct2 = Math.round((1 - hAdj) * 100); hBadge = '<span style="background:#f8d7da;color:#721c24;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">POST-HOL -' + pct2 + '%</span>'; }
     else { hBadge = '<span style="color:var(--muted);">—</span>'; }
+    /* Seasonal event badge */
+    if (f.eventName) {
+      var evPct = Math.round((f.eventAdj - 1) * 100);
+      var evSign = evPct >= 0 ? '+' : '';
+      var evBg = evPct >= 0 ? 'background:#cce5ff;color:#004085;' : 'background:#f8d7da;color:#721c24;';
+      hBadge += ' <span style="' + evBg + 'padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">📅 ' + f.eventName + ' ' + evSign + evPct + '%</span>';
+    }
     /* Weather effect: show % adj and source */
     var wEffect = '—';
     if (w) {
@@ -3069,8 +3307,10 @@ function renderForecastTable() {
         wEffect = weatherEmoji(w.code) + ' <span style="color:var(--muted);">NONE</span>';
       }
     }
+    var ciStr = '';
+    if (hasCI) { ciStr = closed ? '<td style="text-align:right;color:var(--muted);">—</td>' : '<td style="text-align:right;font-size:11px;color:var(--muted);">' + fmt(f.ciLow) + ' – ' + fmt(f.ciHigh) + '</td>'; }
     html += '<tr style="' + (closed ? 'opacity:0.5;' : '') + '"><td>' + f.date + '</td><td>' + DAYS[dayOfWeek(f.date)] + '</td>' +
-      '<td style="text-align:right;font-weight:600;">' + salesStr + '</td>' +
+      '<td style="text-align:right;font-weight:600;">' + salesStr + '</td>' + ciStr +
       '<td style="text-align:right;font-weight:600;">' + pcsStr + '</td>' +
       '<td style="text-align:right;color:var(--accent);font-weight:600;">' + hoursStr + '</td>' +
       '<td style="text-align:right;font-weight:600;">' + (closed ? '$0' : fmt(hours * (AppState.settings.avgWage || 18))) + '</td>' +
@@ -3497,19 +3737,26 @@ function renderLineChart(canvasId, labels, datasets) {
     type: 'line',
     data: {
       labels: labels,
-      datasets: datasets.map(ds => ({
-        label: ds.label,
-        data: ds.data,
-        borderColor: ds.color,
-        backgroundColor: ds.fill ? ds.color + '20' : 'transparent',
-        fill: ds.fill || false,
-        borderWidth: ds.lineWidth || 2,
-        borderDash: ds.dashed ? [6, 4] : [],
-        pointRadius: labels.length > 40 ? 0 : 3,
-        pointHoverRadius: 5,
-        tension: 0.3,
-        spanGaps: false
-      }))
+      datasets: datasets.map(function(ds, idx) {
+        var fillVal = false;
+        if (ds.fill === true) fillVal = 'origin';
+        else if (typeof ds.fill === 'string') fillVal = ds.fill;
+        var bgColor = 'transparent';
+        if (fillVal) bgColor = ds.color + '18';
+        return {
+          label: ds.label,
+          data: ds.data,
+          borderColor: ds.color,
+          backgroundColor: bgColor,
+          fill: fillVal,
+          borderWidth: ds.lineWidth != null ? ds.lineWidth : 2,
+          borderDash: ds.dashed ? [6, 4] : [],
+          pointRadius: ds.pointRadius != null ? ds.pointRadius : (labels.length > 40 ? 0 : 3),
+          pointHoverRadius: ds.pointRadius === 0 ? 0 : 5,
+          tension: 0.3,
+          spanGaps: false
+        };
+      })
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -3675,6 +3922,129 @@ function removeHoliday(h) {
   AppState.settings.holidays = (AppState.settings.holidays || []).filter(function(x) { return x !== h; });
   renderHolidaysList();
 }
+
+/* ── Seasonal Event Calendar ── */
+function addSeasonalEvent() {
+  var name = (document.getElementById('newEventName').value || '').trim();
+  var start = (document.getElementById('newEventStart').value || '').trim();
+  var end = (document.getElementById('newEventEnd').value || '').trim();
+  var impact = parseInt(document.getElementById('newEventImpact').value, 10) || 0;
+  if (!name) { toast('Enter an event name', 'error'); return; }
+  if (!/^\d{2}-\d{2}$/.test(start) || !/^\d{2}-\d{2}$/.test(end)) { toast('Use MM-DD format for dates', 'error'); return; }
+  if (!AppState.settings.events) AppState.settings.events = [];
+  AppState.settings.events.push({ name: name, startMmDd: start, endMmDd: end, expectedPct: impact });
+  document.getElementById('newEventName').value = '';
+  document.getElementById('newEventStart').value = '';
+  document.getElementById('newEventEnd').value = '';
+  document.getElementById('newEventImpact').value = '10';
+  renderEventsList();
+  toast('Event "' + name + '" added', 'success');
+}
+
+function removeSeasonalEvent(idx) {
+  AppState.settings.events.splice(idx, 1);
+  renderEventsList();
+}
+
+function renderEventsList() {
+  var el = document.getElementById('eventsList');
+  if (!el) return;
+  var events = AppState.settings.events || [];
+  if (events.length === 0) { el.innerHTML = '<span style="font-size:13px;color:var(--muted);">No seasonal events yet.</span>'; return; }
+  /* Compute learned impacts */
+  var learned = learnEventImpacts();
+  var html = '<div class="table-wrap"><table><thead><tr><th>Event</th><th>Period</th><th>Expected</th><th>Learned</th><th>Samples</th><th></th></tr></thead><tbody>';
+  events.forEach(function(ev, i) {
+    var lrn = learned[i] || {};
+    var learnedStr = lrn.samples >= 5 ? (lrn.pct >= 0 ? '+' : '') + lrn.pct + '%' : '<span style="color:var(--muted);">Insufficient data</span>';
+    var learnedColor = lrn.samples >= 5 ? (lrn.pct >= 0 ? 'color:var(--success);' : 'color:var(--danger);') : '';
+    html += '<tr><td style="font-weight:600;">' + ev.name + '</td>' +
+      '<td>' + ev.startMmDd + ' → ' + ev.endMmDd + '</td>' +
+      '<td style="text-align:center;">' + (ev.expectedPct >= 0 ? '+' : '') + ev.expectedPct + '%</td>' +
+      '<td style="text-align:center;font-weight:600;' + learnedColor + '">' + learnedStr + '</td>' +
+      '<td style="text-align:center;color:var(--muted);">' + (lrn.samples || 0) + ' days</td>' +
+      '<td><button class="btn btn-sm" style="font-size:11px;padding:2px 8px;color:var(--danger);" onclick="removeSeasonalEvent(' + i + ')">&#x2715;</button></td></tr>';
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+function isDateInEventWindow(dateStr, startMmDd, endMmDd) {
+  var mmdd = dateStr.slice(5); /* YYYY-MM-DD → MM-DD */
+  if (startMmDd <= endMmDd) {
+    return mmdd >= startMmDd && mmdd <= endMmDd;
+  }
+  /* Wraps around year end (e.g. 11-15 to 01-15) */
+  return mmdd >= startMmDd || mmdd <= endMmDd;
+}
+
+function learnEventImpacts() {
+  /* Compare average daily sales during event windows vs non-event same-DOW averages.
+     Returns array of {pct, samples} per event index. */
+  var events = AppState.settings.events || [];
+  if (events.length === 0) return [];
+  var daily = getDailySales();
+  if (daily.length < 30) return events.map(function(){ return { pct: 0, samples: 0 }; });
+  /* Tag each day as belonging to which events (if any) */
+  var results = [];
+  for (var ei = 0; ei < events.length; ei++) {
+    var ev = events[ei];
+    var evDays = [], nonEvDays = [];
+    daily.forEach(function(d) {
+      if (!isCleanDay(d)) return;
+      if (isDateInEventWindow(d.date, ev.startMmDd, ev.endMmDd)) {
+        evDays.push(d);
+      } else {
+        nonEvDays.push(d);
+      }
+    });
+    /* Compute DOW-aware baseline from non-event days */
+    var dowSums = [0,0,0,0,0,0,0], dowCnts = [0,0,0,0,0,0,0];
+    nonEvDays.forEach(function(d) {
+      var dw = dayOfWeek(d.date);
+      dowSums[dw] += d.total; dowCnts[dw]++;
+    });
+    /* Compare event days to their DOW baseline */
+    var totalRatio = 0, cnt = 0;
+    evDays.forEach(function(d) {
+      var dw = dayOfWeek(d.date);
+      if (dowCnts[dw] >= 3) {
+        var baseline = dowSums[dw] / dowCnts[dw];
+        if (baseline > 0) {
+          totalRatio += d.total / baseline;
+          cnt++;
+        }
+      }
+    });
+    var learnedPct = cnt >= 5 ? Math.round((totalRatio / cnt - 1) * 100) : 0;
+    results.push({ pct: learnedPct, samples: cnt });
+  }
+  return results;
+}
+
+function getEventAdj(dateStr) {
+  /* Returns multiplier for seasonal events on a given date.
+     Uses learned impact when sufficient data, falls back to expected. */
+  var events = AppState.settings.events || [];
+  if (events.length === 0) return { adj: 1, eventName: null };
+  var learned = _cachedEventImpacts || learnEventImpacts();
+  var bestAdj = 1;
+  var bestName = null;
+  for (var i = 0; i < events.length; i++) {
+    if (isDateInEventWindow(dateStr, events[i].startMmDd, events[i].endMmDd)) {
+      var lrn = learned[i] || {};
+      var pct = lrn.samples >= 5 ? lrn.pct : events[i].expectedPct;
+      var adj = 1 + (pct / 100);
+      /* Pick strongest event if overlapping */
+      if (Math.abs(adj - 1) > Math.abs(bestAdj - 1)) {
+        bestAdj = adj;
+        bestName = events[i].name;
+      }
+    }
+  }
+  return { adj: bestAdj, eventName: bestName };
+}
+var _cachedEventImpacts = null;
 
 async function resolveZipCode(zip) {
   /* Use Open-Meteo geocoding to resolve zip to lat/lon */
