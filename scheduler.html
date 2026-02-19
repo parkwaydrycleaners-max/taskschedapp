@@ -972,8 +972,12 @@ const AppState = {
     holidays: [
       '01-01', /* New Year's Day */
       '07-04', /* Independence Day */
-      '11-27', /* Thanksgiving (approx) */
-      '12-25'  /* Christmas */
+      '12-24', /* Christmas Eve */
+      '12-25', /* Christmas */
+      '12-26', /* Day after Christmas */
+      '12-31'  /* New Year's Eve */
+      /* MLK Day, Presidents' Day, Memorial Day, Labor Day, Thanksgiving
+         are handled dynamically by isFloatingHoliday() */
     ],
     events: [] /* Seasonal events: [{name, startMmDd, endMmDd, expectedPct}] */
   },
@@ -1417,7 +1421,7 @@ function importSalesData() {
       return !incomingKeys[r.date + '|' + r.category];
     });
     AppState.salesData = AppState.salesData.concat(incoming);
-    _salesDollarMap = null; /* Invalidate dollar cache for isCleanDay */
+    _salesDollarMap = null; _dowAvgCache = null; /* Invalidate caches */
     /* Reset auto-disabled flags so methods are re-evaluated fresh on new data */
     AppState.autoDisabled = {};
     /* Re-enable all core methods for fresh evaluation */
@@ -1936,8 +1940,9 @@ const Forecaster = {
     return result;
   },
 
-  /* Pieces-first dollar forecasting: forecast piece volume by DOW, then multiply
-     by recent per-DOW $/piece ratio. Leverages the more stable pieces signal. */
+  /* Pieces-first dollar forecasting: runs Holt-Winters on pieces data, then converts
+     to dollars via per-DOW $/piece ratio. Leverages the more stable pieces signal
+     with full trend+seasonal modeling instead of simple DOW average. */
   piecesAsDollars(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     var allPcs = getDailyPieces();
@@ -1945,59 +1950,46 @@ const Forecaster = {
     /* Only use pieces data up to the last date in dailySales to prevent leakage during backtest */
     var lastTrainDate = dailySales[dailySales.length - 1].date;
     var dailyPcs = allPcs.filter(function(p) { return p.date <= lastTrainDate; });
-    if (dailyPcs.length < 28) return [];
+    if (dailyPcs.length < 21) return [];
+    /* Forecast pieces using Holt-Winters (full trend+seasonal model) */
+    var pcsPreds = this.holtWinters(dailyPcs, daysAhead);
+    if (!pcsPreds || pcsPreds.length === 0) return [];
     /* Build dollar lookup from training data */
     var dollarMap = {};
     dailySales.forEach(function(d) { if (isCleanDay(d)) dollarMap[d.date] = d.total; });
-    /* Compute per-DOW $/piece ratio from last 60 days of overlap */
-    var dppByDow = [[],[],[],[],[],[],[]];
+    /* Compute per-DOW $/piece ratio from last 60 days of overlap with recency weighting */
     var pcsN = dailyPcs.length;
+    var dppByDow = [[],[],[],[],[],[],[]];
     for (var di = Math.max(0, pcsN - 60); di < pcsN; di++) {
       var pd = dailyPcs[di];
       var dollars = dollarMap[pd.date];
       if (dollars != null && dollars > 0 && pd.total > 0) {
-        dppByDow[dayOfWeek(pd.date)].push(dollars / pd.total);
+        var age = pcsN - 1 - di;
+        var w = Math.pow(0.5, age / 28); /* half-life 28 days */
+        dppByDow[dayOfWeek(pd.date)].push({ ratio: dollars / pd.total, w: w });
       }
     }
     var avgDpp = [0,0,0,0,0,0,0];
-    var allDpp = 0, allCnt = 0;
+    var allDpp = 0, allW = 0;
     for (var j = 0; j < 7; j++) {
       if (dppByDow[j].length >= 2) {
-        avgDpp[j] = dppByDow[j].reduce(function(s,v){return s+v;},0) / dppByDow[j].length;
+        var ws = 0, wc = 0;
+        dppByDow[j].forEach(function(e) { ws += e.ratio * e.w; wc += e.w; });
+        avgDpp[j] = wc > 0 ? ws / wc : 0;
       }
-      dppByDow[j].forEach(function(v){ allDpp += v; allCnt++; });
+      dppByDow[j].forEach(function(e) { allDpp += e.ratio * e.w; allW += e.w; });
     }
-    var fallback = allCnt > 0 ? allDpp / allCnt : 0;
+    var fallback = allW > 0 ? allDpp / allW : 0;
     if (fallback === 0) return [];
     for (var j2 = 0; j2 < 7; j2++) { if (avgDpp[j2] === 0) avgDpp[j2] = fallback; }
-    /* Forecast pieces: recency-weighted DOW average (8 weeks, half-life 21 days) */
-    var pcsLookback = Math.min(pcsN, 56);
-    var pcsHL = 21;
-    var dowPcs = [[],[],[],[],[],[],[]];
-    for (var ri = pcsN - pcsLookback; ri < pcsN; ri++) {
-      var pp = dailyPcs[ri];
-      var age = pcsN - 1 - ri;
-      var w = Math.pow(0.5, age / pcsHL);
-      dowPcs[dayOfWeek(pp.date)].push({ val: pp.total, w: w });
-    }
-    var pcsAvg = [0,0,0,0,0,0,0];
-    for (var k = 0; k < 7; k++) {
-      if (dowPcs[k].length === 0) continue;
-      var ws = 0, wc = 0;
-      dowPcs[k].forEach(function(e){ ws += e.val * e.w; wc += e.w; });
-      pcsAvg[k] = wc > 0 ? ws / wc : 0;
-    }
-    var oSum = 0, oCnt = 0;
-    for (var m = 0; m < 7; m++) { if (pcsAvg[m] > 0) { oSum += pcsAvg[m]; oCnt++; } }
-    var oAvg = oCnt > 0 ? oSum / oCnt : 0;
-    for (var m2 = 0; m2 < 7; m2++) { if (pcsAvg[m2] === 0) pcsAvg[m2] = oAvg; }
-    /* Generate predictions: pieces × $/piece per DOW */
+    /* Convert pieces predictions to dollar predictions via per-DOW ratio */
     var lastDate = dailySales[dailySales.length - 1].date;
     var result = [];
-    for (var fi = 1; fi <= daysAhead; fi++) {
-      var fd = addDays(lastDate, fi);
+    for (var fi = 0; fi < pcsPreds.length && fi < daysAhead; fi++) {
+      var fd = pcsPreds[fi].date;
       var fDow = dayOfWeek(fd);
-      result.push({ date: fd, predicted: Math.max(0, pcsAvg[fDow] * avgDpp[fDow]), method: 'Pcs\u00D7Price' });
+      var dollarPred = Math.max(0, pcsPreds[fi].predicted * avgDpp[fDow]);
+      result.push({ date: fd, predicted: dollarPred, method: 'Pcs\u00D7Price' });
     }
     return result;
   },
@@ -2143,7 +2135,7 @@ const Forecaster = {
       var preds = methodFn.call(self, train, testDays);
       if (!preds || preds.length === 0) continue;
       test.forEach(function(actual, i) {
-        if (preds[i] && isCleanDay(actual)) {
+        if (preds[i] && isAdaptiveClean(actual)) {
           pctErrors.push(Math.abs(actual.total - preds[i].predicted) / actual.total);
         }
       });
@@ -2340,7 +2332,7 @@ const Forecaster = {
       var rawPreds = self.ensemble(trainData, testDays, { raw: true });
       var adjPreds = self.ensemble(trainData, testDays);
       testData.forEach(function(actual, i) {
-        if (!isCleanDay(actual)) return;
+        if (!isAdaptiveClean(actual)) return;
         if (rawPreds[i]) {
           var re = actual.total - rawPreds[i].predicted;
           rawTotErr += re; rawTotAbs += Math.abs(re); rawTotAct += actual.total; rawCnt++;
@@ -2394,6 +2386,36 @@ function isClosedDate(dateString) {
     var mmdd = dateString.slice(5); /* "YYYY-MM-DD" -> "MM-DD" */
     if (s.holidays.includes(mmdd)) return true;
   }
+  /* Check floating US holidays (Nth weekday of month) */
+  if (isFloatingHoliday(dateString)) return true;
+  return false;
+}
+
+/* Detect floating US holidays that change date each year:
+   MLK Day (3rd Mon of Jan), Presidents' Day (3rd Mon of Feb),
+   Memorial Day (last Mon of May), Labor Day (1st Mon of Sep),
+   Thanksgiving (4th Thu of Nov). Returns true if dateString is one of these. */
+function isFloatingHoliday(dateString) {
+  var y = parseInt(dateString.slice(0, 4), 10);
+  var m = parseInt(dateString.slice(5, 7), 10);
+  var d = parseInt(dateString.slice(8, 10), 10);
+  var dow = dayOfWeek(dateString); /* 0=Sun, 1=Mon ... */
+  if (dow === 1) { /* Monday holidays */
+    if (m === 1 && d >= 15 && d <= 21) return true; /* MLK: 3rd Mon Jan */
+    if (m === 2 && d >= 15 && d <= 21) return true; /* Presidents': 3rd Mon Feb */
+    if (m === 9 && d >= 1 && d <= 7) return true;   /* Labor Day: 1st Mon Sep */
+    /* Memorial Day: last Mon of May (25-31) */
+    if (m === 5 && d >= 25 && d <= 31) return true;
+  }
+  if (dow === 4) { /* Thursday holidays */
+    if (m === 11 && d >= 22 && d <= 28) return true; /* Thanksgiving: 4th Thu Nov */
+  }
+  /* Day after Thanksgiving: Friday after 4th Thursday */
+  if (dow === 5 && m === 11 && d >= 23 && d <= 29) {
+    /* Check if yesterday was Thanksgiving */
+    var yesterday = addDays(dateString, -1);
+    if (isFloatingHoliday(yesterday)) return true;
+  }
   return false;
 }
 
@@ -2425,6 +2447,43 @@ function isCleanDay(d) {
   return true;
 }
 
+/* Adaptive clean-day filter: returns false for days below 40% of their DOW's recent average.
+   Catches holiday-adjacent half-days that pass the fixed $ threshold but are anomalously low.
+   Uses a cached DOW average computed from clean data (avoids recursion with isCleanDay). */
+var _dowAvgCache = null;
+var _dowAvgCacheKey = '';
+function isAdaptiveClean(d) {
+  if (!isCleanDay(d)) return false;
+  /* Build DOW average cache (invalidated when sales data changes) */
+  var cacheKey = AppState.salesData.length + '_' + (AppState.salesData.length > 0 ? AppState.salesData[AppState.salesData.length - 1].date : '');
+  if (_dowAvgCache === null || _dowAvgCacheKey !== cacheKey) {
+    _dowAvgCache = [0,0,0,0,0,0,0];
+    var dowSum = [0,0,0,0,0,0,0], dowCnt = [0,0,0,0,0,0,0];
+    var dolMap = getSalesDollarMap();
+    var dates = Object.keys(dolMap).sort();
+    /* Use last 90 days to compute baseline */
+    var recent = dates.slice(-90);
+    recent.forEach(function(dt) {
+      if (isClosedDate(dt)) return;
+      var amt = dolMap[dt];
+      if (amt <= 0) return;
+      var dow = dayOfWeek(dt);
+      dowSum[dow] += amt; dowCnt[dow]++;
+    });
+    for (var i = 0; i < 7; i++) {
+      _dowAvgCache[i] = dowCnt[i] > 0 ? dowSum[i] / dowCnt[i] : 0;
+    }
+    _dowAvgCacheKey = cacheKey;
+  }
+  /* Check if day is below 40% of its DOW average */
+  var dolMap2 = getSalesDollarMap();
+  var dollarAmt = dolMap2[d.date];
+  if (dollarAmt == null) dollarAmt = d.total;
+  var dowAvg = _dowAvgCache[dayOfWeek(d.date)];
+  if (dowAvg > 0 && dollarAmt < dowAvg * 0.40) return false;
+  return true;
+}
+
 function holidayProximityAdj(dateString) {
   /* Returns a multiplier based on distance to nearest holiday.
      Before holiday: Day-3 +5%, Day-2 +10%, Day-1 +15% (pre-holiday rush)
@@ -2443,12 +2502,50 @@ function holidayProximityAdj(dateString) {
       if (Math.abs(diff) < Math.abs(bestDiff)) bestDiff = diff;
     }
   }
+  /* Also check distance to floating holidays */
+  var fhDays = getFloatingHolidaysForYear(year);
+  fhDays.forEach(function(fhDate) {
+    var fhMs = new Date(fhDate + 'T12:00:00').getTime();
+    if (isNaN(fhMs)) return;
+    var diff = Math.round((dMs - fhMs) / 86400000);
+    if (Math.abs(diff) < Math.abs(bestDiff)) bestDiff = diff;
+  });
   if (bestDiff === -3) return 1.05;
   if (bestDiff === -2) return 1.10;
   if (bestDiff === -1) return 1.15;
+  if (bestDiff === 0) return 0.50; /* holiday itself: expect ~50% drop */
   if (bestDiff === 1) return 0.90;
   if (bestDiff === 2) return 0.95;
   return 1;
+}
+
+/* Returns an array of YYYY-MM-DD strings for floating holidays in the given year */
+function getFloatingHolidaysForYear(year) {
+  var results = [];
+  /* Helper: find Nth weekday (0=Sun,1=Mon...) of a given month */
+  function nthWeekday(y, month, wday, nth) {
+    var d = new Date(y, month - 1, 1); /* 1st of month */
+    var first = d.getDay(); /* 0=Sun */
+    var offset = (wday - first + 7) % 7;
+    var day = 1 + offset + (nth - 1) * 7;
+    return y + '-' + String(month).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+  }
+  /* Helper: last weekday of month */
+  function lastWeekday(y, month, wday) {
+    var last = new Date(y, month, 0).getDate(); /* last day of month */
+    var d = new Date(y, month - 1, last);
+    var diff = (d.getDay() - wday + 7) % 7;
+    var day = last - diff;
+    return y + '-' + String(month).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+  }
+  results.push(nthWeekday(year, 1, 1, 3));  /* MLK Day: 3rd Mon Jan */
+  results.push(nthWeekday(year, 2, 1, 3));  /* Presidents' Day: 3rd Mon Feb */
+  results.push(lastWeekday(year, 5, 1));     /* Memorial Day: last Mon May */
+  results.push(nthWeekday(year, 9, 1, 1));   /* Labor Day: 1st Mon Sep */
+  var thxg = nthWeekday(year, 11, 4, 4);     /* Thanksgiving: 4th Thu Nov */
+  results.push(thxg);
+  results.push(addDays(thxg, 1));            /* Day after Thanksgiving */
+  return results;
 }
 
 function getPiecesPerDollar() {
