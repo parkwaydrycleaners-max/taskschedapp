@@ -468,8 +468,8 @@ select.form-input { appearance: auto; }
         <span class="card-title">Forecasting Methods</span>
         <span class="badge badge-warning" id="forecastActiveMethod">Ensemble</span>
       </div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Select methods to include in the ensemble forecast. The ensemble combines selected methods for better accuracy.</p>
-      <div class="grid-3" id="methodCards"></div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Select methods and features to include. The ensemble combines selected methods for better accuracy. Features auto-disable when they hurt MAPE.</p>
+      <div id="methodCards"></div>
     </div>
     <div class="card" id="weatherCard">
       <div class="card-header">
@@ -982,7 +982,12 @@ const AppState = {
     trend: true,
     yoy: true,
     holtWinters: true,
-    weather: true
+    weather: true,
+    seasonalEvents: true,
+    winsorize: true,
+    confidenceIntervals: true,
+    categoryForecast: true,
+    anomalyDetection: true
   },
   manualWeights: null, /* null = auto (MAPE-based); object = {movingAvg:0.2, ...} */
   autoDisabled: {}, /* methods auto-disabled due to poor accuracy */
@@ -2053,10 +2058,13 @@ const Forecaster = {
       });
     }
     if (pctErrors.length === 0) return 999;
-    /* Winsorize: cap errors at 90th percentile to reduce outlier influence */
-    var sorted = pctErrors.slice().sort(function(a,b){return a-b;});
-    var p90 = sorted[Math.min(Math.floor(sorted.length * 0.9), sorted.length - 1)];
-    var avg = pctErrors.reduce(function(s,e){return s + Math.min(e, p90);}, 0) / pctErrors.length;
+    /* Winsorize if enabled: cap errors at 90th percentile to reduce outlier influence */
+    if (AppState.forecastMethods.winsorize) {
+      var sorted = pctErrors.slice().sort(function(a,b){return a-b;});
+      var p90 = sorted[Math.min(Math.floor(sorted.length * 0.9), sorted.length - 1)];
+      pctErrors = pctErrors.map(function(e){ return Math.min(e, p90); });
+    }
+    var avg = pctErrors.reduce(function(s,e){return s+e;}, 0) / pctErrors.length;
     return avg * 100;
   },
 
@@ -2160,7 +2168,7 @@ const Forecaster = {
     }
 
     /* Apply seasonal event adjustments (non-raw only) */
-    if (!opts.raw) {
+    if (!opts.raw && methods.seasonalEvents) {
       _cachedEventImpacts = learnEventImpacts();
       combined.forEach(function(f) {
         var evResult = getEventAdj(f.date);
@@ -2215,19 +2223,22 @@ const Forecaster = {
     var rawDenom = rawCnt || 1;
     var adjDenom = adjCnt || 1;
     /* Winsorize: cap at 90th percentile to reduce outlier influence */
-    function winsorizedMape(errors) {
+    function calcMape(errors) {
       if (errors.length === 0) return 999;
-      var s = errors.slice().sort(function(a,b){return a-b;});
-      var p90 = s[Math.min(Math.floor(s.length * 0.9), s.length - 1)];
-      return errors.reduce(function(sum,e){return sum + Math.min(e, p90);}, 0) / errors.length * 100;
+      if (AppState.forecastMethods.winsorize) {
+        var s = errors.slice().sort(function(a,b){return a-b;});
+        var p90 = s[Math.min(Math.floor(s.length * 0.9), s.length - 1)];
+        errors = errors.map(function(e){ return Math.min(e, p90); });
+      }
+      return errors.reduce(function(sum,e){return sum+e;}, 0) / errors.length * 100;
     }
     var raw = {
-      mape: winsorizedMape(rawErrors),
+      mape: calcMape(rawErrors),
       bias: rawTotErr / rawDenom,
       mae: rawTotAbs / rawDenom
     };
     var adj = {
-      mape: winsorizedMape(adjErrors),
+      mape: calcMape(adjErrors),
       bias: adjTotErr / adjDenom,
       mae: adjTotAbs / adjDenom
     };
@@ -2761,24 +2772,30 @@ function runForecast() {
     return;
   }
   AppState.forecastCache = Forecaster.ensemble(daily, days);
-  computeConfidenceIntervals(AppState.forecastCache, daily);
+  if (AppState.forecastMethods.confidenceIntervals) {
+    computeConfidenceIntervals(AppState.forecastCache, daily);
+  }
   /* Also run ensemble on pieces data for direct pieces forecasting */
   var dailyPcs = getDailyPieces();
   if (dailyPcs.length >= 7) {
     AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days);
-    computeConfidenceIntervals(AppState.forecastCachePcs, dailyPcs);
+    if (AppState.forecastMethods.confidenceIntervals) {
+      computeConfidenceIntervals(AppState.forecastCachePcs, dailyPcs);
+    }
   } else {
     AppState.forecastCachePcs = [];
   }
   /* Per-category forecasts */
   AppState.catForecastCache = {};
-  var cats = AppState.settings.categories.filter(function(c){ return c !== 'Discount'; });
-  cats.forEach(function(cat) {
-    var catDaily = getDailySalesForCat(cat);
-    if (catDaily.length >= 14) {
-      AppState.catForecastCache[cat] = Forecaster.ensemble(catDaily, days);
-    }
-  });
+  if (AppState.forecastMethods.categoryForecast) {
+    var cats = AppState.settings.categories.filter(function(c){ return c !== 'Discount'; });
+    cats.forEach(function(cat) {
+      var catDaily = getDailySalesForCat(cat);
+      if (catDaily.length >= 14) {
+        AppState.catForecastCache[cat] = Forecaster.ensemble(catDaily, days);
+      }
+    });
+  }
 }
 
 function recalcHours() {
@@ -3158,18 +3175,25 @@ function hexToRgba(hex, alpha) {
 }
 
 function renderMethodCards() {
-  const methods = [
-    { key: 'movingAvg', name: 'Moving Average', desc: 'DOW-aware average of last 6 weeks per weekday.' },
-    { key: 'expSmooth', name: 'Exponential Smoothing', desc: 'DOW-aware smoothing. Auto-tunes responsiveness via walk-forward CV.' },
-    { key: 'dayOfWeek', name: 'Day-of-Week Pattern', desc: 'Trimmed mean per weekday from last 20 weeks, recency-weighted.' },
-    { key: 'trend', name: 'Trend + Seasonal', desc: 'Recency-weighted regression with quarterly + DOW seasonal factors.' },
-    { key: 'yoy', name: 'Year-over-Year', desc: 'Growth-adjusted lookup across 1-4 prior years, same DOW matching.' },
-    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Auto-tuned triple exponential smoothing. Level + trend + weekly seasonality.' },
-    { key: 'weather', name: 'Weather Adjustment', desc: 'Reduces forecast for rain and extreme heat. Requires weather data.' }
+  var coreMethods = [
+    { key: 'movingAvg', name: 'Moving Average', desc: 'DOW-aware average of last 6 weeks per weekday.', group: 'core' },
+    { key: 'expSmooth', name: 'Exp. Smoothing', desc: 'DOW-aware smoothing. Auto-tunes alpha via walk-forward CV.', group: 'core' },
+    { key: 'dayOfWeek', name: 'Day-of-Week', desc: 'Trimmed mean per weekday from last 20 weeks, recency-weighted.', group: 'core' },
+    { key: 'trend', name: 'Trend + Seasonal', desc: 'Recency-weighted regression with quarterly + DOW factors.', group: 'core' },
+    { key: 'yoy', name: 'Year-over-Year', desc: 'Growth-adjusted lookup across 1-4 prior years, same DOW match.', group: 'core' },
+    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Auto-tuned triple exponential smoothing with weekly seasonality.', group: 'core' }
   ];
-  let html = '';
+  var enhancers = [
+    { key: 'weather', name: '🌦 Weather', desc: 'Adjusts forecasts for rain and extreme heat using learned patterns.', group: 'enhance' },
+    { key: 'seasonalEvents', name: '📅 Seasonal Events', desc: 'Applies learned impact multipliers for recurring business events.', group: 'enhance' },
+    { key: 'winsorize', name: '📊 Outlier Guard', desc: 'Caps extreme errors at 90th percentile for more robust method weighting.', group: 'enhance' },
+    { key: 'confidenceIntervals', name: '📐 Confidence Bands', desc: 'Shows forecast range (high/low) based on per-DOW error variance.', group: 'display' },
+    { key: 'categoryForecast', name: '📂 Category Forecast', desc: 'Runs independent forecasts per service category with breakdown.', group: 'display' },
+    { key: 'anomalyDetection', name: '⚠️ Anomaly Alerts', desc: 'Flags days where sales deviated &gt;2σ from expected DOW average.', group: 'display' }
+  ];
+  var allMethods = coreMethods.concat(enhancers);
   var excl = AppState._methodExclusion || {};
-  methods.forEach(m => {
+  function renderCard(m) {
     var isOn = AppState.forecastMethods[m.key];
     var isAutoOff = !!AppState.autoDisabled[m.key];
     var mapeVal = excl[m.key] && excl[m.key].mape != null && excl[m.key].mape < 900 ? excl[m.key].mape : null;
@@ -3185,14 +3209,20 @@ function renderMethodCards() {
       extraStyle = ' style="border-color:var(--danger);opacity:0.65;"';
       exclNote = '<span style="color:var(--danger);font-size:11px;font-weight:600;display:block;margin-top:2px;">Auto-disabled' + (mapeVal != null ? ' (MAPE ' + mapeVal.toFixed(0) + '%)' : '') + ' — click to re-enable</span>';
     }
-    html += '<div class="' + cardClass + '"' + extraStyle +
+    return '<div class="' + cardClass + '"' + extraStyle +
       ' onclick="toggleMethod(\'' + m.key + '\')">' +
       '<h4>' + badge + m.name + '</h4>' +
       '<p>' + m.desc + '</p>' + exclNote + '</div>';
-  });
+  }
+  var html = '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Core Forecast Methods</div><div class="grid-3" style="margin-bottom:16px;">';
+  coreMethods.forEach(function(m){ html += renderCard(m); });
+  html += '</div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Enhancements &amp; Features</div><div class="grid-3">';
+  enhancers.forEach(function(m){ html += renderCard(m); });
+  html += '</div>';
   document.getElementById('methodCards').innerHTML = html;
+  var allKeys = allMethods.map(function(m){ return m.key; });
   var activeCount = 0, autoOffCount = 0, manualOffCount = 0;
-  ['movingAvg','expSmooth','dayOfWeek','trend','yoy','holtWinters','weather'].forEach(function(k) {
+  allKeys.forEach(function(k) {
     if (AppState.forecastMethods[k]) activeCount++;
     else if (AppState.autoDisabled[k]) autoOffCount++;
     else manualOffCount++;
@@ -3213,6 +3243,7 @@ function toggleMethod(key) {
   runForecast();
   renderForecastChart();
   renderForecastTable();
+  renderCategoryForecast();
   renderAccuracy();
   renderMethodCards();
 }
@@ -3448,9 +3479,29 @@ function renderAccuracy() {
     renderForecastTable();
   }
   rows.forEach(function(r) { if (r.on && !r.excluded) totalW += r.w; });
+  /* Auto-disable enhancers that hurt MAPE:
+     weather & seasonal events are tested via raw vs adjusted comparison.
+     If adjusted MAPE is worse, auto-disable the active enhancers. */
+  if (result.rawMape != null && result.adjMape != null && !result.adjHelps) {
+    var enhancersToCheck = ['weather', 'seasonalEvents'];
+    enhancersToCheck.forEach(function(ek) {
+      if (AppState.forecastMethods[ek] && !AppState.autoDisabled[ek]) {
+        AppState.forecastMethods[ek] = false;
+        AppState.autoDisabled[ek] = true;
+        needsRerun = true;
+      }
+    });
+    if (needsRerun) { runForecast(); renderForecastChart(); renderForecastTable(); }
+  }
   /* Store exclusion info for method cards */
   AppState._methodExclusion = {};
   rows.forEach(function(r) { AppState._methodExclusion[r.key] = { excluded: r.excluded, mape: r.mape, autoOff: !!AppState.autoDisabled[r.key] }; });
+  /* Add enhancer/display feature entries to exclusion info */
+  ['weather','seasonalEvents','winsorize','confidenceIntervals','categoryForecast','anomalyDetection'].forEach(function(ek) {
+    if (AppState.autoDisabled[ek]) {
+      AppState._methodExclusion[ek] = { excluded: true, mape: null, autoOff: true };
+    }
+  });
   var pmHtml = '<table><thead><tr><th>Method</th><th>Status</th><th style="text-align:right">$ MAPE</th>';
   if (hasPcs) pmHtml += '<th style="text-align:right">Pcs MAPE</th>';
   pmHtml += '<th>Rating</th><th style="text-align:right">Weight %</th></tr></thead><tbody>';
@@ -3826,6 +3877,7 @@ function renderDashboardAlerts() {
   var list = document.getElementById('anomalyList');
   var badge = document.getElementById('anomalyCount');
   if (!card || !list) return;
+  if (!AppState.forecastMethods.anomalyDetection) { card.style.display = 'none'; return; }
   var anomalies = detectAnomalies(30); /* Last 30 days for dashboard */
   if (anomalies.length === 0) { card.style.display = 'none'; return; }
   card.style.display = '';
