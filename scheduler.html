@@ -1699,14 +1699,13 @@ const Forecaster = {
   },
 
   expSmoothAutoTune(dailySales, daysAhead) {
-    /* Walk-forward alpha tuning: 4 folds × 7 days for stable estimate */
+    /* Walk-forward alpha tuning: 2 folds × 7 days for stable estimate */
     var alphas = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7];
     var self = this;
     var bestAlpha = 0.3;
     var bestMape = 999;
     var testDays = 7;
-    var folds = 4;
-    if (dailySales.length < 21 + testDays * 4) folds = 2;
+    var folds = 2;
     if (dailySales.length >= 21 + testDays * folds) {
       alphas.forEach(function(a) {
         var totAbs = 0, totAct = 0;
@@ -2028,17 +2027,17 @@ const Forecaster = {
     });
   },
 
-  /* Walk-forward cross-validation: 4 folds × 7 days for stable MAPE */
+  /* Walk-forward cross-validation: 4 folds × 7 days with winsorization */
   _backtestMethod(methodFn, dailySales, testDays) {
     testDays = 7;
-    var folds = 8;
+    var folds = 4;
     var minTrain = 21;
-    /* Scale folds to available data */
-    while (folds > 1 && dailySales.length < minTrain + testDays * folds) folds--;
-    if (dailySales.length < minTrain + testDays) return 999;
+    if (dailySales.length < minTrain + testDays * folds) {
+      if (dailySales.length < minTrain + testDays) return 999;
+      folds = 1;
+    }
     var self = this;
-    var pctErrors = []; /* collect per-day % errors for winsorization */
-    var totalActual = 0;
+    var pctErrors = [];
     for (var fold = 0; fold < folds; fold++) {
       var testEnd = dailySales.length - fold * testDays;
       var testStart = testEnd - testDays;
@@ -2049,19 +2048,16 @@ const Forecaster = {
       if (!preds || preds.length === 0) continue;
       test.forEach(function(actual, i) {
         if (preds[i] && isCleanDay(actual)) {
-          var pctErr = Math.abs(actual.total - preds[i].predicted) / actual.total;
-          pctErrors.push(pctErr);
-          totalActual += actual.total;
+          pctErrors.push(Math.abs(actual.total - preds[i].predicted) / actual.total);
         }
       });
     }
-    if (pctErrors.length === 0 || totalActual === 0) return 999;
+    if (pctErrors.length === 0) return 999;
     /* Winsorize: cap errors at 90th percentile to reduce outlier influence */
     var sorted = pctErrors.slice().sort(function(a,b){return a-b;});
     var p90 = sorted[Math.min(Math.floor(sorted.length * 0.9), sorted.length - 1)];
-    var winsorized = pctErrors.map(function(e){ return Math.min(e, p90); });
-    var avgErr = winsorized.reduce(function(s,v){return s+v;}, 0) / winsorized.length;
-    return avgErr * 100;
+    var avg = pctErrors.reduce(function(s,e){return s + Math.min(e, p90);}, 0) / pctErrors.length;
+    return avg * 100;
   },
 
   ensemble(dailySales, daysAhead, opts) {
@@ -2185,7 +2181,7 @@ const Forecaster = {
 
   backtest(dailySales, testDays) {
     testDays = 7;
-    var folds = 8;
+    var folds = 6;
     var minTrain = 21;
     while (folds > 1 && dailySales.length < minTrain + testDays * folds) folds--;
     if (dailySales.length < minTrain + testDays) return null;
@@ -2722,12 +2718,11 @@ function changeForecastDays(val) {
 
 function computeConfidenceIntervals(forecastArr, dailyData) {
   /* Compute per-DOW forecast error std deviation from recent backtest residuals.
-     Uses last 56 clean days of data as a holdout to measure variance. */
+     Uses last 28 clean days of data as a holdout to measure variance. */
   if (!forecastArr || forecastArr.length === 0 || dailyData.length < 35) return;
   var dowErrors = [[],[],[],[],[],[],[]]; /* per-DOW absolute % errors */
-  var ciFolds = Math.min(8, Math.floor((dailyData.length - 21) / 7));
-  /* Walk-forward: test on recent days in up to 8 folds of 7 */
-  for (var fold = 0; fold < ciFolds; fold++) {
+  /* Walk-forward: test on last 28 days in 4 folds of 7 */
+  for (var fold = 0; fold < 4; fold++) {
     var testEnd = dailyData.length - fold * 7;
     var testStart = testEnd - 7;
     if (testStart < 21) break;
