@@ -277,8 +277,8 @@ select.form-input { appearance: auto; }
 
 <nav class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <h1>&#x26A1; StaffCast</h1>
-    <span>Smart Scheduling</span>
+    <h1>&#x26A1; SmartCast</h1>
+    <span>Smart Forecasting</span>
   </div>
   <div class="sidebar-nav">
     <button class="nav-item active" onclick="showPage('dashboard')" data-page="dashboard">
@@ -332,6 +332,13 @@ select.form-input { appearance: auto; }
         <div class="card-header"><span class="card-title">Staff Hours Trend</span></div>
         <div class="chart-container"><canvas id="dashHoursChart"></canvas></div>
       </div>
+    </div>
+    <div class="card" id="anomalyCard" style="display:none;">
+      <div class="card-header">
+        <span class="card-title">&#x26A0;&#xFE0F; Alerts &amp; Anomalies</span>
+        <span class="badge badge-warning" id="anomalyCount">0</span>
+      </div>
+      <div id="anomalyList"></div>
     </div>
     <div class="quick-update" onclick="showPage('sales')">
       <h3>&#x2795; Quick Update</h3>
@@ -550,6 +557,8 @@ select.form-input { appearance: auto; }
       <button class="tab" onclick="switchTab(this, 'analytics-categories')">By Category</button>
       <button class="tab" onclick="switchTab(this, 'analytics-patterns')">Day Patterns</button>
       <button class="tab" onclick="switchTab(this, 'analytics-compare')">Week Comparison</button>
+      <button class="tab" onclick="switchTab(this, 'analytics-anomalies')">Anomalies</button>
+      <button class="tab" onclick="switchTab(this, 'analytics-decompose')">Decomposition</button>
     </div>
     <div class="tab-content active" id="analytics-trends">
       <div class="card">
@@ -593,6 +602,36 @@ select.form-input { appearance: auto; }
       <div class="card">
         <div class="card-header"><span class="card-title">Week-over-Week Comparison</span></div>
         <div class="chart-container" style="height:350px;"><canvas id="weekCompareChart"></canvas></div>
+      </div>
+    </div>
+    <div class="tab-content" id="analytics-anomalies">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">&#x26A0;&#xFE0F; Anomaly Detection</span>
+          <select class="form-input" style="width:auto;padding:4px 8px;font-size:13px;" id="anomalyRange" onchange="renderAnomalyTab()">
+            <option value="30">Last 30 days</option>
+            <option value="60">Last 60 days</option>
+            <option value="90" selected>Last 90 days</option>
+            <option value="0">All time</option>
+          </select>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Days where actual sales deviated significantly from the expected DOW average. Threshold: &gt;2&sigma; (standard deviations).</p>
+        <div id="anomalyFullList"></div>
+      </div>
+    </div>
+    <div class="tab-content" id="analytics-decompose">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">&#x1F4CA; Trend Decomposition</span>
+          <select class="form-input" style="width:auto;padding:4px 8px;font-size:13px;" id="decompRange" onchange="renderDecomposition()">
+            <option value="90">Last 90 days</option>
+            <option value="180" selected>Last 180 days</option>
+            <option value="365">Last year</option>
+            <option value="0">All time</option>
+          </select>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Breaks down sales into trend (long-term direction), seasonal pattern (DOW repeating cycle), and residual (unexplained variation).</p>
+        <div id="decompCharts"></div>
       </div>
     </div>
   </div>
@@ -797,7 +836,7 @@ select.form-input { appearance: auto; }
 <!-- Setup Wizard -->
 <div class="wizard-overlay" id="setupWizard" style="display:none;">
 <div class="wizard-box" style="max-width:580px;">
-  <h2>⚡ Welcome to StaffCast</h2>
+  <h2>⚡ Welcome to SmartCast</h2>
   <p class="wizard-sub">Let's set up your business in a few quick steps.</p>
   <div class="wizard-dots" id="wizDots">
     <span class="active"></span><span></span><span></span><span></span><span></span>
@@ -2792,6 +2831,7 @@ function renderDashboard() {
   /* Charts */
   renderDashSalesChart(daily);
   renderDashHoursChart(daily, actualHours);
+  renderDashboardAlerts();
 }
 
 function statCard(label, value, change, showChange) {
@@ -3604,6 +3644,8 @@ function renderAnalyticsPage() {
   renderDayOfWeekChart();
   renderHeatmap();
   renderWeekCompare();
+  renderAnomalyTab();
+  renderDecomposition();
 }
 
 function renderTrendChart() {
@@ -3717,6 +3759,208 @@ function renderWeekCompare() {
     color: CHART_COLORS[i % CHART_COLORS.length]
   }));
   renderLineChart('weekCompareChart', DAYS, datasets);
+}
+
+/* ============ ANOMALY DETECTION ============ */
+function detectAnomalies(lookbackDays) {
+  var daily = getDailySales();
+  if (daily.length < 30) return [];
+  /* Build DOW stats from all clean data */
+  var dowSums = [0,0,0,0,0,0,0], dowSumSq = [0,0,0,0,0,0,0], dowCnts = [0,0,0,0,0,0,0];
+  daily.forEach(function(d) {
+    if (!isCleanDay(d)) return;
+    var dw = dayOfWeek(d.date);
+    dowSums[dw] += d.total;
+    dowSumSq[dw] += d.total * d.total;
+    dowCnts[dw]++;
+  });
+  var dowMean = [], dowStd = [];
+  for (var i = 0; i < 7; i++) {
+    if (dowCnts[i] >= 3) {
+      var m = dowSums[i] / dowCnts[i];
+      var variance = (dowSumSq[i] / dowCnts[i]) - (m * m);
+      dowMean.push(m);
+      dowStd.push(Math.sqrt(Math.max(0, variance)));
+    } else {
+      dowMean.push(0);
+      dowStd.push(0);
+    }
+  }
+  /* Scan recent days for anomalies (>2 std devs from DOW mean) */
+  var startIdx = lookbackDays > 0 ? Math.max(0, daily.length - lookbackDays) : 0;
+  var anomalies = [];
+  for (var j = startIdx; j < daily.length; j++) {
+    var d = daily[j];
+    if (!isCleanDay(d)) continue;
+    var dw = dayOfWeek(d.date);
+    if (dowStd[dw] === 0 || dowCnts[dw] < 3) continue;
+    var zScore = (d.total - dowMean[dw]) / dowStd[dw];
+    if (Math.abs(zScore) >= 2) {
+      var pctDev = Math.round(((d.total - dowMean[dw]) / dowMean[dw]) * 100);
+      anomalies.push({
+        date: d.date,
+        actual: d.total,
+        expected: dowMean[dw],
+        zScore: zScore,
+        pctDev: pctDev,
+        type: zScore > 0 ? 'high' : 'low'
+      });
+    }
+  }
+  return anomalies.sort(function(a, b) { return b.date.localeCompare(a.date); });
+}
+
+function renderDashboardAlerts() {
+  var card = document.getElementById('anomalyCard');
+  var list = document.getElementById('anomalyList');
+  var badge = document.getElementById('anomalyCount');
+  if (!card || !list) return;
+  var anomalies = detectAnomalies(30); /* Last 30 days for dashboard */
+  if (anomalies.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  badge.textContent = anomalies.length;
+  var html = '';
+  anomalies.slice(0, 5).forEach(function(a) {
+    var icon = a.type === 'high' ? '&#x1F4C8;' : '&#x1F4C9;';
+    var color = a.type === 'high' ? 'var(--success)' : 'var(--danger)';
+    var sign = a.pctDev > 0 ? '+' : '';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">' +
+      '<span style="font-size:20px;">' + icon + '</span>' +
+      '<div style="flex:1;"><div style="font-weight:600;font-size:13px;">' + a.date + ' (' + DAYS[dayOfWeek(a.date)] + ')</div>' +
+      '<div style="font-size:12px;color:var(--muted);">Actual: ' + fmt(a.actual) + ' vs Expected: ' + fmt(a.expected) + '</div></div>' +
+      '<span style="font-weight:700;font-size:14px;color:' + color + ';">' + sign + a.pctDev + '%</span></div>';
+  });
+  if (anomalies.length > 5) {
+    html += '<div style="text-align:center;padding:8px;"><a href="javascript:showPage(\'analytics\')" style="font-size:12px;color:var(--accent);">View all ' + anomalies.length + ' anomalies →</a></div>';
+  }
+  list.innerHTML = html;
+}
+
+function renderAnomalyTab() {
+  var wrap = document.getElementById('anomalyFullList');
+  if (!wrap) return;
+  var rangeEl = document.getElementById('anomalyRange');
+  var range = rangeEl ? parseInt(rangeEl.value) : 90;
+  var anomalies = detectAnomalies(range);
+  if (anomalies.length === 0) {
+    wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:16px 0;">No anomalies detected in this period. All sales data falls within expected ranges.</p>';
+    return;
+  }
+  /* Summary stats */
+  var highCount = anomalies.filter(function(a){ return a.type === 'high'; }).length;
+  var lowCount = anomalies.length - highCount;
+  var html = '<div style="display:flex;gap:16px;margin-bottom:16px;">' +
+    '<div style="flex:1;padding:12px;background:var(--bg);border-radius:8px;text-align:center;">' +
+    '<div style="font-size:24px;font-weight:700;">' + anomalies.length + '</div><div style="font-size:11px;color:var(--muted);">Total Anomalies</div></div>' +
+    '<div style="flex:1;padding:12px;background:var(--bg);border-radius:8px;text-align:center;">' +
+    '<div style="font-size:24px;font-weight:700;color:var(--success);">' + highCount + '</div><div style="font-size:11px;color:var(--muted);">Above Expected</div></div>' +
+    '<div style="flex:1;padding:12px;background:var(--bg);border-radius:8px;text-align:center;">' +
+    '<div style="font-size:24px;font-weight:700;color:var(--danger);">' + lowCount + '</div><div style="font-size:11px;color:var(--muted);">Below Expected</div></div></div>';
+  /* Table */
+  html += '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right;">Actual</th>' +
+    '<th style="text-align:right;">Expected</th><th style="text-align:right;">Deviation</th><th style="text-align:right;">Z-Score</th><th>Type</th></tr></thead><tbody>';
+  anomalies.forEach(function(a) {
+    var color = a.type === 'high' ? 'var(--success)' : 'var(--danger)';
+    var icon = a.type === 'high' ? '&#x25B2;' : '&#x25BC;';
+    var sign = a.pctDev > 0 ? '+' : '';
+    html += '<tr><td>' + a.date + '</td><td>' + DAYS[dayOfWeek(a.date)] + '</td>' +
+      '<td style="text-align:right;font-weight:600;">' + fmt(a.actual) + '</td>' +
+      '<td style="text-align:right;color:var(--muted);">' + fmt(a.expected) + '</td>' +
+      '<td style="text-align:right;font-weight:600;color:' + color + ';">' + sign + a.pctDev + '%</td>' +
+      '<td style="text-align:right;font-weight:600;">' + a.zScore.toFixed(1) + 'σ</td>' +
+      '<td><span style="color:' + color + ';font-weight:600;">' + icon + ' ' + (a.type === 'high' ? 'SPIKE' : 'DIP') + '</span></td></tr>';
+  });
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+/* ============ TREND DECOMPOSITION ============ */
+function decomposeSales(daily, windowSize) {
+  /* Additive decomposition: Observed = Trend + Seasonal + Residual */
+  windowSize = windowSize || 7;
+  var n = daily.length;
+  if (n < windowSize * 2) return null;
+  /* 1. Trend: centered moving average (window = 7 for weekly cycle) */
+  var trend = new Array(n).fill(null);
+  var half = Math.floor(windowSize / 2);
+  for (var i = half; i < n - half; i++) {
+    var sum = 0;
+    for (var j = i - half; j <= i + half; j++) sum += daily[j].total;
+    trend[i] = sum / windowSize;
+  }
+  /* Extend trend at edges using linear extrapolation */
+  var firstTrend = half, lastTrend = n - half - 1;
+  if (trend[firstTrend] != null && trend[firstTrend + 1] != null) {
+    var slope1 = trend[firstTrend + 1] - trend[firstTrend];
+    for (var e = firstTrend - 1; e >= 0; e--) trend[e] = trend[e + 1] - slope1;
+  }
+  if (trend[lastTrend] != null && trend[lastTrend - 1] != null) {
+    var slope2 = trend[lastTrend] - trend[lastTrend - 1];
+    for (var e2 = lastTrend + 1; e2 < n; e2++) trend[e2] = trend[e2 - 1] + slope2;
+  }
+  /* 2. Seasonal: average detrended values per DOW */
+  var dowDetrend = [[],[],[],[],[],[],[]];
+  for (var k = 0; k < n; k++) {
+    if (trend[k] != null) {
+      dowDetrend[dayOfWeek(daily[k].date)].push(daily[k].total - trend[k]);
+    }
+  }
+  var dowSeasonal = [0,0,0,0,0,0,0];
+  for (var d = 0; d < 7; d++) {
+    if (dowDetrend[d].length > 0) {
+      dowSeasonal[d] = dowDetrend[d].reduce(function(s,v){return s+v;},0) / dowDetrend[d].length;
+    }
+  }
+  /* Center seasonal (subtract mean so seasonal sums to ~0) */
+  var sMean = dowSeasonal.reduce(function(s,v){return s+v;},0) / 7;
+  for (var d2 = 0; d2 < 7; d2++) dowSeasonal[d2] -= sMean;
+  /* 3. Build arrays */
+  var seasonal = [], residual = [];
+  for (var m = 0; m < n; m++) {
+    var s = dowSeasonal[dayOfWeek(daily[m].date)];
+    seasonal.push(s);
+    residual.push(trend[m] != null ? daily[m].total - trend[m] - s : 0);
+  }
+  return { trend: trend, seasonal: seasonal, residual: residual };
+}
+
+function renderDecomposition() {
+  var wrap = document.getElementById('decompCharts');
+  if (!wrap) return;
+  var daily = getDailySales();
+  var rangeEl = document.getElementById('decompRange');
+  var range = rangeEl ? parseInt(rangeEl.value) : 180;
+  if (range > 0 && daily.length > range) daily = daily.slice(-range);
+  if (daily.length < 21) {
+    wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;">Need at least 21 days of data for decomposition.</p>';
+    return;
+  }
+  var result = decomposeSales(daily, 7);
+  if (!result) { wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;">Insufficient data.</p>'; return; }
+  var labels = daily.map(function(d){ return d.date.slice(5); });
+  /* Render 4 stacked mini-charts */
+  wrap.innerHTML =
+    '<div style="margin-bottom:8px;"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;">OBSERVED</div>' +
+    '<div class="chart-container" style="height:160px;"><canvas id="decompObserved"></canvas></div></div>' +
+    '<div style="margin-bottom:8px;"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;">TREND</div>' +
+    '<div class="chart-container" style="height:140px;"><canvas id="decompTrend"></canvas></div></div>' +
+    '<div style="margin-bottom:8px;"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;">SEASONAL (DOW Pattern)</div>' +
+    '<div class="chart-container" style="height:120px;"><canvas id="decompSeasonal"></canvas></div></div>' +
+    '<div><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;">RESIDUAL (Unexplained)</div>' +
+    '<div class="chart-container" style="height:120px;"><canvas id="decompResidual"></canvas></div></div>';
+  var observed = daily.map(function(d){ return d.total; });
+  renderLineChart('decompObserved', labels, [
+    { label: 'Observed', data: observed, color: CHART_COLORS[0] }
+  ]);
+  renderLineChart('decompTrend', labels, [
+    { label: 'Trend', data: result.trend, color: CHART_COLORS[2] }
+  ]);
+  renderLineChart('decompSeasonal', labels, [
+    { label: 'Seasonal', data: result.seasonal, color: CHART_COLORS[3], fill: true }
+  ]);
+  renderLineChart('decompResidual', labels, [
+    { label: 'Residual', data: result.residual, color: CHART_COLORS[4], fill: true }
+  ]);
 }
 
 /* ============ CHART HELPERS ============ */
@@ -3853,6 +4097,7 @@ function loadSettings() {
   renderCategoriesList();
   renderClosedDaysChecks();
   renderHolidaysList();
+  renderEventsList();
   renderActualPiecesMetrics();
   renderWeatherImpact();
 }
@@ -4171,7 +4416,7 @@ function exportAllData() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'staffcast-data-' + today() + '.json';
+  a.download = 'smartcast-data-' + today() + '.json';
   a.click();
   URL.revokeObjectURL(url);
   toast('Data exported!', 'success');
