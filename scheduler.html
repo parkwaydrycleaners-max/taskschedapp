@@ -2156,31 +2156,41 @@ const Forecaster = {
       }
     }
 
-    /* Bias correction: only in non-raw path so backtest can isolate weather/holiday effect.
-       Measures recent systematic error and compensates. */
-    if (!opts.raw && dailySales.length >= 28) {
-      var biasSum = 0, biasCnt = 0;
-      var bcTest = dailySales.slice(-7);
-      bcTest.forEach(function(d) {
-        if (!isCleanDay(d)) return;
-        var dowIdx = dayOfWeek(d.date);
-        var dowSum = 0, dowC = 0;
-        for (var bi = Math.max(0, dailySales.length - 56); bi < dailySales.length - 7; bi++) {
-          if (isCleanDay(dailySales[bi]) && dayOfWeek(dailySales[bi].date) === dowIdx) {
-            dowSum += dailySales[bi].total; dowC++;
-          }
-        }
-        if (dowC > 0) {
-          biasSum += d.total / (dowSum / dowC);
-          biasCnt++;
-        }
-      });
-      if (biasCnt >= 3) {
-        var biasRatio = Math.max(0.85, Math.min(1.15, biasSum / biasCnt));
-        if (Math.abs(biasRatio - 1) > 0.02) {
-          combined.forEach(function(f) { f.predicted *= biasRatio; });
+    /* Per-DOW bias correction: only in non-raw path so backtest can isolate weather/holiday effect.
+       Compares each DOW's recent average (last 4 weeks) against its prior baseline (weeks 5-12).
+       If Thursday has been running 15% below historical average, the forecast gets corrected down. */
+    if (!opts.raw && dailySales.length >= 56) {
+      var dowRecent = [[],[],[],[],[],[],[]]; /* last 4 weeks */
+      var dowPrior = [[],[],[],[],[],[],[]];  /* weeks 5-12 */
+      var nLen = dailySales.length;
+      for (var bi = Math.max(0, nLen - 84); bi < nLen; bi++) {
+        var bd = dailySales[bi];
+        if (!isCleanDay(bd)) continue;
+        var bDow = dayOfWeek(bd.date);
+        var bAge = nLen - 1 - bi; /* days ago */
+        if (bAge < 28) {
+          dowRecent[bDow].push(bd.total);
+        } else {
+          dowPrior[bDow].push(bd.total);
         }
       }
+      var dowBias = [1,1,1,1,1,1,1];
+      for (var db = 0; db < 7; db++) {
+        if (dowRecent[db].length >= 2 && dowPrior[db].length >= 3) {
+          var rAvg = dowRecent[db].reduce(function(s,v){return s+v;},0) / dowRecent[db].length;
+          var pAvg = dowPrior[db].reduce(function(s,v){return s+v;},0) / dowPrior[db].length;
+          if (pAvg > 0) {
+            /* Cap correction at ±20% per DOW to prevent overcorrection */
+            dowBias[db] = Math.max(0.80, Math.min(1.20, rAvg / pAvg));
+          }
+        }
+      }
+      combined.forEach(function(f) {
+        var fDow = dayOfWeek(f.date);
+        if (Math.abs(dowBias[fDow] - 1) > 0.02) {
+          f.predicted *= dowBias[fDow];
+        }
+      });
     }
 
     /* Apply seasonal event adjustments (non-raw only) */
