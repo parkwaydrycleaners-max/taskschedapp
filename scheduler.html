@@ -2037,10 +2037,7 @@ const Forecaster = {
       folds = 1;
     }
     var self = this;
-    /* Recent-weighted backtesting: fold 0 (most recent) gets highest weight.
-       Decay factor 0.6 per fold: weights ≈ [1, 0.6, 0.36, 0.22] */
-    var decay = 0.6;
-    var totalWAbs = 0, totalWActual = 0;
+    var totalAbs = 0, totalActual = 0;
     for (var fold = 0; fold < folds; fold++) {
       var testEnd = dailySales.length - fold * testDays;
       var testStart = testEnd - testDays;
@@ -2049,51 +2046,14 @@ const Forecaster = {
       var test = dailySales.slice(testStart, testEnd);
       var preds = methodFn.call(self, train, testDays);
       if (!preds || preds.length === 0) continue;
-      var foldWeight = Math.pow(decay, fold);
       test.forEach(function(actual, i) {
         if (preds[i] && isCleanDay(actual)) {
-          totalWAbs += Math.abs(actual.total - preds[i].predicted) * foldWeight;
-          totalWActual += actual.total * foldWeight;
+          totalAbs += Math.abs(actual.total - preds[i].predicted);
+          totalActual += actual.total;
         }
       });
     }
-    return totalWActual > 0 ? (totalWAbs / totalWActual) * 100 : 999;
-  },
-
-  /* Per-DOW backtest: returns array[7] of MAPE values per day-of-week for stacking */
-  _backtestMethodByDow(methodFn, dailySales) {
-    var testDays = 7;
-    var folds = 4;
-    var minTrain = 21;
-    if (dailySales.length < minTrain + testDays * folds) {
-      if (dailySales.length < minTrain + testDays) return null;
-      folds = 1;
-    }
-    var self = this;
-    var decay = 0.6;
-    var dowAbs = [0,0,0,0,0,0,0], dowActual = [0,0,0,0,0,0,0];
-    for (var fold = 0; fold < folds; fold++) {
-      var testEnd = dailySales.length - fold * testDays;
-      var testStart = testEnd - testDays;
-      if (testStart < minTrain) break;
-      var train = dailySales.slice(0, testStart);
-      var test = dailySales.slice(testStart, testEnd);
-      var preds = methodFn.call(self, train, testDays);
-      if (!preds || preds.length === 0) continue;
-      var fw = Math.pow(decay, fold);
-      test.forEach(function(actual, i) {
-        if (preds[i] && isCleanDay(actual)) {
-          var dw = dayOfWeek(actual.date);
-          dowAbs[dw] += Math.abs(actual.total - preds[i].predicted) * fw;
-          dowActual[dw] += actual.total * fw;
-        }
-      });
-    }
-    var dowMape = [];
-    for (var d = 0; d < 7; d++) {
-      dowMape.push(dowActual[d] > 0 ? (dowAbs[d] / dowActual[d]) * 100 : 999);
-    }
-    return dowMape;
+    return totalActual > 0 ? (totalAbs / totalActual) * 100 : 999;
   },
 
   ensemble(dailySales, daysAhead, opts) {
@@ -2110,25 +2070,21 @@ const Forecaster = {
 
     if (methodList.length === 0) return [];
 
-    /* Compute weights: use manual if set, else MAPE-based with auto-exclusion + per-DOW stacking */
+    /* Compute weights: use manual if set, else MAPE-based with auto-exclusion */
     var self = this;
     var mw = AppState.manualWeights;
     var candidates = [];
-    var useStacking = !mw && methodList.length >= 2;
     methodList.forEach(function(m) {
       var preds = m.fn.call(self, dailySales, daysAhead);
       if (!preds || preds.length === 0) return;
-      var w, mape = null, dowMapes = null;
+      var w, mape = null;
       if (mw && mw[m.key] != null) {
         w = mw[m.key];
       } else {
         mape = self._backtestMethod(m.fn, dailySales, 7);
-        w = 1 / Math.pow(Math.max(mape, 1), 2);
-        if (useStacking) {
-          dowMapes = self._backtestMethodByDow(m.fn, dailySales);
-        }
+        w = 1 / Math.pow(Math.max(mape, 1), 2); /* squared inverse for sharper differentiation */
       }
-      candidates.push({ preds: preds, w: w, mape: mape, dowMapes: dowMapes });
+      candidates.push({ preds: preds, w: w, mape: mape });
     });
 
     if (candidates.length === 0) return [];
@@ -2144,41 +2100,26 @@ const Forecaster = {
     }
 
     var forecasts = candidates.map(function(c) { return c.preds; });
+    var weights = candidates.map(function(c) { return c.w; });
 
     if (forecasts.length === 0) return [];
 
-    /* Build per-DOW normalized weight arrays for stacking.
-       For each DOW, compute squared-inverse-MAPE weights from per-DOW backtests.
-       Falls back to global weights when per-DOW data is insufficient. */
-    var globalWeights = candidates.map(function(c) { return c.w; });
-    var gTotal = globalWeights.reduce(function(s, w) { return s + w; }, 0) || 1;
-    var normGlobal = globalWeights.map(function(w) { return w / gTotal; });
-
-    var dowNormWeights = []; /* array[7] of normalized weight arrays */
-    for (var dw = 0; dw < 7; dw++) {
-      if (!useStacking) { dowNormWeights.push(normGlobal); continue; }
-      var dowW = candidates.map(function(c) {
-        if (c.dowMapes && c.dowMapes[dw] < 900) {
-          return 1 / Math.pow(Math.max(c.dowMapes[dw], 1), 2);
-        }
-        return c.w; /* fallback to global */
-      });
-      var dwTotal = dowW.reduce(function(s, w) { return s + w; }, 0) || 1;
-      dowNormWeights.push(dowW.map(function(w) { return w / dwTotal; }));
-    }
+    /* Normalize weights */
+    var totalW = weights.reduce(function(s, w) { return s + w; }, 0);
+    if (totalW === 0) totalW = 1;
+    var normWeights = weights.map(function(w) { return w / totalW; });
 
     var combined = [];
     for (var i = 0; i < daysAhead; i++) {
-      var fd = null;
-      forecasts.forEach(function(r) { if (r[i] && !fd) fd = r[i].date; });
-      if (!fd) fd = addDays(dailySales[dailySales.length - 1].date, i + 1);
-      /* Use DOW-specific weights (stacking) */
-      var forecastDow = dayOfWeek(fd);
-      var wArr = dowNormWeights[forecastDow];
       var sum = 0;
+      var fd = null;
       forecasts.forEach(function(r, ri) {
-        if (r[i]) { sum += r[i].predicted * wArr[ri]; }
+        if (r[i]) {
+          sum += r[i].predicted * normWeights[ri];
+          if (!fd) fd = r[i].date;
+        }
       });
+      if (!fd) fd = addDays(dailySales[dailySales.length - 1].date, i + 1);
       if (opts.raw) {
         combined.push({ date: fd, predicted: sum, method: 'Weighted Ensemble', holidayAdj: 1 });
       } else {
@@ -2243,11 +2184,9 @@ const Forecaster = {
       folds = 1;
     }
     var self = this;
-    /* Accumulate stats across folds for both raw and adjusted.
-       Recent-weighted: fold 0 (most recent) gets highest weight. */
-    var decay = 0.6;
-    var rawWErr = 0, rawWAbs = 0, rawWAct = 0, rawUCnt = 0;
-    var adjWErr = 0, adjWAbs = 0, adjWAct = 0, adjUCnt = 0;
+    /* Accumulate stats across folds for both raw and adjusted */
+    var rawTotErr = 0, rawTotAbs = 0, rawTotAct = 0, rawCnt = 0;
+    var adjTotErr = 0, adjTotAbs = 0, adjTotAct = 0, adjCnt = 0;
     for (var fold = 0; fold < folds; fold++) {
       var testEnd = dailySales.length - fold * testDays;
       var testStart = testEnd - testDays;
@@ -2256,30 +2195,29 @@ const Forecaster = {
       var testData = dailySales.slice(testStart, testEnd);
       var rawPreds = self.ensemble(trainData, testDays, { raw: true });
       var adjPreds = self.ensemble(trainData, testDays);
-      var fw = Math.pow(decay, fold);
       testData.forEach(function(actual, i) {
         if (!isCleanDay(actual)) return;
         if (rawPreds[i]) {
           var re = actual.total - rawPreds[i].predicted;
-          rawWErr += re * fw; rawWAbs += Math.abs(re) * fw; rawWAct += actual.total * fw; rawUCnt++;
+          rawTotErr += re; rawTotAbs += Math.abs(re); rawTotAct += actual.total; rawCnt++;
         }
         if (adjPreds[i]) {
           var ae = actual.total - adjPreds[i].predicted;
-          adjWErr += ae * fw; adjWAbs += Math.abs(ae) * fw; adjWAct += actual.total * fw; adjUCnt++;
+          adjTotErr += ae; adjTotAbs += Math.abs(ae); adjTotAct += actual.total; adjCnt++;
         }
       });
     }
-    var rawDenom = rawUCnt || 1;
-    var adjDenom = adjUCnt || 1;
+    var rawDenom = rawCnt || 1;
+    var adjDenom = adjCnt || 1;
     var raw = {
-      mape: rawWAct > 0 ? (rawWAbs / rawWAct) * 100 : 999,
-      bias: rawWErr / rawDenom,
-      mae: rawWAbs / rawDenom
+      mape: rawTotAct > 0 ? (rawTotAbs / rawTotAct) * 100 : 999,
+      bias: rawTotErr / rawDenom,
+      mae: rawTotAbs / rawDenom
     };
     var adj = {
-      mape: adjWAct > 0 ? (adjWAbs / adjWAct) * 100 : 999,
-      bias: adjWErr / adjDenom,
-      mae: adjWAbs / adjDenom
+      mape: adjTotAct > 0 ? (adjTotAbs / adjTotAct) * 100 : 999,
+      bias: adjTotErr / adjDenom,
+      mae: adjTotAbs / adjDenom
     };
     var best = adj.mape < raw.mape ? adj : raw;
     best.rawMape = raw.mape;
