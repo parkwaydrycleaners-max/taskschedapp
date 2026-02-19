@@ -3643,7 +3643,12 @@ function resetManualWeights() {
 function saveForeccastSnapshot() {
   if (AppState.forecastCache.length === 0) { toast('Run a forecast first', 'error'); return; }
   var todayDt = dateStr(new Date());
-  var snap = { savedDate: todayDt, entries: AppState.forecastCache.map(function(f) { return { date: f.date, predicted: f.predicted }; }) };
+  var pcsFc = AppState.forecastCachePcs || [];
+  var snap = { savedDate: todayDt, entries: AppState.forecastCache.map(function(f, i) {
+    var e = { date: f.date, predicted: f.predicted };
+    if (pcsFc[i]) e.predictedPcs = pcsFc[i].predicted;
+    return e;
+  }) };
   AppState.savedForecasts.push(snap);
   if (AppState.savedForecasts.length > 20) AppState.savedForecasts.shift();
   toast('Forecast snapshot saved (' + snap.entries.length + ' days)');
@@ -3657,18 +3662,33 @@ function removeForecastSnapshot(idx) {
 
 function runBacktestComparison() {
   var daily = getDailySales();
+  var dailyPcs = getDailyPieces();
   var nDays = parseInt((document.getElementById('backtestDays') || {}).value) || 14;
   if (daily.length < nDays + 14) { toast('Not enough data for ' + nDays + '-day backtest', 'error'); return; }
   var trainData = daily.slice(0, -nDays);
   var testData = daily.slice(-nDays);
   var predictions = Forecaster.ensemble(trainData, nDays);
   if (!predictions || predictions.length === 0) { toast('Backtest produced no results', 'error'); return; }
+  /* Also backtest pieces */
+  var hasPcs = dailyPcs.length >= nDays + 14;
+  var trainPcs = hasPcs ? dailyPcs.slice(0, -nDays) : [];
+  var testPcs = hasPcs ? dailyPcs.slice(-nDays) : [];
+  var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, nDays) : [];
+  /* Build pieces lookup by date for matching */
+  var pcsMap = {};
+  dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
   var snap = { savedDate: 'Backtest ' + nDays + 'd (cutoff ' + trainData[trainData.length - 1].date + ')', isBacktest: true, entries: [] };
   for (var i = 0; i < nDays; i++) {
     var actual = testData[i] ? testData[i].total : null;
     var pred = predictions[i] ? predictions[i].predicted : 0;
     var dt = testData[i] ? testData[i].date : (predictions[i] ? predictions[i].date : '');
-    snap.entries.push({ date: dt, predicted: pred, actual: actual });
+    var entry = { date: dt, predicted: pred, actual: actual };
+    /* Pieces data */
+    if (hasPcs && predsPcs[i]) {
+      entry.predictedPcs = predsPcs[i].predicted;
+      entry.actualPcs = pcsMap[dt] != null ? pcsMap[dt] : null;
+    }
+    snap.entries.push(entry);
   }
   /* Replace any existing backtest snap, keep manual ones */
   AppState.savedForecasts = AppState.savedForecasts.filter(function(s) { return !s.isBacktest; });
@@ -3685,36 +3705,77 @@ function renderFvsActual() {
     return;
   }
   var daily = getDailySales();
+  var dailyPcs = getDailyPieces();
   var dailyMap = {};
   daily.forEach(function(d) { dailyMap[d.date] = d.total; });
+  var pcsMap = {};
+  dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
   var allHtml = '';
   AppState.savedForecasts.forEach(function(snap, si) {
-    var tHtml = '<div style="margin-bottom:20px;border:1px solid var(--border);border-radius:var(--radius);padding:12px;">';
+    /* Check if any entry in this snapshot has pieces data */
+    var snapHasPcs = snap.entries.some(function(e) { return e.predictedPcs != null || pcsMap[e.date] != null; });
+    var tHtml = '<div style="margin-bottom:20px;border:1px solid var(--border);border-radius:var(--radius);padding:12px;overflow-x:auto;">';
     tHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
     tHtml += '<strong style="font-size:13px;">' + snap.savedDate + '</strong>';
     tHtml += '<button class="btn btn-sm" style="color:var(--danger);font-size:12px;padding:2px 8px;" onclick="removeForecastSnapshot(' + si + ')">✕ Remove</button></div>';
-    tHtml += '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast</th><th style="text-align:right">Actual</th><th style="text-align:right">Diff</th><th style="text-align:right">Error %</th></tr></thead><tbody>';
+    tHtml += '<table style="font-size:12px;"><thead><tr><th>Date</th><th>Day</th>';
+    /* Pieces columns first */
+    tHtml += '<th style="text-align:right;color:var(--accent);">Pcs Fc</th><th style="text-align:right;color:var(--accent);">Pcs Act</th><th style="text-align:right;color:var(--accent);">Pcs Err%</th>';
+    /* Dollar columns */
+    tHtml += '<th style="text-align:right">$ Fc</th><th style="text-align:right">$ Act</th><th style="text-align:right">$ Err%</th>';
+    tHtml += '</tr></thead><tbody>';
     var totAbs = 0, totAct = 0, totBias = 0, matched = 0;
+    var pcsTotAbs = 0, pcsTotAct = 0, pcsTotBias = 0, pcsMatched = 0;
     snap.entries.forEach(function(e) {
       var actual = e.actual != null ? e.actual : dailyMap[e.date];
+      var actualPcs = e.actualPcs != null ? e.actualPcs : pcsMap[e.date];
+      var predPcs = e.predictedPcs != null ? e.predictedPcs : null;
       var dayName = DAYS[dayOfWeek(e.date)];
+      tHtml += '<tr><td>' + e.date + '</td><td>' + dayName + '</td>';
+      /* Pieces columns */
+      if (predPcs != null && actualPcs != null) {
+        var pDiff = actualPcs - predPcs;
+        var pErr = actualPcs > 0 ? ((pDiff / actualPcs) * 100) : 0;
+        var pColor = pDiff >= 0 ? 'var(--success)' : 'var(--danger)';
+        tHtml += '<td style="text-align:right;color:var(--accent);">' + Math.round(predPcs) + '</td>';
+        tHtml += '<td style="text-align:right;color:var(--accent);">' + Math.round(actualPcs) + '</td>';
+        tHtml += '<td style="text-align:right;color:' + pColor + ';font-weight:600;">' + pErr.toFixed(1) + '%</td>';
+        pcsTotAbs += Math.abs(pDiff); pcsTotAct += actualPcs; pcsTotBias += pDiff; pcsMatched++;
+      } else if (predPcs != null) {
+        tHtml += '<td style="text-align:right;color:var(--accent);">' + Math.round(predPcs) + '</td>';
+        tHtml += '<td style="text-align:right;color:var(--muted);">—</td><td style="text-align:right;color:var(--muted);">—</td>';
+      } else {
+        tHtml += '<td style="text-align:right;color:var(--muted);">—</td><td style="text-align:right;color:var(--muted);">—</td><td style="text-align:right;color:var(--muted);">—</td>';
+      }
+      /* Dollar columns */
       if (actual != null && actual !== undefined) {
         var diff = actual - e.predicted;
         var errPct = actual > 0 ? ((diff / actual) * 100) : 0;
         var diffColor = diff >= 0 ? 'var(--success)' : 'var(--danger)';
-        tHtml += '<tr><td>' + e.date + '</td><td>' + dayName + '</td><td style="text-align:right">' + fmt(e.predicted) + '</td><td style="text-align:right">' + fmt(actual) + '</td>';
-        tHtml += '<td style="text-align:right;color:' + diffColor + ';font-weight:600;">' + (diff >= 0 ? '+' : '') + fmt(diff) + '</td>';
-        tHtml += '<td style="text-align:right;">' + errPct.toFixed(1) + '%</td></tr>';
+        tHtml += '<td style="text-align:right">' + fmt(e.predicted) + '</td><td style="text-align:right">' + fmt(actual) + '</td>';
+        tHtml += '<td style="text-align:right;color:' + diffColor + ';font-weight:600;">' + errPct.toFixed(1) + '%</td>';
         totAbs += Math.abs(diff); totAct += actual; totBias += diff; matched++;
       } else {
-        tHtml += '<tr style="opacity:0.5;"><td>' + e.date + '</td><td>' + dayName + '</td><td style="text-align:right">' + fmt(e.predicted) + '</td><td style="text-align:right;color:var(--muted);">pending</td><td style="text-align:right">—</td><td style="text-align:right">—</td></tr>';
+        tHtml += '<td style="text-align:right">' + fmt(e.predicted) + '</td><td style="text-align:right;color:var(--muted);">pending</td><td style="text-align:right;color:var(--muted);">—</td>';
       }
+      tHtml += '</tr>';
     });
     tHtml += '</tbody></table>';
+    /* Summary line: always show both pieces and $ */
+    var summaryParts = [];
+    if (pcsMatched > 0) {
+      var pcsMape = pcsTotAct > 0 ? ((pcsTotAbs / pcsTotAct) * 100).toFixed(1) : '—';
+      var pcsAvgBias = (pcsTotBias / pcsMatched).toFixed(0);
+      summaryParts.push('<span style="color:var(--accent);">Pcs MAPE: <strong>' + pcsMape + '%</strong> · Pcs Bias: <strong>' + pcsAvgBias + '</strong></span>');
+    }
     if (matched > 0) {
       var mape = totAct > 0 ? ((totAbs / totAct) * 100).toFixed(1) : '—';
       var avgBias = (totBias / matched).toFixed(0);
-      tHtml += '<p style="font-size:12px;color:var(--muted);margin-top:6px;">MAPE: <strong>' + mape + '%</strong> · Avg Bias: <strong>' + fmt(parseFloat(avgBias)) + '</strong> (' + matched + ' days with actuals)</p>';
+      summaryParts.push('$ MAPE: <strong>' + mape + '%</strong> · $ Bias: <strong>' + fmt(parseFloat(avgBias)) + '</strong>');
+    }
+    var totalDaysNote = matched > 0 ? ' (' + matched + ' days with actuals)' : '';
+    if (summaryParts.length > 0) {
+      tHtml += '<p style="font-size:12px;color:var(--muted);margin-top:6px;">' + summaryParts.join(' &nbsp;|&nbsp; ') + totalDaysNote + '</p>';
     }
     tHtml += '</div>';
     allHtml += tHtml;
