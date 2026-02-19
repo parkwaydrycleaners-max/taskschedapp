@@ -1855,7 +1855,7 @@ const Forecaster = {
   yearOverYear(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 180) return [];
-    /* Build lookup by date string — only clean days, with DOW index */
+    /* Build lookup by date string — only clean days */
     var lookup = {};
     dailySales.forEach(function(d) { if (isCleanDay(d)) lookup[d.date] = d.total; });
 
@@ -1891,23 +1891,34 @@ const Forecaster = {
     for (var i = 1; i <= daysAhead; i++) {
       var fd = addDays(lastDate, i);
       var targetDow = dayOfWeek(fd);
-      /* Only look back 1-2 years. Heavily favor last year (5:1 weighting). */
+      /* Windowed YoY: collect ALL same-DOW clean days within ±21 days of
+         the target date in each prior year. This gives ~3-6 samples per year
+         instead of 1, massively reducing variance for service businesses. */
       var sum = 0, wt = 0;
-      var weights = [5, 1];
+      var yrWeights = [5, 1]; /* heavily favor last year */
       for (var yr = 1; yr <= 2; yr++) {
-        var target = addDays(fd, -365 * yr);
-        var best = null;
-        /* Search ±4 days, REQUIRE same-DOW match */
-        for (var off = -4; off <= 4; off++) {
-          var check = addDays(target, off);
-          if (lookup[check] !== undefined && dayOfWeek(check) === targetDow) {
-            best = lookup[check];
-            break;
+        var center = addDays(fd, -365 * yr);
+        var growth = growthByYear[yr] || 1;
+        var yw = yrWeights[yr - 1];
+        var vals = [];
+        /* Scan ±21 days (3 weeks each side), collect same-DOW matches */
+        for (var off = -21; off <= 21; off++) {
+          var check = addDays(center, off);
+          if (dayOfWeek(check) !== targetDow) continue;
+          if (lookup[check] !== undefined) {
+            /* Proximity weight: closer to center date → more weight */
+            var dist = Math.abs(off);
+            var pw = 1 / (1 + dist / 7); /* at ±7d → 0.5, at ±14d → 0.33, at ±21d → 0.25 */
+            vals.push({ val: lookup[check], pw: pw });
           }
         }
-        if (best !== null) {
-          sum += best * (growthByYear[yr] || 1) * weights[yr - 1];
-          wt += weights[yr - 1];
+        if (vals.length > 0) {
+          /* Weighted average of same-DOW samples from this year */
+          var vSum = 0, vWt = 0;
+          vals.forEach(function(v) { vSum += v.val * v.pw; vWt += v.pw; });
+          var yrAvg = vSum / vWt;
+          sum += yrAvg * growth * yw;
+          wt += yw;
         }
       }
       var pred = wt > 0 ? sum / wt : 0;
