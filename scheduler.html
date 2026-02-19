@@ -1752,12 +1752,12 @@ const Forecaster = {
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    /* Collect clean values per DOW from last 12 weeks with exponential recency weighting.
-       Half-life = 28 days: data from 4 weeks ago gets 50% weight, 8 weeks → 25%. */
+    /* Collect clean values per DOW from last 8 weeks with exponential recency weighting.
+       Half-life = 21 days: data from 3 weeks ago gets 50% weight, 6 weeks → 25%. */
     var dowVals = [[],[],[],[],[],[],[]];
     var n = dailySales.length;
-    var lookback = Math.min(n, 84); /* 12 weeks */
-    var halfLife = 28;
+    var lookback = Math.min(n, 56); /* 8 weeks */
+    var halfLife = 21;
     for (var ri = n - lookback; ri < n; ri++) {
       var d = dailySales[ri];
       if (!isCleanDay(d)) continue;
@@ -2248,15 +2248,44 @@ const Forecaster = {
           var rAvg = dowRecent[db].reduce(function(s,v){return s+v;},0) / dowRecent[db].length;
           var pAvg = dowPrior[db].reduce(function(s,v){return s+v;},0) / dowPrior[db].length;
           if (pAvg > 0) {
-            /* Cap correction at ±20% per DOW to prevent overcorrection */
-            dowBias[db] = Math.max(0.80, Math.min(1.20, rAvg / pAvg));
+            /* Cap correction at ±30% per DOW to prevent overcorrection */
+            dowBias[db] = Math.max(0.70, Math.min(1.30, rAvg / pAvg));
           }
         }
       }
+      /* Compute monthly seasonal factors (needs ≥ 1 year of data) */
+      var monFactor = new Array(12).fill(1);
+      if (dailySales.length >= 365) {
+        var monSum2 = new Array(12).fill(0), monCnt2 = new Array(12).fill(0);
+        var monAll2 = 0, monAllCnt2 = 0;
+        dailySales.forEach(function(d) {
+          if (!isCleanDay(d)) return;
+          var mi = parseInt(d.date.slice(5, 7), 10) - 1;
+          monSum2[mi] += d.total; monCnt2[mi]++;
+          monAll2 += d.total; monAllCnt2++;
+        });
+        if (monAllCnt2 > 0) {
+          var monAvg2 = monAll2 / monAllCnt2;
+          for (var mfi = 0; mfi < 12; mfi++) {
+            if (monCnt2[mfi] >= 20 && monAvg2 > 0) {
+              var raw = (monSum2[mfi] / monCnt2[mfi]) / monAvg2;
+              monFactor[mfi] = Math.max(0.85, Math.min(1.15, raw));
+              if (Math.abs(monFactor[mfi] - 1) <= 0.02) monFactor[mfi] = 1;
+            }
+          }
+        }
+      }
+      /* Apply per-DOW × monthly as a COMBINED correction, capped at ±25% total.
+         This prevents stacking: DOW -15% × month -10% used to compound to -23.5%.
+         Now the combined effect is clamped so no forecast gets pushed too far. */
       combined.forEach(function(f) {
         var fDow = dayOfWeek(f.date);
-        if (Math.abs(dowBias[fDow] - 1) > 0.02) {
-          f.predicted *= dowBias[fDow];
+        var fMon = parseInt(f.date.slice(5, 7), 10) - 1;
+        var combinedAdj = dowBias[fDow] * monFactor[fMon];
+        /* Clamp total correction to ±25% */
+        combinedAdj = Math.max(0.75, Math.min(1.25, combinedAdj));
+        if (Math.abs(combinedAdj - 1) > 0.02) {
+          f.predicted *= combinedAdj;
         }
       });
     }
@@ -3380,7 +3409,7 @@ function renderMethodCards() {
   var coreMethods = [
     { key: 'movingAvg', name: 'Moving Average', desc: 'DOW-aware average of last 6 weeks per weekday.', group: 'core' },
     { key: 'expSmooth', name: 'Exp. Smoothing', desc: 'DOW-aware smoothing. Auto-tunes alpha via walk-forward CV.', group: 'core' },
-    { key: 'dayOfWeek', name: 'Day-of-Week', desc: 'Trimmed mean per weekday from last 12 weeks, recency-weighted.', group: 'core' },
+    { key: 'dayOfWeek', name: 'Day-of-Week', desc: 'Trimmed mean per weekday from last 8 weeks, recency-weighted.', group: 'core' },
     { key: 'trend', name: 'Trend + Seasonal', desc: 'Recency-weighted regression with quarterly + DOW factors.', group: 'core' },
     { key: 'yoy', name: 'Year-over-Year', desc: 'Growth-adjusted lookup across 1-2 prior years, windowed DOW match.', group: 'core' },
     { key: 'holtWinters', name: 'Holt-Winters', desc: 'Auto-tuned triple exponential smoothing with weekly seasonality.', group: 'core' },
@@ -3931,11 +3960,28 @@ function renderFvsActual() {
     tHtml += '</tr></thead><tbody>';
     var totAbs = 0, totAct = 0, totBias = 0, matched = 0;
     var pcsTotAbs = 0, pcsTotAct = 0, pcsTotBias = 0, pcsMatched = 0;
+    var skippedCount = 0;
+    var minThresh = (AppState.settings.minSalesThresholdOn && AppState.settings.minSalesThreshold > 0) ? AppState.settings.minSalesThreshold : 0;
     snap.entries.forEach(function(e) {
       var actual = e.actual != null ? e.actual : dailyMap[e.date];
       var actualPcs = e.actualPcs != null ? e.actualPcs : pcsMap[e.date];
       var predPcs = e.predictedPcs != null ? e.predictedPcs : null;
       var dayName = DAYS[dayOfWeek(e.date)];
+      /* Skip: day not in data, below threshold, closed, or holiday */
+      var dollarVal = dailyMap[e.date];
+      var isClosed = isClosedDate(e.date);
+      var belowThresh = dollarVal != null && minThresh > 0 && dollarVal < minThresh;
+      var noData = dollarVal == null || dollarVal === undefined;
+      var skip = isClosed || belowThresh || noData;
+      if (skip) {
+        var reason = isClosed ? 'CLOSED' : (belowThresh ? 'BELOW THRESH' : 'NO DATA');
+        tHtml += '<tr style="opacity:0.35;"><td>' + e.date + '</td><td>' + dayName + '</td>';
+        tHtml += '<td colspan="3" style="text-align:center;color:var(--muted);font-size:11px;">' + reason + '</td>';
+        tHtml += '<td colspan="3" style="text-align:center;color:var(--muted);font-size:11px;">' + reason + '</td>';
+        tHtml += '</tr>';
+        skippedCount++;
+        return;
+      }
       tHtml += '<tr><td>' + e.date + '</td><td>' + dayName + '</td>';
       /* Pieces columns */
       if (predPcs != null && actualPcs != null) {
@@ -3978,7 +4024,7 @@ function renderFvsActual() {
       var avgBias = (totBias / matched).toFixed(0);
       summaryParts.push('$ MAPE: <strong>' + mape + '%</strong> · $ Bias: <strong>' + fmt(parseFloat(avgBias)) + '</strong>');
     }
-    var totalDaysNote = matched > 0 ? ' (' + matched + ' days with actuals)' : '';
+    var totalDaysNote = matched > 0 ? ' (' + matched + ' days counted' + (skippedCount > 0 ? ', ' + skippedCount + ' skipped' : '') + ')' : '';
     if (summaryParts.length > 0) {
       tHtml += '<p style="font-size:12px;color:var(--muted);margin-top:6px;">' + summaryParts.join(' &nbsp;|&nbsp; ') + totalDaysNote + '</p>';
     }
