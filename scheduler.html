@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -798,13 +797,17 @@ select.form-input { appearance: auto; }
       </div>
       <div class="card">
         <div class="card-title" style="margin-bottom:16px;">&#x1F389; Holidays (Closed)</div>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Add dates when you are closed (MM-DD format). These dates will show $0 / 0 hours in forecasts every year.</p>
-        <div style="display:flex;gap:8px;margin-bottom:12px;">
-          <input class="form-input" id="newHolidayInput" placeholder="MM-DD (e.g. 12-25)" style="max-width:180px;">
-          <input class="form-input" id="newHolidayLabel" placeholder="Label (e.g. Christmas)" style="max-width:200px;">
-          <button class="btn btn-primary btn-sm" onclick="addHoliday()">Add</button>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Select holidays when you are closed. Floating holidays (★) are computed per year automatically. Forecasts show $0 / 0 hours on these dates.</p>
+        <div id="holidayChecks" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;margin-bottom:16px;"></div>
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Add custom fixed-date holiday:</p>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <input class="form-input" id="newHolidayInput" placeholder="MM-DD (e.g. 02-14)" style="max-width:140px;">
+            <input class="form-input" id="newHolidayLabel" placeholder="Label (e.g. Valentine's)" style="max-width:180px;">
+            <button class="btn btn-primary btn-sm" onclick="addCustomHoliday()">Add</button>
+          </div>
+          <div id="customHolidaysList" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
         </div>
-        <div id="holidaysList" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
       </div>
       <div class="card" style="margin-top:16px;">
         <div class="card-title" style="margin-bottom:16px;">&#x1F4C5; Seasonal Events</div>
@@ -970,12 +973,8 @@ const AppState = {
     categories: [],
     forecastDays: 14,
     closedDays: [0], /* 0=Sun, 1=Mon ... 6=Sat */
-    holidays: [
-      '01-01', /* New Year's Day */
-      '07-04', /* Independence Day */
-      '11-27', /* Thanksgiving (approx) */
-      '12-25'  /* Christmas */
-    ],
+    enabledHolidays: ['new-years','mlk','memorial','independence','labor','columbus','veterans','thanksgiving','christmas','new-years-eve'],
+    customHolidays: [], /* Additional user-defined holidays in {mmdd, name} format */
     events: [] /* Seasonal events: [{name, startMmDd, endMmDd, expectedPct}] */
   },
   forecastMethods: {
@@ -985,6 +984,7 @@ const AppState = {
     trend: true,
     yoy: true,
     holtWinters: true,
+    piecesFirst: true,
     weather: true,
     seasonalEvents: true,
     winsorize: true,
@@ -1417,7 +1417,13 @@ function importSalesData() {
       return !incomingKeys[r.date + '|' + r.category];
     });
     AppState.salesData = AppState.salesData.concat(incoming);
-    _salesDollarMap = null; /* Invalidate dollar cache for isCleanDay */
+    _salesDollarMap = null; _dowAvgCache = null; /* Invalidate caches */
+    /* Reset auto-disabled flags so methods are re-evaluated fresh on new data */
+    AppState.autoDisabled = {};
+    /* Re-enable all core methods for fresh evaluation */
+    ['movingAvg','expSmooth','dayOfWeek','trend','yoy','holtWinters','piecesFirst'].forEach(function(k) {
+      AppState.forecastMethods[k] = true;
+    });
     /* Rebuild categories list */
     var catSet = {};
     AppState.salesData.forEach(function(r) { catSet[r.category] = true; });
@@ -1723,14 +1729,15 @@ const Forecaster = {
           if (testStart < 14) break;
           var train = dailySales.slice(0, testStart);
           var test = dailySales.slice(testStart, testEnd);
+          if (test.length === 0 || train.length === 0) continue;
           var preds = self.exponentialSmoothing(train, a, testDays);
           if (!preds || preds.length === 0) continue;
-          test.forEach(function(act, i) {
-            if (preds[i] && isCleanDay(act)) {
-              totAbs += Math.abs(act.total - preds[i].predicted);
-              totAct += act.total;
-            }
-          });
+          for (var ti = 0; ti < test.length; ti++) {
+            if (ti >= preds.length) break;
+            if (!isCleanDay(test[ti])) continue;
+            totAbs += Math.abs(test[ti].total - preds[ti].predicted);
+            totAct += test[ti].total;
+          }
         }
         var mape = totAct > 0 ? (totAbs / totAct) * 100 : 999;
         if (mape < bestMape) { bestMape = mape; bestAlpha = a; }
@@ -1742,12 +1749,12 @@ const Forecaster = {
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    /* Collect clean values per DOW from last 12 weeks with exponential recency weighting.
-       Half-life = 28 days: data from 4 weeks ago gets 50% weight, 8 weeks → 25%. */
+    /* Collect clean values per DOW from last 8 weeks with exponential recency weighting.
+       Half-life = 21 days: data from 3 weeks ago gets 50% weight, 6 weeks → 25%. */
     var dowVals = [[],[],[],[],[],[],[]];
     var n = dailySales.length;
-    var lookback = Math.min(n, 84); /* 12 weeks */
-    var halfLife = 28;
+    var lookback = Math.min(n, 56); /* 8 weeks */
+    var halfLife = 21;
     for (var ri = n - lookback; ri < n; ri++) {
       var d = dailySales[ri];
       if (!isCleanDay(d)) continue;
@@ -1930,6 +1937,60 @@ const Forecaster = {
     return result;
   },
 
+  /* Pieces-first dollar forecasting: runs Holt-Winters on pieces data, then converts
+     to dollars via per-DOW $/piece ratio. Leverages the more stable pieces signal
+     with full trend+seasonal modeling instead of simple DOW average. */
+  piecesAsDollars(dailySales, daysAhead) {
+    daysAhead = daysAhead || 14;
+    var allPcs = getDailyPieces();
+    if (allPcs.length < 28) return [];
+    /* Only use pieces data up to the last date in dailySales to prevent leakage during backtest */
+    var lastTrainDate = dailySales[dailySales.length - 1].date;
+    var dailyPcs = allPcs.filter(function(p) { return p.date <= lastTrainDate; });
+    if (dailyPcs.length < 21) return [];
+    /* Forecast pieces using Holt-Winters (full trend+seasonal model) */
+    var pcsPreds = this.holtWinters(dailyPcs, daysAhead);
+    if (!pcsPreds || pcsPreds.length === 0) return [];
+    /* Build dollar lookup from training data */
+    var dollarMap = {};
+    dailySales.forEach(function(d) { if (isCleanDay(d)) dollarMap[d.date] = d.total; });
+    /* Compute per-DOW $/piece ratio from last 60 days of overlap with recency weighting */
+    var pcsN = dailyPcs.length;
+    var dppByDow = [[],[],[],[],[],[],[]];
+    for (var di = Math.max(0, pcsN - 60); di < pcsN; di++) {
+      var pd = dailyPcs[di];
+      var dollars = dollarMap[pd.date];
+      if (dollars != null && dollars > 0 && pd.total > 0) {
+        var age = pcsN - 1 - di;
+        var w = Math.pow(0.5, age / 28); /* half-life 28 days */
+        dppByDow[dayOfWeek(pd.date)].push({ ratio: dollars / pd.total, w: w });
+      }
+    }
+    var avgDpp = [0,0,0,0,0,0,0];
+    var allDpp = 0, allW = 0;
+    for (var j = 0; j < 7; j++) {
+      if (dppByDow[j].length >= 2) {
+        var ws = 0, wc = 0;
+        dppByDow[j].forEach(function(e) { ws += e.ratio * e.w; wc += e.w; });
+        avgDpp[j] = wc > 0 ? ws / wc : 0;
+      }
+      dppByDow[j].forEach(function(e) { allDpp += e.ratio * e.w; allW += e.w; });
+    }
+    var fallback = allW > 0 ? allDpp / allW : 0;
+    if (fallback === 0) return [];
+    for (var j2 = 0; j2 < 7; j2++) { if (avgDpp[j2] === 0) avgDpp[j2] = fallback; }
+    /* Convert pieces predictions to dollar predictions via per-DOW ratio */
+    var lastDate = dailySales[dailySales.length - 1].date;
+    var result = [];
+    for (var fi = 0; fi < pcsPreds.length && fi < daysAhead; fi++) {
+      var fd = pcsPreds[fi].date;
+      var fDow = dayOfWeek(fd);
+      var dollarPred = Math.max(0, pcsPreds[fi].predicted * avgDpp[fDow]);
+      result.push({ date: fd, predicted: dollarPred, method: 'Pcs\u00D7Price' });
+    }
+    return result;
+  },
+
   _holtWintersCore(dailySales, daysAhead, alpha, beta, gamma) {
     daysAhead = daysAhead || 14;
     var seasonLen = 7;
@@ -2004,15 +2065,16 @@ const Forecaster = {
         var testStart = testEnd - testDays;
         var train = dailySales.slice(0, testStart);
         var test = dailySales.slice(testStart, testEnd);
+        if (test.length === 0 || train.length === 0) return;
         var preds = self._holtWintersCore(train, testDays, p[0], p[1], p[2]);
         if (!preds || preds.length === 0) return;
         var totAbs = 0, totAct = 0;
-        test.forEach(function(act, i) {
-          if (preds[i] && isCleanDay(act)) {
-            totAbs += Math.abs(act.total - preds[i].predicted);
-            totAct += act.total;
-          }
-        });
+        for (var ti = 0; ti < test.length; ti++) {
+          if (ti >= preds.length) break;
+          if (!isCleanDay(test[ti])) continue;
+          totAbs += Math.abs(test[ti].total - preds[ti].predicted);
+          totAct += test[ti].total;
+        }
         var mape = totAct > 0 ? (totAbs / totAct) * 100 : 999;
         if (mape < bestMape) { bestMape = mape; bestParams = p; }
       });
@@ -2068,13 +2130,14 @@ const Forecaster = {
       if (testStart < minTrain) break;
       var train = dailySales.slice(0, testStart);
       var test = dailySales.slice(testStart, testEnd);
+      if (test.length === 0 || train.length === 0) continue;
       var preds = methodFn.call(self, train, testDays);
       if (!preds || preds.length === 0) continue;
-      test.forEach(function(actual, i) {
-        if (preds[i] && isCleanDay(actual)) {
-          pctErrors.push(Math.abs(actual.total - preds[i].predicted) / actual.total);
-        }
-      });
+      for (var ti = 0; ti < test.length; ti++) {
+        if (ti >= preds.length) break;
+        if (!isCleanDay(test[ti])) continue;
+        pctErrors.push(Math.abs(test[ti].total - preds[ti].predicted) / test[ti].total);
+      }
     }
     if (pctErrors.length === 0) return 999;
     /* Winsorize if enabled: cap errors at 90th percentile to reduce outlier influence */
@@ -2098,6 +2161,7 @@ const Forecaster = {
     if (methods.trend) methodList.push({ key: 'trend', fn: this.trendAndSeasonal });
     if (methods.yoy) methodList.push({ key: 'yoy', fn: this.yearOverYear });
     if (methods.holtWinters) methodList.push({ key: 'holtWinters', fn: this.holtWinters });
+    if (methods.piecesFirst) methodList.push({ key: 'piecesFirst', fn: this.piecesAsDollars });
 
     if (methodList.length === 0) return [];
 
@@ -2159,7 +2223,7 @@ const Forecaster = {
       }
     }
 
-    /* Per-DOW bias correction: only in non-raw path so backtest can isolate weather/holiday effect.
+    /* Per-DOW bias correction: only in full adjusted path (not raw).
        Compares each DOW's recent average (last 4 weeks) against its prior baseline (weeks 5-12).
        If Thursday has been running 15% below historical average, the forecast gets corrected down. */
     if (!opts.raw && dailySales.length >= 56) {
@@ -2196,7 +2260,7 @@ const Forecaster = {
       });
     }
 
-    /* Apply seasonal event adjustments (non-raw only) */
+    /* Apply seasonal event adjustments (full adjusted only) */
     if (!opts.raw && methods.seasonalEvents) {
       _cachedEventImpacts = learnEventImpacts();
       combined.forEach(function(f) {
@@ -2210,7 +2274,7 @@ const Forecaster = {
       _cachedEventImpacts = null;
     }
 
-    if (!opts.raw && methods.weather) {
+    if (methods.weather && !opts.raw) {
       return this.weatherAdjust(combined, AppState.weatherData);
     }
     return combined;
@@ -2226,34 +2290,30 @@ const Forecaster = {
     }
     if (dailySales.length < minTrain + testDays) return null;
     var self = this;
-    /* Accumulate stats across folds for both raw and adjusted */
+    /* Accumulate stats across folds for 2 paths: raw and full adjusted */
     var rawErrors = [], adjErrors = [];
+    var totErr = 0, totAbs = 0, totAct = 0, cnt = 0;
     var rawTotErr = 0, rawTotAbs = 0, rawTotAct = 0, rawCnt = 0;
-    var adjTotErr = 0, adjTotAbs = 0, adjTotAct = 0, adjCnt = 0;
     for (var fold = 0; fold < folds; fold++) {
       var testEnd = dailySales.length - fold * testDays;
       var testStart = testEnd - testDays;
       if (testStart < minTrain) break;
       var trainData = dailySales.slice(0, testStart);
       var testData = dailySales.slice(testStart, testEnd);
+      if (testData.length === 0 || trainData.length === 0) continue;
       var rawPreds = self.ensemble(trainData, testDays, { raw: true });
-      var adjPreds = self.ensemble(trainData, testDays);
-      testData.forEach(function(actual, i) {
-        if (!isCleanDay(actual)) return;
-        if (rawPreds[i]) {
-          var re = actual.total - rawPreds[i].predicted;
-          rawTotErr += re; rawTotAbs += Math.abs(re); rawTotAct += actual.total; rawCnt++;
-          rawErrors.push(Math.abs(re) / actual.total);
-        }
-        if (adjPreds[i]) {
-          var ae = actual.total - adjPreds[i].predicted;
-          adjTotErr += ae; adjTotAbs += Math.abs(ae); adjTotAct += actual.total; adjCnt++;
-          adjErrors.push(Math.abs(ae) / actual.total);
-        }
-      });
+      var adjPreds = self.ensemble(trainData, testDays, {});
+      for (var i = 0; i < testData.length; i++) {
+        if (i >= rawPreds.length || i >= adjPreds.length) break;
+        if (!isCleanDay(testData[i])) continue;
+        var rawErr = testData[i].total - rawPreds[i].predicted;
+        rawErrors.push(Math.abs(rawErr) / testData[i].total);
+        rawTotErr += rawErr; rawTotAbs += Math.abs(rawErr); rawTotAct += testData[i].total; rawCnt++;
+        var adjErr = testData[i].total - adjPreds[i].predicted;
+        adjErrors.push(Math.abs(adjErr) / testData[i].total);
+        totErr += adjErr; totAbs += Math.abs(adjErr); totAct += testData[i].total; cnt++;
+      }
     }
-    var rawDenom = rawCnt || 1;
-    var adjDenom = adjCnt || 1;
     /* Winsorize: cap at 90th percentile to reduce outlier influence */
     function calcMape(errors) {
       if (errors.length === 0) return 999;
@@ -2264,20 +2324,18 @@ const Forecaster = {
       }
       return errors.reduce(function(sum,e){return sum+e;}, 0) / errors.length * 100;
     }
-    var raw = {
-      mape: calcMape(rawErrors),
-      bias: rawTotErr / rawDenom,
-      mae: rawTotAbs / rawDenom
+    var rawMape = calcMape(rawErrors);
+    var adjMape = calcMape(adjErrors);
+    var adjHelps = adjMape < rawMape;
+    var best = adjHelps ? {
+      mape: adjMape, bias: cnt ? totErr / cnt : 0, mae: cnt ? totAbs / cnt : 0
+    } : {
+      mape: rawMape, bias: rawCnt ? rawTotErr / rawCnt : 0, mae: rawCnt ? rawTotAbs / rawCnt : 0
     };
-    var adj = {
-      mape: calcMape(adjErrors),
-      bias: adjTotErr / adjDenom,
-      mae: adjTotAbs / adjDenom
-    };
-    var best = adj.mape < raw.mape ? adj : raw;
-    best.rawMape = raw.mape;
-    best.adjMape = adj.mape;
-    best.adjHelps = adj.mape < raw.mape;
+    best.rawMape = rawMape;
+    best.adjMape = adjMape;
+    best.bestPath = adjHelps ? 'adj' : 'raw';
+    best.adjHelps = adjHelps;
     return best;
   }
 };
@@ -2288,13 +2346,20 @@ function isClosedDate(dateString) {
   /* Check closed days of week (0=Sun..6=Sat) */
   var dow = dayOfWeek(dateString);
   if (s.closedDays && s.closedDays.includes(dow)) return true;
-  /* Check holidays (MM-DD format) */
+  /* Check holidays (both predefined + custom, computed per year) */
+  var year = parseInt(dateString.slice(0, 4), 10);
+  if (!isNaN(year)) {
+    var holidayDates = getHolidayDatesForYear(year);
+    if (holidayDates[dateString]) return true;
+  }
+  /* Legacy: check old holidays array if still present */
   if (s.holidays && s.holidays.length > 0) {
-    var mmdd = dateString.slice(5); /* "YYYY-MM-DD" -> "MM-DD" */
+    var mmdd = dateString.slice(5);
     if (s.holidays.includes(mmdd)) return true;
   }
   return false;
 }
+
 
 /* Returns true if a data point is a valid business day worth using in forecasts.
    Filters: zeros, closed dates, and below-threshold anomaly days.
@@ -2324,19 +2389,57 @@ function isCleanDay(d) {
   return true;
 }
 
+/* Adaptive clean-day filter: returns false for days below 60% of their DOW's recent average.
+   Catches holiday-impacted and anomalously low days that pass the fixed $ threshold.
+   Uses a cached DOW average computed from clean data (avoids recursion with isCleanDay). */
+var _dowAvgCache = null;
+var _dowAvgCacheKey = '';
+function isAdaptiveClean(d) {
+  if (!isCleanDay(d)) return false;
+  /* Build DOW average cache (invalidated when sales data changes) */
+  var cacheKey = AppState.salesData.length + '_' + (AppState.salesData.length > 0 ? AppState.salesData[AppState.salesData.length - 1].date : '');
+  if (_dowAvgCache === null || _dowAvgCacheKey !== cacheKey) {
+    _dowAvgCache = [0,0,0,0,0,0,0];
+    var dowSum = [0,0,0,0,0,0,0], dowCnt = [0,0,0,0,0,0,0];
+    var dolMap = getSalesDollarMap();
+    var dates = Object.keys(dolMap).sort();
+    /* Use last 90 days to compute baseline */
+    var recent = dates.slice(-90);
+    recent.forEach(function(dt) {
+      if (isClosedDate(dt)) return;
+      var amt = dolMap[dt];
+      if (amt <= 0) return;
+      var dow = dayOfWeek(dt);
+      dowSum[dow] += amt; dowCnt[dow]++;
+    });
+    for (var i = 0; i < 7; i++) {
+      _dowAvgCache[i] = dowCnt[i] > 0 ? dowSum[i] / dowCnt[i] : 0;
+    }
+    _dowAvgCacheKey = cacheKey;
+  }
+  /* Check if day is below 60% of its DOW average */
+  var dolMap2 = getSalesDollarMap();
+  var dollarAmt = dolMap2[d.date];
+  if (dollarAmt == null) dollarAmt = d.total;
+  var dowAvg = _dowAvgCache[dayOfWeek(d.date)];
+  if (dowAvg > 0 && dollarAmt < dowAvg * 0.60) return false;
+  return true;
+}
+
 function holidayProximityAdj(dateString) {
   /* Returns a multiplier based on distance to nearest holiday.
      Before holiday: Day-3 +5%, Day-2 +10%, Day-1 +15% (pre-holiday rush)
      After holiday: Day+1 -10%, Day+2 -5% (post-holiday lull) */
-  var holidays = AppState.settings.holidays || [];
-  if (holidays.length === 0) return 1;
   var year = parseInt(dateString.slice(0, 4), 10);
+  if (isNaN(year)) return 1;
   var dMs = new Date(dateString + 'T12:00:00').getTime();
   var bestDiff = Infinity;
-  for (var hi = 0; hi < holidays.length; hi++) {
-    var mmdd = holidays[hi];
-    for (var yo = -1; yo <= 1; yo++) {
-      var hMs = new Date((year + yo) + '-' + mmdd + 'T12:00:00').getTime();
+  /* Check this year and neighboring years (for Jan 1 / Dec 31 proximity) */
+  for (var yo = -1; yo <= 1; yo++) {
+    var dates = getHolidayDatesForYear(year + yo);
+    var dateKeys = Object.keys(dates);
+    for (var hi = 0; hi < dateKeys.length; hi++) {
+      var hMs = new Date(dateKeys[hi] + 'T12:00:00').getTime();
       if (isNaN(hMs)) continue;
       var diff = Math.round((dMs - hMs) / 86400000);
       if (Math.abs(diff) < Math.abs(bestDiff)) bestDiff = diff;
@@ -2345,10 +2448,12 @@ function holidayProximityAdj(dateString) {
   if (bestDiff === -3) return 1.05;
   if (bestDiff === -2) return 1.10;
   if (bestDiff === -1) return 1.15;
+  if (bestDiff === 0) return 0.50; /* holiday itself: expect ~50% drop */
   if (bestDiff === 1) return 0.90;
   if (bestDiff === 2) return 0.95;
   return 1;
 }
+
 
 function getPiecesPerDollar() {
   /* Calculate historical avg pieces-per-dollar from sales data */
@@ -2771,12 +2876,14 @@ function computeConfidenceIntervals(forecastArr, dailyData) {
     if (testStart < 21) break;
     var train = dailyData.slice(0, testStart);
     var test = dailyData.slice(testStart, testEnd);
+    if (test.length === 0 || train.length === 0) continue;
     var preds = Forecaster.ensemble(train, 7, { raw: true });
-    test.forEach(function(act, i) {
-      if (!isCleanDay(act) || !preds[i]) return;
-      var pctErr = Math.abs(act.total - preds[i].predicted) / act.total;
-      dowErrors[dayOfWeek(act.date)].push(pctErr);
-    });
+    for (var ci = 0; ci < test.length; ci++) {
+      if (ci >= preds.length) break;
+      if (!isCleanDay(test[ci])) continue;
+      var pctErr = Math.abs(test[ci].total - preds[ci].predicted) / test[ci].total;
+      dowErrors[dayOfWeek(test[ci].date)].push(pctErr);
+    }
   }
   /* Compute mean absolute % error per DOW, use as ± band */
   var dowSpread = [0.15,0.15,0.15,0.15,0.15,0.15,0.15]; /* default 15% */
@@ -2803,14 +2910,17 @@ function runForecast() {
     AppState.catForecastCache = {};
     return;
   }
-  AppState.forecastCache = Forecaster.ensemble(daily, days);
+  /* Use the best path determined by backtest: raw or full adjusted */
+  var bp = AppState._bestPath || 'adj';
+  var ensOpts = bp === 'raw' ? { raw: true } : {};
+  AppState.forecastCache = Forecaster.ensemble(daily, days, ensOpts);
   if (AppState.forecastMethods.confidenceIntervals) {
     computeConfidenceIntervals(AppState.forecastCache, daily);
   }
   /* Also run ensemble on pieces data for direct pieces forecasting */
   var dailyPcs = getDailyPieces();
   if (dailyPcs.length >= 7) {
-    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days);
+    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days, ensOpts);
     if (AppState.forecastMethods.confidenceIntervals) {
       computeConfidenceIntervals(AppState.forecastCachePcs, dailyPcs);
     }
@@ -3210,10 +3320,11 @@ function renderMethodCards() {
   var coreMethods = [
     { key: 'movingAvg', name: 'Moving Average', desc: 'DOW-aware average of last 6 weeks per weekday.', group: 'core' },
     { key: 'expSmooth', name: 'Exp. Smoothing', desc: 'DOW-aware smoothing. Auto-tunes alpha via walk-forward CV.', group: 'core' },
-    { key: 'dayOfWeek', name: 'Day-of-Week', desc: 'Trimmed mean per weekday from last 20 weeks, recency-weighted.', group: 'core' },
+    { key: 'dayOfWeek', name: 'Day-of-Week', desc: 'Trimmed mean per weekday from last 8 weeks, recency-weighted.', group: 'core' },
     { key: 'trend', name: 'Trend + Seasonal', desc: 'Recency-weighted regression with quarterly + DOW factors.', group: 'core' },
-    { key: 'yoy', name: 'Year-over-Year', desc: 'Growth-adjusted lookup across 1-4 prior years, same DOW match.', group: 'core' },
-    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Auto-tuned triple exponential smoothing with weekly seasonality.', group: 'core' }
+    { key: 'yoy', name: 'Year-over-Year', desc: 'Growth-adjusted lookup across 1-2 prior years, windowed DOW match.', group: 'core' },
+    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Auto-tuned triple exponential smoothing with weekly seasonality.', group: 'core' },
+    { key: 'piecesFirst', name: 'Pcs\u00D7Price', desc: 'Forecasts piece volume by DOW then converts via recent $/piece ratio.', group: 'core' }
   ];
   var enhancers = [
     { key: 'weather', name: '🌦 Weather', desc: 'Adjusts forecasts for rain and extreme heat using learned patterns.', group: 'enhance' },
@@ -3393,7 +3504,13 @@ function renderForecastTable() {
     var fcPcs = hasPcsFc && pcsFcMap[f.date] != null ? Math.round(pcsFcMap[f.date]) : Math.round(f.predicted * pRatio);
     var hours = calculateDailyHours(f.predicted, f.date, fcPcs);
     var w = AppState.weatherData.find(function(wd) { return wd.date === f.date; });
-    var salesStr = closed ? '<span style="color:var(--muted);">CLOSED</span>' : fmt(f.predicted);
+    var closedLabel = 'CLOSED';
+    if (closed) {
+      var yr = parseInt(f.date.slice(0, 4), 10);
+      var hDates = getHolidayDatesForYear(yr);
+      if (hDates[f.date]) closedLabel = '🎉 ' + hDates[f.date].name;
+    }
+    var salesStr = closed ? '<span style="color:var(--muted);">' + closedLabel + '</span>' : fmt(f.predicted);
     var pcsStr = closed ? '0' : String(fcPcs);
     var hoursStr = closed ? '0' : fmtDec(hours);
     /* Holiday proximity badge */
@@ -3448,13 +3565,15 @@ function renderAccuracy() {
     pmWrap.innerHTML = '';
     return;
   }
-  /* Show raw vs adjusted comparison */
+  /* Show adjustment path comparison: raw vs full adjusted */
   var adjNote = '';
-  if (result.rawMape != null && result.adjMape != null) {
+  if (result.rawMape != null) {
+    var rawM = result.rawMape.toFixed(1);
+    var adjM = result.adjMape != null ? result.adjMape.toFixed(1) : rawM;
     if (result.adjHelps) {
-      adjNote = '<span style="color:var(--success);font-size:11px;">✓ Weather/holiday adjustments helping (' + result.rawMape.toFixed(1) + '% → ' + result.adjMape.toFixed(1) + '%)</span>';
+      adjNote = '<span style="color:var(--success);font-size:11px;">✓ Adjustments helping (raw ' + rawM + '% → adj ' + adjM + '%)</span>';
     } else {
-      adjNote = '<span style="color:var(--danger);font-size:11px;">⚠ Weather/holiday adjustments hurting (' + result.rawMape.toFixed(1) + '% → ' + result.adjMape.toFixed(1) + '%) — using raw forecast</span>';
+      adjNote = '<span style="color:var(--danger);font-size:11px;">⚠ Adjustments hurting (raw ' + rawM + '%, adj ' + adjM + '%) — using raw</span>';
     }
   }
   var fmtMape = function(m) { return m >= 900 ? 'N/A' : m.toFixed(1) + '%'; };
@@ -3462,7 +3581,7 @@ function renderAccuracy() {
   /* Always show both Pieces and $ metrics — Pieces first */
   /* Row 1: MAPE (Pieces, $) */
   var pcsWarn = '';
-  if (resultPcs && resultPcs.rawMape != null && resultPcs.adjMape != null && !resultPcs.adjHelps) {
+  if (resultPcs && resultPcs.bestPath === 'raw') {
     pcsWarn = ' <span style="font-size:10px;color:var(--danger);">⚠</span>';
   }
   var mHtml = '';
@@ -3487,14 +3606,15 @@ function renderAccuracy() {
   wrap.innerHTML = mHtml;
 
   /* Per-method backtesting dashboard */
-  var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
+  var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters', piecesFirst:'Pcs\u00D7Price' };
   var mFns = {
     movingAvg: function(d,n){ return Forecaster.movingAverage(d,6,n); },
     expSmooth: function(d,n){ return Forecaster.expSmoothAutoTune(d,n); },
     dayOfWeek: Forecaster.dayOfWeekPattern,
     trend: Forecaster.trendAndSeasonal,
     yoy: Forecaster.yearOverYear,
-    holtWinters: Forecaster.holtWinters
+    holtWinters: Forecaster.holtWinters,
+    piecesFirst: Forecaster.piecesAsDollars
   };
   var rows = [];
   var totalW = 0;
@@ -3529,19 +3649,19 @@ function renderAccuracy() {
   }
   rows.forEach(function(r) { if (r.on && !r.excluded) totalW += r.w; });
   /* Auto-disable enhancers that hurt MAPE:
-     weather & seasonal events are tested via raw vs adjusted comparison.
-     If adjusted MAPE is worse, auto-disable the active enhancers. */
-  if (result.rawMape != null && result.adjMape != null && !result.adjHelps) {
-    var enhancersToCheck = ['weather', 'seasonalEvents'];
-    enhancersToCheck.forEach(function(ek) {
+     - bestPath='adj': adjustments help → keep everything
+     - bestPath='raw': adjustments hurting → disable weather and seasonalEvents */
+  AppState._bestPath = result.bestPath || 'raw';
+  if (result.bestPath === 'raw') {
+    ['weather', 'seasonalEvents'].forEach(function(ek) {
       if (AppState.forecastMethods[ek] && !AppState.autoDisabled[ek]) {
         AppState.forecastMethods[ek] = false;
         AppState.autoDisabled[ek] = true;
         needsRerun = true;
       }
     });
-    if (needsRerun) { runForecast(); renderForecastChart(); renderForecastTable(); }
   }
+  if (needsRerun) { runForecast(); renderForecastChart(); renderForecastTable(); }
   /* Store exclusion info for method cards */
   AppState._methodExclusion = {};
   rows.forEach(function(r) { AppState._methodExclusion[r.key] = { excluded: r.excluded, mape: r.mape, autoOff: !!AppState.autoDisabled[r.key] }; });
@@ -3599,7 +3719,7 @@ function renderAccuracy() {
 function renderWeightSliders() {
   var wrap = document.getElementById('weightSlidersWrap');
   if (!wrap) return;
-  var mNames = { movingAvg:'Moving Avg', expSmooth:'Exp. Smooth', dayOfWeek:'Day-of-Week', trend:'Trend+Season', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
+  var mNames = { movingAvg:'Moving Avg', expSmooth:'Exp. Smooth', dayOfWeek:'Day-of-Week', trend:'Trend+Season', yoy:'Year-over-Year', holtWinters:'Holt-Winters', piecesFirst:'Pcs\u00D7Price' };
   var keys = Object.keys(mNames);
   var mw = AppState.manualWeights;
   var isManual = mw !== null;
@@ -3646,7 +3766,7 @@ function onWeightSlider(key, val) {
 function toggleManualWeights() {
   var cb = document.getElementById('manualWeightToggle');
   if (cb && cb.checked) {
-    AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50 };
+    AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50, piecesFirst:50 };
   } else {
     AppState.manualWeights = null;
   }
@@ -3657,7 +3777,7 @@ function toggleManualWeights() {
 }
 
 function resetManualWeights() {
-  AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50 };
+  AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50, piecesFirst:50 };
   renderWeightSliders();
   runForecast();
   renderForecastChart();
@@ -3684,6 +3804,62 @@ function removeForecastSnapshot(idx) {
   renderFvsActual();
 }
 
+function exportBacktest(idx) {
+  var snap = AppState.savedForecasts[idx];
+  if (!snap) return;
+  var daily = getDailySales();
+  var dailyPcs = getDailyPieces();
+  var dailyMap = {};
+  daily.forEach(function(d) { dailyMap[d.date] = d.total; });
+  var pcsMap = {};
+  dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
+  var minThresh = (AppState.settings.minSalesThresholdOn && AppState.settings.minSalesThreshold > 0) ? AppState.settings.minSalesThreshold : 0;
+  /* Build CSV header */
+  var rows = [['Date', 'Day', 'Pcs Forecast', 'Pcs Actual', 'Pcs Err%', '$ Forecast', '$ Actual', '$ Err%', 'Status']];
+  snap.entries.forEach(function(e) {
+    var actual = e.actual != null ? e.actual : dailyMap[e.date];
+    var actualPcs = e.actualPcs != null ? e.actualPcs : pcsMap[e.date];
+    var predPcs = e.predictedPcs != null ? e.predictedPcs : null;
+    var dayName = DAYS[dayOfWeek(e.date)];
+    var dollarVal = dailyMap[e.date];
+    var isClosed = isClosedDate(e.date);
+    var belowThresh = dollarVal != null && minThresh > 0 && dollarVal < minThresh;
+    var noData = dollarVal == null || dollarVal === undefined;
+    var adaptiveSkip = false;
+    if (!isClosed && !belowThresh && !noData) {
+      adaptiveSkip = !isAdaptiveClean({ date: e.date, total: dollarVal });
+    }
+    var skip = isClosed || belowThresh || noData || adaptiveSkip;
+    var status = skip ? (isClosed ? 'CLOSED' : (belowThresh ? 'BELOW THRESH' : (noData ? 'NO DATA' : 'OUTLIER'))) : 'COUNTED';
+    var pcsFc = predPcs != null ? Math.round(predPcs) : '';
+    var pcsAct = actualPcs != null ? Math.round(actualPcs) : '';
+    var pcsErr = '';
+    if (predPcs != null && actualPcs != null && actualPcs > 0) {
+      pcsErr = (((actualPcs - predPcs) / actualPcs) * 100).toFixed(1) + '%';
+    }
+    var dolFc = e.predicted != null ? e.predicted.toFixed(0) : '';
+    var dolAct = actual != null ? actual.toFixed(0) : '';
+    var dolErr = '';
+    if (actual != null && actual > 0) {
+      dolErr = (((actual - e.predicted) / actual) * 100).toFixed(1) + '%';
+    }
+    rows.push([e.date, dayName, pcsFc, pcsAct, pcsErr, dolFc, dolAct, dolErr, status]);
+  });
+  var csvContent = rows.map(function(r) {
+    return r.map(function(c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\n');
+  var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'backtest_' + snap.savedDate.replace(/[^a-zA-Z0-9]/g, '_') + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Backtest exported as CSV');
+}
+
 function runBacktestComparison() {
   var daily = getDailySales();
   var dailyPcs = getDailyPieces();
@@ -3700,29 +3876,40 @@ function runBacktestComparison() {
   if (daily.length < nDays + 14) { toast('Not enough data for ' + nDays + '-day backtest', 'error'); return; }
   var trainData = daily.slice(0, -nDays);
   var testData = daily.slice(-nDays);
-  var predictions = Forecaster.ensemble(trainData, nDays);
+  /* Use the best path determined by accuracy evaluation */
+  var bp = AppState._bestPath || 'adj';
+  var ensOpts = bp === 'raw' ? { raw: true } : {};
+  var predictions = Forecaster.ensemble(trainData, nDays, ensOpts);
   if (!predictions || predictions.length === 0) { toast('Backtest produced no results', 'error'); return; }
   /* Also backtest pieces */
   var hasPcs = dailyPcs.length >= nDays + 14;
   var trainPcs = hasPcs ? dailyPcs.slice(0, -nDays) : [];
   var testPcs = hasPcs ? dailyPcs.slice(-nDays) : [];
-  var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, nDays) : [];
+  var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, nDays, ensOpts) : [];
   /* Build pieces lookup by date for matching */
   var pcsMap = {};
   dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
+  /* Build actual maps keyed by date for proper matching */
+  var testDolMap = {};
+  testData.forEach(function(d) { testDolMap[d.date] = d.total; });
+  var testPcsMap = {};
+  testPcs.forEach(function(d) { testPcsMap[d.date] = d.total; });
+  /* Build prediction maps keyed by date */
+  var predDolMap = {};
+  predictions.forEach(function(p) { predDolMap[p.date] = p.predicted; });
+  var predPcsMap = {};
+  predsPcs.forEach(function(p) { predPcsMap[p.date] = p.predicted; });
   var snap = { savedDate: 'Backtest ' + nDays + 'd (cutoff ' + trainData[trainData.length - 1].date + ')', isBacktest: true, entries: [] };
-  for (var i = 0; i < nDays; i++) {
-    var actual = testData[i] ? testData[i].total : null;
-    var pred = predictions[i] ? predictions[i].predicted : 0;
-    var dt = testData[i] ? testData[i].date : (predictions[i] ? predictions[i].date : '');
-    var entry = { date: dt, predicted: pred, actual: actual };
-    /* Pieces data */
-    if (hasPcs && predsPcs[i]) {
-      entry.predictedPcs = predsPcs[i].predicted;
+  /* Iterate over prediction dates (calendar days) and match actuals by date */
+  predictions.forEach(function(p) {
+    var dt = p.date;
+    var entry = { date: dt, predicted: p.predicted, actual: testDolMap[dt] != null ? testDolMap[dt] : null };
+    if (hasPcs) {
+      entry.predictedPcs = predPcsMap[dt] != null ? predPcsMap[dt] : null;
       entry.actualPcs = pcsMap[dt] != null ? pcsMap[dt] : null;
     }
     snap.entries.push(entry);
-  }
+  });
   /* Replace any existing backtest snap, keep manual ones */
   AppState.savedForecasts = AppState.savedForecasts.filter(function(s) { return !s.isBacktest; });
   AppState.savedForecasts.unshift(snap);
@@ -3750,7 +3937,10 @@ function renderFvsActual() {
     var tHtml = '<div style="margin-bottom:20px;border:1px solid var(--border);border-radius:var(--radius);padding:12px;overflow-x:auto;">';
     tHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
     tHtml += '<strong style="font-size:13px;">' + snap.savedDate + '</strong>';
-    tHtml += '<button class="btn btn-sm" style="color:var(--danger);font-size:12px;padding:2px 8px;" onclick="removeForecastSnapshot(' + si + ')">✕ Remove</button></div>';
+    tHtml += '<div style="display:flex;gap:6px;">';
+    tHtml += '<button class="btn btn-sm" style="font-size:12px;padding:2px 8px;" onclick="exportBacktest(' + si + ')">📥 Export CSV</button>';
+    tHtml += '<button class="btn btn-sm" style="color:var(--danger);font-size:12px;padding:2px 8px;" onclick="removeForecastSnapshot(' + si + ')">✕ Remove</button>';
+    tHtml += '</div></div>';
     tHtml += '<table style="font-size:12px;"><thead><tr><th>Date</th><th>Day</th>';
     /* Pieces columns first */
     tHtml += '<th style="text-align:right;color:var(--accent);">Pcs Fc</th><th style="text-align:right;color:var(--accent);">Pcs Act</th><th style="text-align:right;color:var(--accent);">Pcs Err%</th>';
@@ -3759,11 +3949,32 @@ function renderFvsActual() {
     tHtml += '</tr></thead><tbody>';
     var totAbs = 0, totAct = 0, totBias = 0, matched = 0;
     var pcsTotAbs = 0, pcsTotAct = 0, pcsTotBias = 0, pcsMatched = 0;
+    var skippedCount = 0;
+    var minThresh = (AppState.settings.minSalesThresholdOn && AppState.settings.minSalesThreshold > 0) ? AppState.settings.minSalesThreshold : 0;
     snap.entries.forEach(function(e) {
       var actual = e.actual != null ? e.actual : dailyMap[e.date];
       var actualPcs = e.actualPcs != null ? e.actualPcs : pcsMap[e.date];
       var predPcs = e.predictedPcs != null ? e.predictedPcs : null;
       var dayName = DAYS[dayOfWeek(e.date)];
+      /* Skip: day not in data, below threshold, closed, or anomalously low */
+      var dollarVal = dailyMap[e.date];
+      var isClosed = isClosedDate(e.date);
+      var belowThresh = dollarVal != null && minThresh > 0 && dollarVal < minThresh;
+      var noData = dollarVal == null || dollarVal === undefined;
+      var adaptiveSkip = false;
+      if (!isClosed && !belowThresh && !noData) {
+        adaptiveSkip = !isAdaptiveClean({ date: e.date, total: dollarVal });
+      }
+      var skip = isClosed || belowThresh || noData || adaptiveSkip;
+      if (skip) {
+        var reason = isClosed ? 'CLOSED' : (belowThresh ? 'BELOW THRESH' : (noData ? 'NO DATA' : 'OUTLIER'));
+        tHtml += '<tr style="opacity:0.35;"><td>' + e.date + '</td><td>' + dayName + '</td>';
+        tHtml += '<td colspan="3" style="text-align:center;color:var(--muted);font-size:11px;">' + reason + '</td>';
+        tHtml += '<td colspan="3" style="text-align:center;color:var(--muted);font-size:11px;">' + reason + '</td>';
+        tHtml += '</tr>';
+        skippedCount++;
+        return;
+      }
       tHtml += '<tr><td>' + e.date + '</td><td>' + dayName + '</td>';
       /* Pieces columns */
       if (predPcs != null && actualPcs != null) {
@@ -3806,7 +4017,7 @@ function renderFvsActual() {
       var avgBias = (totBias / matched).toFixed(0);
       summaryParts.push('$ MAPE: <strong>' + mape + '%</strong> · $ Bias: <strong>' + fmt(parseFloat(avgBias)) + '</strong>');
     }
-    var totalDaysNote = matched > 0 ? ' (' + matched + ' days with actuals)' : '';
+    var totalDaysNote = matched > 0 ? ' (' + matched + ' days counted' + (skippedCount > 0 ? ', ' + skippedCount + ' skipped' : '') + ')' : '';
     if (summaryParts.length > 0) {
       tHtml += '<p style="font-size:12px;color:var(--muted);margin-top:6px;">' + summaryParts.join(' &nbsp;|&nbsp; ') + totalDaysNote + '</p>';
     }
@@ -4282,18 +4493,85 @@ function loadSettings() {
   renderWeatherImpact();
 }
 
-var HOLIDAY_LABELS = {
-  '01-01': "New Year's Day",
-  '07-04': 'Independence Day',
-  '11-27': 'Thanksgiving',
-  '12-25': 'Christmas',
-  '12-31': "New Year's Eve",
-  '05-26': 'Memorial Day',
-  '09-01': 'Labor Day',
-  '01-20': 'MLK Day',
-  '11-11': "Veterans Day",
-  '10-13': 'Columbus Day'
-};
+/* Holiday definitions: fixed (same MM-DD every year) and floating (nth weekday of month) */
+var HOLIDAY_DEFS = [
+  { key: 'new-years', name: "New Year's Day", type: 'fixed', mmdd: '01-01' },
+  { key: 'mlk', name: 'MLK Day', type: 'floating', month: 0, weekday: 1, nth: 3 },
+  { key: 'memorial', name: 'Memorial Day', type: 'floating', month: 4, weekday: 1, nth: -1 },
+  { key: 'independence', name: 'Independence Day', type: 'fixed', mmdd: '07-04' },
+  { key: 'labor', name: 'Labor Day', type: 'floating', month: 8, weekday: 1, nth: 1 },
+  { key: 'columbus', name: 'Columbus Day', type: 'floating', month: 9, weekday: 1, nth: 2 },
+  { key: 'veterans', name: "Veterans Day", type: 'fixed', mmdd: '11-11' },
+  { key: 'thanksgiving', name: 'Thanksgiving', type: 'floating', month: 10, weekday: 4, nth: 4 },
+  { key: 'christmas', name: 'Christmas', type: 'fixed', mmdd: '12-25' },
+  { key: 'new-years-eve', name: "New Year's Eve", type: 'fixed', mmdd: '12-31' }
+];
+var HOLIDAY_DEF_MAP = {};
+HOLIDAY_DEFS.forEach(function(h) { HOLIDAY_DEF_MAP[h.key] = h; });
+
+/* Compute the nth weekday of a given month/year.
+   nth > 0: 1st, 2nd, 3rd, 4th occurrence. nth === -1: last occurrence. */
+function computeNthWeekday(year, month, weekday, nth) {
+  if (nth > 0) {
+    var d = new Date(year, month, 1);
+    var count = 0;
+    while (d.getMonth() === month) {
+      if (d.getDay() === weekday) {
+        count++;
+        if (count === nth) {
+          var mm = String(d.getMonth() + 1).padStart(2, '0');
+          var dd = String(d.getDate()).padStart(2, '0');
+          return year + '-' + mm + '-' + dd;
+        }
+      }
+      d.setDate(d.getDate() + 1);
+    }
+  } else if (nth === -1) {
+    var d2 = new Date(year, month + 1, 0); /* last day of month */
+    while (d2.getDay() !== weekday) {
+      d2.setDate(d2.getDate() - 1);
+    }
+    var mm2 = String(d2.getMonth() + 1).padStart(2, '0');
+    var dd2 = String(d2.getDate()).padStart(2, '0');
+    return year + '-' + mm2 + '-' + dd2;
+  }
+  return null;
+}
+
+/* Get the YYYY-MM-DD date for a holiday definition in a given year */
+function getHolidayDateForYear(def, year) {
+  if (def.type === 'fixed') return year + '-' + def.mmdd;
+  return computeNthWeekday(year, def.month, def.weekday, def.nth);
+}
+
+/* Cache: year → { date → {key, name} } */
+var _holidayCache = {};
+var _holidayCacheEnabled = '';
+
+function getHolidayDatesForYear(year) {
+  var enabled = AppState.settings.enabledHolidays || [];
+  var custom = AppState.settings.customHolidays || [];
+  var cacheKey = enabled.join(',') + '|' + custom.map(function(c){return c.mmdd;}).join(',');
+  if (_holidayCacheEnabled !== cacheKey) { _holidayCache = {}; _holidayCacheEnabled = cacheKey; }
+  if (_holidayCache[year]) return _holidayCache[year];
+  var dates = {};
+  enabled.forEach(function(key) {
+    var def = HOLIDAY_DEF_MAP[key];
+    if (!def) return;
+    var dt = getHolidayDateForYear(def, year);
+    if (dt) dates[dt] = { key: key, name: def.name };
+  });
+  custom.forEach(function(c) {
+    var dt = year + '-' + c.mmdd;
+    dates[dt] = { key: 'custom', name: c.name || c.mmdd };
+  });
+  _holidayCache[year] = dates;
+  return dates;
+}
+
+/* Backward-compat: build HOLIDAY_LABELS dynamically for any code still referencing it */
+var HOLIDAY_LABELS = {};
+HOLIDAY_DEFS.forEach(function(h) { if (h.mmdd) HOLIDAY_LABELS[h.mmdd] = h.name; });
 
 function renderClosedDaysChecks() {
   var el = document.getElementById('closedDaysChecks');
@@ -4308,12 +4586,559 @@ function renderClosedDaysChecks() {
 }
 
 function renderHolidaysList() {
-  var el = document.getElementById('holidaysList');
+  /* Render predefined holiday checkboxes */
+  var el = document.getElementById('holidayChecks');
   if (!el) return;
-  var holidays = AppState.settings.holidays || [];
-  if (holidays.length === 0) {
-    el.innerHTML = '<span style="font-size:13px;color:var(--muted);">No holidays set.</span>';
+  var enabled = AppState.settings.enabledHolidays || [];
+  var thisYear = new Date().getFullYear();
+  var html = '';
+  HOLIDAY_DEFS.forEach(function(def) {
+    var checked = enabled.includes(def.key) ? ' checked' : '';
+    var dateStr = getHolidayDateForYear(def, thisYear);
+    var dateLabel = dateStr ? dateStr.slice(5) : '';
+    var floatIcon = def.type === 'floating' ? ' ★' : '';
+    html += '<label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;padding:4px 6px;border-radius:6px;background:var(--bg);">' +
+      '<input type="checkbox" data-holiday-key="' + def.key + '"' + checked +
+      ' onchange="toggleHoliday(\'' + def.key + '\', this.checked)" style="width:18px;height:18px;">' +
+      '<span>' + def.name + floatIcon + '</span>' +
+      '<span style="font-size:11px;color:var(--muted);margin-left:auto;">' + dateLabel + '</span></label>';
+  });
+  el.innerHTML = html;
+  /* Render custom holidays */
+  var custEl = document.getElementById('customHolidaysList');
+  if (!custEl) return;
+  var custom = AppState.settings.customHolidays || [];
+  if (custom.length === 0) {
+    custEl.innerHTML = '';
     return;
+  }
+  custEl.innerHTML = custom.map(function(c, ci) {
+    return '<span class="badge badge-info" style="font-size:13px;padding:6px 12px;cursor:pointer;" ' +
+      'onclick="removeCustomHoliday(' + ci + ')">' + c.mmdd + ' (' + (c.name || c.mmdd) + ') &times;</span>';
+  }).join('');
+}
+
+function toggleHoliday(key, on) {
+  if (!AppState.settings.enabledHolidays) AppState.settings.enabledHolidays = [];
+  var arr = AppState.settings.enabledHolidays;
+  var idx = arr.indexOf(key);
+  if (on && idx === -1) arr.push(key);
+  if (!on && idx !== -1) arr.splice(idx, 1);
+  _holidayCache = {}; /* clear cache */
+}
+
+function addCustomHoliday() {
+  var input = document.getElementById('newHolidayInput');
+  var labelInput = document.getElementById('newHolidayLabel');
+  var val = (input.value || '').trim();
+  var label = (labelInput.value || '').trim();
+  if (!/^\d{2}-\d{2}$/.test(val)) {
+    toast('Please use MM-DD format (e.g. 02-14)', 'error');
+    return;
+  }
+  if (!AppState.settings.customHolidays) AppState.settings.customHolidays = [];
+  if (AppState.settings.customHolidays.some(function(c) { return c.mmdd === val; })) {
+    toast('Custom holiday already exists', 'error');
+    return;
+  }
+  AppState.settings.customHolidays.push({ mmdd: val, name: label || val });
+  input.value = '';
+  labelInput.value = '';
+  _holidayCache = {}; /* clear cache */
+  renderHolidaysList();
+}
+
+function removeCustomHoliday(idx) {
+  if (!AppState.settings.customHolidays) return;
+  AppState.settings.customHolidays.splice(idx, 1);
+  _holidayCache = {}; /* clear cache */
+  renderHolidaysList();
+}
+
+/* ── Seasonal Event Calendar ── */
+function addSeasonalEvent() {
+  var name = (document.getElementById('newEventName').value || '').trim();
+  var start = (document.getElementById('newEventStart').value || '').trim();
+  var end = (document.getElementById('newEventEnd').value || '').trim();
+  var impact = parseInt(document.getElementById('newEventImpact').value, 10) || 0;
+  if (!name) { toast('Enter an event name', 'error'); return; }
+  if (!/^\d{2}-\d{2}$/.test(start) || !/^\d{2}-\d{2}$/.test(end)) { toast('Use MM-DD format for dates', 'error'); return; }
+  if (!AppState.settings.events) AppState.settings.events = [];
+  AppState.settings.events.push({ name: name, startMmDd: start, endMmDd: end, expectedPct: impact });
+  document.getElementById('newEventName').value = '';
+  document.getElementById('newEventStart').value = '';
+  document.getElementById('newEventEnd').value = '';
+  document.getElementById('newEventImpact').value = '10';
+  renderEventsList();
+  toast('Event "' + name + '" added', 'success');
+}
+
+function removeSeasonalEvent(idx) {
+  AppState.settings.events.splice(idx, 1);
+  renderEventsList();
+}
+
+function renderEventsList() {
+  var el = document.getElementById('eventsList');
+  if (!el) return;
+  var events = AppState.settings.events || [];
+  if (events.length === 0) { el.innerHTML = '<span style="font-size:13px;color:var(--muted);">No seasonal events yet.</span>'; return; }
+  /* Compute learned impacts */
+  var learned = learnEventImpacts();
+  var html = '<div class="table-wrap"><table><thead><tr><th>Event</th><th>Period</th><th>Expected</th><th>Learned</th><th>Samples</th><th></th></tr></thead><tbody>';
+  events.forEach(function(ev, i) {
+    var lrn = learned[i] || {};
+    var learnedStr = lrn.samples >= 5 ? (lrn.pct >= 0 ? '+' : '') + lrn.pct + '%' : '<span style="color:var(--muted);">Insufficient data</span>';
+    var learnedColor = lrn.samples >= 5 ? (lrn.pct >= 0 ? 'color:var(--success);' : 'color:var(--danger);') : '';
+    html += '<tr><td style="font-weight:600;">' + ev.name + '</td>' +
+      '<td>' + ev.startMmDd + ' → ' + ev.endMmDd + '</td>' +
+      '<td style="text-align:center;">' + (ev.expectedPct >= 0 ? '+' : '') + ev.expectedPct + '%</td>' +
+      '<td style="text-align:center;font-weight:600;' + learnedColor + '">' + learnedStr + '</td>' +
+      '<td style="text-align:center;color:var(--muted);">' + (lrn.samples || 0) + ' days</td>' +
+      '<td><button class="btn btn-sm" style="font-size:11px;padding:2px 8px;color:var(--danger);" onclick="removeSeasonalEvent(' + i + ')">&#x2715;</button></td></tr>';
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+function isDateInEventWindow(dateStr, startMmDd, endMmDd) {
+  var mmdd = dateStr.slice(5); /* YYYY-MM-DD → MM-DD */
+  if (startMmDd <= endMmDd) {
+    return mmdd >= startMmDd && mmdd <= endMmDd;
+  }
+  /* Wraps around year end (e.g. 11-15 to 01-15) */
+  return mmdd >= startMmDd || mmdd <= endMmDd;
+}
+
+function learnEventImpacts() {
+  /* Compare average daily sales during event windows vs non-event same-DOW averages.
+     Returns array of {pct, samples} per event index. */
+  var events = AppState.settings.events || [];
+  if (events.length === 0) return [];
+  var daily = getDailySales();
+  if (daily.length < 30) return events.map(function(){ return { pct: 0, samples: 0 }; });
+  /* Tag each day as belonging to which events (if any) */
+  var results = [];
+  for (var ei = 0; ei < events.length; ei++) {
+    var ev = events[ei];
+    var evDays = [], nonEvDays = [];
+    daily.forEach(function(d) {
+      if (!isCleanDay(d)) return;
+      if (isDateInEventWindow(d.date, ev.startMmDd, ev.endMmDd)) {
+        evDays.push(d);
+      } else {
+        nonEvDays.push(d);
+      }
+    });
+    /* Compute DOW-aware baseline from non-event days */
+    var dowSums = [0,0,0,0,0,0,0], dowCnts = [0,0,0,0,0,0,0];
+    nonEvDays.forEach(function(d) {
+      var dw = dayOfWeek(d.date);
+      dowSums[dw] += d.total; dowCnts[dw]++;
+    });
+    /* Compare event days to their DOW baseline */
+    var totalRatio = 0, cnt = 0;
+    evDays.forEach(function(d) {
+      var dw = dayOfWeek(d.date);
+      if (dowCnts[dw] >= 3) {
+        var baseline = dowSums[dw] / dowCnts[dw];
+        if (baseline > 0) {
+          totalRatio += d.total / baseline;
+          cnt++;
+        }
+      }
+    });
+    var learnedPct = cnt >= 5 ? Math.round((totalRatio / cnt - 1) * 100) : 0;
+    results.push({ pct: learnedPct, samples: cnt });
+  }
+  return results;
+}
+
+function getEventAdj(dateStr) {
+  /* Returns multiplier for seasonal events on a given date.
+     Uses learned impact when sufficient data, falls back to expected. */
+  var events = AppState.settings.events || [];
+  if (events.length === 0) return { adj: 1, eventName: null };
+  var learned = _cachedEventImpacts || learnEventImpacts();
+  var bestAdj = 1;
+  var bestName = null;
+  for (var i = 0; i < events.length; i++) {
+    if (isDateInEventWindow(dateStr, events[i].startMmDd, events[i].endMmDd)) {
+      var lrn = learned[i] || {};
+      var pct = lrn.samples >= 5 ? lrn.pct : events[i].expectedPct;
+      var adj = 1 + (pct / 100);
+      /* Pick strongest event if overlapping */
+      if (Math.abs(adj - 1) > Math.abs(bestAdj - 1)) {
+        bestAdj = adj;
+        bestName = events[i].name;
+      }
+    }
+  }
+  return { adj: bestAdj, eventName: bestName };
+}
+var _cachedEventImpacts = null;
+
+async function resolveZipCode(zip) {
+  /* Use Open-Meteo geocoding to resolve zip to lat/lon */
+  const url = 'https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(zip) + '&count=5&language=en&format=json';
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.results && data.results.length > 0) {
+      /* Try to find a US result matching postal code context, otherwise take first */
+      const usResult = data.results.find(function(r) { return r.country_code === 'US'; }) || data.results[0];
+      return { lat: usResult.latitude, lon: usResult.longitude, name: usResult.name + (usResult.admin1 ? ', ' + usResult.admin1 : '') };
+    }
+  } catch (e) {
+    /* Try the Zippopotam fallback for US zip codes */
+    try {
+      const res2 = await fetch('https://api.zippopotam.us/us/' + encodeURIComponent(zip));
+      if (res2.ok) {
+        const data2 = await res2.json();
+        const place = data2.places[0];
+        return { lat: parseFloat(place.latitude), lon: parseFloat(place.longitude), name: place['place name'] + ', ' + place['state abbreviation'] };
+      }
+    } catch (e2) { /* both failed */ }
+  }
+  return null;
+}
+
+async function saveSettings() {
+  const s = AppState.settings;
+  s.bizName = document.getElementById('setBizName').value;
+  s.currency = document.getElementById('setCurrency').value || '$';
+  const newZip = document.getElementById('setZipCode').value.trim();
+  s.maxHoursPerDay = parseFloat(document.getElementById('setMaxHoursDay').value) || 10;
+  s.maxHoursPerWeek = parseFloat(document.getElementById('setMaxHoursWeek').value) || 40;
+  s.maxTotalHoursDay = parseFloat(document.getElementById('setMaxTotalHoursDay').value) || 120;
+  s.maxTotalHoursWeek = parseFloat(document.getElementById('setMaxTotalHoursWeek').value) || 600;
+  s.minHoursDay = parseFloat(document.getElementById('setMinHoursDay').value) || 16;
+  s.laborPct = parseFloat(document.getElementById('setLaborPct').value) || 30;
+  s.avgWage = parseFloat(document.getElementById('setAvgWage').value) || 18;
+  s.salesPerHour = parseFloat(document.getElementById('setSalesPerHour').value) || 60;
+  s.piecesPerHour = parseFloat(document.getElementById('setPiecesPerHour').value) || 8;
+  s.maxLaborPctCap = document.getElementById('setMaxLaborPctCap').checked;
+  s.bizOpen = parseInt(document.getElementById('setBizOpen').value) || 7;
+  s.bizClose = parseInt(document.getElementById('setBizClose').value) || 19;
+  s.rainAdjLight = parseFloat(document.getElementById('setRainAdjLight').value) || 8;
+  s.rainAdjMod = parseFloat(document.getElementById('setRainAdjMod').value) || 15;
+  s.rainAdjHeavy = parseFloat(document.getElementById('setRainAdjHeavy').value) || 25;
+  s.heatThresh = parseFloat(document.getElementById('setHeatThresh').value) || 95;
+  s.heatAdj = parseFloat(document.getElementById('setHeatAdj').value) || 10;
+  s.minSalesThresholdOn = document.getElementById('setMinThresholdOn').checked;
+  s.minSalesThreshold = parseFloat(document.getElementById('setMinThreshold').value) || 200;
+
+  /* Read closed days checkboxes */
+  s.closedDays = [];
+  for (var cdi = 0; cdi < 7; cdi++) {
+    var cb = document.getElementById('closedDay' + cdi);
+    if (cb && cb.checked) s.closedDays.push(cdi);
+  }
+  /* holidays are already kept in sync via addHoliday/removeHoliday */
+
+  /* Resolve zip code to coordinates if it changed */
+  if (newZip && newZip !== s.zipCode) {
+    const zipLabel = document.getElementById('zipResolvedLabel');
+    zipLabel.textContent = 'Resolving zip code...';
+    const result = await resolveZipCode(newZip);
+    if (result) {
+      s.lat = result.lat;
+      s.lon = result.lon;
+      s.zipCode = newZip;
+      zipLabel.textContent = 'Resolved: ' + result.name + ' (' + result.lat.toFixed(4) + ', ' + result.lon.toFixed(4) + ')';
+      toast('Settings saved! Location: ' + result.name, 'success');
+    } else {
+      zipLabel.textContent = 'Could not resolve zip code. Weather may be blocked by security policy or zip is invalid.';
+      s.zipCode = newZip;
+      toast('Settings saved, but zip code could not be resolved.', 'error');
+    }
+  } else {
+    s.zipCode = newZip;
+    toast('Settings saved!', 'success');
+  }
+  runForecast();
+}
+
+function renderCategoriesList() {
+  const el = document.getElementById('categoriesList');
+  if (AppState.settings.categories.length === 0) {
+    el.innerHTML = '<span style="font-size:13px;color:var(--muted);">No categories yet. They will be auto-detected from sales data.</span>';
+    return;
+  }
+  el.innerHTML = AppState.settings.categories.map(c =>
+    '<span class="badge badge-info" style="font-size:13px;padding:6px 12px;cursor:pointer;" onclick="removeCategory(\'' +
+    c.replace(/'/g, "\\'") + '\')">' + c + ' &times;</span>'
+  ).join('');
+}
+
+function addCategory() {
+  const input = document.getElementById('newCategoryInput');
+  const name = input.value.trim();
+  if (!name) return;
+  if (AppState.settings.categories.includes(name)) { toast('Category already exists', 'error'); return; }
+  AppState.settings.categories.push(name);
+  input.value = '';
+  renderCategoriesList();
+}
+
+function removeCategory(name) {
+  AppState.settings.categories = AppState.settings.categories.filter(c => c !== name);
+  renderCategoriesList();
+}
+
+/* ============ IMPORT/EXPORT ============ */
+function exportAllData() {
+  const data = {
+    version: 1,
+    exportDate: new Date().toISOString(),
+    salesData: AppState.salesData,
+    employeeHours: AppState.employeeHours,
+    weatherData: AppState.weatherData,
+    settings: AppState.settings,
+    forecastMethods: AppState.forecastMethods,
+    autoDisabled: AppState.autoDisabled,
+    manualWeights: AppState.manualWeights,
+    savedForecasts: AppState.savedForecasts
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'smartcast-data-' + today() + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Data exported!', 'success');
+}
+
+function importAllData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.salesData) { AppState.salesData = data.salesData; _salesDollarMap = null; }
+      if (data.employeeHours) AppState.employeeHours = data.employeeHours;
+      if (data.weatherData) AppState.weatherData = data.weatherData;
+      if (data.settings) Object.assign(AppState.settings, data.settings);
+      /* Migrate old holidays array (MM-DD strings) → enabledHolidays + customHolidays */
+      if (data.settings && data.settings.holidays && !data.settings.enabledHolidays) {
+        var oldH = data.settings.holidays;
+        var knownMmdd = {};
+        HOLIDAY_DEFS.forEach(function(def) { if (def.mmdd) knownMmdd[def.mmdd] = def.key; });
+        var migrated = []; var custom = [];
+        oldH.forEach(function(mmdd) {
+          if (knownMmdd[mmdd]) { migrated.push(knownMmdd[mmdd]); }
+          else { custom.push({ mmdd: mmdd, name: mmdd }); }
+        });
+        AppState.settings.enabledHolidays = migrated;
+        AppState.settings.customHolidays = custom;
+        delete AppState.settings.holidays;
+      }
+      if (data.forecastMethods) Object.assign(AppState.forecastMethods, data.forecastMethods);
+      if (data.autoDisabled) AppState.autoDisabled = data.autoDisabled;
+      else AppState.autoDisabled = {};
+      if (data.manualWeights !== undefined) AppState.manualWeights = data.manualWeights;
+      if (data.savedForecasts) AppState.savedForecasts = data.savedForecasts;
+      /* Sync forecast days dropdown */
+      var fdSel = document.getElementById('forecastDaysSelect');
+      if (fdSel && AppState.settings.forecastDays) fdSel.value = String(AppState.settings.forecastDays);
+      renderActualPiecesMetrics();
+      renderWeatherImpact();
+      runForecast();
+      toast('Data imported! ' + (AppState.salesData.length) + ' sales records, ' +
+        (AppState.employeeHours.length) + ' hour records.', 'success');
+      showPage('dashboard');
+    } catch (err) {
+      toast('Invalid file: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+/* ============ MODAL ============ */
+function showModal(title, message, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = '<div class="modal"><h3>' + title + '</h3><p>' + message + '</p>' +
+    '<div class="modal-actions"><button class="btn btn-secondary" data-action="cancel">Cancel</button>' +
+    '<button class="btn btn-danger" data-action="confirm">Confirm</button></div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('[data-action="cancel"]').onclick = function() { overlay.remove(); };
+  overlay.querySelector('[data-action="confirm"]').onclick = function() { overlay.remove(); onConfirm(); };
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+}
+
+/* ============ GENERATE SAMPLE DATA (for demo) ============ */
+function generateSampleData() {
+  const categories = ['Food', 'Beverage', 'Retail'];
+  AppState.settings.categories = categories;
+  const baseAmounts = { Food: 4500, Beverage: 1800, Retail: 800 };
+  const dayMultipliers = [0.7, 0.8, 0.85, 0.9, 1.15, 1.35, 1.25]; /* Sun-Sat */
+
+  const start = new Date('2025-04-01');
+  const end = new Date('2026-02-06');
+  const sales = [];
+  const empHours = [];
+  const employees = ['Alex R', 'Jordan M', 'Taylor S', 'Morgan K', 'Casey P', 'Riley B'];
+
+  const totalDays = Math.round((end - start) / 86400000);
+  for (let di = 0; di <= totalDays; di++) {
+    const d = new Date(start.getTime() + di * 86400000);
+    const ds = dateStr(d);
+    const dow = d.getDay();
+    const weekNum = Math.floor(di / 7);
+    const trendFactor = 1 + (weekNum * 0.003); /* slight upward trend */
+    const noise = () => 0.85 + Math.random() * 0.3;
+
+    categories.forEach(cat => {
+      const base = baseAmounts[cat] * dayMultipliers[dow] * trendFactor * noise();
+      sales.push({ date: ds, category: cat, amount: Math.round(base) });
+    });
+
+    /* Employee hours */
+    const dailyTotal = (baseAmounts.Food + baseAmounts.Beverage + baseAmounts.Retail) *
+      dayMultipliers[dow] * trendFactor;
+    const targetHours = dailyTotal / AppState.settings.salesPerHour;
+    const numWorking = dow === 0 ? 3 : (dow >= 5 ? 5 : 4);
+    for (let i = 0; i < numWorking; i++) {
+      const hrs = Math.min(AppState.settings.maxHoursPerDay, (targetHours / numWorking) * (0.8 + Math.random() * 0.4));
+      empHours.push({ date: ds, employee: employees[i], hours: Math.round(hrs * 2) / 2 });
+    }
+  }
+
+  AppState.salesData = sales;
+  _salesDollarMap = null;
+  AppState.employeeHours = empHours;
+  runForecast();
+  showPage('dashboard');
+  toast('Sample data loaded! ~10 months of history.', 'success');
+}
+
+/* ============ CHECK TRIGGER MESSAGE ============ */
+async function checkTriggerMessage() {
+  try {
+    if (window.Poe && window.Poe.getTriggerMessage) {
+      const msg = await window.Poe.getTriggerMessage();
+      if (msg && msg.content && msg.content.trim().length > 20) {
+        /* Try to parse as sales data */
+        document.getElementById('salesInput').value = msg.content;
+        showPage('sales');
+        toast('Data detected from chat message. Review and click Import.', 'info');
+      }
+    }
+  } catch (e) {
+    /* Silently ignore if Poe API not available */
+  }
+}
+
+/* ============ SETUP WIZARD ============ */
+var WIZ_STEPS = 5;
+function showSetupWizard() {
+  document.getElementById('setupWizard').style.display = 'flex';
+}
+function skipWizard() {
+  document.getElementById('setupWizard').style.display = 'none';
+}
+function wizardNext(step) {
+  for (var ws = 1; ws <= WIZ_STEPS; ws++) {
+    var el = document.getElementById('wizStep' + ws);
+    if (el) el.classList.toggle('active', ws === step);
+  }
+  var dots = document.querySelectorAll('#wizDots span');
+  dots.forEach(function(d, i) { d.classList.toggle('active', i === step - 1); });
+}
+function wizImportSales() {
+  var raw = document.getElementById('wizSalesInput').value.trim();
+  var statusEl = document.getElementById('wizSalesStatus');
+  if (!raw) { statusEl.textContent = 'Please paste data first.'; statusEl.style.color = 'var(--danger)'; return; }
+  /* Temporarily put data into the main import field and trigger import */
+  document.getElementById('salesInput').value = raw;
+  importSalesData();
+  var ct = AppState.salesData.length;
+  if (ct > 0) {
+    statusEl.textContent = '✓ ' + ct + ' records imported!';
+    statusEl.style.color = 'var(--success)';
+  } else {
+    statusEl.textContent = 'No valid records found. Check format.';
+    statusEl.style.color = 'var(--danger)';
+  }
+}
+function wizImportHours() {
+  var raw = document.getElementById('wizHoursInput').value.trim();
+  var statusEl = document.getElementById('wizHoursStatus');
+  if (!raw) { statusEl.textContent = 'Please paste data first.'; statusEl.style.color = 'var(--danger)'; return; }
+  document.getElementById('hoursInput').value = raw;
+  importEmployeeHours();
+  var ct = AppState.employeeHours.length;
+  if (ct > 0) {
+    statusEl.textContent = '✓ ' + ct + ' hour records imported!';
+    statusEl.style.color = 'var(--success)';
+  } else {
+    statusEl.textContent = 'No valid records found. Check format.';
+    statusEl.style.color = 'var(--danger)';
+  }
+}
+function wizShowMetrics() {
+  /* Compute and display actual labor & productivity metrics */
+  var metrics = computeActualPiecesPerHour();
+  var html = '<p style="font-size:14px;font-weight:700;margin-bottom:12px;">Your Current Labor & Productivity</p>';
+  if (metrics.matchDays > 0) {
+    var overallPPH = (metrics.totalPcs / metrics.totalHrs).toFixed(1);
+    var avgDailyPcs = (metrics.totalPcs / metrics.matchDays).toFixed(0);
+    var avgDailyHrs = (metrics.totalHrs / metrics.matchDays).toFixed(1);
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">';
+    html += '<div class="stat-card" style="padding:14px;"><div class="stat-label">PIECES / LABOR HOUR</div><div class="stat-value" style="color:var(--accent);">' + overallPPH + '</div></div>';
+    html += '<div class="stat-card" style="padding:14px;"><div class="stat-label">DAYS WITH DATA</div><div class="stat-value">' + metrics.matchDays + '</div></div>';
+    html += '<div class="stat-card" style="padding:14px;"><div class="stat-label">AVG DAILY PIECES</div><div class="stat-value">' + avgDailyPcs + '</div></div>';
+    html += '<div class="stat-card" style="padding:14px;"><div class="stat-label">AVG DAILY HOURS</div><div class="stat-value">' + avgDailyHrs + '</div></div>';
+    html += '</div>';
+    html += '<p style="font-size:13px;color:var(--muted);">Based on ' + metrics.matchDays + ' days of overlapping sales + attendance data. Use this to set your targets on the next step.</p>';
+  } else if (AppState.salesData.length > 0) {
+    var pRatio = getPiecesPerDollar();
+    var daily = getDailySales();
+    var avgSales = daily.length > 0 ? daily.reduce(function(a,b){return a+b.total;},0) / daily.length : 0;
+    html += '<div class="stat-card" style="padding:14px;margin-bottom:12px;"><div class="stat-label">AVG DAILY SALES</div><div class="stat-value">' + fmt(avgSales) + '</div></div>';
+    html += '<p style="font-size:13px;color:var(--muted);">No staff hours imported — add Time & Attendance data to see actual pieces per labor hour. You can set targets manually on the next step.</p>';
+  } else {
+    html += '<p style="font-size:13px;color:var(--muted);">No data imported yet. You can go back to import data, or skip ahead to set targets manually.</p>';
+  }
+  document.getElementById('wizMetricsDisplay').innerHTML = html;
+  wizardNext(4);
+}
+function finishWizard() {
+  /* Save wizard values into AppState settings */
+  var s = AppState.settings;
+  var biz = document.getElementById('wizBizName').value.trim();
+  if (biz) s.bizName = biz;
+  var cur = document.getElementById('wizCurrency').value.trim();
+  if (cur) s.currency = cur;
+  s.zipCode = document.getElementById('wizZipCode').value.trim();
+  s.piecesPerHour = parseFloat(document.getElementById('wizPiecesPerHour').value) || 8;
+  s.avgWage = parseFloat(document.getElementById('wizAvgWage').value) || 18;
+  s.laborPct = parseFloat(document.getElementById('wizLaborPct').value) || 30;
+  s.minHoursDay = parseFloat(document.getElementById('wizMinHours').value) || 16;
+  /* Close wizard and navigate to dashboard */
+  document.getElementById('setupWizard').style.display = 'none';
+  showPage('dashboard');
+  toast('Setup complete! Run Forecast to generate staffing recommendations.', 'success');
+}
+
+/* ============ INIT ============ */
+function init() {
+  renderDashboard();
+  checkTriggerMessage();
+  /* Show wizard if no data and no business name configured */
+  if (AppState.salesData.length === 0 && !AppState.settings.bizName) {
+    showSetupWizard();
+  }
+}
+
+init();
+</script>
+</body>
+</html>    return;
   }
   el.innerHTML = holidays.map(function(h) {
     var label = HOLIDAY_LABELS[h] || h;
