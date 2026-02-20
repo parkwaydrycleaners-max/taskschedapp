@@ -1726,9 +1726,13 @@ const Forecaster = {
           var test = dailySales.slice(testStart, testEnd);
           var preds = self.exponentialSmoothing(train, a, testDays);
           if (!preds || preds.length === 0) continue;
-          test.forEach(function(act, i) {
-            if (preds[i] && isCleanDay(act)) {
-              totAbs += Math.abs(act.total - preds[i].predicted);
+          var predMap = {};
+          preds.forEach(function(p) { predMap[p.date] = p.predicted; });
+          test.forEach(function(act) {
+            if (!isCleanDay(act)) return;
+            var pred = predMap[act.date];
+            if (pred != null) {
+              totAbs += Math.abs(act.total - pred);
               totAct += act.total;
             }
           });
@@ -2061,10 +2065,14 @@ const Forecaster = {
         var test = dailySales.slice(testStart, testEnd);
         var preds = self._holtWintersCore(train, testDays, p[0], p[1], p[2]);
         if (!preds || preds.length === 0) return;
+        var predMap = {};
+        preds.forEach(function(p2) { predMap[p2.date] = p2.predicted; });
         var totAbs = 0, totAct = 0;
-        test.forEach(function(act, i) {
-          if (preds[i] && isCleanDay(act)) {
-            totAbs += Math.abs(act.total - preds[i].predicted);
+        test.forEach(function(act) {
+          if (!isCleanDay(act)) return;
+          var pred = predMap[act.date];
+          if (pred != null) {
+            totAbs += Math.abs(act.total - pred);
             totAct += act.total;
           }
         });
@@ -2125,9 +2133,14 @@ const Forecaster = {
       var test = dailySales.slice(testStart, testEnd);
       var preds = methodFn.call(self, train, testDays);
       if (!preds || preds.length === 0) continue;
-      test.forEach(function(actual, i) {
-        if (preds[i] && isAdaptiveClean(actual)) {
-          pctErrors.push(Math.abs(actual.total - preds[i].predicted) / actual.total);
+      /* Build prediction map keyed by date — match by DATE not index */
+      var predMap = {};
+      preds.forEach(function(p) { predMap[p.date] = p.predicted; });
+      test.forEach(function(actual) {
+        if (!isAdaptiveClean(actual)) return;
+        var pred = predMap[actual.date];
+        if (pred != null) {
+          pctErrors.push(Math.abs(actual.total - pred) / actual.total);
         }
       });
     }
@@ -2323,15 +2336,21 @@ const Forecaster = {
       var testData = dailySales.slice(testStart, testEnd);
       var rawPreds = self.ensemble(trainData, testDays, { raw: true });
       var adjPreds = self.ensemble(trainData, testDays);
-      testData.forEach(function(actual, i) {
+      /* Build prediction maps keyed by date — match by DATE not index */
+      var rawMap = {}, adjMap = {};
+      rawPreds.forEach(function(p) { rawMap[p.date] = p.predicted; });
+      adjPreds.forEach(function(p) { adjMap[p.date] = p.predicted; });
+      testData.forEach(function(actual) {
         if (!isAdaptiveClean(actual)) return;
-        if (rawPreds[i]) {
-          var re = actual.total - rawPreds[i].predicted;
+        var rp = rawMap[actual.date];
+        if (rp != null) {
+          var re = actual.total - rp;
           rawTotErr += re; rawTotAbs += Math.abs(re); rawTotAct += actual.total; rawCnt++;
           rawErrors.push(Math.abs(re) / actual.total);
         }
-        if (adjPreds[i]) {
-          var ae = actual.total - adjPreds[i].predicted;
+        var ap = adjMap[actual.date];
+        if (ap != null) {
+          var ae = actual.total - ap;
           adjTotErr += ae; adjTotAbs += Math.abs(ae); adjTotAct += actual.total; adjCnt++;
           adjErrors.push(Math.abs(ae) / actual.total);
         }
@@ -2897,9 +2916,13 @@ function computeConfidenceIntervals(forecastArr, dailyData) {
     var train = dailyData.slice(0, testStart);
     var test = dailyData.slice(testStart, testEnd);
     var preds = Forecaster.ensemble(train, 7, { raw: true });
-    test.forEach(function(act, i) {
-      if (!isCleanDay(act) || !preds[i]) return;
-      var pctErr = Math.abs(act.total - preds[i].predicted) / act.total;
+    var predMap = {};
+    preds.forEach(function(p) { predMap[p.date] = p.predicted; });
+    test.forEach(function(act) {
+      if (!isCleanDay(act)) return;
+      var pred = predMap[act.date];
+      if (pred == null) return;
+      var pctErr = Math.abs(act.total - pred) / act.total;
       dowErrors[dayOfWeek(act.date)].push(pctErr);
     });
   }
@@ -3837,19 +3860,27 @@ function runBacktestComparison() {
   /* Build pieces lookup by date for matching */
   var pcsMap = {};
   dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
+  /* Build actual maps keyed by date for proper matching */
+  var testDolMap = {};
+  testData.forEach(function(d) { testDolMap[d.date] = d.total; });
+  var testPcsMap = {};
+  testPcs.forEach(function(d) { testPcsMap[d.date] = d.total; });
+  /* Build prediction maps keyed by date */
+  var predDolMap = {};
+  predictions.forEach(function(p) { predDolMap[p.date] = p.predicted; });
+  var predPcsMap = {};
+  predsPcs.forEach(function(p) { predPcsMap[p.date] = p.predicted; });
   var snap = { savedDate: 'Backtest ' + nDays + 'd (cutoff ' + trainData[trainData.length - 1].date + ')', isBacktest: true, entries: [] };
-  for (var i = 0; i < nDays; i++) {
-    var actual = testData[i] ? testData[i].total : null;
-    var pred = predictions[i] ? predictions[i].predicted : 0;
-    var dt = testData[i] ? testData[i].date : (predictions[i] ? predictions[i].date : '');
-    var entry = { date: dt, predicted: pred, actual: actual };
-    /* Pieces data */
-    if (hasPcs && predsPcs[i]) {
-      entry.predictedPcs = predsPcs[i].predicted;
+  /* Iterate over prediction dates (calendar days) and match actuals by date */
+  predictions.forEach(function(p) {
+    var dt = p.date;
+    var entry = { date: dt, predicted: p.predicted, actual: testDolMap[dt] != null ? testDolMap[dt] : null };
+    if (hasPcs) {
+      entry.predictedPcs = predPcsMap[dt] != null ? predPcsMap[dt] : null;
       entry.actualPcs = pcsMap[dt] != null ? pcsMap[dt] : null;
     }
     snap.entries.push(entry);
-  }
+  });
   /* Replace any existing backtest snap, keep manual ones */
   AppState.savedForecasts = AppState.savedForecasts.filter(function(s) { return !s.isBacktest; });
   AppState.savedForecasts.unshift(snap);
@@ -4800,8 +4831,8 @@ function generateSampleData() {
   const baseAmounts = { Food: 4500, Beverage: 1800, Retail: 800 };
   const dayMultipliers = [0.7, 0.8, 0.85, 0.9, 1.15, 1.35, 1.25]; /* Sun-Sat */
 
-  const start = new Date('2025-04-01T12:00:00');
-  const end = new Date('2026-02-06T12:00:00');
+  const start = new Date('2025-04-01');
+  const end = new Date('2026-02-06');
   const sales = [];
   const empHours = [];
   const employees = ['Alex R', 'Jordan M', 'Taylor S', 'Morgan K', 'Casey P', 'Riley B'];
