@@ -111,6 +111,62 @@
     z-index: 50 !important;
 }
 
+/* Day Header Enhancements */
+.day-header-today {
+    background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+}
+
+.day-header-past {
+    background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+}
+
+.day-header-future {
+    background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+/* Day container separator animation */
+.day-separator {
+    position: relative;
+}
+
+.day-separator::after {
+    content: '';
+    position: absolute;
+    right: -12px;
+    top: 60px;
+    bottom: 20px;
+    width: 4px;
+    background: repeating-linear-gradient(
+        to bottom,
+        #d1d5db 0px,
+        #d1d5db 8px,
+        transparent 8px,
+        transparent 16px
+    );
+    border-radius: 2px;
+}
+
+.dark .day-separator::after {
+    background: repeating-linear-gradient(
+        to bottom,
+        #4b5563 0px,
+        #4b5563 8px,
+        transparent 8px,
+        transparent 16px
+    );
+}
+
+/* Today column glow effect */
+.today-column {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+.dark .today-column {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
 .cut-command {
     font-family: monospace;
     font-size: 0;
