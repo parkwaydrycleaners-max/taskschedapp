@@ -1649,7 +1649,7 @@ const Forecaster = {
     /* DOW-aware: collect last `windowSize` clean instances per day-of-week */
     var dowVals = [[],[],[],[],[],[],[]];
     for (var ci = dailySales.length - 1; ci >= 0; ci--) {
-      if (!isCleanDay(dailySales[ci])) continue;
+      if (!isAdaptiveClean(dailySales[ci])) continue;
       var dw = dayOfWeek(dailySales[ci].date);
       if (dowVals[dw].length < windowSize) dowVals[dw].push(dailySales[ci].total);
     }
@@ -1682,7 +1682,7 @@ const Forecaster = {
     var dowInit = [false,false,false,false,false,false,false];
     var anyInit = false;
     for (var i = 0; i < dailySales.length; i++) {
-      if (!isCleanDay(dailySales[i])) continue;
+      if (!isAdaptiveClean(dailySales[i])) continue;
       var dw = dayOfWeek(dailySales[i].date);
       if (!dowInit[dw]) {
         dowLevel[dw] = dailySales[i].total;
@@ -1731,7 +1731,7 @@ const Forecaster = {
           var predMap = {};
           preds.forEach(function(p) { predMap[p.date] = p.predicted; });
           test.forEach(function(act) {
-            if (!isCleanDay(act)) return;
+            if (!isAdaptiveClean(act)) return;
             var pred = predMap[act.date];
             if (pred != null) {
               totAbs += Math.abs(act.total - pred);
@@ -1757,7 +1757,7 @@ const Forecaster = {
     var halfLife = 21;
     for (var ri = n - lookback; ri < n; ri++) {
       var d = dailySales[ri];
-      if (!isCleanDay(d)) continue;
+      if (!isAdaptiveClean(d)) continue;
       var dow = dayOfWeek(d.date);
       var age = n - 1 - ri; /* days ago */
       var w = Math.pow(0.5, age / halfLife);
@@ -1802,7 +1802,7 @@ const Forecaster = {
     var decay = Math.log(2) / halfLife;
     var n = 0, sumWX = 0, sumWY = 0, sumWXY = 0, sumWXX = 0, sumW = 0;
     for (var i = 0; i < recent.length; i++) {
-      if (!isCleanDay(recent[i])) continue;
+      if (!isAdaptiveClean(recent[i])) continue;
       var age = recent.length - 1 - i; /* days from end */
       var w = Math.exp(-decay * age);
       sumW += w; sumWX += w * i; sumWY += w * recent[i].total;
@@ -1819,7 +1819,7 @@ const Forecaster = {
     var qCnt = [0, 0, 0, 0];
     var overallAvg = sumW > 0 ? sumWY / sumW : 0;
     recent.forEach(function(d) {
-      if (!isCleanDay(d)) return;
+      if (!isAdaptiveClean(d)) return;
       var month = parseInt(d.date.slice(5, 7), 10);
       var q = Math.floor((month - 1) / 3);
       qSum[q] += d.total;
@@ -1835,7 +1835,7 @@ const Forecaster = {
     var dowCnt = [0,0,0,0,0,0,0];
     var dowOverall = 0;
     dowData.forEach(function(d) {
-      if (!isCleanDay(d)) return;
+      if (!isAdaptiveClean(d)) return;
       var dow = dayOfWeek(d.date);
       dowSum[dow] += d.total;
       dowCnt[dow]++;
@@ -1867,21 +1867,21 @@ const Forecaster = {
     if (dailySales.length < 180) return [];
     /* Build lookup by date string — only clean days */
     var lookup = {};
-    dailySales.forEach(function(d) { if (isCleanDay(d)) lookup[d.date] = d.total; });
+    dailySales.forEach(function(d) { if (isAdaptiveClean(d)) lookup[d.date] = d.total; });
 
     /* Compute annual growth rate: compare recent 60 days vs same period 1 year ago.
        Cap growth adjustment at ±25% to prevent extreme scaling. */
     var n = dailySales.length;
     var recentClean = [];
     for (var ri = Math.max(0, n - 60); ri < n; ri++) {
-      if (isCleanDay(dailySales[ri])) recentClean.push(dailySales[ri]);
+      if (isAdaptiveClean(dailySales[ri])) recentClean.push(dailySales[ri]);
     }
     var recentAvg = recentClean.length > 0 ? recentClean.reduce(function(s,d){return s+d.total;},0) / recentClean.length : 0;
     var growthByYear = {};
     for (var gyr = 1; gyr <= 2; gyr++) {
       var priorClean = [];
       for (var pi = 0; pi < n; pi++) {
-        if (!isCleanDay(dailySales[pi])) continue;
+        if (!isAdaptiveClean(dailySales[pi])) continue;
         var daysBack = Math.round((new Date(dailySales[n-1].date + 'T12:00:00') - new Date(dailySales[pi].date + 'T12:00:00')) / 86400000);
         if (daysBack >= gyr * 365 - 30 && daysBack <= gyr * 365 + 30) {
           priorClean.push(dailySales[pi]);
@@ -1953,7 +1953,7 @@ const Forecaster = {
     if (!pcsPreds || pcsPreds.length === 0) return [];
     /* Build dollar lookup from training data */
     var dollarMap = {};
-    dailySales.forEach(function(d) { if (isCleanDay(d)) dollarMap[d.date] = d.total; });
+    dailySales.forEach(function(d) { if (isAdaptiveClean(d)) dollarMap[d.date] = d.total; });
     /* Compute per-DOW $/piece ratio from last 60 days of overlap with recency weighting */
     var pcsN = dailyPcs.length;
     var dppByDow = [[],[],[],[],[],[],[]];
@@ -2000,7 +2000,7 @@ const Forecaster = {
     /* Initialize level from ALL clean data (more stable than first 2 weeks) */
     var initSum = 0, initCnt = 0;
     for (var si = 0; si < n; si++) {
-      if (isCleanDay(dailySales[si])) { initSum += dailySales[si].total; initCnt++; }
+      if (isAdaptiveClean(dailySales[si])) { initSum += dailySales[si].total; initCnt++; }
     }
     if (initCnt === 0) return [];
     var level = initSum / initCnt;
@@ -2010,7 +2010,7 @@ const Forecaster = {
     var seasonal = [1,1,1,1,1,1,1];
     var sDow = [0,0,0,0,0,0,0], sCnt = [0,0,0,0,0,0,0];
     for (var iw = 0; iw < n; iw++) {
-      if (!isCleanDay(dailySales[iw])) continue;
+      if (!isAdaptiveClean(dailySales[iw])) continue;
       var dw = dayOfWeek(dailySales[iw].date);
       sDow[dw] += dailySales[iw].total;
       sCnt[dw]++;
@@ -2022,14 +2022,14 @@ const Forecaster = {
     /* Re-init level from recent data (last 4 weeks) for recency */
     var recentSum = 0, recentCnt = 0;
     for (var ri = Math.max(0, n - 28); ri < n; ri++) {
-      if (isCleanDay(dailySales[ri])) { recentSum += dailySales[ri].total; recentCnt++; }
+      if (isAdaptiveClean(dailySales[ri])) { recentSum += dailySales[ri].total; recentCnt++; }
     }
     if (recentCnt > 0) level = recentSum / recentCnt;
 
     /* Run through data — last 1 year for better seasonal estimates with 4yr data */
     var startIdx = Math.max(0, n - 365);
     for (var ki = startIdx; ki < n; ki++) {
-      if (!isCleanDay(dailySales[ki])) continue;
+      if (!isAdaptiveClean(dailySales[ki])) continue;
       var sIdx = dayOfWeek(dailySales[ki].date);
       var prevLevel = level;
       level = alpha * (dailySales[ki].total / (seasonal[sIdx] || 1)) + (1 - alpha) * (level + trend);
@@ -2073,7 +2073,7 @@ const Forecaster = {
         preds.forEach(function(p2) { predMap[p2.date] = p2.predicted; });
         var totAbs = 0, totAct = 0;
         test.forEach(function(act) {
-          if (!isCleanDay(act)) return;
+          if (!isAdaptiveClean(act)) return;
           var pred = predMap[act.date];
           if (pred != null) {
             totAbs += Math.abs(act.total - pred);
@@ -2244,7 +2244,7 @@ const Forecaster = {
       var nLen = dailySales.length;
       for (var bi = Math.max(0, nLen - 84); bi < nLen; bi++) {
         var bd = dailySales[bi];
-        if (!isCleanDay(bd)) continue;
+        if (!isAdaptiveClean(bd)) continue;
         var bDow = dayOfWeek(bd.date);
         var bAge = nLen - 1 - bi; /* days ago */
         if (bAge < 28) {
@@ -2270,7 +2270,7 @@ const Forecaster = {
         var monSum2 = new Array(12).fill(0), monCnt2 = new Array(12).fill(0);
         var monAll2 = 0, monAllCnt2 = 0;
         dailySales.forEach(function(d) {
-          if (!isCleanDay(d)) return;
+          if (!isAdaptiveClean(d)) return;
           var mi = parseInt(d.date.slice(5, 7), 10) - 1;
           monSum2[mi] += d.total; monCnt2[mi]++;
           monAll2 += d.total; monAllCnt2++;
@@ -2439,8 +2439,8 @@ function isCleanDay(d) {
   return true;
 }
 
-/* Adaptive clean-day filter: returns false for days below 40% of their DOW's recent average.
-   Catches holiday-adjacent half-days that pass the fixed $ threshold but are anomalously low.
+/* Adaptive clean-day filter: returns false for days below 60% of their DOW's recent average.
+   Catches holiday-impacted and anomalously low days that pass the fixed $ threshold.
    Uses a cached DOW average computed from clean data (avoids recursion with isCleanDay). */
 var _dowAvgCache = null;
 var _dowAvgCacheKey = '';
@@ -2467,12 +2467,12 @@ function isAdaptiveClean(d) {
     }
     _dowAvgCacheKey = cacheKey;
   }
-  /* Check if day is below 40% of its DOW average */
+  /* Check if day is below 60% of its DOW average */
   var dolMap2 = getSalesDollarMap();
   var dollarAmt = dolMap2[d.date];
   if (dollarAmt == null) dollarAmt = d.total;
   var dowAvg = _dowAvgCache[dayOfWeek(d.date)];
-  if (dowAvg > 0 && dollarAmt < dowAvg * 0.40) return false;
+  if (dowAvg > 0 && dollarAmt < dowAvg * 0.60) return false;
   return true;
 }
 
@@ -2598,7 +2598,7 @@ function computeWeatherImpact() {
   Object.keys(salesByDate).forEach(function(dt) {
     var w = wMap[dt];
     if (!w) return;
-    if (!isCleanDay({ date: dt, total: salesByDate[dt] })) return;
+    if (!isAdaptiveClean({ date: dt, total: salesByDate[dt] })) return;
     var entry = { sale: salesByDate[dt], pieces: piecesByDate[dt] || 0 };
     var rn = (w.bizRain != null) ? w.bizRain : w.rain;
     var isRainy = rn > 2;
@@ -2705,7 +2705,7 @@ function getLearnedWeatherAdj() {
     var w = wMap[dt];
     if (!w) return;
     /* Use isCleanDay: skip closed, zero, sub-threshold days (checks dollar amounts) */
-    if (!isCleanDay({ date: dt, total: dolMap[dt] || 0 })) return;
+    if (!isAdaptiveClean({ date: dt, total: dolMap[dt] || 0 })) return;
     var pcs = pcsByDate[dt];
     var rn = (w.bizRain != null) ? w.bizRain : w.rain;
     if (w.tempMax > heatThresh && rn <= 2) { buckets.hot.push(pcs); return; }
@@ -2931,7 +2931,7 @@ function computeConfidenceIntervals(forecastArr, dailyData) {
     var predMap = {};
     preds.forEach(function(p) { predMap[p.date] = p.predicted; });
     test.forEach(function(act) {
-      if (!isCleanDay(act)) return;
+      if (!isAdaptiveClean(act)) return;
       var pred = predMap[act.date];
       if (pred == null) return;
       var pctErr = Math.abs(act.total - pred) / act.total;
@@ -3867,8 +3867,12 @@ function exportBacktest(idx) {
     var isClosed = isClosedDate(e.date);
     var belowThresh = dollarVal != null && minThresh > 0 && dollarVal < minThresh;
     var noData = dollarVal == null || dollarVal === undefined;
-    var skip = isClosed || belowThresh || noData;
-    var status = skip ? (isClosed ? 'CLOSED' : (belowThresh ? 'BELOW THRESH' : 'NO DATA')) : 'COUNTED';
+    var adaptiveSkip = false;
+    if (!isClosed && !belowThresh && !noData) {
+      adaptiveSkip = !isAdaptiveClean({ date: e.date, total: dollarVal });
+    }
+    var skip = isClosed || belowThresh || noData || adaptiveSkip;
+    var status = skip ? (isClosed ? 'CLOSED' : (belowThresh ? 'BELOW THRESH' : (noData ? 'NO DATA' : 'OUTLIER'))) : 'COUNTED';
     var pcsFc = predPcs != null ? Math.round(predPcs) : '';
     var pcsAct = actualPcs != null ? Math.round(actualPcs) : '';
     var pcsErr = '';
@@ -3995,14 +3999,18 @@ function renderFvsActual() {
       var actualPcs = e.actualPcs != null ? e.actualPcs : pcsMap[e.date];
       var predPcs = e.predictedPcs != null ? e.predictedPcs : null;
       var dayName = DAYS[dayOfWeek(e.date)];
-      /* Skip: day not in data, below threshold, closed, or holiday */
+      /* Skip: day not in data, below threshold, closed, or anomalously low */
       var dollarVal = dailyMap[e.date];
       var isClosed = isClosedDate(e.date);
       var belowThresh = dollarVal != null && minThresh > 0 && dollarVal < minThresh;
       var noData = dollarVal == null || dollarVal === undefined;
-      var skip = isClosed || belowThresh || noData;
+      var adaptiveSkip = false;
+      if (!isClosed && !belowThresh && !noData) {
+        adaptiveSkip = !isAdaptiveClean({ date: e.date, total: dollarVal });
+      }
+      var skip = isClosed || belowThresh || noData || adaptiveSkip;
       if (skip) {
-        var reason = isClosed ? 'CLOSED' : (belowThresh ? 'BELOW THRESH' : 'NO DATA');
+        var reason = isClosed ? 'CLOSED' : (belowThresh ? 'BELOW THRESH' : (noData ? 'NO DATA' : 'OUTLIER'));
         tHtml += '<tr style="opacity:0.35;"><td>' + e.date + '</td><td>' + dayName + '</td>';
         tHtml += '<td colspan="3" style="text-align:center;color:var(--muted);font-size:11px;">' + reason + '</td>';
         tHtml += '<td colspan="3" style="text-align:center;color:var(--muted);font-size:11px;">' + reason + '</td>';
@@ -4193,7 +4201,7 @@ function detectAnomalies(lookbackDays) {
   /* Build DOW stats from all clean data */
   var dowSums = [0,0,0,0,0,0,0], dowSumSq = [0,0,0,0,0,0,0], dowCnts = [0,0,0,0,0,0,0];
   daily.forEach(function(d) {
-    if (!isCleanDay(d)) return;
+    if (!isAdaptiveClean(d)) return;
     var dw = dayOfWeek(d.date);
     dowSums[dw] += d.total;
     dowSumSq[dw] += d.total * d.total;
@@ -4216,7 +4224,7 @@ function detectAnomalies(lookbackDays) {
   var anomalies = [];
   for (var j = startIdx; j < daily.length; j++) {
     var d = daily[j];
-    if (!isCleanDay(d)) continue;
+    if (!isAdaptiveClean(d)) continue;
     var dw = dayOfWeek(d.date);
     if (dowStd[dw] === 0 || dowCnts[dw] < 3) continue;
     var zScore = (d.total - dowMean[dw]) / dowStd[dw];
@@ -4662,7 +4670,7 @@ function learnEventImpacts() {
     var ev = events[ei];
     var evDays = [], nonEvDays = [];
     daily.forEach(function(d) {
-      if (!isCleanDay(d)) return;
+      if (!isAdaptiveClean(d)) return;
       if (isDateInEventWindow(d.date, ev.startMmDd, ev.endMmDd)) {
         evDays.push(d);
       } else {
