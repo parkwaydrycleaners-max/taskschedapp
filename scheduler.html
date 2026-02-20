@@ -711,6 +711,11 @@ select.form-input { appearance: auto; }
           <input class="form-input" id="setSalesPerHour" type="number" step="1" placeholder="60">
           <span style="font-size:11px;color:var(--muted);display:block;margin-top:3px;">Used as fallback when piece data is unavailable.</span>
         </div>
+        <div class="form-group" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
+          <label class="form-label">Per-Day Staffing Adjustment %</label>
+          <span style="font-size:11px;color:var(--muted);display:block;margin-bottom:8px;">Adjust recommended hours per day of the week. 100% = no change. Set Monday higher if it needs more staff due to drop-offs, sorting, etc.</span>
+          <div id="dowStaffAdjInputs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;"></div>
+        </div>
         <div id="actualPiecesMetrics" style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;display:none;">
           <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--fg);">&#x1F4CA; Actual Pieces/Hour from Data</div>
           <div id="actualPphOverall" style="font-size:13px;margin-bottom:8px;color:var(--fg);"></div>
@@ -961,6 +966,7 @@ const AppState = {
     avgWage: 18,
     salesPerHour: 60,
     piecesPerHour: 8,
+    dowStaffAdj: [100,100,100,100,100,100,100], /* Per-DOW staffing % (Sun=0..Sat=6), 100 = no change */
     bizOpen: 7,
     bizClose: 19,
     rainAdjLight: 8,
@@ -2705,6 +2711,15 @@ function calculateDailyHours(forecastedSales, dateString, forecastedPieces) {
     } else {
       /* FALLBACK: Dollar-based if no piece data available */
       hours = forecastedSales / (s.salesPerHour || 60);
+    }
+  }
+
+  /* Per-DOW staffing adjustment: user can set Monday to 130% if it needs more staff */
+  if (dateString && s.dowStaffAdj) {
+    var adjDow = dayOfWeek(dateString);
+    var adjPct = s.dowStaffAdj[adjDow];
+    if (adjPct != null && adjPct !== 100 && adjPct > 0) {
+      hours *= (adjPct / 100);
     }
   }
 
@@ -4486,6 +4501,7 @@ function loadSettings() {
   document.getElementById('setMinThreshold').value = s.minSalesThreshold;
   document.getElementById('setMinThreshold').disabled = !document.getElementById('setMinThresholdOn').checked;
   renderCategoriesList();
+  renderDowStaffAdj();
   renderClosedDaysChecks();
   renderHolidaysList();
   renderEventsList();
@@ -4572,6 +4588,24 @@ function getHolidayDatesForYear(year) {
 /* Backward-compat: build HOLIDAY_LABELS dynamically for any code still referencing it */
 var HOLIDAY_LABELS = {};
 HOLIDAY_DEFS.forEach(function(h) { if (h.mmdd) HOLIDAY_LABELS[h.mmdd] = h.name; });
+
+function renderDowStaffAdj() {
+  var el = document.getElementById('dowStaffAdjInputs');
+  if (!el) return;
+  var adj = AppState.settings.dowStaffAdj || [100,100,100,100,100,100,100];
+  var html = '';
+  DAYS_FULL.forEach(function(name, idx) {
+    var val = adj[idx] != null ? adj[idx] : 100;
+    var color = val > 100 ? 'color:var(--success);font-weight:600;' : (val < 100 ? 'color:var(--danger);font-weight:600;' : '');
+    html += '<div style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--bg);border-radius:6px;">' +
+      '<span style="font-size:13px;min-width:36px;">' + name.slice(0,3) + '</span>' +
+      '<input type="number" id="dowAdj' + idx + '" value="' + val + '" min="50" max="200" step="5" ' +
+      'style="width:60px;text-align:center;font-size:14px;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--card-bg);color:var(--text);' + color + '" ' +
+      'oninput="this.style.color=this.value>100?\'var(--success)\':this.value<100?\'var(--danger)\':\'var(--text)\';this.style.fontWeight=this.value!=100?\'600\':\'normal\'">' +
+      '<span style="font-size:12px;color:var(--muted);">%</span></div>';
+  });
+  el.innerHTML = html;
+}
 
 function renderClosedDaysChecks() {
   var el = document.getElementById('closedDaysChecks');
@@ -4827,6 +4861,13 @@ async function saveSettings() {
   s.heatAdj = parseFloat(document.getElementById('setHeatAdj').value) || 10;
   s.minSalesThresholdOn = document.getElementById('setMinThresholdOn').checked;
   s.minSalesThreshold = parseFloat(document.getElementById('setMinThreshold').value) || 200;
+
+  /* Read per-DOW staffing adjustments */
+  s.dowStaffAdj = [];
+  for (var dai = 0; dai < 7; dai++) {
+    var adjInput = document.getElementById('dowAdj' + dai);
+    s.dowStaffAdj.push(adjInput ? (parseInt(adjInput.value) || 100) : 100);
+  }
 
   /* Read closed days checkboxes */
   s.closedDays = [];
