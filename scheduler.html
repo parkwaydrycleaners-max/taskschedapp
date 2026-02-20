@@ -1724,7 +1724,9 @@ const Forecaster = {
           if (testStart < 14) break;
           var train = dailySales.slice(0, testStart);
           var test = dailySales.slice(testStart, testEnd);
-          var preds = self.exponentialSmoothing(train, a, testDays);
+          if (test.length === 0 || train.length === 0) continue;
+          var calSpan = Math.round((new Date(test[test.length-1].date+'T12:00:00') - new Date(train[train.length-1].date+'T12:00:00')) / 86400000);
+          var preds = self.exponentialSmoothing(train, a, Math.max(testDays, calSpan + 1));
           if (!preds || preds.length === 0) continue;
           var predMap = {};
           preds.forEach(function(p) { predMap[p.date] = p.predicted; });
@@ -2063,7 +2065,9 @@ const Forecaster = {
         var testStart = testEnd - testDays;
         var train = dailySales.slice(0, testStart);
         var test = dailySales.slice(testStart, testEnd);
-        var preds = self._holtWintersCore(train, testDays, p[0], p[1], p[2]);
+        if (test.length === 0 || train.length === 0) return;
+        var calSpan = Math.round((new Date(test[test.length-1].date+'T12:00:00') - new Date(train[train.length-1].date+'T12:00:00')) / 86400000);
+        var preds = self._holtWintersCore(train, Math.max(testDays, calSpan + 1), p[0], p[1], p[2]);
         if (!preds || preds.length === 0) return;
         var predMap = {};
         preds.forEach(function(p2) { predMap[p2.date] = p2.predicted; });
@@ -2131,7 +2135,10 @@ const Forecaster = {
       if (testStart < minTrain) break;
       var train = dailySales.slice(0, testStart);
       var test = dailySales.slice(testStart, testEnd);
-      var preds = methodFn.call(self, train, testDays);
+      if (test.length === 0 || train.length === 0) continue;
+      /* Compute actual calendar span so predictions cover all test dates */
+      var calSpan = Math.round((new Date(test[test.length-1].date+'T12:00:00') - new Date(train[train.length-1].date+'T12:00:00')) / 86400000);
+      var preds = methodFn.call(self, train, Math.max(testDays, calSpan + 1));
       if (!preds || preds.length === 0) continue;
       /* Build prediction map keyed by date — match by DATE not index */
       var predMap = {};
@@ -2334,8 +2341,11 @@ const Forecaster = {
       if (testStart < minTrain) break;
       var trainData = dailySales.slice(0, testStart);
       var testData = dailySales.slice(testStart, testEnd);
-      var rawPreds = self.ensemble(trainData, testDays, { raw: true });
-      var adjPreds = self.ensemble(trainData, testDays);
+      if (testData.length === 0 || trainData.length === 0) continue;
+      var calSpan = Math.round((new Date(testData[testData.length-1].date+'T12:00:00') - new Date(trainData[trainData.length-1].date+'T12:00:00')) / 86400000);
+      var predDays = Math.max(testDays, calSpan + 1);
+      var rawPreds = self.ensemble(trainData, predDays, { raw: true });
+      var adjPreds = self.ensemble(trainData, predDays);
       /* Build prediction maps keyed by date — match by DATE not index */
       var rawMap = {}, adjMap = {};
       rawPreds.forEach(function(p) { rawMap[p.date] = p.predicted; });
@@ -2915,7 +2925,9 @@ function computeConfidenceIntervals(forecastArr, dailyData) {
     if (testStart < 21) break;
     var train = dailyData.slice(0, testStart);
     var test = dailyData.slice(testStart, testEnd);
-    var preds = Forecaster.ensemble(train, 7, { raw: true });
+    if (test.length === 0 || train.length === 0) continue;
+    var calSpan = Math.round((new Date(test[test.length-1].date+'T12:00:00') - new Date(train[train.length-1].date+'T12:00:00')) / 86400000);
+    var preds = Forecaster.ensemble(train, Math.max(7, calSpan + 1), { raw: true });
     var predMap = {};
     preds.forEach(function(p) { predMap[p.date] = p.predicted; });
     test.forEach(function(act) {
@@ -3834,6 +3846,58 @@ function removeForecastSnapshot(idx) {
   renderFvsActual();
 }
 
+function exportBacktest(idx) {
+  var snap = AppState.savedForecasts[idx];
+  if (!snap) return;
+  var daily = getDailySales();
+  var dailyPcs = getDailyPieces();
+  var dailyMap = {};
+  daily.forEach(function(d) { dailyMap[d.date] = d.total; });
+  var pcsMap = {};
+  dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
+  var minThresh = (AppState.settings.minSalesThresholdOn && AppState.settings.minSalesThreshold > 0) ? AppState.settings.minSalesThreshold : 0;
+  /* Build CSV header */
+  var rows = [['Date', 'Day', 'Pcs Forecast', 'Pcs Actual', 'Pcs Err%', '$ Forecast', '$ Actual', '$ Err%', 'Status']];
+  snap.entries.forEach(function(e) {
+    var actual = e.actual != null ? e.actual : dailyMap[e.date];
+    var actualPcs = e.actualPcs != null ? e.actualPcs : pcsMap[e.date];
+    var predPcs = e.predictedPcs != null ? e.predictedPcs : null;
+    var dayName = DAYS[dayOfWeek(e.date)];
+    var dollarVal = dailyMap[e.date];
+    var isClosed = isClosedDate(e.date);
+    var belowThresh = dollarVal != null && minThresh > 0 && dollarVal < minThresh;
+    var noData = dollarVal == null || dollarVal === undefined;
+    var skip = isClosed || belowThresh || noData;
+    var status = skip ? (isClosed ? 'CLOSED' : (belowThresh ? 'BELOW THRESH' : 'NO DATA')) : 'COUNTED';
+    var pcsFc = predPcs != null ? Math.round(predPcs) : '';
+    var pcsAct = actualPcs != null ? Math.round(actualPcs) : '';
+    var pcsErr = '';
+    if (predPcs != null && actualPcs != null && actualPcs > 0) {
+      pcsErr = (((actualPcs - predPcs) / actualPcs) * 100).toFixed(1) + '%';
+    }
+    var dolFc = e.predicted != null ? e.predicted.toFixed(0) : '';
+    var dolAct = actual != null ? actual.toFixed(0) : '';
+    var dolErr = '';
+    if (actual != null && actual > 0) {
+      dolErr = (((actual - e.predicted) / actual) * 100).toFixed(1) + '%';
+    }
+    rows.push([e.date, dayName, pcsFc, pcsAct, pcsErr, dolFc, dolAct, dolErr, status]);
+  });
+  var csvContent = rows.map(function(r) {
+    return r.map(function(c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\n');
+  var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'backtest_' + snap.savedDate.replace(/[^a-zA-Z0-9]/g, '_') + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Backtest exported as CSV');
+}
+
 function runBacktestComparison() {
   var daily = getDailySales();
   var dailyPcs = getDailyPieces();
@@ -3850,13 +3914,17 @@ function runBacktestComparison() {
   if (daily.length < nDays + 14) { toast('Not enough data for ' + nDays + '-day backtest', 'error'); return; }
   var trainData = daily.slice(0, -nDays);
   var testData = daily.slice(-nDays);
-  var predictions = Forecaster.ensemble(trainData, nDays);
+  /* Compute actual calendar span so predictions cover all test dates */
+  var calSpan = Math.round((new Date(testData[testData.length-1].date+'T12:00:00') - new Date(trainData[trainData.length-1].date+'T12:00:00')) / 86400000);
+  var predDays = Math.max(nDays, calSpan + 1);
+  var predictions = Forecaster.ensemble(trainData, predDays);
   if (!predictions || predictions.length === 0) { toast('Backtest produced no results', 'error'); return; }
   /* Also backtest pieces */
   var hasPcs = dailyPcs.length >= nDays + 14;
   var trainPcs = hasPcs ? dailyPcs.slice(0, -nDays) : [];
   var testPcs = hasPcs ? dailyPcs.slice(-nDays) : [];
-  var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, nDays) : [];
+  var pcsCalSpan = (hasPcs && trainPcs.length > 0 && testPcs.length > 0) ? Math.round((new Date(testPcs[testPcs.length-1].date+'T12:00:00') - new Date(trainPcs[trainPcs.length-1].date+'T12:00:00')) / 86400000) : nDays;
+  var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, Math.max(nDays, pcsCalSpan + 1)) : [];
   /* Build pieces lookup by date for matching */
   var pcsMap = {};
   dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
@@ -3908,7 +3976,10 @@ function renderFvsActual() {
     var tHtml = '<div style="margin-bottom:20px;border:1px solid var(--border);border-radius:var(--radius);padding:12px;overflow-x:auto;">';
     tHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
     tHtml += '<strong style="font-size:13px;">' + snap.savedDate + '</strong>';
-    tHtml += '<button class="btn btn-sm" style="color:var(--danger);font-size:12px;padding:2px 8px;" onclick="removeForecastSnapshot(' + si + ')">✕ Remove</button></div>';
+    tHtml += '<div style="display:flex;gap:6px;">';
+    tHtml += '<button class="btn btn-sm" style="font-size:12px;padding:2px 8px;" onclick="exportBacktest(' + si + ')">📥 Export CSV</button>';
+    tHtml += '<button class="btn btn-sm" style="color:var(--danger);font-size:12px;padding:2px 8px;" onclick="removeForecastSnapshot(' + si + ')">✕ Remove</button>';
+    tHtml += '</div></div>';
     tHtml += '<table style="font-size:12px;"><thead><tr><th>Date</th><th>Day</th>';
     /* Pieces columns first */
     tHtml += '<th style="text-align:right;color:var(--accent);">Pcs Fc</th><th style="text-align:right;color:var(--accent);">Pcs Act</th><th style="text-align:right;color:var(--accent);">Pcs Err%</th>';
