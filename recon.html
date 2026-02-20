@@ -1279,7 +1279,7 @@
             // Check for negative values where they don't make sense
             const inputs = document.querySelectorAll('input[type="number"]');
             inputs.forEach(input => {
-                if (parseFloat(input.value) < 0 && input.id !== 'cardBalance' && input.id !== 'cashBalance') {
+                if (parseFloat(input.value) < 0 && input.id !== 'cardBalance' && input.id !== 'cashBalance' && input.id !== 'posExpense') {
                     const label = input.closest('.row')?.querySelector('.row-label')?.textContent || input.id;
                     warnings.push(`⚠️ Negative value in "${label.trim()}" - is this correct?`);
                 }
