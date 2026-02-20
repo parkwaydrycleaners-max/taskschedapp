@@ -1107,6 +1107,88 @@ tailwind.config = {
         </div>
     </div>
 
+    <!-- Airtable Service Interruption Modal -->
+    <div id="serviceInterruptionModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden fade-in">
+            <!-- Red header bar -->
+            <div class="bg-red-600 px-6 py-4 flex items-center space-x-3">
+                <svg class="w-8 h-8 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <div>
+                    <h3 class="text-white text-lg font-bold">Airtable Service Interruption</h3>
+                    <p class="text-red-100 text-sm">Unable to connect to Airtable</p>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="px-6 py-5 space-y-4">
+                <!-- Error details -->
+                <div id="serviceErrorDetails" class="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p class="text-sm font-semibold text-red-800 mb-1">Error Details:</p>
+                    <p id="serviceErrorMessage" class="text-sm text-red-700">Connection to Airtable failed.</p>
+                    <p id="serviceErrorCode" class="text-xs text-red-500 mt-1"></p>
+                </div>
+
+                <!-- Status info -->
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+                    <div class="flex items-start space-x-3">
+                        <svg class="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="text-sm text-gray-700">
+                            <p class="font-medium mb-1">This is likely an Airtable service issue.</p>
+                            <p>Airtable may be experiencing downtime or service disruptions. Your data is safe &mdash; it will load once the service is restored.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2 text-sm text-gray-600">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Failed attempts: <strong id="serviceFailCount">0</strong></span>
+                        <span class="text-gray-300">|</span>
+                        <span>Last attempt: <strong id="serviceLastAttemptTime">--</strong></span>
+                    </div>
+                </div>
+
+                <!-- Auto-retry countdown -->
+                <div id="serviceAutoRetrySection" class="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <div id="serviceRetrySpinner" class="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
+                        <span class="text-sm text-blue-700">Auto-retry in <strong id="serviceRetryCountdown">30</strong>s</span>
+                    </div>
+                    <button id="serviceRetryNowBtn" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors font-medium">
+                        Retry Now
+                    </button>
+                </div>
+
+                <!-- Airtable status link -->
+                <div class="flex items-center justify-between pt-2">
+                    <a href="https://status.airtable.com" target="_blank" class="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                        </svg>
+                        Check Airtable Status Page
+                    </a>
+                </div>
+            </div>
+
+            <!-- Footer actions -->
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+                <button id="serviceDismissBtn" class="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors text-sm">
+                    Dismiss
+                </button>
+                <button id="serviceRetryMainBtn" class="px-6 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors font-medium flex items-center space-x-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span>Retry Connection</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notifications -->
     <div id="toastContainer" class="fixed top-20 right-4 z-50 space-y-2">
         <!-- Toasts will be added here dynamically -->
@@ -1204,6 +1286,20 @@ tailwind.config = {
  tasks: 'Tasks',
  capacityOverrides: 'CapacityOverrides'
  }
+ };
+
+ // -----------------------------------------------------------------
+ // SERVICE INTERRUPTION STATE
+ // -----------------------------------------------------------------
+ this.serviceInterruption = {
+ isActive: false,
+ consecutiveFailures: 0,
+ lastError: null,
+ lastStatusCode: null,
+ lastAttemptTime: null,
+ retryCountdownTimer: null,
+ retryCountdownSeconds: 30,
+ modalVisible: false
  };
 
  // -----------------------------------------------------------------
@@ -7513,13 +7609,31 @@ if (savedConfig) {
  if (savedConfig.tablesConfig) {
  this.airtableConfig.tablesConfig = savedConfig.tablesConfig;
  }
- 
+
  try {
  this.showLoading('Loading data from Airtable...');
  await this.loadAllDataFromAirtable();
  this.renderWhiteboard();
  } catch (error) {
  console.warn('Failed to auto-load from Airtable:', error);
+ // If service interruption modal is already showing, don't double up
+ if (!this.serviceInterruption.modalVisible) {
+ // Check if this looks like a service issue
+ const isServiceIssue = error.isServerError ||
+ !navigator.onLine ||
+ (error.message && (
+ error.message.includes('Failed to fetch') ||
+ error.message.includes('NetworkError') ||
+ error.message.includes('Load failed') ||
+ (error.statusCode && error.statusCode >= 500)
+ ));
+
+ if (isServiceIssue) {
+ this.serviceInterruption.isActive = true;
+ this.serviceInterruption.consecutiveFailures++;
+ this.showServiceInterruptionModal(error);
+ }
+ }
  // Fallback to local storage if Airtable fails
  await this.loadPeopleCapacityFromLocal();
  } finally {
@@ -8152,7 +8266,7 @@ if (savedConfig) {
 async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false) {
  const url = `https://api.airtable.com/v0/${this.airtableConfig.baseId}/${endpoint}`;
  const maxRetries = 3;
- 
+
  for (let attempt = 1; attempt <= maxRetries; attempt++) {
  try {
  const options = {
@@ -8168,29 +8282,62 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  }
 
  const response = await fetch(url, options);
- 
+
  if (!response.ok) {
- const error = await response.json();
+ let errorBody = {};
+ try { errorBody = await response.json(); } catch(e) { /* ignore parse error */ }
+ const statusCode = response.status;
  if (!silent) {
- console.error('❌ Airtable error response:', error);
+ console.error('❌ Airtable error response:', statusCode, errorBody);
  }
- throw new Error(error.error?.message || `HTTP ${response.status}`);
+ const errorMsg = errorBody.error?.message || `HTTP ${statusCode}`;
+ const err = new Error(errorMsg);
+ err.statusCode = statusCode;
+ err.isServerError = statusCode >= 500;
+ throw err;
  }
 
  const result = await response.json();
- if (!silent) {
- }
- 
- // Reset error count on success
+
+ // Reset error count on success and clear service interruption
  this.errorCount = 0;
+ if (this.serviceInterruption.consecutiveFailures > 0) {
+ this.serviceInterruption.consecutiveFailures = 0;
+ this.serviceInterruption.isActive = false;
+ if (this.serviceInterruption.modalVisible) {
+ this.hideServiceInterruptionModal();
+ this.showToast('✅ Airtable connection restored!', 'success');
+ }
+ }
  return result;
- 
+
  } catch (error) {
  if (!silent) {
  console.warn(`Airtable request attempt ${attempt}/${maxRetries} failed:`, error.message);
  }
- 
+
  if (attempt === maxRetries) {
+ // Track consecutive failures for service interruption detection
+ this.serviceInterruption.consecutiveFailures++;
+ this.serviceInterruption.lastError = error.message;
+ this.serviceInterruption.lastStatusCode = error.statusCode || null;
+ this.serviceInterruption.lastAttemptTime = new Date();
+
+ // Detect service interruption: server errors (5xx), network failures, or repeated failures
+ const isServiceIssue = error.isServerError ||
+ !navigator.onLine ||
+ error.message.includes('Failed to fetch') ||
+ error.message.includes('NetworkError') ||
+ error.message.includes('Load failed') ||
+ error.message.includes('network') ||
+ this.serviceInterruption.consecutiveFailures >= 2;
+
+ if (isServiceIssue) {
+ this.serviceInterruption.isActive = true;
+ this.showServiceInterruptionModal(error);
+ throw error; // Still throw so callers know it failed
+ }
+
  // Add to retry queue if offline
  if (!navigator.onLine) {
  this.retryQueue = this.retryQueue || [];
@@ -8201,7 +8348,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  }
  throw error;
  }
- 
+
  // Wait before retry: 1s, 2s, 4s
  const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
  await new Promise(resolve => setTimeout(resolve, delay));
@@ -8468,7 +8615,10 @@ async loadAllDataFromAirtable() {
  
  } catch (error) {
  console.error('❌ Parallel loading failed:', error);
+ // Only show toast if service interruption modal isn't handling it
+ if (!this.serviceInterruption.isActive && !this.serviceInterruption.modalVisible) {
  this.showErrorToast('Failed to load data from Airtable');
+ }
  } finally {
  this.hideLoading();
  }
@@ -9183,13 +9333,277 @@ handleBackOnline() {
 handleProductionError(error, context = '') {
  this.errorCount = (this.errorCount || 0) + 1;
  console.error(`[${context}] Error #${this.errorCount}:`, error);
- 
+
+ // If a service interruption is active, suppress individual toasts to avoid spam
+ if (this.serviceInterruption.isActive || this.serviceInterruption.modalVisible) {
+ return;
+ }
+
  if (error.message.includes('Airtable')) {
  this.showErrorToast('sync');
  } else if (error.message.includes('Network')) {
  this.showErrorToast('network');
  } else {
  this.showErrorToast('validation', 'Something went wrong. Please refresh if issues persist.');
+ }
+}
+
+// =========================================================
+// SERVICE INTERRUPTION MODAL
+// =========================================================
+
+showServiceInterruptionModal(error) {
+ const modal = document.getElementById('serviceInterruptionModal');
+ if (!modal) return;
+
+ // Update error details
+ const errorMsgEl = document.getElementById('serviceErrorMessage');
+ const errorCodeEl = document.getElementById('serviceErrorCode');
+ const failCountEl = document.getElementById('serviceFailCount');
+ const lastAttemptEl = document.getElementById('serviceLastAttemptTime');
+
+ if (errorMsgEl) {
+ const friendlyMsg = this.getServiceErrorDescription(error);
+ errorMsgEl.textContent = friendlyMsg;
+ }
+
+ if (errorCodeEl) {
+ const statusCode = error.statusCode || '';
+ const rawMsg = error.message || '';
+ let codeText = '';
+ if (statusCode) codeText += `HTTP ${statusCode}`;
+ if (rawMsg && rawMsg !== codeText) codeText += codeText ? ` — ${rawMsg}` : rawMsg;
+ errorCodeEl.textContent = codeText;
+ }
+
+ if (failCountEl) {
+ failCountEl.textContent = this.serviceInterruption.consecutiveFailures;
+ }
+
+ if (lastAttemptEl) {
+ const now = new Date();
+ lastAttemptEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+ }
+
+ // Show modal (only if not already visible to avoid duplicating listeners)
+ if (!this.serviceInterruption.modalVisible) {
+ modal.classList.remove('hidden');
+ this.serviceInterruption.modalVisible = true;
+
+ // Attach event listeners (once)
+ this.attachServiceInterruptionListeners();
+
+ // Start auto-retry countdown
+ this.startServiceRetryCountdown();
+ } else {
+ // Modal already visible, just update the info and restart countdown
+ this.startServiceRetryCountdown();
+ }
+
+ // Suppress the loading overlay if it's shown
+ this.hideLoading();
+}
+
+hideServiceInterruptionModal() {
+ const modal = document.getElementById('serviceInterruptionModal');
+ if (modal) {
+ modal.classList.add('hidden');
+ }
+ this.serviceInterruption.modalVisible = false;
+ this.stopServiceRetryCountdown();
+}
+
+getServiceErrorDescription(error) {
+ const msg = (error.message || '').toLowerCase();
+ const code = error.statusCode;
+
+ if (!navigator.onLine) {
+ return 'Your device is offline. Please check your internet connection.';
+ }
+ if (code === 500) {
+ return 'Airtable is experiencing internal server errors. This is a service-side issue.';
+ }
+ if (code === 502) {
+ return 'Airtable returned a bad gateway error. The service may be overloaded or down.';
+ }
+ if (code === 503) {
+ return 'Airtable service is temporarily unavailable. This usually indicates planned or unplanned maintenance.';
+ }
+ if (code === 504) {
+ return 'Airtable gateway timed out. The service is likely under heavy load.';
+ }
+ if (code === 429) {
+ return 'Too many requests to Airtable. The API rate limit has been reached.';
+ }
+ if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('load failed')) {
+ return 'Unable to reach Airtable servers. This could be a network issue or an Airtable outage.';
+ }
+ if (code >= 500) {
+ return 'Airtable is returning server errors. The service appears to be experiencing issues.';
+ }
+ return 'Connection to Airtable failed. The service may be temporarily unavailable.';
+}
+
+attachServiceInterruptionListeners() {
+ // Remove old listeners by cloning elements
+ const retryNowBtn = document.getElementById('serviceRetryNowBtn');
+ const retryMainBtn = document.getElementById('serviceRetryMainBtn');
+ const dismissBtn = document.getElementById('serviceDismissBtn');
+
+ if (retryNowBtn) {
+ const newRetryNow = retryNowBtn.cloneNode(true);
+ retryNowBtn.parentNode.replaceChild(newRetryNow, retryNowBtn);
+ newRetryNow.addEventListener('click', () => this.retryAirtableConnection());
+ }
+
+ if (retryMainBtn) {
+ const newRetryMain = retryMainBtn.cloneNode(true);
+ retryMainBtn.parentNode.replaceChild(newRetryMain, retryMainBtn);
+ newRetryMain.addEventListener('click', () => this.retryAirtableConnection());
+ }
+
+ if (dismissBtn) {
+ const newDismiss = dismissBtn.cloneNode(true);
+ dismissBtn.parentNode.replaceChild(newDismiss, dismissBtn);
+ newDismiss.addEventListener('click', () => this.hideServiceInterruptionModal());
+ }
+}
+
+async retryAirtableConnection() {
+ this.stopServiceRetryCountdown();
+
+ // Update UI to show retrying
+ const retryMainBtn = document.getElementById('serviceRetryMainBtn');
+ if (retryMainBtn) {
+ retryMainBtn.disabled = true;
+ retryMainBtn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Retrying...</span>';
+ }
+ const retryNowBtn = document.getElementById('serviceRetryNowBtn');
+ if (retryNowBtn) {
+ retryNowBtn.disabled = true;
+ retryNowBtn.textContent = 'Retrying...';
+ }
+
+ try {
+ // Try a lightweight request to test connectivity
+ const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people || 'People');
+ const testUrl = `https://api.airtable.com/v0/${this.airtableConfig.baseId}/${tableName}?maxRecords=1`;
+
+ const response = await fetch(testUrl, {
+ method: 'GET',
+ headers: {
+ 'Authorization': `Bearer ${this.airtableConfig.apiKey}`,
+ 'Content-Type': 'application/json'
+ }
+ });
+
+ if (response.ok) {
+ // Connection restored!
+ this.serviceInterruption.consecutiveFailures = 0;
+ this.serviceInterruption.isActive = false;
+ this.hideServiceInterruptionModal();
+ this.showToast('✅ Airtable connection restored! Reloading data...', 'success');
+
+ // Reload all data
+ try {
+ this.showLoading('Reloading data from Airtable...');
+ await this.loadAllDataFromAirtable();
+ this.renderWhiteboard();
+ } catch (reloadError) {
+ console.warn('Data reload after reconnect failed:', reloadError);
+ } finally {
+ this.hideLoading();
+ }
+ } else {
+ // Still failing
+ this.serviceInterruption.consecutiveFailures++;
+ this.serviceInterruption.lastAttemptTime = new Date();
+ const statusCode = response.status;
+ const err = new Error(`HTTP ${statusCode}`);
+ err.statusCode = statusCode;
+ this.serviceInterruption.lastError = err.message;
+ this.serviceInterruption.lastStatusCode = statusCode;
+
+ // Update modal with new info
+ this.updateServiceInterruptionModalInfo(err);
+ this.startServiceRetryCountdown();
+ }
+ } catch (fetchError) {
+ // Network error - still down
+ this.serviceInterruption.consecutiveFailures++;
+ this.serviceInterruption.lastAttemptTime = new Date();
+ this.serviceInterruption.lastError = fetchError.message;
+
+ this.updateServiceInterruptionModalInfo(fetchError);
+ this.startServiceRetryCountdown();
+ } finally {
+ // Restore button states
+ if (retryMainBtn) {
+ retryMainBtn.disabled = false;
+ retryMainBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Retry Connection</span>';
+ }
+ if (retryNowBtn) {
+ retryNowBtn.disabled = false;
+ retryNowBtn.textContent = 'Retry Now';
+ }
+ }
+}
+
+updateServiceInterruptionModalInfo(error) {
+ const errorMsgEl = document.getElementById('serviceErrorMessage');
+ const errorCodeEl = document.getElementById('serviceErrorCode');
+ const failCountEl = document.getElementById('serviceFailCount');
+ const lastAttemptEl = document.getElementById('serviceLastAttemptTime');
+
+ if (errorMsgEl) {
+ errorMsgEl.textContent = this.getServiceErrorDescription(error);
+ }
+ if (errorCodeEl) {
+ const statusCode = error.statusCode || '';
+ const rawMsg = error.message || '';
+ let codeText = '';
+ if (statusCode) codeText += `HTTP ${statusCode}`;
+ if (rawMsg && rawMsg !== codeText) codeText += codeText ? ` — ${rawMsg}` : rawMsg;
+ errorCodeEl.textContent = codeText;
+ }
+ if (failCountEl) {
+ failCountEl.textContent = this.serviceInterruption.consecutiveFailures;
+ }
+ if (lastAttemptEl) {
+ lastAttemptEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+ }
+}
+
+startServiceRetryCountdown() {
+ this.stopServiceRetryCountdown();
+
+ // Increase countdown interval based on consecutive failures (30s, 45s, 60s, etc.)
+ const baseSeconds = 30;
+ const extraSeconds = Math.min(this.serviceInterruption.consecutiveFailures * 15, 90);
+ this.serviceInterruption.retryCountdownSeconds = baseSeconds + extraSeconds;
+
+ const countdownEl = document.getElementById('serviceRetryCountdown');
+ const retrySection = document.getElementById('serviceAutoRetrySection');
+
+ if (retrySection) retrySection.classList.remove('hidden');
+
+ let remaining = this.serviceInterruption.retryCountdownSeconds;
+ if (countdownEl) countdownEl.textContent = remaining;
+
+ this.serviceInterruption.retryCountdownTimer = setInterval(() => {
+ remaining--;
+ if (countdownEl) countdownEl.textContent = remaining;
+
+ if (remaining <= 0) {
+ this.retryAirtableConnection();
+ }
+ }, 1000);
+}
+
+stopServiceRetryCountdown() {
+ if (this.serviceInterruption.retryCountdownTimer) {
+ clearInterval(this.serviceInterruption.retryCountdownTimer);
+ this.serviceInterruption.retryCountdownTimer = null;
  }
 }
 
@@ -9209,12 +9623,20 @@ performanceTrack(name, operation) {
 
 initOfflineDetection() {
  window.addEventListener('online', () => {
+ // If service interruption modal is showing, try to reconnect
+ if (this.serviceInterruption.modalVisible) {
+ this.retryAirtableConnection();
+ } else {
  this.showToast('Connection restored! Syncing data...', 'success');
  this.handleBackOnline();
+ }
  });
- 
+
  window.addEventListener('offline', () => {
- this.showToast('You are offline. Changes will be saved locally.', 'warning');
+ this.serviceInterruption.isActive = true;
+ this.serviceInterruption.consecutiveFailures++;
+ const offlineError = new Error('Device is offline');
+ this.showServiceInterruptionModal(offlineError);
  });
 }
 
