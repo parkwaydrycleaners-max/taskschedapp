@@ -979,7 +979,7 @@ const AppState = {
     categories: [],
     forecastDays: 14,
     closedDays: [0], /* 0=Sun, 1=Mon ... 6=Sat */
-    enabledHolidays: ['new-years','mlk','memorial','independence','labor','columbus','veterans','thanksgiving','christmas','new-years-eve'],
+    enabledHolidays: ['new-years','mlk','presidents','memorial','independence','labor','columbus','veterans','thanksgiving','christmas','new-years-eve'],
     customHolidays: [], /* Additional user-defined holidays in {mmdd, name} format */
     events: [] /* Seasonal events: [{name, startMmDd, endMmDd, expectedPct}] */
   },
@@ -1736,12 +1736,15 @@ const Forecaster = {
           var train = dailySales.slice(0, testStart);
           var test = dailySales.slice(testStart, testEnd);
           if (test.length === 0 || train.length === 0) continue;
-          var preds = self.exponentialSmoothing(train, a, testDays);
+          var preds = self.exponentialSmoothing(train, a, testDays + 2);
           if (!preds || preds.length === 0) continue;
+          var predMap = {};
+          preds.forEach(function(p) { predMap[p.date] = p.predicted; });
           for (var ti = 0; ti < test.length; ti++) {
-            if (ti >= preds.length) break;
             if (!isCleanDay(test[ti])) continue;
-            totAbs += Math.abs(test[ti].total - preds[ti].predicted);
+            var pred = predMap[test[ti].date];
+            if (pred == null) continue;
+            totAbs += Math.abs(test[ti].total - pred);
             totAct += test[ti].total;
           }
         }
@@ -2072,13 +2075,16 @@ const Forecaster = {
         var train = dailySales.slice(0, testStart);
         var test = dailySales.slice(testStart, testEnd);
         if (test.length === 0 || train.length === 0) return;
-        var preds = self._holtWintersCore(train, testDays, p[0], p[1], p[2]);
+        var preds = self._holtWintersCore(train, testDays + 2, p[0], p[1], p[2]);
         if (!preds || preds.length === 0) return;
+        var predMap = {};
+        preds.forEach(function(p2) { predMap[p2.date] = p2.predicted; });
         var totAbs = 0, totAct = 0;
         for (var ti = 0; ti < test.length; ti++) {
-          if (ti >= preds.length) break;
           if (!isCleanDay(test[ti])) continue;
-          totAbs += Math.abs(test[ti].total - preds[ti].predicted);
+          var pred = predMap[test[ti].date];
+          if (pred == null) continue;
+          totAbs += Math.abs(test[ti].total - pred);
           totAct += test[ti].total;
         }
         var mape = totAct > 0 ? (totAbs / totAct) * 100 : 999;
@@ -2137,12 +2143,16 @@ const Forecaster = {
       var train = dailySales.slice(0, testStart);
       var test = dailySales.slice(testStart, testEnd);
       if (test.length === 0 || train.length === 0) continue;
-      var preds = methodFn.call(self, train, testDays);
+      var preds = methodFn.call(self, train, testDays + 2);
       if (!preds || preds.length === 0) continue;
+      /* Match by DATE to avoid DOW mismatch when days are missing from data */
+      var predMap = {};
+      preds.forEach(function(p) { predMap[p.date] = p.predicted; });
       for (var ti = 0; ti < test.length; ti++) {
-        if (ti >= preds.length) break;
         if (!isCleanDay(test[ti])) continue;
-        pctErrors.push(Math.abs(test[ti].total - preds[ti].predicted) / test[ti].total);
+        var pred = predMap[test[ti].date];
+        if (pred == null) continue;
+        pctErrors.push(Math.abs(test[ti].total - pred) / test[ti].total);
       }
     }
     if (pctErrors.length === 0) return 999;
@@ -2307,15 +2317,21 @@ const Forecaster = {
       var trainData = dailySales.slice(0, testStart);
       var testData = dailySales.slice(testStart, testEnd);
       if (testData.length === 0 || trainData.length === 0) continue;
-      var rawPreds = self.ensemble(trainData, testDays, { raw: true });
-      var adjPreds = self.ensemble(trainData, testDays, {});
+      var rawPreds = self.ensemble(trainData, testDays + 2, { raw: true });
+      var adjPreds = self.ensemble(trainData, testDays + 2, {});
+      /* Match by DATE to avoid DOW mismatch when days are missing from data */
+      var rawMap = {}, adjMap = {};
+      rawPreds.forEach(function(p) { rawMap[p.date] = p.predicted; });
+      adjPreds.forEach(function(p) { adjMap[p.date] = p.predicted; });
       for (var i = 0; i < testData.length; i++) {
-        if (i >= rawPreds.length || i >= adjPreds.length) break;
         if (!isCleanDay(testData[i])) continue;
-        var rawErr = testData[i].total - rawPreds[i].predicted;
+        var rawPred = rawMap[testData[i].date];
+        var adjPred = adjMap[testData[i].date];
+        if (rawPred == null || adjPred == null) continue;
+        var rawErr = testData[i].total - rawPred;
         rawErrors.push(Math.abs(rawErr) / testData[i].total);
         rawTotErr += rawErr; rawTotAbs += Math.abs(rawErr); rawTotAct += testData[i].total; rawCnt++;
-        var adjErr = testData[i].total - adjPreds[i].predicted;
+        var adjErr = testData[i].total - adjPred;
         adjErrors.push(Math.abs(adjErr) / testData[i].total);
         totErr += adjErr; totAbs += Math.abs(adjErr); totAct += testData[i].total; cnt++;
       }
@@ -2892,11 +2908,14 @@ function computeConfidenceIntervals(forecastArr, dailyData) {
     var train = dailyData.slice(0, testStart);
     var test = dailyData.slice(testStart, testEnd);
     if (test.length === 0 || train.length === 0) continue;
-    var preds = Forecaster.ensemble(train, 7, { raw: true });
+    var preds = Forecaster.ensemble(train, 9, { raw: true });
+    var predMap = {};
+    preds.forEach(function(p) { predMap[p.date] = p.predicted; });
     for (var ci = 0; ci < test.length; ci++) {
-      if (ci >= preds.length) break;
       if (!isCleanDay(test[ci])) continue;
-      var pctErr = Math.abs(test[ci].total - preds[ci].predicted) / test[ci].total;
+      var pred = predMap[test[ci].date];
+      if (pred == null) continue;
+      var pctErr = Math.abs(test[ci].total - pred) / test[ci].total;
       dowErrors[dayOfWeek(test[ci].date)].push(pctErr);
     }
   }
@@ -4513,6 +4532,7 @@ function loadSettings() {
 var HOLIDAY_DEFS = [
   { key: 'new-years', name: "New Year's Day", type: 'fixed', mmdd: '01-01' },
   { key: 'mlk', name: 'MLK Day', type: 'floating', month: 0, weekday: 1, nth: 3 },
+  { key: 'presidents', name: "Presidents' Day", type: 'floating', month: 1, weekday: 1, nth: 3 },
   { key: 'memorial', name: 'Memorial Day', type: 'floating', month: 4, weekday: 1, nth: -1 },
   { key: 'independence', name: 'Independence Day', type: 'fixed', mmdd: '07-04' },
   { key: 'labor', name: 'Labor Day', type: 'floating', month: 8, weekday: 1, nth: 1 },
