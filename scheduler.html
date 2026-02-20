@@ -2227,7 +2227,7 @@ const Forecaster = {
         }
       });
       if (!fd) fd = addDays(dailySales[dailySales.length - 1].date, i + 1);
-      if (opts.raw) {
+      if (opts.raw || opts.weatherOnly) {
         combined.push({ date: fd, predicted: sum, method: 'Weighted Ensemble', holidayAdj: 1 });
       } else {
         var hAdj = holidayProximityAdj(fd);
@@ -2235,10 +2235,10 @@ const Forecaster = {
       }
     }
 
-    /* Per-DOW bias correction: only in non-raw path so backtest can isolate weather/holiday effect.
+    /* Per-DOW bias correction: only in full adjusted path (not raw or weatherOnly).
        Compares each DOW's recent average (last 4 weeks) against its prior baseline (weeks 5-12).
        If Thursday has been running 15% below historical average, the forecast gets corrected down. */
-    if (!opts.raw && dailySales.length >= 56) {
+    if (!opts.raw && !opts.weatherOnly && dailySales.length >= 56) {
       var dowRecent = [[],[],[],[],[],[],[]]; /* last 4 weeks */
       var dowPrior = [[],[],[],[],[],[],[]];  /* weeks 5-12 */
       var nLen = dailySales.length;
@@ -2301,8 +2301,8 @@ const Forecaster = {
       });
     }
 
-    /* Apply seasonal event adjustments (non-raw only) */
-    if (!opts.raw && methods.seasonalEvents) {
+    /* Apply seasonal event adjustments (full adjusted only) */
+    if (!opts.raw && !opts.weatherOnly && methods.seasonalEvents) {
       _cachedEventImpacts = learnEventImpacts();
       combined.forEach(function(f) {
         var evResult = getEventAdj(f.date);
@@ -2315,7 +2315,7 @@ const Forecaster = {
       _cachedEventImpacts = null;
     }
 
-    if (!opts.raw && methods.weather) {
+    if (methods.weather && (opts.weatherOnly || !opts.raw)) {
       return this.weatherAdjust(combined, AppState.weatherData);
     }
     return combined;
@@ -2331,10 +2331,12 @@ const Forecaster = {
     }
     if (dailySales.length < minTrain + testDays) return null;
     var self = this;
-    /* Accumulate stats across folds for both raw and adjusted */
-    var rawErrors = [], adjErrors = [];
-    var rawTotErr = 0, rawTotAbs = 0, rawTotAct = 0, rawCnt = 0;
-    var adjTotErr = 0, adjTotAbs = 0, adjTotAct = 0, adjCnt = 0;
+    /* Accumulate stats across folds for 3 paths: raw, weather-only, full adjusted */
+    var paths = [
+      { key: 'raw', opts: { raw: true }, errors: [], totErr: 0, totAbs: 0, totAct: 0, cnt: 0 },
+      { key: 'wx', opts: { weatherOnly: true }, errors: [], totErr: 0, totAbs: 0, totAct: 0, cnt: 0 },
+      { key: 'adj', opts: {}, errors: [], totErr: 0, totAbs: 0, totAct: 0, cnt: 0 }
+    ];
     for (var fold = 0; fold < folds; fold++) {
       var testEnd = dailySales.length - fold * testDays;
       var testStart = testEnd - testDays;
@@ -2344,30 +2346,26 @@ const Forecaster = {
       if (testData.length === 0 || trainData.length === 0) continue;
       var calSpan = Math.round((new Date(testData[testData.length-1].date+'T12:00:00') - new Date(trainData[trainData.length-1].date+'T12:00:00')) / 86400000);
       var predDays = Math.max(testDays, calSpan + 1);
-      var rawPreds = self.ensemble(trainData, predDays, { raw: true });
-      var adjPreds = self.ensemble(trainData, predDays);
-      /* Build prediction maps keyed by date — match by DATE not index */
-      var rawMap = {}, adjMap = {};
-      rawPreds.forEach(function(p) { rawMap[p.date] = p.predicted; });
-      adjPreds.forEach(function(p) { adjMap[p.date] = p.predicted; });
+      /* Generate predictions for each path */
+      var predMaps = {};
+      paths.forEach(function(p) {
+        var preds = self.ensemble(trainData, predDays, p.opts);
+        var map = {};
+        preds.forEach(function(pr) { map[pr.date] = pr.predicted; });
+        predMaps[p.key] = map;
+      });
       testData.forEach(function(actual) {
         if (!isAdaptiveClean(actual)) return;
-        var rp = rawMap[actual.date];
-        if (rp != null) {
-          var re = actual.total - rp;
-          rawTotErr += re; rawTotAbs += Math.abs(re); rawTotAct += actual.total; rawCnt++;
-          rawErrors.push(Math.abs(re) / actual.total);
-        }
-        var ap = adjMap[actual.date];
-        if (ap != null) {
-          var ae = actual.total - ap;
-          adjTotErr += ae; adjTotAbs += Math.abs(ae); adjTotAct += actual.total; adjCnt++;
-          adjErrors.push(Math.abs(ae) / actual.total);
-        }
+        paths.forEach(function(p) {
+          var pred = predMaps[p.key][actual.date];
+          if (pred != null) {
+            var err = actual.total - pred;
+            p.totErr += err; p.totAbs += Math.abs(err); p.totAct += actual.total; p.cnt++;
+            p.errors.push(Math.abs(err) / actual.total);
+          }
+        });
       });
     }
-    var rawDenom = rawCnt || 1;
-    var adjDenom = adjCnt || 1;
     /* Winsorize: cap at 90th percentile to reduce outlier influence */
     function calcMape(errors) {
       if (errors.length === 0) return 999;
@@ -2378,20 +2376,22 @@ const Forecaster = {
       }
       return errors.reduce(function(sum,e){return sum+e;}, 0) / errors.length * 100;
     }
-    var raw = {
-      mape: calcMape(rawErrors),
-      bias: rawTotErr / rawDenom,
-      mae: rawTotAbs / rawDenom
-    };
-    var adj = {
-      mape: calcMape(adjErrors),
-      bias: adjTotErr / adjDenom,
-      mae: adjTotAbs / adjDenom
-    };
-    var best = adj.mape < raw.mape ? adj : raw;
-    best.rawMape = raw.mape;
-    best.adjMape = adj.mape;
-    best.adjHelps = adj.mape < raw.mape;
+    var results = {};
+    paths.forEach(function(p) {
+      var denom = p.cnt || 1;
+      results[p.key] = { mape: calcMape(p.errors), bias: p.totErr / denom, mae: p.totAbs / denom };
+    });
+    /* Pick best of: raw, weather-only, full adjusted */
+    var bestKey = 'raw';
+    if (results.wx.mape < results[bestKey].mape) bestKey = 'wx';
+    if (results.adj.mape < results[bestKey].mape) bestKey = 'adj';
+    var best = results[bestKey];
+    best.rawMape = results.raw.mape;
+    best.wxMape = results.wx.mape;
+    best.adjMape = results.adj.mape;
+    best.bestPath = bestKey;
+    best.adjHelps = bestKey === 'adj';
+    best.wxHelps = bestKey === 'wx';
     return best;
   }
 };
@@ -2963,14 +2963,17 @@ function runForecast() {
     AppState.catForecastCache = {};
     return;
   }
-  AppState.forecastCache = Forecaster.ensemble(daily, days);
+  /* Use the best path determined by backtest: raw, weatherOnly, or full adjusted */
+  var bp = AppState._bestPath || 'adj';
+  var ensOpts = bp === 'raw' ? { raw: true } : (bp === 'wx' ? { weatherOnly: true } : {});
+  AppState.forecastCache = Forecaster.ensemble(daily, days, ensOpts);
   if (AppState.forecastMethods.confidenceIntervals) {
     computeConfidenceIntervals(AppState.forecastCache, daily);
   }
   /* Also run ensemble on pieces data for direct pieces forecasting */
   var dailyPcs = getDailyPieces();
   if (dailyPcs.length >= 7) {
-    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days);
+    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days, ensOpts);
     if (AppState.forecastMethods.confidenceIntervals) {
       computeConfidenceIntervals(AppState.forecastCachePcs, dailyPcs);
     }
@@ -3609,13 +3612,18 @@ function renderAccuracy() {
     pmWrap.innerHTML = '';
     return;
   }
-  /* Show raw vs adjusted comparison */
+  /* Show adjustment path comparison: raw vs weather-only vs full adjusted */
   var adjNote = '';
-  if (result.rawMape != null && result.adjMape != null) {
-    if (result.adjHelps) {
-      adjNote = '<span style="color:var(--success);font-size:11px;">✓ Weather/holiday adjustments helping (' + result.rawMape.toFixed(1) + '% → ' + result.adjMape.toFixed(1) + '%)</span>';
+  if (result.rawMape != null) {
+    var rawM = result.rawMape.toFixed(1);
+    var wxM = result.wxMape != null ? result.wxMape.toFixed(1) : rawM;
+    var adjM = result.adjMape != null ? result.adjMape.toFixed(1) : rawM;
+    if (result.bestPath === 'adj') {
+      adjNote = '<span style="color:var(--success);font-size:11px;">✓ All adjustments helping (raw ' + rawM + '% → wx ' + wxM + '% → adj ' + adjM + '%)</span>';
+    } else if (result.bestPath === 'wx') {
+      adjNote = '<span style="color:var(--success);font-size:11px;">✓ Weather helping (raw ' + rawM + '% → wx ' + wxM + '%), bias hurting (adj ' + adjM + '%) — using weather only</span>';
     } else {
-      adjNote = '<span style="color:var(--danger);font-size:11px;">⚠ Weather/holiday adjustments hurting (' + result.rawMape.toFixed(1) + '% → ' + result.adjMape.toFixed(1) + '%) — using raw forecast</span>';
+      adjNote = '<span style="color:var(--danger);font-size:11px;">⚠ Adjustments hurting (raw ' + rawM + '%, wx ' + wxM + '%, adj ' + adjM + '%) — using raw</span>';
     }
   }
   var fmtMape = function(m) { return m >= 900 ? 'N/A' : m.toFixed(1) + '%'; };
@@ -3623,7 +3631,7 @@ function renderAccuracy() {
   /* Always show both Pieces and $ metrics — Pieces first */
   /* Row 1: MAPE (Pieces, $) */
   var pcsWarn = '';
-  if (resultPcs && resultPcs.rawMape != null && resultPcs.adjMape != null && !resultPcs.adjHelps) {
+  if (resultPcs && resultPcs.bestPath === 'raw') {
     pcsWarn = ' <span style="font-size:10px;color:var(--danger);">⚠</span>';
   }
   var mHtml = '';
@@ -3690,20 +3698,28 @@ function renderAccuracy() {
     renderForecastTable();
   }
   rows.forEach(function(r) { if (r.on && !r.excluded) totalW += r.w; });
-  /* Auto-disable enhancers that hurt MAPE:
-     weather & seasonal events are tested via raw vs adjusted comparison.
-     If adjusted MAPE is worse, auto-disable the active enhancers. */
-  if (result.rawMape != null && result.adjMape != null && !result.adjHelps) {
-    var enhancersToCheck = ['weather', 'seasonalEvents'];
-    enhancersToCheck.forEach(function(ek) {
+  /* Auto-disable enhancers that hurt MAPE based on 3-path evaluation:
+     - bestPath='adj': all adjustments help → keep everything
+     - bestPath='wx': weather helps but bias/events hurt → disable seasonalEvents
+     - bestPath='raw': nothing helps → disable weather and seasonalEvents */
+  AppState._bestPath = result.bestPath || 'raw';
+  if (result.bestPath === 'raw') {
+    ['weather', 'seasonalEvents'].forEach(function(ek) {
       if (AppState.forecastMethods[ek] && !AppState.autoDisabled[ek]) {
         AppState.forecastMethods[ek] = false;
         AppState.autoDisabled[ek] = true;
         needsRerun = true;
       }
     });
-    if (needsRerun) { runForecast(); renderForecastChart(); renderForecastTable(); }
+  } else if (result.bestPath === 'wx') {
+    /* Weather helps, but bias/events hurt — keep weather, disable seasonalEvents */
+    if (AppState.forecastMethods.seasonalEvents && !AppState.autoDisabled.seasonalEvents) {
+      AppState.forecastMethods.seasonalEvents = false;
+      AppState.autoDisabled.seasonalEvents = true;
+      needsRerun = true;
+    }
   }
+  if (needsRerun) { runForecast(); renderForecastChart(); renderForecastTable(); }
   /* Store exclusion info for method cards */
   AppState._methodExclusion = {};
   rows.forEach(function(r) { AppState._methodExclusion[r.key] = { excluded: r.excluded, mape: r.mape, autoOff: !!AppState.autoDisabled[r.key] }; });
@@ -3921,14 +3937,17 @@ function runBacktestComparison() {
   /* Compute actual calendar span so predictions cover all test dates */
   var calSpan = Math.round((new Date(testData[testData.length-1].date+'T12:00:00') - new Date(trainData[trainData.length-1].date+'T12:00:00')) / 86400000);
   var predDays = Math.max(nDays, calSpan + 1);
-  var predictions = Forecaster.ensemble(trainData, predDays);
+  /* Use the best path determined by accuracy evaluation */
+  var bp = AppState._bestPath || 'adj';
+  var ensOpts = bp === 'raw' ? { raw: true } : (bp === 'wx' ? { weatherOnly: true } : {});
+  var predictions = Forecaster.ensemble(trainData, predDays, ensOpts);
   if (!predictions || predictions.length === 0) { toast('Backtest produced no results', 'error'); return; }
   /* Also backtest pieces */
   var hasPcs = dailyPcs.length >= nDays + 14;
   var trainPcs = hasPcs ? dailyPcs.slice(0, -nDays) : [];
   var testPcs = hasPcs ? dailyPcs.slice(-nDays) : [];
   var pcsCalSpan = (hasPcs && trainPcs.length > 0 && testPcs.length > 0) ? Math.round((new Date(testPcs[testPcs.length-1].date+'T12:00:00') - new Date(trainPcs[trainPcs.length-1].date+'T12:00:00')) / 86400000) : nDays;
-  var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, Math.max(nDays, pcsCalSpan + 1)) : [];
+  var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, Math.max(nDays, pcsCalSpan + 1), ensOpts) : [];
   /* Build pieces lookup by date for matching */
   var pcsMap = {};
   dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
