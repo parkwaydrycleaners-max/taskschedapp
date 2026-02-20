@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -969,7 +970,12 @@ const AppState = {
     categories: [],
     forecastDays: 14,
     closedDays: [0], /* 0=Sun, 1=Mon ... 6=Sat */
-    holidays: [], /* User-managed: add MM-DD entries via Settings */
+    holidays: [
+      '01-01', /* New Year's Day */
+      '07-04', /* Independence Day */
+      '11-27', /* Thanksgiving (approx) */
+      '12-25'  /* Christmas */
+    ],
     events: [] /* Seasonal events: [{name, startMmDd, endMmDd, expectedPct}] */
   },
   forecastMethods: {
@@ -979,7 +985,6 @@ const AppState = {
     trend: true,
     yoy: true,
     holtWinters: true,
-    piecesFirst: true,
     weather: true,
     seasonalEvents: true,
     winsorize: true,
@@ -1412,13 +1417,7 @@ function importSalesData() {
       return !incomingKeys[r.date + '|' + r.category];
     });
     AppState.salesData = AppState.salesData.concat(incoming);
-    _salesDollarMap = null; _dowAvgCache = null; /* Invalidate caches */
-    /* Reset auto-disabled flags so methods are re-evaluated fresh on new data */
-    AppState.autoDisabled = {};
-    /* Re-enable all core methods for fresh evaluation */
-    ['movingAvg','expSmooth','dayOfWeek','trend','yoy','holtWinters','piecesFirst'].forEach(function(k) {
-      AppState.forecastMethods[k] = true;
-    });
+    _salesDollarMap = null; /* Invalidate dollar cache for isCleanDay */
     /* Rebuild categories list */
     var catSet = {};
     AppState.salesData.forEach(function(r) { catSet[r.category] = true; });
@@ -1649,7 +1648,7 @@ const Forecaster = {
     /* DOW-aware: collect last `windowSize` clean instances per day-of-week */
     var dowVals = [[],[],[],[],[],[],[]];
     for (var ci = dailySales.length - 1; ci >= 0; ci--) {
-      if (!isAdaptiveClean(dailySales[ci])) continue;
+      if (!isCleanDay(dailySales[ci])) continue;
       var dw = dayOfWeek(dailySales[ci].date);
       if (dowVals[dw].length < windowSize) dowVals[dw].push(dailySales[ci].total);
     }
@@ -1682,7 +1681,7 @@ const Forecaster = {
     var dowInit = [false,false,false,false,false,false,false];
     var anyInit = false;
     for (var i = 0; i < dailySales.length; i++) {
-      if (!isAdaptiveClean(dailySales[i])) continue;
+      if (!isCleanDay(dailySales[i])) continue;
       var dw = dayOfWeek(dailySales[i].date);
       if (!dowInit[dw]) {
         dowLevel[dw] = dailySales[i].total;
@@ -1724,17 +1723,11 @@ const Forecaster = {
           if (testStart < 14) break;
           var train = dailySales.slice(0, testStart);
           var test = dailySales.slice(testStart, testEnd);
-          if (test.length === 0 || train.length === 0) continue;
-          var calSpan = Math.round((new Date(test[test.length-1].date+'T12:00:00') - new Date(train[train.length-1].date+'T12:00:00')) / 86400000);
-          var preds = self.exponentialSmoothing(train, a, Math.max(testDays, calSpan + 1));
+          var preds = self.exponentialSmoothing(train, a, testDays);
           if (!preds || preds.length === 0) continue;
-          var predMap = {};
-          preds.forEach(function(p) { predMap[p.date] = p.predicted; });
-          test.forEach(function(act) {
-            if (!isAdaptiveClean(act)) return;
-            var pred = predMap[act.date];
-            if (pred != null) {
-              totAbs += Math.abs(act.total - pred);
+          test.forEach(function(act, i) {
+            if (preds[i] && isCleanDay(act)) {
+              totAbs += Math.abs(act.total - preds[i].predicted);
               totAct += act.total;
             }
           });
@@ -1749,15 +1742,15 @@ const Forecaster = {
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    /* Collect clean values per DOW from last 8 weeks with exponential recency weighting.
-       Half-life = 21 days: data from 3 weeks ago gets 50% weight, 6 weeks → 25%. */
+    /* Collect clean values per DOW from last 12 weeks with exponential recency weighting.
+       Half-life = 28 days: data from 4 weeks ago gets 50% weight, 8 weeks → 25%. */
     var dowVals = [[],[],[],[],[],[],[]];
     var n = dailySales.length;
-    var lookback = Math.min(n, 56); /* 8 weeks */
-    var halfLife = 21;
+    var lookback = Math.min(n, 84); /* 12 weeks */
+    var halfLife = 28;
     for (var ri = n - lookback; ri < n; ri++) {
       var d = dailySales[ri];
-      if (!isAdaptiveClean(d)) continue;
+      if (!isCleanDay(d)) continue;
       var dow = dayOfWeek(d.date);
       var age = n - 1 - ri; /* days ago */
       var w = Math.pow(0.5, age / halfLife);
@@ -1802,7 +1795,7 @@ const Forecaster = {
     var decay = Math.log(2) / halfLife;
     var n = 0, sumWX = 0, sumWY = 0, sumWXY = 0, sumWXX = 0, sumW = 0;
     for (var i = 0; i < recent.length; i++) {
-      if (!isAdaptiveClean(recent[i])) continue;
+      if (!isCleanDay(recent[i])) continue;
       var age = recent.length - 1 - i; /* days from end */
       var w = Math.exp(-decay * age);
       sumW += w; sumWX += w * i; sumWY += w * recent[i].total;
@@ -1819,7 +1812,7 @@ const Forecaster = {
     var qCnt = [0, 0, 0, 0];
     var overallAvg = sumW > 0 ? sumWY / sumW : 0;
     recent.forEach(function(d) {
-      if (!isAdaptiveClean(d)) return;
+      if (!isCleanDay(d)) return;
       var month = parseInt(d.date.slice(5, 7), 10);
       var q = Math.floor((month - 1) / 3);
       qSum[q] += d.total;
@@ -1835,7 +1828,7 @@ const Forecaster = {
     var dowCnt = [0,0,0,0,0,0,0];
     var dowOverall = 0;
     dowData.forEach(function(d) {
-      if (!isAdaptiveClean(d)) return;
+      if (!isCleanDay(d)) return;
       var dow = dayOfWeek(d.date);
       dowSum[dow] += d.total;
       dowCnt[dow]++;
@@ -1867,21 +1860,21 @@ const Forecaster = {
     if (dailySales.length < 180) return [];
     /* Build lookup by date string — only clean days */
     var lookup = {};
-    dailySales.forEach(function(d) { if (isAdaptiveClean(d)) lookup[d.date] = d.total; });
+    dailySales.forEach(function(d) { if (isCleanDay(d)) lookup[d.date] = d.total; });
 
     /* Compute annual growth rate: compare recent 60 days vs same period 1 year ago.
        Cap growth adjustment at ±25% to prevent extreme scaling. */
     var n = dailySales.length;
     var recentClean = [];
     for (var ri = Math.max(0, n - 60); ri < n; ri++) {
-      if (isAdaptiveClean(dailySales[ri])) recentClean.push(dailySales[ri]);
+      if (isCleanDay(dailySales[ri])) recentClean.push(dailySales[ri]);
     }
     var recentAvg = recentClean.length > 0 ? recentClean.reduce(function(s,d){return s+d.total;},0) / recentClean.length : 0;
     var growthByYear = {};
     for (var gyr = 1; gyr <= 2; gyr++) {
       var priorClean = [];
       for (var pi = 0; pi < n; pi++) {
-        if (!isAdaptiveClean(dailySales[pi])) continue;
+        if (!isCleanDay(dailySales[pi])) continue;
         var daysBack = Math.round((new Date(dailySales[n-1].date + 'T12:00:00') - new Date(dailySales[pi].date + 'T12:00:00')) / 86400000);
         if (daysBack >= gyr * 365 - 30 && daysBack <= gyr * 365 + 30) {
           priorClean.push(dailySales[pi]);
@@ -1937,60 +1930,6 @@ const Forecaster = {
     return result;
   },
 
-  /* Pieces-first dollar forecasting: runs Holt-Winters on pieces data, then converts
-     to dollars via per-DOW $/piece ratio. Leverages the more stable pieces signal
-     with full trend+seasonal modeling instead of simple DOW average. */
-  piecesAsDollars(dailySales, daysAhead) {
-    daysAhead = daysAhead || 14;
-    var allPcs = getDailyPieces();
-    if (allPcs.length < 28) return [];
-    /* Only use pieces data up to the last date in dailySales to prevent leakage during backtest */
-    var lastTrainDate = dailySales[dailySales.length - 1].date;
-    var dailyPcs = allPcs.filter(function(p) { return p.date <= lastTrainDate; });
-    if (dailyPcs.length < 21) return [];
-    /* Forecast pieces using Holt-Winters (full trend+seasonal model) */
-    var pcsPreds = this.holtWinters(dailyPcs, daysAhead);
-    if (!pcsPreds || pcsPreds.length === 0) return [];
-    /* Build dollar lookup from training data */
-    var dollarMap = {};
-    dailySales.forEach(function(d) { if (isAdaptiveClean(d)) dollarMap[d.date] = d.total; });
-    /* Compute per-DOW $/piece ratio from last 60 days of overlap with recency weighting */
-    var pcsN = dailyPcs.length;
-    var dppByDow = [[],[],[],[],[],[],[]];
-    for (var di = Math.max(0, pcsN - 60); di < pcsN; di++) {
-      var pd = dailyPcs[di];
-      var dollars = dollarMap[pd.date];
-      if (dollars != null && dollars > 0 && pd.total > 0) {
-        var age = pcsN - 1 - di;
-        var w = Math.pow(0.5, age / 28); /* half-life 28 days */
-        dppByDow[dayOfWeek(pd.date)].push({ ratio: dollars / pd.total, w: w });
-      }
-    }
-    var avgDpp = [0,0,0,0,0,0,0];
-    var allDpp = 0, allW = 0;
-    for (var j = 0; j < 7; j++) {
-      if (dppByDow[j].length >= 2) {
-        var ws = 0, wc = 0;
-        dppByDow[j].forEach(function(e) { ws += e.ratio * e.w; wc += e.w; });
-        avgDpp[j] = wc > 0 ? ws / wc : 0;
-      }
-      dppByDow[j].forEach(function(e) { allDpp += e.ratio * e.w; allW += e.w; });
-    }
-    var fallback = allW > 0 ? allDpp / allW : 0;
-    if (fallback === 0) return [];
-    for (var j2 = 0; j2 < 7; j2++) { if (avgDpp[j2] === 0) avgDpp[j2] = fallback; }
-    /* Convert pieces predictions to dollar predictions via per-DOW ratio */
-    var lastDate = dailySales[dailySales.length - 1].date;
-    var result = [];
-    for (var fi = 0; fi < pcsPreds.length && fi < daysAhead; fi++) {
-      var fd = pcsPreds[fi].date;
-      var fDow = dayOfWeek(fd);
-      var dollarPred = Math.max(0, pcsPreds[fi].predicted * avgDpp[fDow]);
-      result.push({ date: fd, predicted: dollarPred, method: 'Pcs\u00D7Price' });
-    }
-    return result;
-  },
-
   _holtWintersCore(dailySales, daysAhead, alpha, beta, gamma) {
     daysAhead = daysAhead || 14;
     var seasonLen = 7;
@@ -2000,7 +1939,7 @@ const Forecaster = {
     /* Initialize level from ALL clean data (more stable than first 2 weeks) */
     var initSum = 0, initCnt = 0;
     for (var si = 0; si < n; si++) {
-      if (isAdaptiveClean(dailySales[si])) { initSum += dailySales[si].total; initCnt++; }
+      if (isCleanDay(dailySales[si])) { initSum += dailySales[si].total; initCnt++; }
     }
     if (initCnt === 0) return [];
     var level = initSum / initCnt;
@@ -2010,7 +1949,7 @@ const Forecaster = {
     var seasonal = [1,1,1,1,1,1,1];
     var sDow = [0,0,0,0,0,0,0], sCnt = [0,0,0,0,0,0,0];
     for (var iw = 0; iw < n; iw++) {
-      if (!isAdaptiveClean(dailySales[iw])) continue;
+      if (!isCleanDay(dailySales[iw])) continue;
       var dw = dayOfWeek(dailySales[iw].date);
       sDow[dw] += dailySales[iw].total;
       sCnt[dw]++;
@@ -2022,14 +1961,14 @@ const Forecaster = {
     /* Re-init level from recent data (last 4 weeks) for recency */
     var recentSum = 0, recentCnt = 0;
     for (var ri = Math.max(0, n - 28); ri < n; ri++) {
-      if (isAdaptiveClean(dailySales[ri])) { recentSum += dailySales[ri].total; recentCnt++; }
+      if (isCleanDay(dailySales[ri])) { recentSum += dailySales[ri].total; recentCnt++; }
     }
     if (recentCnt > 0) level = recentSum / recentCnt;
 
     /* Run through data — last 1 year for better seasonal estimates with 4yr data */
     var startIdx = Math.max(0, n - 365);
     for (var ki = startIdx; ki < n; ki++) {
-      if (!isAdaptiveClean(dailySales[ki])) continue;
+      if (!isCleanDay(dailySales[ki])) continue;
       var sIdx = dayOfWeek(dailySales[ki].date);
       var prevLevel = level;
       level = alpha * (dailySales[ki].total / (seasonal[sIdx] || 1)) + (1 - alpha) * (level + trend);
@@ -2065,18 +2004,12 @@ const Forecaster = {
         var testStart = testEnd - testDays;
         var train = dailySales.slice(0, testStart);
         var test = dailySales.slice(testStart, testEnd);
-        if (test.length === 0 || train.length === 0) return;
-        var calSpan = Math.round((new Date(test[test.length-1].date+'T12:00:00') - new Date(train[train.length-1].date+'T12:00:00')) / 86400000);
-        var preds = self._holtWintersCore(train, Math.max(testDays, calSpan + 1), p[0], p[1], p[2]);
+        var preds = self._holtWintersCore(train, testDays, p[0], p[1], p[2]);
         if (!preds || preds.length === 0) return;
-        var predMap = {};
-        preds.forEach(function(p2) { predMap[p2.date] = p2.predicted; });
         var totAbs = 0, totAct = 0;
-        test.forEach(function(act) {
-          if (!isAdaptiveClean(act)) return;
-          var pred = predMap[act.date];
-          if (pred != null) {
-            totAbs += Math.abs(act.total - pred);
+        test.forEach(function(act, i) {
+          if (preds[i] && isCleanDay(act)) {
+            totAbs += Math.abs(act.total - preds[i].predicted);
             totAct += act.total;
           }
         });
@@ -2135,19 +2068,11 @@ const Forecaster = {
       if (testStart < minTrain) break;
       var train = dailySales.slice(0, testStart);
       var test = dailySales.slice(testStart, testEnd);
-      if (test.length === 0 || train.length === 0) continue;
-      /* Compute actual calendar span so predictions cover all test dates */
-      var calSpan = Math.round((new Date(test[test.length-1].date+'T12:00:00') - new Date(train[train.length-1].date+'T12:00:00')) / 86400000);
-      var preds = methodFn.call(self, train, Math.max(testDays, calSpan + 1));
+      var preds = methodFn.call(self, train, testDays);
       if (!preds || preds.length === 0) continue;
-      /* Build prediction map keyed by date — match by DATE not index */
-      var predMap = {};
-      preds.forEach(function(p) { predMap[p.date] = p.predicted; });
-      test.forEach(function(actual) {
-        if (!isAdaptiveClean(actual)) return;
-        var pred = predMap[actual.date];
-        if (pred != null) {
-          pctErrors.push(Math.abs(actual.total - pred) / actual.total);
+      test.forEach(function(actual, i) {
+        if (preds[i] && isCleanDay(actual)) {
+          pctErrors.push(Math.abs(actual.total - preds[i].predicted) / actual.total);
         }
       });
     }
@@ -2173,7 +2098,6 @@ const Forecaster = {
     if (methods.trend) methodList.push({ key: 'trend', fn: this.trendAndSeasonal });
     if (methods.yoy) methodList.push({ key: 'yoy', fn: this.yearOverYear });
     if (methods.holtWinters) methodList.push({ key: 'holtWinters', fn: this.holtWinters });
-    if (methods.piecesFirst) methodList.push({ key: 'piecesFirst', fn: this.piecesAsDollars });
 
     if (methodList.length === 0) return [];
 
@@ -2227,7 +2151,7 @@ const Forecaster = {
         }
       });
       if (!fd) fd = addDays(dailySales[dailySales.length - 1].date, i + 1);
-      if (opts.raw || opts.weatherOnly) {
+      if (opts.raw) {
         combined.push({ date: fd, predicted: sum, method: 'Weighted Ensemble', holidayAdj: 1 });
       } else {
         var hAdj = holidayProximityAdj(fd);
@@ -2235,16 +2159,16 @@ const Forecaster = {
       }
     }
 
-    /* Per-DOW bias correction: only in full adjusted path (not raw or weatherOnly).
+    /* Per-DOW bias correction: only in non-raw path so backtest can isolate weather/holiday effect.
        Compares each DOW's recent average (last 4 weeks) against its prior baseline (weeks 5-12).
        If Thursday has been running 15% below historical average, the forecast gets corrected down. */
-    if (!opts.raw && !opts.weatherOnly && dailySales.length >= 56) {
+    if (!opts.raw && dailySales.length >= 56) {
       var dowRecent = [[],[],[],[],[],[],[]]; /* last 4 weeks */
       var dowPrior = [[],[],[],[],[],[],[]];  /* weeks 5-12 */
       var nLen = dailySales.length;
       for (var bi = Math.max(0, nLen - 84); bi < nLen; bi++) {
         var bd = dailySales[bi];
-        if (!isAdaptiveClean(bd)) continue;
+        if (!isCleanDay(bd)) continue;
         var bDow = dayOfWeek(bd.date);
         var bAge = nLen - 1 - bi; /* days ago */
         if (bAge < 28) {
@@ -2259,50 +2183,21 @@ const Forecaster = {
           var rAvg = dowRecent[db].reduce(function(s,v){return s+v;},0) / dowRecent[db].length;
           var pAvg = dowPrior[db].reduce(function(s,v){return s+v;},0) / dowPrior[db].length;
           if (pAvg > 0) {
-            /* Cap correction at ±30% per DOW to prevent overcorrection */
-            dowBias[db] = Math.max(0.70, Math.min(1.30, rAvg / pAvg));
+            /* Cap correction at ±20% per DOW to prevent overcorrection */
+            dowBias[db] = Math.max(0.80, Math.min(1.20, rAvg / pAvg));
           }
         }
       }
-      /* Compute monthly seasonal factors (needs ≥ 1 year of data) */
-      var monFactor = new Array(12).fill(1);
-      if (dailySales.length >= 365) {
-        var monSum2 = new Array(12).fill(0), monCnt2 = new Array(12).fill(0);
-        var monAll2 = 0, monAllCnt2 = 0;
-        dailySales.forEach(function(d) {
-          if (!isAdaptiveClean(d)) return;
-          var mi = parseInt(d.date.slice(5, 7), 10) - 1;
-          monSum2[mi] += d.total; monCnt2[mi]++;
-          monAll2 += d.total; monAllCnt2++;
-        });
-        if (monAllCnt2 > 0) {
-          var monAvg2 = monAll2 / monAllCnt2;
-          for (var mfi = 0; mfi < 12; mfi++) {
-            if (monCnt2[mfi] >= 20 && monAvg2 > 0) {
-              var raw = (monSum2[mfi] / monCnt2[mfi]) / monAvg2;
-              monFactor[mfi] = Math.max(0.85, Math.min(1.15, raw));
-              if (Math.abs(monFactor[mfi] - 1) <= 0.02) monFactor[mfi] = 1;
-            }
-          }
-        }
-      }
-      /* Apply per-DOW × monthly as a COMBINED correction, capped at ±25% total.
-         This prevents stacking: DOW -15% × month -10% used to compound to -23.5%.
-         Now the combined effect is clamped so no forecast gets pushed too far. */
       combined.forEach(function(f) {
         var fDow = dayOfWeek(f.date);
-        var fMon = parseInt(f.date.slice(5, 7), 10) - 1;
-        var combinedAdj = dowBias[fDow] * monFactor[fMon];
-        /* Clamp total correction to ±25% */
-        combinedAdj = Math.max(0.75, Math.min(1.25, combinedAdj));
-        if (Math.abs(combinedAdj - 1) > 0.02) {
-          f.predicted *= combinedAdj;
+        if (Math.abs(dowBias[fDow] - 1) > 0.02) {
+          f.predicted *= dowBias[fDow];
         }
       });
     }
 
-    /* Apply seasonal event adjustments (full adjusted only) */
-    if (!opts.raw && !opts.weatherOnly && methods.seasonalEvents) {
+    /* Apply seasonal event adjustments (non-raw only) */
+    if (!opts.raw && methods.seasonalEvents) {
       _cachedEventImpacts = learnEventImpacts();
       combined.forEach(function(f) {
         var evResult = getEventAdj(f.date);
@@ -2315,7 +2210,7 @@ const Forecaster = {
       _cachedEventImpacts = null;
     }
 
-    if (methods.weather && (opts.weatherOnly || !opts.raw)) {
+    if (!opts.raw && methods.weather) {
       return this.weatherAdjust(combined, AppState.weatherData);
     }
     return combined;
@@ -2331,41 +2226,34 @@ const Forecaster = {
     }
     if (dailySales.length < minTrain + testDays) return null;
     var self = this;
-    /* Accumulate stats across folds for 3 paths: raw, weather-only, full adjusted */
-    var paths = [
-      { key: 'raw', opts: { raw: true }, errors: [], totErr: 0, totAbs: 0, totAct: 0, cnt: 0 },
-      { key: 'wx', opts: { weatherOnly: true }, errors: [], totErr: 0, totAbs: 0, totAct: 0, cnt: 0 },
-      { key: 'adj', opts: {}, errors: [], totErr: 0, totAbs: 0, totAct: 0, cnt: 0 }
-    ];
+    /* Accumulate stats across folds for both raw and adjusted */
+    var rawErrors = [], adjErrors = [];
+    var rawTotErr = 0, rawTotAbs = 0, rawTotAct = 0, rawCnt = 0;
+    var adjTotErr = 0, adjTotAbs = 0, adjTotAct = 0, adjCnt = 0;
     for (var fold = 0; fold < folds; fold++) {
       var testEnd = dailySales.length - fold * testDays;
       var testStart = testEnd - testDays;
       if (testStart < minTrain) break;
       var trainData = dailySales.slice(0, testStart);
       var testData = dailySales.slice(testStart, testEnd);
-      if (testData.length === 0 || trainData.length === 0) continue;
-      var calSpan = Math.round((new Date(testData[testData.length-1].date+'T12:00:00') - new Date(trainData[trainData.length-1].date+'T12:00:00')) / 86400000);
-      var predDays = Math.max(testDays, calSpan + 1);
-      /* Generate predictions for each path */
-      var predMaps = {};
-      paths.forEach(function(p) {
-        var preds = self.ensemble(trainData, predDays, p.opts);
-        var map = {};
-        preds.forEach(function(pr) { map[pr.date] = pr.predicted; });
-        predMaps[p.key] = map;
-      });
-      testData.forEach(function(actual) {
-        if (!isAdaptiveClean(actual)) return;
-        paths.forEach(function(p) {
-          var pred = predMaps[p.key][actual.date];
-          if (pred != null) {
-            var err = actual.total - pred;
-            p.totErr += err; p.totAbs += Math.abs(err); p.totAct += actual.total; p.cnt++;
-            p.errors.push(Math.abs(err) / actual.total);
-          }
-        });
+      var rawPreds = self.ensemble(trainData, testDays, { raw: true });
+      var adjPreds = self.ensemble(trainData, testDays);
+      testData.forEach(function(actual, i) {
+        if (!isCleanDay(actual)) return;
+        if (rawPreds[i]) {
+          var re = actual.total - rawPreds[i].predicted;
+          rawTotErr += re; rawTotAbs += Math.abs(re); rawTotAct += actual.total; rawCnt++;
+          rawErrors.push(Math.abs(re) / actual.total);
+        }
+        if (adjPreds[i]) {
+          var ae = actual.total - adjPreds[i].predicted;
+          adjTotErr += ae; adjTotAbs += Math.abs(ae); adjTotAct += actual.total; adjCnt++;
+          adjErrors.push(Math.abs(ae) / actual.total);
+        }
       });
     }
+    var rawDenom = rawCnt || 1;
+    var adjDenom = adjCnt || 1;
     /* Winsorize: cap at 90th percentile to reduce outlier influence */
     function calcMape(errors) {
       if (errors.length === 0) return 999;
@@ -2376,22 +2264,20 @@ const Forecaster = {
       }
       return errors.reduce(function(sum,e){return sum+e;}, 0) / errors.length * 100;
     }
-    var results = {};
-    paths.forEach(function(p) {
-      var denom = p.cnt || 1;
-      results[p.key] = { mape: calcMape(p.errors), bias: p.totErr / denom, mae: p.totAbs / denom };
-    });
-    /* Pick best of: raw, weather-only, full adjusted */
-    var bestKey = 'raw';
-    if (results.wx.mape < results[bestKey].mape) bestKey = 'wx';
-    if (results.adj.mape < results[bestKey].mape) bestKey = 'adj';
-    var best = results[bestKey];
-    best.rawMape = results.raw.mape;
-    best.wxMape = results.wx.mape;
-    best.adjMape = results.adj.mape;
-    best.bestPath = bestKey;
-    best.adjHelps = bestKey === 'adj';
-    best.wxHelps = bestKey === 'wx';
+    var raw = {
+      mape: calcMape(rawErrors),
+      bias: rawTotErr / rawDenom,
+      mae: rawTotAbs / rawDenom
+    };
+    var adj = {
+      mape: calcMape(adjErrors),
+      bias: adjTotErr / adjDenom,
+      mae: adjTotAbs / adjDenom
+    };
+    var best = adj.mape < raw.mape ? adj : raw;
+    best.rawMape = raw.mape;
+    best.adjMape = adj.mape;
+    best.adjHelps = adj.mape < raw.mape;
     return best;
   }
 };
@@ -2409,7 +2295,6 @@ function isClosedDate(dateString) {
   }
   return false;
 }
-
 
 /* Returns true if a data point is a valid business day worth using in forecasts.
    Filters: zeros, closed dates, and below-threshold anomaly days.
@@ -2439,43 +2324,6 @@ function isCleanDay(d) {
   return true;
 }
 
-/* Adaptive clean-day filter: returns false for days below 60% of their DOW's recent average.
-   Catches holiday-impacted and anomalously low days that pass the fixed $ threshold.
-   Uses a cached DOW average computed from clean data (avoids recursion with isCleanDay). */
-var _dowAvgCache = null;
-var _dowAvgCacheKey = '';
-function isAdaptiveClean(d) {
-  if (!isCleanDay(d)) return false;
-  /* Build DOW average cache (invalidated when sales data changes) */
-  var cacheKey = AppState.salesData.length + '_' + (AppState.salesData.length > 0 ? AppState.salesData[AppState.salesData.length - 1].date : '');
-  if (_dowAvgCache === null || _dowAvgCacheKey !== cacheKey) {
-    _dowAvgCache = [0,0,0,0,0,0,0];
-    var dowSum = [0,0,0,0,0,0,0], dowCnt = [0,0,0,0,0,0,0];
-    var dolMap = getSalesDollarMap();
-    var dates = Object.keys(dolMap).sort();
-    /* Use last 90 days to compute baseline */
-    var recent = dates.slice(-90);
-    recent.forEach(function(dt) {
-      if (isClosedDate(dt)) return;
-      var amt = dolMap[dt];
-      if (amt <= 0) return;
-      var dow = dayOfWeek(dt);
-      dowSum[dow] += amt; dowCnt[dow]++;
-    });
-    for (var i = 0; i < 7; i++) {
-      _dowAvgCache[i] = dowCnt[i] > 0 ? dowSum[i] / dowCnt[i] : 0;
-    }
-    _dowAvgCacheKey = cacheKey;
-  }
-  /* Check if day is below 60% of its DOW average */
-  var dolMap2 = getSalesDollarMap();
-  var dollarAmt = dolMap2[d.date];
-  if (dollarAmt == null) dollarAmt = d.total;
-  var dowAvg = _dowAvgCache[dayOfWeek(d.date)];
-  if (dowAvg > 0 && dollarAmt < dowAvg * 0.60) return false;
-  return true;
-}
-
 function holidayProximityAdj(dateString) {
   /* Returns a multiplier based on distance to nearest holiday.
      Before holiday: Day-3 +5%, Day-2 +10%, Day-1 +15% (pre-holiday rush)
@@ -2497,12 +2345,10 @@ function holidayProximityAdj(dateString) {
   if (bestDiff === -3) return 1.05;
   if (bestDiff === -2) return 1.10;
   if (bestDiff === -1) return 1.15;
-  if (bestDiff === 0) return 0.50; /* holiday itself: expect ~50% drop */
   if (bestDiff === 1) return 0.90;
   if (bestDiff === 2) return 0.95;
   return 1;
 }
-
 
 function getPiecesPerDollar() {
   /* Calculate historical avg pieces-per-dollar from sales data */
@@ -2598,7 +2444,7 @@ function computeWeatherImpact() {
   Object.keys(salesByDate).forEach(function(dt) {
     var w = wMap[dt];
     if (!w) return;
-    if (!isAdaptiveClean({ date: dt, total: salesByDate[dt] })) return;
+    if (!isCleanDay({ date: dt, total: salesByDate[dt] })) return;
     var entry = { sale: salesByDate[dt], pieces: piecesByDate[dt] || 0 };
     var rn = (w.bizRain != null) ? w.bizRain : w.rain;
     var isRainy = rn > 2;
@@ -2705,7 +2551,7 @@ function getLearnedWeatherAdj() {
     var w = wMap[dt];
     if (!w) return;
     /* Use isCleanDay: skip closed, zero, sub-threshold days (checks dollar amounts) */
-    if (!isAdaptiveClean({ date: dt, total: dolMap[dt] || 0 })) return;
+    if (!isCleanDay({ date: dt, total: dolMap[dt] || 0 })) return;
     var pcs = pcsByDate[dt];
     var rn = (w.bizRain != null) ? w.bizRain : w.rain;
     if (w.tempMax > heatThresh && rn <= 2) { buckets.hot.push(pcs); return; }
@@ -2925,16 +2771,10 @@ function computeConfidenceIntervals(forecastArr, dailyData) {
     if (testStart < 21) break;
     var train = dailyData.slice(0, testStart);
     var test = dailyData.slice(testStart, testEnd);
-    if (test.length === 0 || train.length === 0) continue;
-    var calSpan = Math.round((new Date(test[test.length-1].date+'T12:00:00') - new Date(train[train.length-1].date+'T12:00:00')) / 86400000);
-    var preds = Forecaster.ensemble(train, Math.max(7, calSpan + 1), { raw: true });
-    var predMap = {};
-    preds.forEach(function(p) { predMap[p.date] = p.predicted; });
-    test.forEach(function(act) {
-      if (!isAdaptiveClean(act)) return;
-      var pred = predMap[act.date];
-      if (pred == null) return;
-      var pctErr = Math.abs(act.total - pred) / act.total;
+    var preds = Forecaster.ensemble(train, 7, { raw: true });
+    test.forEach(function(act, i) {
+      if (!isCleanDay(act) || !preds[i]) return;
+      var pctErr = Math.abs(act.total - preds[i].predicted) / act.total;
       dowErrors[dayOfWeek(act.date)].push(pctErr);
     });
   }
@@ -2963,17 +2803,14 @@ function runForecast() {
     AppState.catForecastCache = {};
     return;
   }
-  /* Use the best path determined by backtest: raw, weatherOnly, or full adjusted */
-  var bp = AppState._bestPath || 'adj';
-  var ensOpts = bp === 'raw' ? { raw: true } : (bp === 'wx' ? { weatherOnly: true } : {});
-  AppState.forecastCache = Forecaster.ensemble(daily, days, ensOpts);
+  AppState.forecastCache = Forecaster.ensemble(daily, days);
   if (AppState.forecastMethods.confidenceIntervals) {
     computeConfidenceIntervals(AppState.forecastCache, daily);
   }
   /* Also run ensemble on pieces data for direct pieces forecasting */
   var dailyPcs = getDailyPieces();
   if (dailyPcs.length >= 7) {
-    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days, ensOpts);
+    AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days);
     if (AppState.forecastMethods.confidenceIntervals) {
       computeConfidenceIntervals(AppState.forecastCachePcs, dailyPcs);
     }
@@ -3373,11 +3210,10 @@ function renderMethodCards() {
   var coreMethods = [
     { key: 'movingAvg', name: 'Moving Average', desc: 'DOW-aware average of last 6 weeks per weekday.', group: 'core' },
     { key: 'expSmooth', name: 'Exp. Smoothing', desc: 'DOW-aware smoothing. Auto-tunes alpha via walk-forward CV.', group: 'core' },
-    { key: 'dayOfWeek', name: 'Day-of-Week', desc: 'Trimmed mean per weekday from last 8 weeks, recency-weighted.', group: 'core' },
+    { key: 'dayOfWeek', name: 'Day-of-Week', desc: 'Trimmed mean per weekday from last 20 weeks, recency-weighted.', group: 'core' },
     { key: 'trend', name: 'Trend + Seasonal', desc: 'Recency-weighted regression with quarterly + DOW factors.', group: 'core' },
-    { key: 'yoy', name: 'Year-over-Year', desc: 'Growth-adjusted lookup across 1-2 prior years, windowed DOW match.', group: 'core' },
-    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Auto-tuned triple exponential smoothing with weekly seasonality.', group: 'core' },
-    { key: 'piecesFirst', name: 'Pcs\u00D7Price', desc: 'Forecasts piece volume by DOW then converts via recent $/piece ratio.', group: 'core' }
+    { key: 'yoy', name: 'Year-over-Year', desc: 'Growth-adjusted lookup across 1-4 prior years, same DOW match.', group: 'core' },
+    { key: 'holtWinters', name: 'Holt-Winters', desc: 'Auto-tuned triple exponential smoothing with weekly seasonality.', group: 'core' }
   ];
   var enhancers = [
     { key: 'weather', name: '🌦 Weather', desc: 'Adjusts forecasts for rain and extreme heat using learned patterns.', group: 'enhance' },
@@ -3612,18 +3448,13 @@ function renderAccuracy() {
     pmWrap.innerHTML = '';
     return;
   }
-  /* Show adjustment path comparison: raw vs weather-only vs full adjusted */
+  /* Show raw vs adjusted comparison */
   var adjNote = '';
-  if (result.rawMape != null) {
-    var rawM = result.rawMape.toFixed(1);
-    var wxM = result.wxMape != null ? result.wxMape.toFixed(1) : rawM;
-    var adjM = result.adjMape != null ? result.adjMape.toFixed(1) : rawM;
-    if (result.bestPath === 'adj') {
-      adjNote = '<span style="color:var(--success);font-size:11px;">✓ All adjustments helping (raw ' + rawM + '% → wx ' + wxM + '% → adj ' + adjM + '%)</span>';
-    } else if (result.bestPath === 'wx') {
-      adjNote = '<span style="color:var(--success);font-size:11px;">✓ Weather helping (raw ' + rawM + '% → wx ' + wxM + '%), bias hurting (adj ' + adjM + '%) — using weather only</span>';
+  if (result.rawMape != null && result.adjMape != null) {
+    if (result.adjHelps) {
+      adjNote = '<span style="color:var(--success);font-size:11px;">✓ Weather/holiday adjustments helping (' + result.rawMape.toFixed(1) + '% → ' + result.adjMape.toFixed(1) + '%)</span>';
     } else {
-      adjNote = '<span style="color:var(--danger);font-size:11px;">⚠ Adjustments hurting (raw ' + rawM + '%, wx ' + wxM + '%, adj ' + adjM + '%) — using raw</span>';
+      adjNote = '<span style="color:var(--danger);font-size:11px;">⚠ Weather/holiday adjustments hurting (' + result.rawMape.toFixed(1) + '% → ' + result.adjMape.toFixed(1) + '%) — using raw forecast</span>';
     }
   }
   var fmtMape = function(m) { return m >= 900 ? 'N/A' : m.toFixed(1) + '%'; };
@@ -3631,7 +3462,7 @@ function renderAccuracy() {
   /* Always show both Pieces and $ metrics — Pieces first */
   /* Row 1: MAPE (Pieces, $) */
   var pcsWarn = '';
-  if (resultPcs && resultPcs.bestPath === 'raw') {
+  if (resultPcs && resultPcs.rawMape != null && resultPcs.adjMape != null && !resultPcs.adjHelps) {
     pcsWarn = ' <span style="font-size:10px;color:var(--danger);">⚠</span>';
   }
   var mHtml = '';
@@ -3656,15 +3487,14 @@ function renderAccuracy() {
   wrap.innerHTML = mHtml;
 
   /* Per-method backtesting dashboard */
-  var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters', piecesFirst:'Pcs\u00D7Price' };
+  var mNames = { movingAvg:'Moving Average', expSmooth:'Exp. Smoothing', dayOfWeek:'Day-of-Week', trend:'Trend+Seasonal', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
   var mFns = {
     movingAvg: function(d,n){ return Forecaster.movingAverage(d,6,n); },
     expSmooth: function(d,n){ return Forecaster.expSmoothAutoTune(d,n); },
     dayOfWeek: Forecaster.dayOfWeekPattern,
     trend: Forecaster.trendAndSeasonal,
     yoy: Forecaster.yearOverYear,
-    holtWinters: Forecaster.holtWinters,
-    piecesFirst: Forecaster.piecesAsDollars
+    holtWinters: Forecaster.holtWinters
   };
   var rows = [];
   var totalW = 0;
@@ -3698,28 +3528,20 @@ function renderAccuracy() {
     renderForecastTable();
   }
   rows.forEach(function(r) { if (r.on && !r.excluded) totalW += r.w; });
-  /* Auto-disable enhancers that hurt MAPE based on 3-path evaluation:
-     - bestPath='adj': all adjustments help → keep everything
-     - bestPath='wx': weather helps but bias/events hurt → disable seasonalEvents
-     - bestPath='raw': nothing helps → disable weather and seasonalEvents */
-  AppState._bestPath = result.bestPath || 'raw';
-  if (result.bestPath === 'raw') {
-    ['weather', 'seasonalEvents'].forEach(function(ek) {
+  /* Auto-disable enhancers that hurt MAPE:
+     weather & seasonal events are tested via raw vs adjusted comparison.
+     If adjusted MAPE is worse, auto-disable the active enhancers. */
+  if (result.rawMape != null && result.adjMape != null && !result.adjHelps) {
+    var enhancersToCheck = ['weather', 'seasonalEvents'];
+    enhancersToCheck.forEach(function(ek) {
       if (AppState.forecastMethods[ek] && !AppState.autoDisabled[ek]) {
         AppState.forecastMethods[ek] = false;
         AppState.autoDisabled[ek] = true;
         needsRerun = true;
       }
     });
-  } else if (result.bestPath === 'wx') {
-    /* Weather helps, but bias/events hurt — keep weather, disable seasonalEvents */
-    if (AppState.forecastMethods.seasonalEvents && !AppState.autoDisabled.seasonalEvents) {
-      AppState.forecastMethods.seasonalEvents = false;
-      AppState.autoDisabled.seasonalEvents = true;
-      needsRerun = true;
-    }
+    if (needsRerun) { runForecast(); renderForecastChart(); renderForecastTable(); }
   }
-  if (needsRerun) { runForecast(); renderForecastChart(); renderForecastTable(); }
   /* Store exclusion info for method cards */
   AppState._methodExclusion = {};
   rows.forEach(function(r) { AppState._methodExclusion[r.key] = { excluded: r.excluded, mape: r.mape, autoOff: !!AppState.autoDisabled[r.key] }; });
@@ -3777,7 +3599,7 @@ function renderAccuracy() {
 function renderWeightSliders() {
   var wrap = document.getElementById('weightSlidersWrap');
   if (!wrap) return;
-  var mNames = { movingAvg:'Moving Avg', expSmooth:'Exp. Smooth', dayOfWeek:'Day-of-Week', trend:'Trend+Season', yoy:'Year-over-Year', holtWinters:'Holt-Winters', piecesFirst:'Pcs\u00D7Price' };
+  var mNames = { movingAvg:'Moving Avg', expSmooth:'Exp. Smooth', dayOfWeek:'Day-of-Week', trend:'Trend+Season', yoy:'Year-over-Year', holtWinters:'Holt-Winters' };
   var keys = Object.keys(mNames);
   var mw = AppState.manualWeights;
   var isManual = mw !== null;
@@ -3824,7 +3646,7 @@ function onWeightSlider(key, val) {
 function toggleManualWeights() {
   var cb = document.getElementById('manualWeightToggle');
   if (cb && cb.checked) {
-    AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50, piecesFirst:50 };
+    AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50 };
   } else {
     AppState.manualWeights = null;
   }
@@ -3835,7 +3657,7 @@ function toggleManualWeights() {
 }
 
 function resetManualWeights() {
-  AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50, piecesFirst:50 };
+  AppState.manualWeights = { movingAvg:50, expSmooth:50, dayOfWeek:50, trend:50, yoy:50, holtWinters:50 };
   renderWeightSliders();
   runForecast();
   renderForecastChart();
@@ -3862,62 +3684,6 @@ function removeForecastSnapshot(idx) {
   renderFvsActual();
 }
 
-function exportBacktest(idx) {
-  var snap = AppState.savedForecasts[idx];
-  if (!snap) return;
-  var daily = getDailySales();
-  var dailyPcs = getDailyPieces();
-  var dailyMap = {};
-  daily.forEach(function(d) { dailyMap[d.date] = d.total; });
-  var pcsMap = {};
-  dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
-  var minThresh = (AppState.settings.minSalesThresholdOn && AppState.settings.minSalesThreshold > 0) ? AppState.settings.minSalesThreshold : 0;
-  /* Build CSV header */
-  var rows = [['Date', 'Day', 'Pcs Forecast', 'Pcs Actual', 'Pcs Err%', '$ Forecast', '$ Actual', '$ Err%', 'Status']];
-  snap.entries.forEach(function(e) {
-    var actual = e.actual != null ? e.actual : dailyMap[e.date];
-    var actualPcs = e.actualPcs != null ? e.actualPcs : pcsMap[e.date];
-    var predPcs = e.predictedPcs != null ? e.predictedPcs : null;
-    var dayName = DAYS[dayOfWeek(e.date)];
-    var dollarVal = dailyMap[e.date];
-    var isClosed = isClosedDate(e.date);
-    var belowThresh = dollarVal != null && minThresh > 0 && dollarVal < minThresh;
-    var noData = dollarVal == null || dollarVal === undefined;
-    var adaptiveSkip = false;
-    if (!isClosed && !belowThresh && !noData) {
-      adaptiveSkip = !isAdaptiveClean({ date: e.date, total: dollarVal });
-    }
-    var skip = isClosed || belowThresh || noData || adaptiveSkip;
-    var status = skip ? (isClosed ? 'CLOSED' : (belowThresh ? 'BELOW THRESH' : (noData ? 'NO DATA' : 'OUTLIER'))) : 'COUNTED';
-    var pcsFc = predPcs != null ? Math.round(predPcs) : '';
-    var pcsAct = actualPcs != null ? Math.round(actualPcs) : '';
-    var pcsErr = '';
-    if (predPcs != null && actualPcs != null && actualPcs > 0) {
-      pcsErr = (((actualPcs - predPcs) / actualPcs) * 100).toFixed(1) + '%';
-    }
-    var dolFc = e.predicted != null ? e.predicted.toFixed(0) : '';
-    var dolAct = actual != null ? actual.toFixed(0) : '';
-    var dolErr = '';
-    if (actual != null && actual > 0) {
-      dolErr = (((actual - e.predicted) / actual) * 100).toFixed(1) + '%';
-    }
-    rows.push([e.date, dayName, pcsFc, pcsAct, pcsErr, dolFc, dolAct, dolErr, status]);
-  });
-  var csvContent = rows.map(function(r) {
-    return r.map(function(c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(',');
-  }).join('\n');
-  var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url;
-  a.download = 'backtest_' + snap.savedDate.replace(/[^a-zA-Z0-9]/g, '_') + '.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  toast('Backtest exported as CSV');
-}
-
 function runBacktestComparison() {
   var daily = getDailySales();
   var dailyPcs = getDailyPieces();
@@ -3934,44 +3700,29 @@ function runBacktestComparison() {
   if (daily.length < nDays + 14) { toast('Not enough data for ' + nDays + '-day backtest', 'error'); return; }
   var trainData = daily.slice(0, -nDays);
   var testData = daily.slice(-nDays);
-  /* Compute actual calendar span so predictions cover all test dates */
-  var calSpan = Math.round((new Date(testData[testData.length-1].date+'T12:00:00') - new Date(trainData[trainData.length-1].date+'T12:00:00')) / 86400000);
-  var predDays = Math.max(nDays, calSpan + 1);
-  /* Use the best path determined by accuracy evaluation */
-  var bp = AppState._bestPath || 'adj';
-  var ensOpts = bp === 'raw' ? { raw: true } : (bp === 'wx' ? { weatherOnly: true } : {});
-  var predictions = Forecaster.ensemble(trainData, predDays, ensOpts);
+  var predictions = Forecaster.ensemble(trainData, nDays);
   if (!predictions || predictions.length === 0) { toast('Backtest produced no results', 'error'); return; }
   /* Also backtest pieces */
   var hasPcs = dailyPcs.length >= nDays + 14;
   var trainPcs = hasPcs ? dailyPcs.slice(0, -nDays) : [];
   var testPcs = hasPcs ? dailyPcs.slice(-nDays) : [];
-  var pcsCalSpan = (hasPcs && trainPcs.length > 0 && testPcs.length > 0) ? Math.round((new Date(testPcs[testPcs.length-1].date+'T12:00:00') - new Date(trainPcs[trainPcs.length-1].date+'T12:00:00')) / 86400000) : nDays;
-  var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, Math.max(nDays, pcsCalSpan + 1), ensOpts) : [];
+  var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, nDays) : [];
   /* Build pieces lookup by date for matching */
   var pcsMap = {};
   dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
-  /* Build actual maps keyed by date for proper matching */
-  var testDolMap = {};
-  testData.forEach(function(d) { testDolMap[d.date] = d.total; });
-  var testPcsMap = {};
-  testPcs.forEach(function(d) { testPcsMap[d.date] = d.total; });
-  /* Build prediction maps keyed by date */
-  var predDolMap = {};
-  predictions.forEach(function(p) { predDolMap[p.date] = p.predicted; });
-  var predPcsMap = {};
-  predsPcs.forEach(function(p) { predPcsMap[p.date] = p.predicted; });
   var snap = { savedDate: 'Backtest ' + nDays + 'd (cutoff ' + trainData[trainData.length - 1].date + ')', isBacktest: true, entries: [] };
-  /* Iterate over prediction dates (calendar days) and match actuals by date */
-  predictions.forEach(function(p) {
-    var dt = p.date;
-    var entry = { date: dt, predicted: p.predicted, actual: testDolMap[dt] != null ? testDolMap[dt] : null };
-    if (hasPcs) {
-      entry.predictedPcs = predPcsMap[dt] != null ? predPcsMap[dt] : null;
+  for (var i = 0; i < nDays; i++) {
+    var actual = testData[i] ? testData[i].total : null;
+    var pred = predictions[i] ? predictions[i].predicted : 0;
+    var dt = testData[i] ? testData[i].date : (predictions[i] ? predictions[i].date : '');
+    var entry = { date: dt, predicted: pred, actual: actual };
+    /* Pieces data */
+    if (hasPcs && predsPcs[i]) {
+      entry.predictedPcs = predsPcs[i].predicted;
       entry.actualPcs = pcsMap[dt] != null ? pcsMap[dt] : null;
     }
     snap.entries.push(entry);
-  });
+  }
   /* Replace any existing backtest snap, keep manual ones */
   AppState.savedForecasts = AppState.savedForecasts.filter(function(s) { return !s.isBacktest; });
   AppState.savedForecasts.unshift(snap);
@@ -3999,10 +3750,7 @@ function renderFvsActual() {
     var tHtml = '<div style="margin-bottom:20px;border:1px solid var(--border);border-radius:var(--radius);padding:12px;overflow-x:auto;">';
     tHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
     tHtml += '<strong style="font-size:13px;">' + snap.savedDate + '</strong>';
-    tHtml += '<div style="display:flex;gap:6px;">';
-    tHtml += '<button class="btn btn-sm" style="font-size:12px;padding:2px 8px;" onclick="exportBacktest(' + si + ')">📥 Export CSV</button>';
-    tHtml += '<button class="btn btn-sm" style="color:var(--danger);font-size:12px;padding:2px 8px;" onclick="removeForecastSnapshot(' + si + ')">✕ Remove</button>';
-    tHtml += '</div></div>';
+    tHtml += '<button class="btn btn-sm" style="color:var(--danger);font-size:12px;padding:2px 8px;" onclick="removeForecastSnapshot(' + si + ')">✕ Remove</button></div>';
     tHtml += '<table style="font-size:12px;"><thead><tr><th>Date</th><th>Day</th>';
     /* Pieces columns first */
     tHtml += '<th style="text-align:right;color:var(--accent);">Pcs Fc</th><th style="text-align:right;color:var(--accent);">Pcs Act</th><th style="text-align:right;color:var(--accent);">Pcs Err%</th>';
@@ -4011,32 +3759,11 @@ function renderFvsActual() {
     tHtml += '</tr></thead><tbody>';
     var totAbs = 0, totAct = 0, totBias = 0, matched = 0;
     var pcsTotAbs = 0, pcsTotAct = 0, pcsTotBias = 0, pcsMatched = 0;
-    var skippedCount = 0;
-    var minThresh = (AppState.settings.minSalesThresholdOn && AppState.settings.minSalesThreshold > 0) ? AppState.settings.minSalesThreshold : 0;
     snap.entries.forEach(function(e) {
       var actual = e.actual != null ? e.actual : dailyMap[e.date];
       var actualPcs = e.actualPcs != null ? e.actualPcs : pcsMap[e.date];
       var predPcs = e.predictedPcs != null ? e.predictedPcs : null;
       var dayName = DAYS[dayOfWeek(e.date)];
-      /* Skip: day not in data, below threshold, closed, or anomalously low */
-      var dollarVal = dailyMap[e.date];
-      var isClosed = isClosedDate(e.date);
-      var belowThresh = dollarVal != null && minThresh > 0 && dollarVal < minThresh;
-      var noData = dollarVal == null || dollarVal === undefined;
-      var adaptiveSkip = false;
-      if (!isClosed && !belowThresh && !noData) {
-        adaptiveSkip = !isAdaptiveClean({ date: e.date, total: dollarVal });
-      }
-      var skip = isClosed || belowThresh || noData || adaptiveSkip;
-      if (skip) {
-        var reason = isClosed ? 'CLOSED' : (belowThresh ? 'BELOW THRESH' : (noData ? 'NO DATA' : 'OUTLIER'));
-        tHtml += '<tr style="opacity:0.35;"><td>' + e.date + '</td><td>' + dayName + '</td>';
-        tHtml += '<td colspan="3" style="text-align:center;color:var(--muted);font-size:11px;">' + reason + '</td>';
-        tHtml += '<td colspan="3" style="text-align:center;color:var(--muted);font-size:11px;">' + reason + '</td>';
-        tHtml += '</tr>';
-        skippedCount++;
-        return;
-      }
       tHtml += '<tr><td>' + e.date + '</td><td>' + dayName + '</td>';
       /* Pieces columns */
       if (predPcs != null && actualPcs != null) {
@@ -4079,7 +3806,7 @@ function renderFvsActual() {
       var avgBias = (totBias / matched).toFixed(0);
       summaryParts.push('$ MAPE: <strong>' + mape + '%</strong> · $ Bias: <strong>' + fmt(parseFloat(avgBias)) + '</strong>');
     }
-    var totalDaysNote = matched > 0 ? ' (' + matched + ' days counted' + (skippedCount > 0 ? ', ' + skippedCount + ' skipped' : '') + ')' : '';
+    var totalDaysNote = matched > 0 ? ' (' + matched + ' days with actuals)' : '';
     if (summaryParts.length > 0) {
       tHtml += '<p style="font-size:12px;color:var(--muted);margin-top:6px;">' + summaryParts.join(' &nbsp;|&nbsp; ') + totalDaysNote + '</p>';
     }
@@ -4220,7 +3947,7 @@ function detectAnomalies(lookbackDays) {
   /* Build DOW stats from all clean data */
   var dowSums = [0,0,0,0,0,0,0], dowSumSq = [0,0,0,0,0,0,0], dowCnts = [0,0,0,0,0,0,0];
   daily.forEach(function(d) {
-    if (!isAdaptiveClean(d)) return;
+    if (!isCleanDay(d)) return;
     var dw = dayOfWeek(d.date);
     dowSums[dw] += d.total;
     dowSumSq[dw] += d.total * d.total;
@@ -4243,7 +3970,7 @@ function detectAnomalies(lookbackDays) {
   var anomalies = [];
   for (var j = startIdx; j < daily.length; j++) {
     var d = daily[j];
-    if (!isAdaptiveClean(d)) continue;
+    if (!isCleanDay(d)) continue;
     var dw = dayOfWeek(d.date);
     if (dowStd[dw] === 0 || dowCnts[dw] < 3) continue;
     var zScore = (d.total - dowMean[dw]) / dowStd[dw];
@@ -4689,7 +4416,7 @@ function learnEventImpacts() {
     var ev = events[ei];
     var evDays = [], nonEvDays = [];
     daily.forEach(function(d) {
-      if (!isAdaptiveClean(d)) return;
+      if (!isCleanDay(d)) return;
       if (isDateInEventWindow(d.date, ev.startMmDd, ev.endMmDd)) {
         evDays.push(d);
       } else {
@@ -4862,7 +4589,6 @@ function exportAllData() {
     weatherData: AppState.weatherData,
     settings: AppState.settings,
     forecastMethods: AppState.forecastMethods,
-    autoDisabled: AppState.autoDisabled,
     manualWeights: AppState.manualWeights,
     savedForecasts: AppState.savedForecasts
   };
@@ -4888,8 +4614,6 @@ function importAllData(event) {
       if (data.weatherData) AppState.weatherData = data.weatherData;
       if (data.settings) Object.assign(AppState.settings, data.settings);
       if (data.forecastMethods) Object.assign(AppState.forecastMethods, data.forecastMethods);
-      if (data.autoDisabled) AppState.autoDisabled = data.autoDisabled;
-      else AppState.autoDisabled = {};
       if (data.manualWeights !== undefined) AppState.manualWeights = data.manualWeights;
       if (data.savedForecasts) AppState.savedForecasts = data.savedForecasts;
       /* Sync forecast days dropdown */
