@@ -80,6 +80,13 @@ tailwind.config = {
         }
     }
 };
+
+// VISIBILITY FIX: In the consolidated version, CSS is inlined so there is no
+// external stylesheet onload callback. Reveal the page now that Tailwind config
+// is applied and the inlined CSS is already parsed.
+document.documentElement.style.visibility = 'visible';
+var _fouc_loader = document.querySelector('.loading-spinner');
+if (_fouc_loader) _fouc_loader.remove();
 </script>
 
 <style>
@@ -9355,6 +9362,11 @@ handleProductionError(error, context = '') {
 showServiceInterruptionModal(error) {
  const modal = document.getElementById('serviceInterruptionModal');
  if (!modal) return;
+
+ // CRITICAL: Force page visible so the modal can actually be seen.
+ // In the consolidated single-file version, the FOUC-prevention
+ // 'html { visibility: hidden }' may not have been cleared yet.
+ document.documentElement.style.visibility = 'visible';
 
  // Update error details
  const errorMsgEl = document.getElementById('serviceErrorMessage');
