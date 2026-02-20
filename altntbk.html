@@ -883,6 +883,88 @@
         </div>
     </div>
 
+    <!-- Airtable Service Interruption Modal -->
+    <div id="serviceInterruptionModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden fade-in">
+            <!-- Red header bar -->
+            <div class="bg-red-600 px-6 py-4 flex items-center space-x-3">
+                <svg class="w-8 h-8 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <div>
+                    <h3 class="text-white text-lg font-bold">Airtable Service Interruption</h3>
+                    <p class="text-red-100 text-sm">Unable to connect to Airtable</p>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="px-6 py-5 space-y-4">
+                <!-- Error details -->
+                <div id="serviceErrorDetails" class="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p class="text-sm font-semibold text-red-800 mb-1">Error Details:</p>
+                    <p id="serviceErrorMessage" class="text-sm text-red-700">Connection to Airtable failed.</p>
+                    <p id="serviceErrorCode" class="text-xs text-red-500 mt-1"></p>
+                </div>
+
+                <!-- Status info -->
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+                    <div class="flex items-start space-x-3">
+                        <svg class="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="text-sm text-gray-700">
+                            <p class="font-medium mb-1">This is likely an Airtable service issue.</p>
+                            <p>Airtable may be experiencing downtime or service disruptions. Your data is safe &mdash; it will load once the service is restored.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2 text-sm text-gray-600">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Failed attempts: <strong id="serviceFailCount">0</strong></span>
+                        <span class="text-gray-300">|</span>
+                        <span>Last attempt: <strong id="serviceLastAttemptTime">--</strong></span>
+                    </div>
+                </div>
+
+                <!-- Auto-retry countdown -->
+                <div id="serviceAutoRetrySection" class="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <div id="serviceRetrySpinner" class="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
+                        <span class="text-sm text-blue-700">Auto-retry in <strong id="serviceRetryCountdown">30</strong>s</span>
+                    </div>
+                    <button id="serviceRetryNowBtn" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors font-medium">
+                        Retry Now
+                    </button>
+                </div>
+
+                <!-- Airtable status link -->
+                <div class="flex items-center justify-between pt-2">
+                    <a href="https://status.airtable.com" target="_blank" class="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                        </svg>
+                        Check Airtable Status Page
+                    </a>
+                </div>
+            </div>
+
+            <!-- Footer actions -->
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+                <button id="serviceDismissBtn" class="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors text-sm">
+                    Dismiss
+                </button>
+                <button id="serviceRetryMainBtn" class="px-6 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors font-medium flex items-center space-x-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span>Retry Connection</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notifications -->
     <div id="toastContainer" class="fixed top-20 right-4 z-50 space-y-2">
         <!-- Toasts will be added here dynamically -->
@@ -892,4 +974,3 @@
     <script src="js/app.js"></script>
 </body>
 </html>
-
