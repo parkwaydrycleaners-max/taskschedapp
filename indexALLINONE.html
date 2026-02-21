@@ -7498,13 +7498,18 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  
  async deleteCapacityOverrideFromAirtable(person, date) {
  const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
- 
+
  const filterFormula = `AND({Person}='${person}',{Date}='${date}')`;
  const response = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodeURIComponent(filterFormula)}`);
- 
+
+ // Delete ALL matching records (not just the first) to clean up duplicates
  if (response.records.length > 0) {
- const recordId = response.records[0].id;
- await this.makeAirtableRequest(`${tableName}/${recordId}`, 'DELETE');
+ for (const record of response.records) {
+ await this.makeAirtableRequest(`${tableName}/${record.id}`, 'DELETE');
+ }
+ if (response.records.length > 1) {
+ console.warn(`Cleaned up ${response.records.length} duplicate override records for ${person} on ${date}`);
+ }
  }
  }
  
