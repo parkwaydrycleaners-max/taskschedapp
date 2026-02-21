@@ -1758,12 +1758,13 @@ const Forecaster = {
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    /* Collect clean values per DOW from last 8 weeks with exponential recency weighting.
-       Half-life = 21 days: data from 3 weeks ago gets 50% weight, 6 weeks → 25%. */
+    /* Collect clean values per DOW from last 12 weeks with exponential recency weighting.
+       Half-life = 28 days: data from 4 weeks ago gets 50% weight, 8 weeks → 25%.
+       Wider window gives ~12 samples per DOW for more robust averages. */
     var dowVals = [[],[],[],[],[],[],[]];
     var n = dailySales.length;
-    var lookback = Math.min(n, 56); /* 8 weeks */
-    var halfLife = 21;
+    var lookback = Math.min(n, 84); /* 12 weeks */
+    var halfLife = 28;
     for (var ri = n - lookback; ri < n; ri++) {
       var d = dailySales[ri];
       if (!isCleanDay(d)) continue;
@@ -2128,7 +2129,7 @@ const Forecaster = {
   /* Walk-forward cross-validation: 4 folds × 7 days with winsorization */
   _backtestMethod(methodFn, dailySales, testDays) {
     testDays = 7;
-    var folds = 4;
+    var folds = 6;
     var minTrain = 21;
     if (dailySales.length < minTrain + testDays * folds) {
       if (dailySales.length < minTrain + testDays) return 999;
@@ -2307,7 +2308,7 @@ const Forecaster = {
 
   backtest(dailySales, testDays) {
     testDays = 7;
-    var folds = 4;
+    var folds = 6;
     var minTrain = 21;
     if (dailySales.length < minTrain + testDays * folds) {
       if (dailySales.length < minTrain + testDays) return null;
@@ -2354,9 +2355,9 @@ const Forecaster = {
         var adjErr = testData[i].total - adjPred;
         adjErrors.push(Math.abs(adjErr) / testData[i].total);
         totErr += adjErr; totAbs += Math.abs(adjErr); totAct += testData[i].total; cnt++;
-        /* Collect per-DOW stats using the best raw prediction as baseline */
+        /* Collect per-DOW stats for all 3 paths — we'll pick the best path's stats later */
         var dw = dayOfWeek(testData[i].date);
-        dowStats[dw].push({ actual: testData[i].total, predicted: rawPred });
+        dowStats[dw].push({ actual: testData[i].total, rawPred: rawPred, woPred: woPred || rawPred, adjPred: adjPred });
       }
     }
     /* Winsorize: cap at 90th percentile to reduce outlier influence */
@@ -2390,16 +2391,18 @@ const Forecaster = {
     best.adjMape = adjMape;
     best.bestPath = bestPath;
     best.adjHelps = bestPath === 'adj';
-    /* Per-DOW breakdown */
+    /* Per-DOW breakdown — use the best path's predictions */
+    var predKey = bestPath === 'adj' ? 'adjPred' : (bestPath === 'weatherOnly' ? 'woPred' : 'rawPred');
     best.dowBreakdown = [];
     for (var dd = 0; dd < 7; dd++) {
       var arr = dowStats[dd];
       if (arr.length === 0) { best.dowBreakdown.push(null); continue; }
       var dMape = 0, dBias = 0, dAvgA = 0, dAvgF = 0;
       arr.forEach(function(x) {
-        dMape += Math.abs(x.actual - x.predicted) / x.actual;
-        dBias += (x.actual - x.predicted);
-        dAvgA += x.actual; dAvgF += x.predicted;
+        var pred = x[predKey];
+        dMape += Math.abs(x.actual - pred) / x.actual;
+        dBias += (x.actual - pred);
+        dAvgA += x.actual; dAvgF += pred;
       });
       best.dowBreakdown.push({
         mape: (dMape / arr.length * 100),
@@ -2408,6 +2411,27 @@ const Forecaster = {
         avgForecast: dAvgF / arr.length,
         count: arr.length
       });
+    }
+    /* Compute per-DOW correction factors from cross-validation residuals.
+       This fixes systematic DOW forecast biases (e.g., Mon over-forecast, Tue under-forecast)
+       by learning the ratio of actual/forecast per DOW from the backtest data. */
+    best.dowCorrections = [];
+    for (var dc = 0; dc < 7; dc++) {
+      var dcArr = dowStats[dc];
+      if (dcArr.length < 3) { best.dowCorrections.push(1); continue; }
+      var dcAvgA = 0, dcAvgF = 0;
+      dcArr.forEach(function(x) { dcAvgA += x.actual; dcAvgF += x[predKey]; });
+      dcAvgA /= dcArr.length; dcAvgF /= dcArr.length;
+      if (dcAvgF <= 0) { best.dowCorrections.push(1); continue; }
+      var rawRatio = dcAvgA / dcAvgF;
+      /* Shrinkage: trust correction more with more data points */
+      var shrinkage = Math.min(1, dcArr.length / 10);
+      var corr = 1 + shrinkage * (rawRatio - 1);
+      /* Cap at ±25% to prevent overcorrection */
+      corr = Math.max(0.75, Math.min(1.25, corr));
+      /* Only apply if effect is meaningful (>3%) */
+      if (Math.abs(corr - 1) < 0.03) corr = 1;
+      best.dowCorrections.push(corr);
     }
     return best;
   }
@@ -2999,6 +3023,18 @@ function runForecast() {
   var bp = AppState._bestPath || 'adj';
   var ensOpts = bp === 'raw' ? { raw: true } : (bp === 'weatherOnly' ? { weatherOnly: true } : {});
   AppState.forecastCache = Forecaster.ensemble(daily, days, ensOpts);
+  /* Apply per-DOW correction factors learned from cross-validation.
+     This fixes systematic DOW biases (e.g., Mon over-forecast diluted by non-DOW methods). */
+  if (AppState._dowCorrections) {
+    AppState.forecastCache.forEach(function(f) {
+      var dwc = dayOfWeek(f.date);
+      var corr = AppState._dowCorrections[dwc];
+      if (corr && corr !== 1) {
+        f.predicted *= corr;
+        f.dowCorr = corr;
+      }
+    });
+  }
   if (AppState.forecastMethods.confidenceIntervals) {
     computeConfidenceIntervals(AppState.forecastCache, daily);
   }
@@ -3006,6 +3042,17 @@ function runForecast() {
   var dailyPcs = getDailyPieces();
   if (dailyPcs.length >= 7) {
     AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days, ensOpts);
+    /* Apply per-DOW pieces correction for more accurate labor hours */
+    if (AppState._dowCorrectionsPcs) {
+      AppState.forecastCachePcs.forEach(function(f) {
+        var dwcp = dayOfWeek(f.date);
+        var corrP = AppState._dowCorrectionsPcs[dwcp];
+        if (corrP && corrP !== 1) {
+          f.predicted *= corrP;
+          f.dowCorr = corrP;
+        }
+      });
+    }
     if (AppState.forecastMethods.confidenceIntervals) {
       computeConfidenceIntervals(AppState.forecastCachePcs, dailyPcs);
     }
@@ -3691,21 +3738,25 @@ function renderAccuracy() {
   mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">$ MAE</div><div class="stat-value" style="font-size:1.15rem;">' + fmt(result.mae) + '</div><div style="font-size:12px;color:var(--muted);">Mean absolute error</div></div>';
   mHtml += '</div>';
   if (adjNote) mHtml += '<div style="grid-column:1/-1;padding:4px 0;">' + adjNote + '</div>';
-  /* Per-DOW Breakdown table */
+  /* Per-DOW Breakdown table with learned correction factors */
   if (result.dowBreakdown) {
-    mHtml += '<div style="grid-column:1/-1;margin-top:8px;"><div style="font-weight:700;font-size:13px;margin-bottom:6px;">Per Day-of-Week Breakdown</div>';
-    mHtml += '<table style="font-size:12px;width:100%;"><thead><tr><th>Day</th><th style="text-align:right">Avg Forecast</th><th style="text-align:right">Avg Actual</th><th style="text-align:right">MAPE</th><th style="text-align:right">Bias</th><th style="text-align:right">N</th></tr></thead><tbody>';
+    mHtml += '<div style="grid-column:1/-1;margin-top:8px;"><div style="font-weight:700;font-size:13px;margin-bottom:6px;">Per Day-of-Week Breakdown <span style="font-weight:400;font-size:11px;color:var(--muted);">(pre-correction)</span></div>';
+    mHtml += '<table style="font-size:12px;width:100%;"><thead><tr><th>Day</th><th style="text-align:right">Avg Forecast</th><th style="text-align:right">Avg Actual</th><th style="text-align:right">MAPE</th><th style="text-align:right">Bias</th><th style="text-align:right">Correction</th><th style="text-align:right">N</th></tr></thead><tbody>';
     var dowNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     for (var di = 0; di < 7; di++) {
       var db = result.dowBreakdown[di];
-      if (!db) { mHtml += '<tr style="opacity:0.35;"><td>' + dowNames[di] + '</td><td colspan="5" style="text-align:center;color:var(--muted);">—</td></tr>'; continue; }
+      if (!db) { mHtml += '<tr style="opacity:0.35;"><td>' + dowNames[di] + '</td><td colspan="6" style="text-align:center;color:var(--muted);">—</td></tr>'; continue; }
       var mColor = db.mape < 15 ? 'var(--success)' : db.mape < 25 ? 'var(--accent)' : 'var(--danger)';
       var bColor = db.bias >= 0 ? 'var(--success)' : 'var(--danger)';
+      var corrVal = result.dowCorrections ? result.dowCorrections[di] : 1;
+      var corrStr = corrVal === 1 ? '<span style="color:var(--muted);">—</span>' : ((corrVal > 1 ? '+' : '') + ((corrVal - 1) * 100).toFixed(0) + '%');
+      var corrColor = corrVal === 1 ? '' : (corrVal > 1 ? 'color:var(--success);font-weight:600;' : 'color:var(--danger);font-weight:600;');
       mHtml += '<tr><td><strong>' + dowNames[di] + '</strong></td>';
       mHtml += '<td style="text-align:right">' + Math.round(db.avgForecast) + '</td>';
       mHtml += '<td style="text-align:right">' + Math.round(db.avgActual) + '</td>';
       mHtml += '<td style="text-align:right;font-weight:600;color:' + mColor + ';">' + db.mape.toFixed(1) + '%</td>';
       mHtml += '<td style="text-align:right;color:' + bColor + ';">' + (db.bias >= 0 ? '+' : '') + db.bias.toFixed(0) + '</td>';
+      mHtml += '<td style="text-align:right;' + corrColor + '">' + corrStr + '</td>';
       mHtml += '<td style="text-align:right;color:var(--muted);">' + db.count + '</td></tr>';
     }
     mHtml += '</tbody></table></div>';
@@ -3760,6 +3811,9 @@ function renderAccuracy() {
      - bestPath='weatherOnly': weather helps but DOW bias/holiday/seasonal hurts → disable seasonalEvents only, keep weather
      - bestPath='raw': all adjustments hurting → disable weather and seasonalEvents */
   AppState._bestPath = result.bestPath || 'raw';
+  /* Store per-DOW correction factors learned from cross-validation */
+  AppState._dowCorrections = result.dowCorrections || null;
+  AppState._dowCorrectionsPcs = (resultPcs && resultPcs.dowCorrections) ? resultPcs.dowCorrections : null;
   if (result.bestPath === 'raw') {
     ['weather', 'seasonalEvents'].forEach(function(ek) {
       if (AppState.forecastMethods[ek] && !AppState.autoDisabled[ek]) {
@@ -3996,11 +4050,27 @@ function runBacktestComparison() {
   var ensOpts = bp === 'raw' ? { raw: true } : (bp === 'weatherOnly' ? { weatherOnly: true } : {});
   var predictions = Forecaster.ensemble(trainData, nDays, ensOpts);
   if (!predictions || predictions.length === 0) { toast('Backtest produced no results', 'error'); return; }
+  /* Apply per-DOW corrections to predictions (same as runForecast) */
+  if (AppState._dowCorrections) {
+    predictions.forEach(function(p) {
+      var dwc = dayOfWeek(p.date);
+      var corr = AppState._dowCorrections[dwc];
+      if (corr && corr !== 1) { p.predicted *= corr; }
+    });
+  }
   /* Also backtest pieces */
   var hasPcs = dailyPcs.length >= nDays + 14;
   var trainPcs = hasPcs ? dailyPcs.slice(0, -nDays) : [];
   var testPcs = hasPcs ? dailyPcs.slice(-nDays) : [];
   var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, nDays, ensOpts) : [];
+  /* Apply per-DOW pieces corrections */
+  if (AppState._dowCorrectionsPcs && hasPcs) {
+    predsPcs.forEach(function(p) {
+      var dwcp = dayOfWeek(p.date);
+      var corrP = AppState._dowCorrectionsPcs[dwcp];
+      if (corrP && corrP !== 1) { p.predicted *= corrP; }
+    });
+  }
   /* Build pieces lookup by date for matching */
   var pcsMap = {};
   dailyPcs.forEach(function(d) { pcsMap[d.date] = d.total; });
