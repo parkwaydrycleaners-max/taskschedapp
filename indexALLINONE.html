@@ -1252,6 +1252,7 @@ if (_fouc_loader) _fouc_loader.remove();
  this.people = [];
  this.peopleCapacity = {};
  this.peopleSpecificCapacity = {};
+ this.manuallyDeletedOverrides = new Set(); // Tracks person|date keys deleted by user
  this.tasks = {};
 
  // -----------------------------------------------------------------
@@ -1522,13 +1523,27 @@ if (_fouc_loader) _fouc_loader.remove();
  
  const processDate = (dateStr) => {
  this.people.forEach(person => {
+ // Skip if this override was manually deleted by user
+ const overrideKey = `${person}|${dateStr}`;
+ if (this.manuallyDeletedOverrides && this.manuallyDeletedOverrides.has(overrideKey)) {
+ debugLog.push({
+ person,
+ date: dateStr,
+ usedSlots: 0,
+ currentCapacity: 0,
+ newCapacity: null,
+ reason: 'Skipped - user manually deleted this override'
+ });
+ return;
+ }
+
  const personTasks = this.tasks[dateStr]?.[person] || [];
  const usedSlots = personTasks.reduce((total, task) => total + task.duration, 0);
- 
+
  if (!this.peopleSpecificCapacity[person]) {
  this.peopleSpecificCapacity[person] = {};
  }
- 
+
  const currentCapacity = this.getPersonCapacityForDate(person, this.parseDateString(dateStr));
  
  // FIXED AUTO-CAPACITY LOGIC:
@@ -7361,6 +7376,12 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  
  dates.forEach(date => {
  this.peopleSpecificCapacity[person][date] = capacity;
+ // Clear manual deletion flag since user is explicitly adding this override
+ const deleteKey = `${person}|${date}`;
+ if (this.manuallyDeletedOverrides && this.manuallyDeletedOverrides.has(deleteKey)) {
+ this.manuallyDeletedOverrides.delete(deleteKey);
+ this.saveManuallyDeletedOverridesToLocal();
+ }
  });
  
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
@@ -7383,16 +7404,20 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  }
  
  async removeCapacityOverride(person, date) {
- 
+
  if (this.peopleSpecificCapacity[person]) {
  delete this.peopleSpecificCapacity[person][date];
- 
+
  if (Object.keys(this.peopleSpecificCapacity[person]).length === 0) {
  delete this.peopleSpecificCapacity[person];
  }
  }
- 
- 
+
+ // Track this deletion so auto-capacity doesn't re-create it
+ const deleteKey = `${person}|${date}`;
+ this.manuallyDeletedOverrides.add(deleteKey);
+ this.saveManuallyDeletedOverridesToLocal();
+
  // FORCE save to local storage immediately
  await this.saveCapacityOverridesToLocal();
  
@@ -7850,6 +7875,76 @@ if (savedConfig) {
  }
  }
  
+ // ---------------------------------------------------------------
+ // MANUALLY DELETED OVERRIDES PERSISTENCE
+ // Prevents auto-capacity from re-creating overrides the user deleted
+ // ---------------------------------------------------------------
+ async saveManuallyDeletedOverridesToLocal() {
+ try {
+ const db = await this.openConfigDatabase();
+ const transaction = db.transaction(['config'], 'readwrite');
+ const store = transaction.objectStore('config');
+
+ const dataToSave = {
+ id: 'manually-deleted-overrides',
+ data: Array.from(this.manuallyDeletedOverrides),
+ lastSaved: new Date().toISOString()
+ };
+
+ return new Promise((resolve, reject) => {
+ const request = store.put(dataToSave);
+ request.onsuccess = () => resolve();
+ request.onerror = () => reject(request.error);
+ });
+ } catch (error) {
+ console.warn('Could not save manually deleted overrides:', error);
+ }
+ }
+
+ async loadManuallyDeletedOverridesFromLocal() {
+ try {
+ const db = await this.openConfigDatabase();
+ const transaction = db.transaction(['config'], 'readonly');
+ const store = transaction.objectStore('config');
+
+ return new Promise((resolve) => {
+ const request = store.get('manually-deleted-overrides');
+ request.onsuccess = () => {
+ const result = request.result;
+ if (result && Array.isArray(result.data)) {
+ this.manuallyDeletedOverrides = new Set(result.data);
+ this.cleanupManuallyDeletedOverrides();
+ }
+ resolve();
+ };
+ request.onerror = () => resolve();
+ });
+ } catch (error) {
+ console.warn('Could not load manually deleted overrides:', error);
+ }
+ }
+
+ cleanupManuallyDeletedOverrides() {
+ // Remove entries older than 35 days to prevent unbounded growth
+ const cutoff = new Date();
+ cutoff.setDate(cutoff.getDate() - 35);
+ const cutoffStr = this.dateToLocalDateString(cutoff);
+
+ const toRemove = [];
+ this.manuallyDeletedOverrides.forEach(key => {
+ const dateStr = key.split('|')[1];
+ if (dateStr && dateStr < cutoffStr) {
+ toRemove.push(key);
+ }
+ });
+
+ toRemove.forEach(key => this.manuallyDeletedOverrides.delete(key));
+
+ if (toRemove.length > 0) {
+ this.saveManuallyDeletedOverridesToLocal();
+ }
+ }
+
  async savePeopleCapacityToLocal() {
  try {
  const db = await this.openConfigDatabase();
@@ -8614,6 +8709,10 @@ async loadAllDataFromAirtable() {
  this.people = Array.from(peopleSet);
  }
  
+ // Load manually deleted overrides BEFORE auto-capacity runs
+ // so it knows which person+date combos to skip
+ await this.loadManuallyDeletedOverridesFromLocal();
+
  if (this.autoCapacityRule && this.autoCapacityRule.enabled) {
  this.applyAutoCapacityRule();
  }
