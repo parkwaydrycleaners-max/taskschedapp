@@ -2102,28 +2102,70 @@ const Forecaster = {
     var s = AppState.settings;
     var learned = getLearnedWeatherAdj();
     var heatThresh = s.heatThresh || 95;
-    return forecasts.map(function(f) {
+    /* Pass 1: Apply rain/heat reductions and track displaced demand */
+    var displaced = []; /* { fromDate, amount, weekSat } */
+    var adjusted = forecasts.map(function(f) {
       var w = wMap[f.date];
-      if (!w) return f;
+      if (!w) return Object.assign({}, f, { weatherAdj: 1, weatherSource: learned ? 'learned' : 'manual' });
       var adj = 1;
       var isHot = w.tempMax > heatThresh;
-      /* Use business-hours rain when available */
       var rn = (w.bizRain != null) ? w.bizRain : w.rain;
-      /* Graduated rain adjustment */
       if (learned && learned.graduated) {
         if (rn > 15) adj *= (1 - learned.heavyRain / 100);
         else if (rn > 5) adj *= (1 - learned.moderateRain / 100);
         else if (rn > 2) adj *= (1 - learned.lightRain / 100);
         if (isHot) adj *= (1 - learned.heat / 100);
       } else {
-        /* Fallback: use manual graduated rain settings */
         if (rn > 15) adj *= (1 - (s.rainAdjHeavy || 25) / 100);
         else if (rn > 5) adj *= (1 - (s.rainAdjMod || 15) / 100);
         else if (rn > 2) adj *= (1 - (s.rainAdjLight || 8) / 100);
         if (isHot) adj *= (1 - (s.heatAdj || 10) / 100);
       }
+      /* Track displaced demand from moderate/heavy rain for redistribution.
+         Customers skip heavy rain days and come the next day or Saturday instead. */
+      if (adj < 0.92 && rn > 5) {
+        var displacedAmt = f.predicted * (1 - adj);
+        /* Find the Saturday of this week (day 6) */
+        var fDow = dayOfWeek(f.date);
+        var daysToSat = (6 - fDow + 7) % 7;
+        var satDate = daysToSat > 0 ? addDays(f.date, daysToSat) : null;
+        displaced.push({ fromDate: f.date, amount: displacedAmt, satDate: satDate, fDow: fDow });
+      }
       return Object.assign({}, f, { predicted: f.predicted * adj, weatherAdj: adj, weatherSource: learned ? 'learned' : 'manual' });
     });
+    /* Pass 2: Redistribute displaced demand to next open day and Saturday.
+       ~60% goes to the next business day, ~40% to Saturday (if weekday rain). */
+    if (displaced.length > 0) {
+      var dateMap = {};
+      adjusted.forEach(function(f, idx) { dateMap[f.date] = idx; });
+      displaced.forEach(function(d) {
+        var nextDayShare = 0.60;
+        var satShare = 0.40;
+        /* If the rain day IS Saturday, 100% goes to next open day (Monday) */
+        if (d.fDow === 6) { nextDayShare = 1.0; satShare = 0; }
+        /* If rain day is Friday, more goes to Saturday */
+        if (d.fDow === 5) { nextDayShare = 0.35; satShare = 0.65; }
+        /* Find next open business day */
+        var nextDate = addDays(d.fromDate, 1);
+        for (var tries = 0; tries < 5; tries++) {
+          if (!isClosedDate(nextDate) && dateMap[nextDate] != null) break;
+          nextDate = addDays(nextDate, 1);
+        }
+        /* Apply redistribution to next day */
+        if (dateMap[nextDate] != null) {
+          var boost = d.amount * nextDayShare;
+          adjusted[dateMap[nextDate]].predicted += boost;
+          adjusted[dateMap[nextDate]].rainRedistribution = (adjusted[dateMap[nextDate]].rainRedistribution || 0) + boost;
+        }
+        /* Apply redistribution to Saturday (if weekday rain and Saturday exists in forecast) */
+        if (satShare > 0 && d.satDate && dateMap[d.satDate] != null && d.satDate !== d.fromDate) {
+          var satBoost = d.amount * satShare;
+          adjusted[dateMap[d.satDate]].predicted += satBoost;
+          adjusted[dateMap[d.satDate]].rainRedistribution = (adjusted[dateMap[d.satDate]].rainRedistribution || 0) + satBoost;
+        }
+      });
+    }
+    return adjusted;
   },
 
   /* Walk-forward cross-validation: 4 folds × 7 days with winsorization */
@@ -3658,7 +3700,7 @@ function renderForecastTable() {
       var evBg = evPct >= 0 ? 'background:#cce5ff;color:#004085;' : 'background:#f8d7da;color:#721c24;';
       hBadge += ' <span style="' + evBg + 'padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">📅 ' + f.eventName + ' ' + evSign + evPct + '%</span>';
     }
-    /* Weather effect: show % adj and source */
+    /* Weather effect: show % adj, redistribution boost, and source */
     var wEffect = '—';
     if (w) {
       var adj = f.weatherAdj || 1;
@@ -3669,6 +3711,14 @@ function renderForecastTable() {
       } else {
         wEffect = weatherEmoji(w.code) + ' <span style="color:var(--muted);">NONE</span>';
       }
+      /* Show rain redistribution boost if this day receives displaced demand */
+      if (f.rainRedistribution && f.rainRedistribution > 0) {
+        var boostPct = Math.round(f.rainRedistribution / (f.predicted - f.rainRedistribution) * 100);
+        wEffect += ' <span style="background:#d4edda;color:#155724;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">☔→ +' + boostPct + '%</span>';
+      }
+    } else if (f.rainRedistribution && f.rainRedistribution > 0) {
+      var boostPct2 = Math.round(f.rainRedistribution / (f.predicted - f.rainRedistribution) * 100);
+      wEffect = '<span style="background:#d4edda;color:#155724;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">☔→ +' + boostPct2 + '% rain catch-up</span>';
     }
     var ciStr = '';
     if (hasCI) { ciStr = closed ? '<td style="text-align:right;color:var(--muted);">—</td>' : '<td style="text-align:right;font-size:11px;color:var(--muted);">' + fmt(f.ciLow) + ' – ' + fmt(f.ciHigh) + '</td>'; }
