@@ -2339,13 +2339,32 @@ if (_fouc_loader) _fouc_loader.remove();
  } while (offset);
  
  
- // Create a map for fast lookup of existing records
+ // Create a map for fast lookup — collect ALL records per key to detect dupes
  const existingRecordsMap = new Map();
+ const duplicatesToDelete = [];
  allRecords.forEach(record => {
+ if (!record.fields.Person || !record.fields.Date) return;
  const key = `${record.fields.Person}|${record.fields.Date}`;
+ if (existingRecordsMap.has(key)) {
+ // Duplicate found — mark the older one for deletion, keep this one
+ duplicatesToDelete.push(existingRecordsMap.get(key));
+ }
  existingRecordsMap.set(key, record);
  });
- 
+
+ // Clean up duplicates found during scan
+ if (duplicatesToDelete.length > 0) {
+ console.warn(`Auto-capacity sync: cleaning up ${duplicatesToDelete.length} duplicate override records`);
+ for (const dupeRecord of duplicatesToDelete) {
+ try {
+ await this.makeAirtableRequest(`${tableName}/${dupeRecord.id}`, 'DELETE');
+ } catch (e) {
+ console.warn('Failed to delete duplicate record:', e);
+ }
+ await new Promise(resolve => setTimeout(resolve, 50));
+ }
+ }
+
  // Track changes for logging
  let updatedCount = 0;
  let createdCount = 0;
@@ -8638,29 +8657,52 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  } while (offset);
  
  
- if (!this.peopleSpecificCapacity) {
- this.peopleSpecificCapacity = {};
- }
-
  // Clear existing overrides before loading fresh data
  this.peopleSpecificCapacity = {};
+
+ // Track seen keys to detect duplicates, keep the latest record per key
+ const seenKeys = new Map(); // key -> { recordId, capacity }
+ const duplicateRecordIds = [];
 
  allRecords.forEach(record => {
  const fields = record.fields;
  if (fields.Person && fields.Date && fields.Capacity !== undefined) {
+ const dateKey = this.normalizeDate(fields.Date);
+ const mapKey = `${fields.Person}|${dateKey}`;
+
+ if (seenKeys.has(mapKey)) {
+ // Duplicate — mark the previously seen (older) one for deletion
+ duplicateRecordIds.push(seenKeys.get(mapKey).recordId);
+ }
+ // Always keep the latest record (overwrites previous)
+ seenKeys.set(mapKey, { recordId: record.id, capacity: fields.Capacity });
+
  if (!this.peopleSpecificCapacity[fields.Person]) {
  this.peopleSpecificCapacity[fields.Person] = {};
  }
- 
- // Ensure date format consistency using normalizeDate
- const dateKey = this.normalizeDate(fields.Date);
  this.peopleSpecificCapacity[fields.Person][dateKey] = fields.Capacity;
- 
  }
  });
 
  await this.saveCapacityOverridesToLocal();
- 
+
+ // Clean up duplicate records from Airtable in the background
+ if (duplicateRecordIds.length > 0) {
+ console.warn(`Found ${duplicateRecordIds.length} duplicate capacity override records — cleaning up`);
+ const tableName2 = tableName; // capture for async
+ (async () => {
+ for (const recordId of duplicateRecordIds) {
+ try {
+ await this.makeAirtableRequest(`${tableName2}/${recordId}`, 'DELETE');
+ } catch (e) {
+ console.warn('Failed to delete duplicate override record:', e);
+ }
+ await new Promise(resolve => setTimeout(resolve, 100));
+ }
+ console.log(`Cleaned up ${duplicateRecordIds.length} duplicate override records`);
+ })();
+ }
+
  // Force whiteboard re-render to show updated capacities
  if (allRecords.length > 0) {
  this.renderWhiteboard();
