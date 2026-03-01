@@ -279,17 +279,14 @@ if (_fouc_loader) _fouc_loader.remove();
         <div class="flex items-center justify-between">
             <div class="flex items-center space-x-4">
                 <h1 class="text-2xl font-bold text-primary">📋 Alterations Pro</h1>
-                <!-- User Profile Badge -->
-                <div id="currentUserBadge" class="hidden flex items-center space-x-1 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-blue-100 transition-colors" title="Click to switch user">
-                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- User Profile Dropdown -->
+                <div id="currentUserBadge" class="hidden flex items-center space-x-1 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1">
+                    <svg class="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                     </svg>
-                    <span id="currentUserName" class="text-sm font-semibold text-blue-700"></span>
-                    <button id="switchUserBtn" class="text-blue-400 hover:text-blue-600 ml-1" title="Switch user">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </button>
+                    <select id="headerUserSelect" class="text-sm font-semibold text-blue-700 bg-transparent border-none focus:ring-0 cursor-pointer pr-6 py-1" title="Select current user">
+                        <option value="">— Select —</option>
+                    </select>
                 </div>
                 <div class="flex items-center space-x-2">
                     <!-- Navigation Controls -->
@@ -4568,7 +4565,18 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
  try {
- await this.updateTaskInAirtable(task.id, { Completed: newStatus });
+ await this.updateTaskInAirtable(task.id, {
+ Completed: newStatus,
+ LastEditedBy: this.currentUser || 'Unknown'
+ });
+ foundTask.lastEditedBy = this.currentUser || 'Unknown';
+
+ // Audit log for completion toggle
+ this.logAuditEvent(
+ newStatus ? 'Completed' : 'Uncompleted',
+ task.orderNumber,
+ [{ field: 'Completed', oldValue: String(!newStatus), newValue: String(newStatus) }]
+ );
  } catch (error) {
  foundTask.completed = !newStatus;
  this.showToast('Failed to update completion status', 'error');
@@ -4576,7 +4584,7 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  return;
  }
  }
- 
+
  this.renderWhiteboard();
  this.showToast(`Order #${task.orderNumber} marked as ${newStatus ? 'complete' : 'incomplete'}`, 'success');
  }
@@ -8187,11 +8195,35 @@ if (savedConfig) {
 
  updateUserBadge() {
  const badge = document.getElementById('currentUserBadge');
- const nameEl = document.getElementById('currentUserName');
- if (badge && nameEl && this.currentUser) {
- nameEl.textContent = this.currentUser;
- badge.classList.remove('hidden');
+ const select = document.getElementById('headerUserSelect');
+ if (!badge || !select) return;
+
+ // Populate options if empty or users list changed
+ if (select.options.length <= 1 && this.users.length > 0) {
+ select.innerHTML = '<option value="">— Select —</option>';
+ this.users.forEach(name => {
+ const opt = document.createElement('option');
+ opt.value = name;
+ opt.textContent = name;
+ select.appendChild(opt);
+ });
+
+ // Listen for changes
+ select.addEventListener('change', () => {
+ if (select.value) {
+ this.setCurrentUser(select.value);
+ // Also sync the order modal dropdown if open
+ const orderSelect = document.getElementById('orderUserSelect');
+ if (orderSelect) orderSelect.value = select.value;
  }
+ });
+ }
+
+ // Set selected value
+ if (this.currentUser) {
+ select.value = this.currentUser;
+ }
+ badge.classList.remove('hidden');
  }
 
  // ---------------------------------------------------------------
@@ -9390,10 +9422,32 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  }]
  };
 
+ try {
  await this.makeAirtableRequest(tableName, 'PATCH', data);
- 
- // Verify the update was successful
- await this.verifyTaskInAirtable(taskId, updates);
+ } catch (error) {
+ // If it failed due to unknown/permission field errors, retry without user tracking fields
+ if (error.message && (error.message.includes('Unknown field') || error.message.includes('Insufficient permissions') || error.message.includes('field'))) {
+ const stripped = { ...updates };
+ delete stripped.LastEditedBy;
+ delete stripped.CreatedBy;
+ const retryData = {
+ records: [{
+ id: taskId,
+ fields: stripped
+ }]
+ };
+ console.warn('Retrying update without user tracking fields');
+ await this.makeAirtableRequest(tableName, 'PATCH', retryData);
+ } else {
+ throw error;
+ }
+ }
+
+ // Verify the update was successful (use stripped fields for verification)
+ const verifyFields = { ...updates };
+ delete verifyFields.LastEditedBy;
+ delete verifyFields.CreatedBy;
+ await this.verifyTaskInAirtable(taskId, verifyFields);
  }
  
  async deleteTaskFromAirtable(taskId) {
