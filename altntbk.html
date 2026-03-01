@@ -4568,7 +4568,18 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
  try {
- await this.updateTaskInAirtable(task.id, { Completed: newStatus });
+ await this.updateTaskInAirtable(task.id, {
+ Completed: newStatus,
+ LastEditedBy: this.currentUser || 'Unknown'
+ });
+ foundTask.lastEditedBy = this.currentUser || 'Unknown';
+
+ // Audit log for completion toggle
+ this.logAuditEvent(
+ newStatus ? 'Completed' : 'Uncompleted',
+ task.orderNumber,
+ [{ field: 'Completed', oldValue: String(!newStatus), newValue: String(newStatus) }]
+ );
  } catch (error) {
  foundTask.completed = !newStatus;
  this.showToast('Failed to update completion status', 'error');
@@ -4576,7 +4587,7 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  return;
  }
  }
- 
+
  this.renderWhiteboard();
  this.showToast(`Order #${task.orderNumber} marked as ${newStatus ? 'complete' : 'incomplete'}`, 'success');
  }
