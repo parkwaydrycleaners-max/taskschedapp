@@ -420,6 +420,16 @@ if (_fouc_loader) _fouc_loader.remove();
                         </div>
                     </div>
 
+                    <!-- Your Name (required) -->
+                    <div>
+                        <span class="block text-sm font-medium mb-2">Your Name: <span class="text-red-500">*</span></span>
+                        <select id="orderUserSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <option value="">— Select your name —</option>
+                            <!-- Options populated by JavaScript from Users table -->
+                        </select>
+                        <p id="orderUserError" class="text-xs text-red-500 mt-1 hidden">Please select your name before saving.</p>
+                    </div>
+
                     <!-- Order Number and Due Date -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
@@ -1214,32 +1224,6 @@ if (_fouc_loader) _fouc_loader.remove();
                     </svg>
                     <span>Retry Connection</span>
                 </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Profile Gate Modal (mandatory, no dismiss) -->
-    <div id="profileGateModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[200] hidden">
-        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-            <div class="bg-blue-600 px-6 py-4">
-                <h3 class="text-xl font-bold text-white flex items-center">
-                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                    </svg>
-                    Who are you?
-                </h3>
-                <p class="text-blue-100 text-sm mt-1">Select your name to continue. All changes will be recorded.</p>
-            </div>
-            <div class="px-6 py-5">
-                <div id="profileUserList" class="space-y-2 max-h-[50vh] overflow-y-auto">
-                    <!-- User buttons populated by JavaScript -->
-                </div>
-                <!-- Fallback manual entry if Users table doesn't exist -->
-                <div id="profileManualEntry" class="hidden mt-4 space-y-3">
-                    <p class="text-sm text-gray-500">Users table not found. Enter your name:</p>
-                    <input type="text" id="profileManualInput" placeholder="Your name" class="w-full p-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <button id="profileManualSaveBtn" class="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors">Continue</button>
-                </div>
             </div>
         </div>
     </div>
@@ -2490,7 +2474,6 @@ init() {
 
  // Initialize production features
  this.initOfflineDetection();
- this.attachProfileGateListeners();
 
 }
 
@@ -4757,15 +4740,43 @@ showOrderModalForPerson(person, date = null) {
  this.originalTaskData = null;
  this.currentOrderPerson = null;
  this.currentOrderDate = null;
- 
+
  document.getElementById('personDateFields').classList.add('hidden');
  document.getElementById('completionStatusField').classList.add('hidden');
- 
+
  document.getElementById('orderNumberInput').value = '';
  document.getElementById('dueDateInput').value = '';
  document.getElementById('descriptionInput').value = '';
  document.getElementById('durationInput').value = '2';
  document.getElementById('durationMinutes').textContent = '30';
+
+ // Populate user dropdown and pre-select last used user
+ this.populateOrderUserSelect();
+
+ // Clear any validation error
+ const errorEl = document.getElementById('orderUserError');
+ if (errorEl) errorEl.classList.add('hidden');
+ }
+
+ populateOrderUserSelect() {
+ const select = document.getElementById('orderUserSelect');
+ if (!select) return;
+
+ const previousValue = select.value || this.currentUser || '';
+
+ select.innerHTML = '<option value="">— Select your name —</option>';
+ this.users.forEach(name => {
+ const opt = document.createElement('option');
+ opt.value = name;
+ opt.textContent = name;
+ if (name === previousValue) opt.selected = true;
+ select.appendChild(opt);
+ });
+
+ // If users list is empty, allow free-text entry
+ if (this.users.length === 0) {
+ select.innerHTML = '<option value="">— No users loaded —</option>';
+ }
  }
 
 	showValidationSummary(errors) {
@@ -4800,6 +4811,21 @@ showOrderModalForPerson(person, date = null) {
 }
 	
 async saveOrder() {
+ // Validate user selection first
+ const userSelect = document.getElementById('orderUserSelect');
+ const selectedUser = userSelect ? userSelect.value : '';
+ const userError = document.getElementById('orderUserError');
+ if (!selectedUser) {
+ if (userError) userError.classList.remove('hidden');
+ if (userSelect) userSelect.focus();
+ return;
+ }
+ if (userError) userError.classList.add('hidden');
+ // Save selected user for future use
+ this.currentUser = selectedUser;
+ this.saveCurrentUserToLocal();
+ this.updateUserBadge();
+
  const orderNumber = this.sanitizeInput(this.getElement('orderNumberInput').value.trim());
  const dateDue = this.getElement('dueDateInput').value;
  const description = this.sanitizeInput(this.getElement('descriptionInput').value.trim());
@@ -7813,12 +7839,10 @@ if (savedConfig) {
  this.hideLoading();
  }
 
- // Profile gate: check if user is identified
+ // Load last used profile (for pre-selecting in order modal)
  await this.loadCurrentUserFromLocal();
  if (this.currentUser) {
  this.updateUserBadge();
- } else {
- this.showProfileGateModal();
  }
 }
  }
@@ -8159,7 +8183,6 @@ if (savedConfig) {
  this.currentUser = name;
  this.saveCurrentUserToLocal();
  this.updateUserBadge();
- this.hideProfileGateModal();
  }
 
  updateUserBadge() {
@@ -8168,61 +8191,6 @@ if (savedConfig) {
  if (badge && nameEl && this.currentUser) {
  nameEl.textContent = this.currentUser;
  badge.classList.remove('hidden');
- }
- }
-
- showProfileGateModal() {
- const modal = document.getElementById('profileGateModal');
- if (!modal) return;
-
- const listContainer = document.getElementById('profileUserList');
- if (!listContainer) return;
-
- listContainer.innerHTML = '';
-
- if (this.users.length > 0) {
- this.users.forEach(name => {
- const btn = document.createElement('button');
- btn.className = 'w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:bg-blue-50 hover:border-blue-400 transition-colors text-base font-medium text-gray-700';
- btn.textContent = name;
- btn.addEventListener('click', () => {
- this.setCurrentUser(name);
- });
- listContainer.appendChild(btn);
- });
- // Hide the manual entry when we have a user list
- const manualEntry = document.getElementById('profileManualEntry');
- if (manualEntry) manualEntry.classList.add('hidden');
- } else {
- // No Users table — show text input fallback
- const manualEntry = document.getElementById('profileManualEntry');
- if (manualEntry) manualEntry.classList.remove('hidden');
- }
-
- modal.classList.remove('hidden');
- }
-
- hideProfileGateModal() {
- const modal = document.getElementById('profileGateModal');
- if (modal) modal.classList.add('hidden');
- }
-
- attachProfileGateListeners() {
- const saveBtn = document.getElementById('profileManualSaveBtn');
- if (saveBtn) {
- saveBtn.addEventListener('click', () => {
- const input = document.getElementById('profileManualInput');
- if (input && input.value.trim()) {
- this.setCurrentUser(input.value.trim());
- }
- });
- }
- // Switch user button in header
- const switchBtn = document.getElementById('switchUserBtn');
- if (switchBtn) {
- switchBtn.addEventListener('click', () => {
- this.showProfileGateModal();
- });
  }
  }
 
