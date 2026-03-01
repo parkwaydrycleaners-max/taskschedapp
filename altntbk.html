@@ -280,16 +280,20 @@ if (_fouc_loader) _fouc_loader.remove();
             <div class="flex items-center space-x-4">
                 <h1 class="text-2xl font-bold text-primary">📋 Alterations Pro</h1>
                 <!-- User Profile Badge -->
-                <div id="currentUserBadge" class="hidden flex items-center space-x-1 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-blue-100 transition-colors" title="Click to switch user">
-                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                    </svg>
-                    <span id="currentUserName" class="text-sm font-semibold text-blue-700"></span>
-                    <button id="switchUserBtn" class="text-blue-400 hover:text-blue-600 ml-1" title="Switch user">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="relative">
+                    <div id="currentUserBadge" class="hidden flex items-center space-x-1 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-blue-100 transition-colors" title="Click to switch user">
+                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                        <span id="currentUserName" class="text-sm font-semibold text-blue-700"></span>
+                        <svg class="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
-                    </button>
+                    </div>
+                    <!-- User switch dropdown -->
+                    <div id="userSwitchDropdown" class="hidden absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[300px] overflow-y-auto">
+                        <!-- Populated by JavaScript -->
+                    </div>
                 </div>
                 <div class="flex items-center space-x-2">
                     <!-- Navigation Controls -->
@@ -2474,6 +2478,7 @@ init() {
 
  // Initialize production features
  this.initOfflineDetection();
+ this.initUserSwitchDropdown();
 
 }
 
@@ -8205,6 +8210,44 @@ if (savedConfig) {
  }
  }
 
+ initUserSwitchDropdown() {
+ const badge = document.getElementById('currentUserBadge');
+ const dropdown = document.getElementById('userSwitchDropdown');
+ if (!badge || !dropdown) return;
+
+ badge.addEventListener('click', (e) => {
+ e.stopPropagation();
+ const isOpen = !dropdown.classList.contains('hidden');
+ if (isOpen) {
+ dropdown.classList.add('hidden');
+ return;
+ }
+ // Populate and show
+ dropdown.innerHTML = '';
+ this.users.forEach(name => {
+ const btn = document.createElement('button');
+ const isActive = name === this.currentUser;
+ btn.className = `w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors ${isActive ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-700'}`;
+ btn.textContent = isActive ? `✓ ${name}` : name;
+ btn.addEventListener('click', (e2) => {
+ e2.stopPropagation();
+ this.setCurrentUser(name);
+ dropdown.classList.add('hidden');
+ // Also update the order modal dropdown if it's open
+ const orderSelect = document.getElementById('orderUserSelect');
+ if (orderSelect) orderSelect.value = name;
+ });
+ dropdown.appendChild(btn);
+ });
+ dropdown.classList.remove('hidden');
+ });
+
+ // Close dropdown when clicking elsewhere
+ document.addEventListener('click', () => {
+ dropdown.classList.add('hidden');
+ });
+ }
+
  // ---------------------------------------------------------------
  // AUDIT TRAIL LOGGING
  // ---------------------------------------------------------------
@@ -9401,10 +9444,32 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  }]
  };
 
+ try {
  await this.makeAirtableRequest(tableName, 'PATCH', data);
- 
- // Verify the update was successful
- await this.verifyTaskInAirtable(taskId, updates);
+ } catch (error) {
+ // If it failed due to unknown/permission field errors, retry without user tracking fields
+ if (error.message && (error.message.includes('Unknown field') || error.message.includes('Insufficient permissions') || error.message.includes('field'))) {
+ const stripped = { ...updates };
+ delete stripped.LastEditedBy;
+ delete stripped.CreatedBy;
+ const retryData = {
+ records: [{
+ id: taskId,
+ fields: stripped
+ }]
+ };
+ console.warn('Retrying update without user tracking fields');
+ await this.makeAirtableRequest(tableName, 'PATCH', retryData);
+ } else {
+ throw error;
+ }
+ }
+
+ // Verify the update was successful (use stripped fields for verification)
+ const verifyFields = { ...updates };
+ delete verifyFields.LastEditedBy;
+ delete verifyFields.CreatedBy;
+ await this.verifyTaskInAirtable(taskId, verifyFields);
  }
  
  async deleteTaskFromAirtable(taskId) {
