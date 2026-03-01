@@ -692,6 +692,11 @@ select.form-input { appearance: auto; }
           <span style="font-size:11px;color:var(--muted);display:block;margin-top:3px;">How many pieces 1 employee processes per hour. Used to calculate staffing from forecasted pieces.</span>
         </div>
         <div class="form-group">
+          <label class="form-label">Min Hours for Productivity Calc</label>
+          <input class="form-input" id="setMinHoursForProductivity" type="number" step="0.5" placeholder="11" style="font-size:16px;">
+          <span style="font-size:11px;color:var(--muted);display:block;margin-top:3px;">Days with fewer total staff hours than this are excluded from pieces-per-hour calculations. Prevents partial days (holidays, closures) from skewing your productivity metrics. Set to 0 to include all days.</span>
+        </div>
+        <div class="form-group">
           <label class="form-label">Average Hourly Wage ($)</label>
           <input class="form-input" id="setAvgWage" type="number" step="0.25" placeholder="18">
         </div>
@@ -774,6 +779,20 @@ select.form-input { appearance: auto; }
         <div class="form-group">
           <label class="form-label">Heat Adjustment % (reduce sales by)</label>
           <input class="form-input" id="setHeatAdj" type="number" step="1" placeholder="10">
+        </div>
+        <div class="form-group" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600;">
+            <input type="checkbox" id="setRainRedistribution" style="width:18px;height:18px;">
+            ☔→ Rain Demand Redistribution
+          </label>
+          <p style="font-size:12px;color:var(--muted);margin-top:4px;">When ON: demand lost to moderate/heavy rain shifts to the next business day (~60%) and Saturday (~40%). Reflects the pattern where customers skip rainy days and come the next day or Saturday instead.</p>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600;">
+            <input type="checkbox" id="setHeatRedistribution" style="width:18px;height:18px;">
+            🔥→ Heat Demand Redistribution
+          </label>
+          <p style="font-size:12px;color:var(--muted);margin-top:4px;">When ON: demand lost to extreme heat shifts to the next cooler day (~70%) and Saturday (~30%). Customers tend to come the next day when temperature drops, even slightly.</p>
         </div>
         <div id="actualWeatherImpact" style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;display:none;">
           <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--fg);">&#x1F4CA; Actual Weather Impact from Data</div>
@@ -966,12 +985,15 @@ const AppState = {
     avgWage: 18,
     salesPerHour: 60,
     piecesPerHour: 8,
+    minHoursForProductivity: 11,
     dowStaffAdj: [100,100,100,100,100,100,100], /* Per-DOW staffing % (Sun=0..Sat=6), 100 = no change */
     bizOpen: 7,
     bizClose: 19,
     rainAdjLight: 8,
     rainAdjMod: 15,
     rainAdjHeavy: 25,
+    rainRedistribution: true,
+    heatRedistribution: true,
     heatThresh: 95,
     heatAdj: 10,
     minSalesThreshold: 200,
@@ -2103,42 +2125,55 @@ const Forecaster = {
     var learned = getLearnedWeatherAdj();
     var heatThresh = s.heatThresh || 95;
     /* Pass 1: Apply rain/heat reductions and track displaced demand */
-    var displaced = []; /* { fromDate, amount, weekSat } */
+    var rainDisplaced = []; /* { fromDate, amount, satDate, fDow } */
+    var heatDisplaced = []; /* { fromDate, amount, satDate, fDow } */
     var adjusted = forecasts.map(function(f) {
       var w = wMap[f.date];
       if (!w) return Object.assign({}, f, { weatherAdj: 1, weatherSource: learned ? 'learned' : 'manual' });
       var adj = 1;
       var isHot = w.tempMax > heatThresh;
       var rn = (w.bizRain != null) ? w.bizRain : w.rain;
+      var rainAdj = 1;
+      var heatAdj = 1;
       if (learned && learned.graduated) {
-        if (rn > 15) adj *= (1 - learned.heavyRain / 100);
-        else if (rn > 5) adj *= (1 - learned.moderateRain / 100);
-        else if (rn > 2) adj *= (1 - learned.lightRain / 100);
-        if (isHot) adj *= (1 - learned.heat / 100);
+        if (rn > 15) rainAdj = (1 - learned.heavyRain / 100);
+        else if (rn > 5) rainAdj = (1 - learned.moderateRain / 100);
+        else if (rn > 2) rainAdj = (1 - learned.lightRain / 100);
+        if (isHot) heatAdj = (1 - learned.heat / 100);
       } else {
-        if (rn > 15) adj *= (1 - (s.rainAdjHeavy || 25) / 100);
-        else if (rn > 5) adj *= (1 - (s.rainAdjMod || 15) / 100);
-        else if (rn > 2) adj *= (1 - (s.rainAdjLight || 8) / 100);
-        if (isHot) adj *= (1 - (s.heatAdj || 10) / 100);
+        if (rn > 15) rainAdj = (1 - (s.rainAdjHeavy || 25) / 100);
+        else if (rn > 5) rainAdj = (1 - (s.rainAdjMod || 15) / 100);
+        else if (rn > 2) rainAdj = (1 - (s.rainAdjLight || 8) / 100);
+        if (isHot) heatAdj = (1 - (s.heatAdj || 10) / 100);
       }
+      adj = rainAdj * heatAdj;
       /* Track displaced demand from moderate/heavy rain for redistribution.
          Customers skip heavy rain days and come the next day or Saturday instead. */
-      if (adj < 0.92 && rn > 5) {
-        var displacedAmt = f.predicted * (1 - adj);
-        /* Find the Saturday of this week (day 6) */
+      if (rainAdj < 0.92 && rn > 5) {
+        var rainDisplacedAmt = f.predicted * (1 - rainAdj);
         var fDow = dayOfWeek(f.date);
         var daysToSat = (6 - fDow + 7) % 7;
         var satDate = daysToSat > 0 ? addDays(f.date, daysToSat) : null;
-        displaced.push({ fromDate: f.date, amount: displacedAmt, satDate: satDate, fDow: fDow });
+        rainDisplaced.push({ fromDate: f.date, amount: rainDisplacedAmt, satDate: satDate, fDow: fDow });
+      }
+      /* Track displaced demand from extreme heat for redistribution.
+         After a hot day, customers come the next day when weather is even slightly better. */
+      if (isHot && heatAdj < 1) {
+        var heatDisplacedAmt = f.predicted * (1 - heatAdj);
+        var hDow = dayOfWeek(f.date);
+        var hDaysToSat = (6 - hDow + 7) % 7;
+        var hSatDate = hDaysToSat > 0 ? addDays(f.date, hDaysToSat) : null;
+        heatDisplaced.push({ fromDate: f.date, amount: heatDisplacedAmt, satDate: hSatDate, fDow: hDow, tempMax: w.tempMax });
       }
       return Object.assign({}, f, { predicted: f.predicted * adj, weatherAdj: adj, weatherSource: learned ? 'learned' : 'manual' });
     });
-    /* Pass 2: Redistribute displaced demand to next open day and Saturday.
-       ~60% goes to the next business day, ~40% to Saturday (if weekday rain). */
-    if (displaced.length > 0) {
-      var dateMap = {};
-      adjusted.forEach(function(f, idx) { dateMap[f.date] = idx; });
-      displaced.forEach(function(d) {
+    var dateMap = {};
+    adjusted.forEach(function(f, idx) { dateMap[f.date] = idx; });
+    /* Pass 2a: Redistribute rain-displaced demand to next open day and Saturday.
+       ~60% goes to the next business day, ~40% to Saturday (if weekday rain).
+       Only when rainRedistribution setting is enabled. */
+    if (rainDisplaced.length > 0 && s.rainRedistribution) {
+      rainDisplaced.forEach(function(d) {
         var nextDayShare = 0.60;
         var satShare = 0.40;
         /* If the rain day IS Saturday, 100% goes to next open day (Monday) */
@@ -2162,6 +2197,47 @@ const Forecaster = {
           var satBoost = d.amount * satShare;
           adjusted[dateMap[d.satDate]].predicted += satBoost;
           adjusted[dateMap[d.satDate]].rainRedistribution = (adjusted[dateMap[d.satDate]].rainRedistribution || 0) + satBoost;
+        }
+      });
+    }
+    /* Pass 2b: Redistribute heat-displaced demand to the next cooler day.
+       After hot days, customers come the next day when temp drops even slightly.
+       ~70% goes to the very next open day (immediate catch-up), ~30% to Saturday of that week.
+       Only triggers if the next day is actually cooler than the hot day. */
+    if (heatDisplaced.length > 0 && s.heatRedistribution) {
+      heatDisplaced.forEach(function(d) {
+        /* Find next open business day that is cooler */
+        var nextDate = addDays(d.fromDate, 1);
+        var foundCooler = false;
+        for (var tries = 0; tries < 5; tries++) {
+          if (!isClosedDate(nextDate) && dateMap[nextDate] != null) {
+            var nw = wMap[nextDate];
+            /* Redistribute if next day is cooler or if no weather data (assume cooler) */
+            if (!nw || nw.tempMax < d.tempMax) {
+              foundCooler = true;
+              break;
+            }
+          }
+          nextDate = addDays(nextDate, 1);
+        }
+        if (!foundCooler) return; /* Multi-day heatwave: no redistribution if no cooler day found */
+        var nextDayShare = 0.70;
+        var satShare = 0.30;
+        /* If the hot day IS Saturday, 100% goes to next open day (Monday) */
+        if (d.fDow === 6) { nextDayShare = 1.0; satShare = 0; }
+        /* If hot day is Friday, more goes to Saturday */
+        if (d.fDow === 5) { nextDayShare = 0.35; satShare = 0.65; }
+        /* Apply heat redistribution to next cooler day */
+        if (dateMap[nextDate] != null) {
+          var hBoost = d.amount * nextDayShare;
+          adjusted[dateMap[nextDate]].predicted += hBoost;
+          adjusted[dateMap[nextDate]].heatRedistribution = (adjusted[dateMap[nextDate]].heatRedistribution || 0) + hBoost;
+        }
+        /* Apply heat redistribution to Saturday */
+        if (satShare > 0 && d.satDate && dateMap[d.satDate] != null && d.satDate !== d.fromDate) {
+          var hSatBoost = d.amount * satShare;
+          adjusted[dateMap[d.satDate]].predicted += hSatBoost;
+          adjusted[dateMap[d.satDate]].heatRedistribution = (adjusted[dateMap[d.satDate]].heatRedistribution || 0) + hSatBoost;
         }
       });
     }
@@ -2454,27 +2530,73 @@ const Forecaster = {
         count: arr.length
       });
     }
+    /* Compute global bias correction: if the model systematically under/over-forecasts,
+       apply a small global recalibration to center it. This fixes the ~60% under-forecast
+       problem by shifting all predictions up slightly. */
+    var globalSumA = 0, globalSumF = 0, globalN = 0;
+    for (var gb = 0; gb < 7; gb++) {
+      dowStats[gb].forEach(function(x) {
+        globalSumA += x.actual;
+        globalSumF += x[predKey];
+        globalN++;
+      });
+    }
+    var globalBiasCorr = 1;
+    if (globalSumF > 0 && globalN >= 10) {
+      var globalRatio = globalSumA / globalSumF;
+      /* Conservative shrinkage: only apply 60% of the global correction, cap ±10% */
+      globalBiasCorr = 1 + 0.6 * (globalRatio - 1);
+      globalBiasCorr = Math.max(0.90, Math.min(1.10, globalBiasCorr));
+    }
+    best.globalBiasCorr = globalBiasCorr;
     /* Compute per-DOW correction factors from cross-validation residuals.
        This fixes systematic DOW forecast biases (e.g., Mon over-forecast, Tue under-forecast)
-       by learning the ratio of actual/forecast per DOW from the backtest data. */
+       by learning the ratio of actual/forecast per DOW from the backtest data.
+       Applied ON TOP of global bias correction. */
     best.dowCorrections = [];
     for (var dc = 0; dc < 7; dc++) {
       var dcArr = dowStats[dc];
       if (dcArr.length < 3) { best.dowCorrections.push(1); continue; }
       var dcAvgA = 0, dcAvgF = 0;
-      dcArr.forEach(function(x) { dcAvgA += x.actual; dcAvgF += x[predKey]; });
+      dcArr.forEach(function(x) { dcAvgA += x.actual; dcAvgF += x[predKey] * globalBiasCorr; });
       dcAvgA /= dcArr.length; dcAvgF /= dcArr.length;
       if (dcAvgF <= 0) { best.dowCorrections.push(1); continue; }
       var rawRatio = dcAvgA / dcAvgF;
-      /* Shrinkage: trust correction more with more data points */
-      var shrinkage = Math.min(1, dcArr.length / 10);
+      /* Shrinkage: trust correction more with more data points (denominator=8) */
+      var shrinkage = Math.min(1, dcArr.length / 8);
       var corr = 1 + shrinkage * (rawRatio - 1);
-      /* Cap at ±25% to prevent overcorrection */
-      corr = Math.max(0.75, Math.min(1.25, corr));
-      /* Only apply if effect is meaningful (>3%) */
-      if (Math.abs(corr - 1) < 0.03) corr = 1;
+      /* Cap at ±20% to prevent overcorrection */
+      corr = Math.max(0.80, Math.min(1.20, corr));
       best.dowCorrections.push(corr);
     }
+    /* Compute corrected MAPE: apply global + DOW corrections to each test point.
+       Uses leave-one-out correction: for each point, recompute the DOW correction
+       WITHOUT that point to get a less biased estimate of out-of-sample performance. */
+    var correctedErrors = [];
+    for (var ce = 0; ce < 7; ce++) {
+      var ceArr = dowStats[ce];
+      ceArr.forEach(function(x, xi) {
+        /* Leave-one-out: compute correction without this data point */
+        var looSumA = 0, looSumF = 0, looN = 0;
+        ceArr.forEach(function(y, yi) {
+          if (yi !== xi) {
+            looSumA += y.actual;
+            looSumF += y[predKey] * globalBiasCorr;
+            looN++;
+          }
+        });
+        var looCorr = 1;
+        if (looN >= 2 && looSumF > 0) {
+          var looRatio = looSumA / looSumF;
+          var looShrink = Math.min(1, looN / 8);
+          looCorr = 1 + looShrink * (looRatio - 1);
+          looCorr = Math.max(0.80, Math.min(1.20, looCorr));
+        }
+        var corrPred = x[predKey] * globalBiasCorr * looCorr;
+        correctedErrors.push(Math.abs(x.actual - corrPred) / x.actual);
+      });
+    }
+    best.correctedMape = calcMape(correctedErrors);
     return best;
   }
 };
@@ -2608,8 +2730,12 @@ function getPiecesPerDollar() {
 }
 
 function computeActualPiecesPerHour() {
-  /* Join sales (pieces) with employee hours by date, overall + by day-of-week */
+  /* Join sales (pieces) with employee hours by date, overall + by day-of-week.
+     Excludes closed days and days below minHoursForProductivity to avoid
+     skewing the pieces-per-hour calculation with partial or off days. */
   var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var s = AppState.settings;
+  var minHrs = s.minHoursForProductivity || 0;
   var pcsBy = {}; /* date -> total pieces */
   var hrsBy = {}; /* date -> total hours */
   AppState.salesData.forEach(function(r) {
@@ -2622,12 +2748,17 @@ function computeActualPiecesPerHour() {
       hrsBy[r.date] = (hrsBy[r.date] || 0) + r.hours;
     }
   });
-  /* Intersect dates that have both pieces and hours */
+  /* Intersect dates that have both pieces and hours, filtering out closed/low-hour days */
   var dowPcs = [0,0,0,0,0,0,0];
   var dowHrs = [0,0,0,0,0,0,0];
   var totalPcs = 0, totalHrs = 0, matchDays = 0;
+  var skippedDays = 0;
   Object.keys(pcsBy).forEach(function(dt) {
     if (hrsBy[dt] && hrsBy[dt] > 0 && pcsBy[dt] > 0) {
+      /* Skip closed days (Sundays, holidays, etc.) */
+      if (isClosedDate(dt)) { skippedDays++; return; }
+      /* Skip days below minimum hours threshold */
+      if (minHrs > 0 && hrsBy[dt] < minHrs) { skippedDays++; return; }
       var dow = dayOfWeek(dt);
       dowPcs[dow] += pcsBy[dt];
       dowHrs[dow] += hrsBy[dt];
@@ -2636,7 +2767,7 @@ function computeActualPiecesPerHour() {
       matchDays++;
     }
   });
-  return { dayNames: dayNames, dowPcs: dowPcs, dowHrs: dowHrs, totalPcs: totalPcs, totalHrs: totalHrs, matchDays: matchDays };
+  return { dayNames: dayNames, dowPcs: dowPcs, dowHrs: dowHrs, totalPcs: totalPcs, totalHrs: totalHrs, matchDays: matchDays, skippedDays: skippedDays };
 }
 
 function renderActualPiecesMetrics() {
@@ -2649,9 +2780,10 @@ function renderActualPiecesMetrics() {
   }
   container.style.display = '';
   var overallPph = m.totalHrs > 0 ? (m.totalPcs / m.totalHrs).toFixed(1) : '—';
+  var skippedNote = m.skippedDays > 0 ? ', ' + m.skippedDays + ' excluded' : '';
   document.getElementById('actualPphOverall').innerHTML =
     '<strong>Overall average:</strong> <span style="font-size:18px;font-weight:800;color:var(--accent);">' +
-    overallPph + '</span> pcs/hr <span style="color:var(--muted);">(' + m.matchDays + ' days matched)</span>';
+    overallPph + '</span> pcs/hr <span style="color:var(--muted);">(' + m.matchDays + ' days matched' + skippedNote + ')</span>';
   var tbody = document.querySelector('#actualPphTable tbody');
   var rows = '';
   for (var i = 1; i <= 7; i++) {
@@ -3065,6 +3197,12 @@ function runForecast() {
   var bp = AppState._bestPath || 'adj';
   var ensOpts = bp === 'raw' ? { raw: true } : (bp === 'weatherOnly' ? { weatherOnly: true } : {});
   AppState.forecastCache = Forecaster.ensemble(daily, days, ensOpts);
+  /* Apply global bias correction (fixes systematic under/over-forecast) */
+  if (AppState._globalBiasCorr && AppState._globalBiasCorr !== 1) {
+    AppState.forecastCache.forEach(function(f) {
+      f.predicted *= AppState._globalBiasCorr;
+    });
+  }
   /* Apply per-DOW correction factors learned from cross-validation.
      This fixes systematic DOW biases (e.g., Mon over-forecast diluted by non-DOW methods). */
   if (AppState._dowCorrections) {
@@ -3084,6 +3222,12 @@ function runForecast() {
   var dailyPcs = getDailyPieces();
   if (dailyPcs.length >= 7) {
     AppState.forecastCachePcs = Forecaster.ensemble(dailyPcs, days, ensOpts);
+    /* Apply global bias correction for pieces */
+    if (AppState._globalBiasCorrPcs && AppState._globalBiasCorrPcs !== 1) {
+      AppState.forecastCachePcs.forEach(function(f) {
+        f.predicted *= AppState._globalBiasCorrPcs;
+      });
+    }
     /* Apply per-DOW pieces correction for more accurate labor hours */
     if (AppState._dowCorrectionsPcs) {
       AppState.forecastCachePcs.forEach(function(f) {
@@ -3713,12 +3857,25 @@ function renderForecastTable() {
       }
       /* Show rain redistribution boost if this day receives displaced demand */
       if (f.rainRedistribution && f.rainRedistribution > 0) {
-        var boostPct = Math.round(f.rainRedistribution / (f.predicted - f.rainRedistribution) * 100);
+        var rBase = f.predicted - (f.rainRedistribution || 0) - (f.heatRedistribution || 0);
+        var boostPct = rBase > 0 ? Math.round(f.rainRedistribution / rBase * 100) : 0;
         wEffect += ' <span style="background:#d4edda;color:#155724;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">☔→ +' + boostPct + '%</span>';
       }
+      /* Show heat redistribution boost */
+      if (f.heatRedistribution && f.heatRedistribution > 0) {
+        var hBase = f.predicted - (f.rainRedistribution || 0) - (f.heatRedistribution || 0);
+        var hBoostPct = hBase > 0 ? Math.round(f.heatRedistribution / hBase * 100) : 0;
+        wEffect += ' <span style="background:#fff3cd;color:#856404;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">🔥→ +' + hBoostPct + '%</span>';
+      }
     } else if (f.rainRedistribution && f.rainRedistribution > 0) {
-      var boostPct2 = Math.round(f.rainRedistribution / (f.predicted - f.rainRedistribution) * 100);
+      var rBase2 = f.predicted - (f.rainRedistribution || 0) - (f.heatRedistribution || 0);
+      var boostPct2 = rBase2 > 0 ? Math.round(f.rainRedistribution / rBase2 * 100) : 0;
       wEffect = '<span style="background:#d4edda;color:#155724;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">☔→ +' + boostPct2 + '% rain catch-up</span>';
+    }
+    if (!w && f.heatRedistribution && f.heatRedistribution > 0) {
+      var hBase2 = f.predicted - (f.rainRedistribution || 0) - (f.heatRedistribution || 0);
+      var hBoostPct2 = hBase2 > 0 ? Math.round(f.heatRedistribution / hBase2 * 100) : 0;
+      wEffect += ' <span style="background:#fff3cd;color:#856404;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">🔥→ +' + hBoostPct2 + '% heat catch-up</span>';
     }
     var ciStr = '';
     if (hasCI) { ciStr = closed ? '<td style="text-align:right;color:var(--muted);">—</td>' : '<td style="text-align:right;font-size:11px;color:var(--muted);">' + fmt(f.ciLow) + ' – ' + fmt(f.ciHigh) + '</td>'; }
@@ -3760,6 +3917,12 @@ function renderAccuracy() {
     } else {
       adjNote = '<span style="color:var(--danger);font-size:11px;">⚠ Adjustments hurting (raw ' + rawM + '% | weather ' + woM + '% | adj ' + adjM + '%) — using raw</span>';
     }
+    /* Show global bias correction if applied */
+    if (result.globalBiasCorr && Math.abs(result.globalBiasCorr - 1) > 0.005) {
+      var gbPct = ((result.globalBiasCorr - 1) * 100).toFixed(1);
+      var gbSign = result.globalBiasCorr > 1 ? '+' : '';
+      adjNote += '<br><span style="font-size:11px;color:var(--muted);">📐 Global recalibration: ' + gbSign + gbPct + '% (fixes systematic ' + (result.globalBiasCorr > 1 ? 'under' : 'over') + '-forecast)</span>';
+    }
   }
   var fmtMape = function(m) { return m >= 900 ? 'N/A' : m.toFixed(1) + '%'; };
   var na = '<span style="color:var(--muted);">N/A</span>';
@@ -3772,10 +3935,16 @@ function renderAccuracy() {
   var mHtml = '';
   /* Header spanning full row */
   mHtml += '<div style="grid-column:1/-1;display:flex;gap:12px;flex-wrap:wrap;">';
-  /* Pieces MAPE — first */
-  mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Pieces MAPE</div><div class="stat-value" style="color:var(--accent);">' + (resultPcs ? fmtMape(resultPcs.mape) + pcsWarn : na) + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
-  /* $ MAPE */
-  mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">$ MAPE</div><div class="stat-value">' + fmtMape(result.mape) + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
+  /* Pieces MAPE — first (show corrected if available) */
+  var pcsMapeStr = na;
+  if (resultPcs) {
+    pcsMapeStr = fmtMape(resultPcs.correctedMape != null ? resultPcs.correctedMape : resultPcs.mape) + pcsWarn;
+  }
+  mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Pieces MAPE</div><div class="stat-value" style="color:var(--accent);">' + pcsMapeStr + '</div><div style="font-size:12px;color:var(--muted);">Lower is better</div></div>';
+  /* $ MAPE — show corrected MAPE as the primary metric */
+  var dolMapeStr = fmtMape(result.correctedMape != null ? result.correctedMape : result.mape);
+  var baseNote = result.correctedMape != null && result.correctedMape < result.mape ? '<div style="font-size:11px;color:var(--muted);">base ' + fmtMape(result.mape) + ' → corrected</div>' : '<div style="font-size:12px;color:var(--muted);">Lower is better</div>';
+  mHtml += '<div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">$ MAPE</div><div class="stat-value">' + dolMapeStr + '</div>' + baseNote + '</div>';
   mHtml += '</div>';
   /* Row 2: Bias (Pieces, $) */
   mHtml += '<div style="grid-column:1/-1;display:flex;gap:12px;flex-wrap:wrap;">';
@@ -3861,7 +4030,9 @@ function renderAccuracy() {
      - bestPath='weatherOnly': weather helps but DOW bias/holiday/seasonal hurts → disable seasonalEvents only, keep weather
      - bestPath='raw': all adjustments hurting → disable weather and seasonalEvents */
   AppState._bestPath = result.bestPath || 'raw';
-  /* Store per-DOW correction factors learned from cross-validation */
+  /* Store global bias correction and per-DOW correction factors learned from cross-validation */
+  AppState._globalBiasCorr = result.globalBiasCorr || 1;
+  AppState._globalBiasCorrPcs = (resultPcs && resultPcs.globalBiasCorr) ? resultPcs.globalBiasCorr : 1;
   AppState._dowCorrections = result.dowCorrections || null;
   AppState._dowCorrectionsPcs = (resultPcs && resultPcs.dowCorrections) ? resultPcs.dowCorrections : null;
   if (result.bestPath === 'raw') {
@@ -4100,6 +4271,10 @@ function runBacktestComparison() {
   var ensOpts = bp === 'raw' ? { raw: true } : (bp === 'weatherOnly' ? { weatherOnly: true } : {});
   var predictions = Forecaster.ensemble(trainData, nDays, ensOpts);
   if (!predictions || predictions.length === 0) { toast('Backtest produced no results', 'error'); return; }
+  /* Apply global bias correction (same as runForecast) */
+  if (AppState._globalBiasCorr && AppState._globalBiasCorr !== 1) {
+    predictions.forEach(function(p) { p.predicted *= AppState._globalBiasCorr; });
+  }
   /* Apply per-DOW corrections to predictions (same as runForecast) */
   if (AppState._dowCorrections) {
     predictions.forEach(function(p) {
@@ -4113,6 +4288,10 @@ function runBacktestComparison() {
   var trainPcs = hasPcs ? dailyPcs.slice(0, -nDays) : [];
   var testPcs = hasPcs ? dailyPcs.slice(-nDays) : [];
   var predsPcs = hasPcs ? Forecaster.ensemble(trainPcs, nDays, ensOpts) : [];
+  /* Apply global bias correction for pieces */
+  if (AppState._globalBiasCorrPcs && AppState._globalBiasCorrPcs !== 1 && hasPcs) {
+    predsPcs.forEach(function(p) { p.predicted *= AppState._globalBiasCorrPcs; });
+  }
   /* Apply per-DOW pieces corrections */
   if (AppState._dowCorrectionsPcs && hasPcs) {
     predsPcs.forEach(function(p) {
@@ -4751,6 +4930,7 @@ function loadSettings() {
   document.getElementById('setAvgWage').value = s.avgWage;
   document.getElementById('setSalesPerHour').value = s.salesPerHour;
   document.getElementById('setPiecesPerHour').value = s.piecesPerHour;
+  document.getElementById('setMinHoursForProductivity').value = s.minHoursForProductivity || 0;
   document.getElementById('setMaxLaborPctCap').checked = s.maxLaborPctCap !== false;
   document.getElementById('setBizOpen').value = s.bizOpen;
   document.getElementById('setBizClose').value = s.bizClose;
@@ -4759,6 +4939,8 @@ function loadSettings() {
   document.getElementById('setRainAdjHeavy').value = s.rainAdjHeavy;
   document.getElementById('setHeatThresh').value = s.heatThresh;
   document.getElementById('setHeatAdj').value = s.heatAdj;
+  document.getElementById('setRainRedistribution').checked = s.rainRedistribution !== false;
+  document.getElementById('setHeatRedistribution').checked = s.heatRedistribution !== false;
   document.getElementById('setMinThresholdOn').checked = s.minSalesThresholdOn !== false;
   document.getElementById('setMinThreshold').value = s.minSalesThreshold;
   document.getElementById('setMinThreshold').disabled = !document.getElementById('setMinThresholdOn').checked;
@@ -5114,6 +5296,7 @@ async function saveSettings() {
   s.avgWage = parseFloat(document.getElementById('setAvgWage').value) || 18;
   s.salesPerHour = parseFloat(document.getElementById('setSalesPerHour').value) || 60;
   s.piecesPerHour = parseFloat(document.getElementById('setPiecesPerHour').value) || 8;
+  s.minHoursForProductivity = parseFloat(document.getElementById('setMinHoursForProductivity').value) || 0;
   s.maxLaborPctCap = document.getElementById('setMaxLaborPctCap').checked;
   s.bizOpen = parseInt(document.getElementById('setBizOpen').value) || 7;
   s.bizClose = parseInt(document.getElementById('setBizClose').value) || 19;
@@ -5122,6 +5305,8 @@ async function saveSettings() {
   s.rainAdjHeavy = parseFloat(document.getElementById('setRainAdjHeavy').value) || 25;
   s.heatThresh = parseFloat(document.getElementById('setHeatThresh').value) || 95;
   s.heatAdj = parseFloat(document.getElementById('setHeatAdj').value) || 10;
+  s.rainRedistribution = document.getElementById('setRainRedistribution').checked;
+  s.heatRedistribution = document.getElementById('setHeatRedistribution').checked;
   s.minSalesThresholdOn = document.getElementById('setMinThresholdOn').checked;
   s.minSalesThreshold = parseFloat(document.getElementById('setMinThreshold').value) || 200;
 
