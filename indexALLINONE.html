@@ -554,6 +554,7 @@ if (_fouc_loader) _fouc_loader.remove();
                 <button id="databaseTab" class="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50 rounded-t">Database</button>
                 <button id="peopleTab" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t">Manage People</button>
                 <button id="editTextTab" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t">Edit Text</button>
+                <button id="usersTab" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t">Manage Users</button>
             </div>
 
             <!-- Edit Text Tab -->
@@ -782,6 +783,29 @@ if (_fouc_loader) _fouc_loader.remove();
                     <h3 class="text-lg font-semibold mb-4">Current People</h3>
                     <div id="currentPeopleList" class="space-y-2">
                         <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Tab Content -->
+            <div id="usersTabContent" class="space-y-6 hidden">
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">👤 Manage Users</h3>
+                    <p class="text-sm text-gray-500 mb-4">Users who can create and edit orders. These names appear in the "Your Name" dropdown.</p>
+
+                    <!-- Add New User -->
+                    <div class="flex space-x-3 mb-6">
+                        <input type="text" id="newUserNameInput" placeholder="Enter new user name" class="flex-1 p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <button id="addUserBtn" class="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors font-medium">Add User</button>
+                    </div>
+
+                    <!-- Current Users List -->
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-600 mb-3">Current Users</h4>
+                        <div id="currentUsersList" class="space-y-2">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                        <p id="noUsersMessage" class="text-sm text-gray-400 italic hidden">No users found. Add one above or create a "Users" table in Airtable with a "Name" field.</p>
                     </div>
                 </div>
             </div>
@@ -3582,6 +3606,8 @@ attachTaskCardListeners(card, task) {
  document.getElementById('databaseTab').addEventListener('click', () => this.switchSettingsTab('database'));
  document.getElementById('peopleTab').addEventListener('click', () => this.switchSettingsTab('people'));
  document.getElementById('editTextTab').addEventListener('click', () => this.switchSettingsTab('editText'));
+ document.getElementById('usersTab').addEventListener('click', () => this.switchSettingsTab('users'));
+ document.getElementById('addUserBtn').addEventListener('click', () => this.addNewUser());
 
  document.getElementById('saveEditText').addEventListener('click', () => this.saveEditText());
  document.getElementById('clearEditText').addEventListener('click', () => this.clearEditText());
@@ -5262,32 +5288,25 @@ showSettingsModal() {
 }
  
  switchSettingsTab(tab) {
- const databaseTab = document.getElementById('databaseTab');
- const peopleTab = document.getElementById('peopleTab');
- const editTextTab = document.getElementById('editTextTab');
- const databaseContent = document.getElementById('databaseTabContent');
- const peopleContent = document.getElementById('peopleTabContent');
- const editTextContent = document.getElementById('editTextTabContent');
- 
- databaseTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t';
- peopleTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t';
- editTextTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t';
- databaseContent.classList.add('hidden');
- peopleContent.classList.add('hidden');
- editTextContent.classList.add('hidden');
- 
- if (tab === 'database') {
- databaseTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50 rounded-t';
- databaseContent.classList.remove('hidden');
- } else if (tab === 'people') {
- peopleTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50 rounded-t';
- peopleContent.classList.remove('hidden');
- this.updateCurrentPeopleList();
- } else if (tab === 'editText') {
- editTextTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50 rounded-t';
- editTextContent.classList.remove('hidden');
- this.loadEditTextContent();
- }
+ const inactiveClass = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 rounded-t';
+ const activeClass = 'px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary bg-gray-50 rounded-t';
+
+ const tabs = ['database', 'people', 'editText', 'users'];
+ tabs.forEach(t => {
+ const tabEl = document.getElementById(t + 'Tab');
+ const contentEl = document.getElementById(t + 'TabContent');
+ if (tabEl) tabEl.className = inactiveClass;
+ if (contentEl) contentEl.classList.add('hidden');
+ });
+
+ const activeTabEl = document.getElementById(tab + 'Tab');
+ const activeContentEl = document.getElementById(tab + 'TabContent');
+ if (activeTabEl) activeTabEl.className = activeClass;
+ if (activeContentEl) activeContentEl.classList.remove('hidden');
+
+ if (tab === 'people') this.updateCurrentPeopleList();
+ if (tab === 'editText') this.loadEditTextContent();
+ if (tab === 'users') this.renderUsersList();
  }
  
  updateCurrentPeopleList() {
@@ -8229,39 +8248,157 @@ if (savedConfig) {
  // ---------------------------------------------------------------
  // AUDIT TRAIL LOGGING
  // ---------------------------------------------------------------
- async logAuditEvent(action, orderNumber, changes) {
+ // ---------------------------------------------------------------
+ // USER MANAGEMENT (Settings > Manage Users tab)
+ // ---------------------------------------------------------------
+ renderUsersList() {
+ const container = document.getElementById('currentUsersList');
+ const noMsg = document.getElementById('noUsersMessage');
+ if (!container) return;
+
+ container.innerHTML = '';
+
+ if (this.users.length === 0) {
+ if (noMsg) noMsg.classList.remove('hidden');
+ return;
+ }
+ if (noMsg) noMsg.classList.add('hidden');
+
+ this.users.forEach(name => {
+ const row = document.createElement('div');
+ row.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200';
+ row.innerHTML = `
+ <div class="flex items-center space-x-2">
+ <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+ </svg>
+ <span class="font-medium text-gray-700">${name}</span>
+ </div>
+ <button class="delete-user-btn text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded transition-colors" title="Remove user" data-user="${name}">
+ <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+ </svg>
+ </button>
+ `;
+ row.querySelector('.delete-user-btn').addEventListener('click', () => this.deleteUser(name));
+ container.appendChild(row);
+ });
+ }
+
+ async addNewUser() {
+ const input = document.getElementById('newUserNameInput');
+ if (!input) return;
+ const name = input.value.trim();
+ if (!name) return;
+
+ // Check for duplicates
+ if (this.users.includes(name)) {
+ this.showToast(`"${name}" already exists`, 'warning');
+ return;
+ }
+
+ if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) {
+ this.showToast('Connect to Airtable first', 'error');
+ return;
+ }
+
+ try {
+ this.showLoading('Adding user...');
+ const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.users || 'Users');
+ await this.makeAirtableRequest(tableName, 'POST', {
+ records: [{ fields: { Name: name } }]
+ });
+ this.users.push(name);
+ this.users.sort((a, b) => a.localeCompare(b));
+ input.value = '';
+ this.renderUsersList();
+ this.updateUserBadge();
+ this.showToast(`User "${name}" added`, 'success');
+ } catch (error) {
+ this.showToast(`Failed to add user: ${error.message}`, 'error');
+ } finally {
+ this.hideLoading();
+ }
+ }
+
+ async deleteUser(name) {
  if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) return;
 
  try {
+ this.showLoading('Removing user...');
+ const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.users || 'Users');
+ const filterFormula = `{Name}='${name}'`;
+ const response = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodeURIComponent(filterFormula)}`);
+
+ for (const record of response.records) {
+ await this.makeAirtableRequest(`${tableName}/${record.id}`, 'DELETE');
+ }
+
+ this.users = this.users.filter(u => u !== name);
+ this.renderUsersList();
+ this.updateUserBadge();
+ this.showToast(`User "${name}" removed`, 'success');
+ } catch (error) {
+ this.showToast(`Failed to remove user: ${error.message}`, 'error');
+ } finally {
+ this.hideLoading();
+ }
+ }
+
+ async logAuditEvent(action, orderNumber, changes) {
+ if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) return;
+
  const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.auditLog || 'AuditLog');
  const now = new Date();
  const timestamp = now.toISOString();
 
  // Build a readable summary of changes
  const changeSummary = changes.map(c => {
- if (c.oldValue && c.newValue) return `${c.field}: "${c.oldValue}" → "${c.newValue}"`;
+ if (c.oldValue && c.newValue) return `${c.field}: "${c.oldValue}" \u2192 "${c.newValue}"`;
  if (c.newValue) return `${c.field}: "${c.newValue}"`;
  if (c.oldValue) return `${c.field}: "${c.oldValue}" (removed)`;
  return c.field;
  }).join('; ');
 
- const data = {
- records: [{
- fields: {
+ // Try multiple field sets in case some fields don't exist yet
+ const fieldSets = [
+ {
  Timestamp: timestamp,
  User: this.currentUser || 'Unknown',
  Action: action,
  OrderNumber: String(orderNumber || ''),
  Changes: changeSummary
+ },
+ {
+ Timestamp: timestamp,
+ User: this.currentUser || 'Unknown',
+ Action: action,
+ OrderNumber: String(orderNumber || '')
+ },
+ {
+ Timestamp: timestamp,
+ User: this.currentUser || 'Unknown',
+ Action: action
  }
- }]
- };
+ ];
 
+ for (let i = 0; i < fieldSets.length; i++) {
+ try {
+ const data = { records: [{ fields: fieldSets[i] }] };
  await this.makeAirtableRequest(tableName, 'POST', data);
+ return; // Success — stop trying
  } catch (error) {
- // Audit logging should never break the app — fail silently
- console.warn('Audit log failed (non-critical):', error.message);
+ console.warn(`Audit log attempt ${i + 1} failed:`, error.message);
+ // If it's a field error, try next field set
+ if (error.message && (error.message.includes('Unknown field') || error.message.includes('Insufficient permissions') || error.message.includes('field'))) {
+ continue;
  }
+ // For other errors (network, table not found), stop trying
+ console.warn('Audit log failed (non-critical):', error.message);
+ return;
+ }
+ }
+ console.warn('Audit log: all field sets failed. Check your AuditLog table has these fields: Timestamp, User, Action, OrderNumber, Changes');
  }
 
  async savePeopleCapacityToLocal() {
@@ -8738,20 +8875,26 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  }
 
  if (attempt === maxRetries) {
- // Track consecutive failures for service interruption detection
+ // Only count server/network errors toward service interruption — NOT client errors (4xx)
+ const isClientError = error.statusCode && error.statusCode >= 400 && error.statusCode < 500;
+
+ if (!isClientError) {
  this.serviceInterruption.consecutiveFailures++;
  this.serviceInterruption.lastError = error.message;
  this.serviceInterruption.lastStatusCode = error.statusCode || null;
  this.serviceInterruption.lastAttemptTime = new Date();
+ }
 
- // Detect service interruption: server errors (5xx), network failures, or repeated failures
- const isServiceIssue = error.isServerError ||
+ // Detect service interruption: server errors (5xx), network failures, or repeated NON-client failures
+ const isServiceIssue = !isClientError && (
+ error.isServerError ||
  !navigator.onLine ||
  error.message.includes('Failed to fetch') ||
  error.message.includes('NetworkError') ||
  error.message.includes('Load failed') ||
  error.message.includes('network') ||
- this.serviceInterruption.consecutiveFailures >= 2;
+ this.serviceInterruption.consecutiveFailures >= 3
+ );
 
  if (isServiceIssue) {
  this.serviceInterruption.isActive = true;
@@ -10215,3 +10358,4 @@ cleanup() {
 </script>
 </body>
 </html>
+
