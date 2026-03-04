@@ -7953,7 +7953,7 @@ initActivityBasedRefresh() {
 
  // Show user identification modal if we have users loaded
  if (this.users.length > 0 && !this.idleWakeModalShowing) {
- this.showIdleWakeModal();
+ this.showIdleWakeModal('wake');
  } else {
  // No users table — just refresh silently
  this.showToast('Welcome back! Refreshing data...', 'info');
@@ -7996,13 +7996,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
 }
 
-showIdleWakeModal() {
+showIdleWakeModal(context) {
+ // context: 'load' for initial app load, 'wake' for returning from idle
+ const isLoad = context === 'load';
  this.idleWakeModalShowing = true;
  const modal = document.getElementById('idleWakeModal');
  const select = document.getElementById('idleWakeUserSelect');
  const errorEl = document.getElementById('idleWakeUserError');
  const confirmBtn = document.getElementById('idleWakeConfirmBtn');
+ const headerEl = modal ? modal.querySelector('h3') : null;
+ const subEl = modal ? modal.querySelector('p.text-indigo-200') : null;
  if (!modal || !select) return;
+
+ // Adjust header text based on context
+ if (headerEl) headerEl.textContent = isLoad ? 'Who\'s Here?' : 'Welcome Back!';
+ if (subEl) subEl.textContent = isLoad ? 'Please identify yourself to get started' : 'Please identify yourself to continue';
 
  // Populate user dropdown
  select.innerHTML = '<option value="">— Select your name —</option>';
@@ -8041,12 +8049,16 @@ showIdleWakeModal() {
  modal.classList.add('hidden');
  this.idleWakeModalShowing = false;
 
- // Now refresh data
+ if (isLoad) {
+ this.showToast(`Hello, ${selectedUser}!`, 'info');
+ } else {
+ // Returning from idle — refresh data
  this.showToast(`Welcome back, ${selectedUser}! Refreshing data...`, 'info');
  try {
  await this.performAutoRefresh();
  } catch (error) {
  console.warn('Activity-based refresh failed:', error);
+ }
  }
  });
 }
@@ -8113,10 +8125,15 @@ if (savedConfig) {
  this.hideLoading();
  }
 
- // Load last used profile (for pre-selecting in order modal)
+ // Load last used profile
  await this.loadCurrentUserFromLocal();
  if (this.currentUser) {
  this.updateUserBadge();
+ }
+
+ // On initial load, ask who is using the app
+ if (this.users.length > 0) {
+ this.showIdleWakeModal('load');
  }
 }
  }
