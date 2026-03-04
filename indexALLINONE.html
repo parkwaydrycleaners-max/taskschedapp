@@ -1167,6 +1167,38 @@ if (_fouc_loader) _fouc_loader.remove();
         </div>
     </div>
 
+    <!-- Idle Wake User Identification Modal -->
+    <div id="idleWakeModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[70] hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden fade-in">
+            <!-- Header -->
+            <div class="bg-indigo-600 px-5 py-4 flex items-center space-x-3">
+                <svg class="w-6 h-6 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                </svg>
+                <div>
+                    <h3 class="text-white text-base font-bold">Welcome Back!</h3>
+                    <p class="text-indigo-200 text-xs">Please identify yourself to continue</p>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="px-5 py-5 space-y-4">
+                <p class="text-sm text-gray-600">Who is using the app right now?</p>
+                <div>
+                    <select id="idleWakeUserSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                        <option value="">— Select your name —</option>
+                    </select>
+                    <p id="idleWakeUserError" class="text-xs text-red-500 mt-1 hidden">Please select your name to continue.</p>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-5 py-3 bg-gray-50 border-t border-gray-200">
+                <button id="idleWakeConfirmBtn" class="w-full px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">Continue</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Move Confirmation Modal -->
     <div id="moveConfirmModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] hidden">
         <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden fade-in">
@@ -7904,31 +7936,39 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
 initActivityBasedRefresh() {
  let lastActivity = Date.now();
  let wasIdle = false;
+ this.idleWakeModalShowing = false;
  const IDLE_TIME = 5 * 60 * 1000; // 5 minutes of inactivity
- 
+
  // Track user activity
  const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
- 
+
  const onActivity = async () => {
  const now = Date.now();
  const timeSinceLastActivity = now - lastActivity;
- 
+
  // If user was idle for more than 5 minutes and now becomes active
  if (wasIdle && timeSinceLastActivity > IDLE_TIME && this.airtableConfig.apiKey && this.airtableConfig.baseId) {
+ wasIdle = false;
+ lastActivity = now;
+
+ // Show user identification modal if we have users loaded
+ if (this.users.length > 0 && !this.idleWakeModalShowing) {
+ this.showIdleWakeModal('wake');
+ } else {
+ // No users table — just refresh silently
  this.showToast('Welcome back! Refreshing data...', 'info');
- 
  try {
  await this.performAutoRefresh();
  } catch (error) {
  console.warn('Activity-based refresh failed:', error);
  }
- 
- wasIdle = false;
  }
- 
+ return;
+ }
+
  lastActivity = now;
  };
- 
+
  // Attach activity listeners
 // Add this to your constructor, near other event listeners
 document.addEventListener('DOMContentLoaded', () => {
@@ -7947,13 +7987,80 @@ document.addEventListener('DOMContentLoaded', () => {
  activityEvents.forEach(event => {
  document.addEventListener(event, onActivity, { passive: true });
  });
- 
+
  // Check for idle state every minute
  setInterval(() => {
  const timeSinceLastActivity = Date.now() - lastActivity;
  wasIdle = timeSinceLastActivity > IDLE_TIME;
  }, 60 * 1000);
- 
+
+}
+
+showIdleWakeModal(context) {
+ // context: 'load' for initial app load, 'wake' for returning from idle
+ const isLoad = context === 'load';
+ this.idleWakeModalShowing = true;
+ const modal = document.getElementById('idleWakeModal');
+ const select = document.getElementById('idleWakeUserSelect');
+ const errorEl = document.getElementById('idleWakeUserError');
+ const confirmBtn = document.getElementById('idleWakeConfirmBtn');
+ const headerEl = modal ? modal.querySelector('h3') : null;
+ const subEl = modal ? modal.querySelector('p.text-indigo-200') : null;
+ if (!modal || !select) return;
+
+ // Adjust header text based on context
+ if (headerEl) headerEl.textContent = isLoad ? 'Who\'s Here?' : 'Welcome Back!';
+ if (subEl) subEl.textContent = isLoad ? 'Please identify yourself to get started' : 'Please identify yourself to continue';
+
+ // Populate user dropdown
+ select.innerHTML = '<option value="">— Select your name —</option>';
+ this.users.forEach(name => {
+ const opt = document.createElement('option');
+ opt.value = name;
+ opt.textContent = name;
+ select.appendChild(opt);
+ });
+
+ // Clear previous error
+ if (errorEl) errorEl.classList.add('hidden');
+
+ // Show modal
+ modal.classList.remove('hidden');
+
+ // Wire confirm button (clone to remove old listeners)
+ const newBtn = confirmBtn.cloneNode(true);
+ confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+
+ newBtn.addEventListener('click', async () => {
+ const selectedUser = select.value;
+ if (!selectedUser) {
+ if (errorEl) errorEl.classList.remove('hidden');
+ select.focus();
+ return;
+ }
+ if (errorEl) errorEl.classList.add('hidden');
+
+ // Set the user
+ this.currentUser = selectedUser;
+ this.saveCurrentUserToLocal();
+ this.updateUserBadge();
+
+ // Close modal
+ modal.classList.add('hidden');
+ this.idleWakeModalShowing = false;
+
+ if (isLoad) {
+ this.showToast(`Hello, ${selectedUser}!`, 'info');
+ } else {
+ // Returning from idle — refresh data
+ this.showToast(`Welcome back, ${selectedUser}! Refreshing data...`, 'info');
+ try {
+ await this.performAutoRefresh();
+ } catch (error) {
+ console.warn('Activity-based refresh failed:', error);
+ }
+ }
+ });
 }
  
  // Auto-load functionality
@@ -8018,10 +8125,15 @@ if (savedConfig) {
  this.hideLoading();
  }
 
- // Load last used profile (for pre-selecting in order modal)
+ // Load last used profile
  await this.loadCurrentUserFromLocal();
  if (this.currentUser) {
  this.updateUserBadge();
+ }
+
+ // On initial load, ask who is using the app
+ if (this.users.length > 0) {
+ this.showIdleWakeModal('load');
  }
 }
  }
