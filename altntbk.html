@@ -4721,9 +4721,17 @@ showOrderModalForPerson(person, date = null) {
  document.getElementById('tagsQuantityInput').value = task.tagsQuantity || 1;
  
  this.updateCompletionStatusDisplay(task.completed);
- 
+
+ // Populate user dropdown with the person who last edited (or created) this order
+ const taskUser = task.lastEditedBy || task.createdBy || '';
+ this.populateOrderUserSelect(taskUser);
+
+ // Clear any validation error from previous modal use
+ const errorEl = document.getElementById('orderUserError');
+ if (errorEl) errorEl.classList.add('hidden');
+
  this.loadAndDisplayCustomText();
- 
+
  this.handleModalAction('orderModal', 'show');
  this.updateCommonWords();
  }
@@ -4792,18 +4800,19 @@ showOrderModalForPerson(person, date = null) {
  if (errorEl) errorEl.classList.add('hidden');
  }
 
- populateOrderUserSelect() {
+ populateOrderUserSelect(preselectedUser) {
  const select = document.getElementById('orderUserSelect');
  if (!select) return;
 
- const previousValue = select.value || this.currentUser || '';
+ // Priority: explicit preselectedUser > current global user
+ const targetUser = preselectedUser || this.currentUser || '';
 
  select.innerHTML = '<option value="">— Select your name —</option>';
  this.users.forEach(name => {
  const opt = document.createElement('option');
  opt.value = name;
  opt.textContent = name;
- if (name === previousValue) opt.selected = true;
+ if (name === targetUser) opt.selected = true;
  select.appendChild(opt);
  });
 
