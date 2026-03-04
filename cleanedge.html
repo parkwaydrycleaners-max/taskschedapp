@@ -225,7 +225,7 @@ tbody tr:hover{background:var(--surface2)}
   <div class="section-header">
     <div>
       <div class="section-title">Dashboard</div>
-      <div class="section-subtitle">Revenue overview &amp; KPIs — Jan 1 – Mar 1, 2026</div>
+      <div class="section-subtitle" id="dashSubtitle">Revenue overview &amp; KPIs — Jan 1 – Mar 1, 2026</div>
     </div>
     <div class="btn-group">
       <button class="btn btn-outline btn-sm" onclick="exportAllData()"><i class="fa-solid fa-download"></i> Export CSV</button>
@@ -243,7 +243,7 @@ tbody tr:hover{background:var(--surface2)}
     </div>
   </div>
   <div class="card stagger">
-    <div class="card-title"><i class="fa-solid fa-ranking-star"></i> Top Services by Revenue (60-Day Period)</div>
+    <div class="card-title" id="topSvcTitle"><i class="fa-solid fa-ranking-star"></i> Top Services by Revenue</div>
     <div class="table-wrap">
       <table><thead><tr><th>Service</th><th>Category</th><th>Volume</th><th>Revenue</th><th>Avg Price</th><th>% of Total</th></tr></thead>
       <tbody id="dashTopServices"></tbody></table>
@@ -273,6 +273,22 @@ tbody tr:hover{background:var(--surface2)}
       <button class="btn btn-primary" onclick="parsePastedReport()"><i class="fa-solid fa-bolt"></i> Parse &amp; Load</button>
       <button class="btn btn-outline btn-sm" onclick="document.getElementById('pasteArea').value='';showToast('Cleared','info')"><i class="fa-solid fa-eraser"></i> Clear</button>
       <span id="pasteStatus" style="font-size:.85rem;color:var(--text2)"></span>
+    </div>
+  </div>
+
+  <!-- PASTE SALES BY CATEGORY REPORT -->
+  <div class="card stagger" style="margin-bottom:20px">
+    <div class="card-title"><i class="fa-solid fa-folder-tree"></i> Paste Sales by Category Report</div>
+    <p style="font-size:.85rem;color:var(--text2);margin-bottom:12px">Paste your "Sales Report By Category" with daily breakdowns. The parser reads the split-page format (left pages with dates + Dry/Laundry/Alterations, right pages with Pressing/Totals) and merges them into complete daily records.</p>
+    <div class="form-row" style="margin-bottom:12px">
+      <div class="form-group"><label class="form-label">Report Start Date</label><input type="date" class="form-input" id="catPasteStart" value="2022-01-04"></div>
+      <div class="form-group"><label class="form-label">Report End Date</label><input type="date" class="form-input" id="catPasteEnd" value="2026-03-03"></div>
+    </div>
+    <textarea id="catPasteArea" class="form-input" style="min-height:160px;font-size:14px;font-family:monospace;resize:vertical;line-height:1.4" placeholder="Paste your Sales Report By Category here...&#10;&#10;The report has split pages:&#10;Left pages:  Drop  Dry Pcs  Dry Amt  Laund Pcs  Laund Amt  Alter Pcs  Alter Amt&#10;Right pages: Press Pcs  Press Amt  DC Amt  Total Pcs  Total Amt"></textarea>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-accent" onclick="parseCategoryReport()"><i class="fa-solid fa-bolt"></i> Parse &amp; Load</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('catPasteArea').value='';showToast('Cleared','info')"><i class="fa-solid fa-eraser"></i> Clear</button>
+      <span id="catPasteStatus" style="font-size:.85rem;color:var(--text2)"></span>
     </div>
   </div>
 
@@ -327,7 +343,7 @@ tbody tr:hover{background:var(--surface2)}
   <div class="filter-row" id="catFilter"></div>
   <div class="card">
     <div class="table-wrap">
-      <table><thead><tr><th>Service</th><th>Category</th><th>Current Price</th><th>60d Volume</th><th>60d Revenue</th><th></th></tr></thead>
+      <table><thead><tr><th>Service</th><th>Category</th><th>Current Price</th><th>Total Volume</th><th>Total Revenue</th><th></th></tr></thead>
       <tbody id="servicesTableBody"></tbody></table>
     </div>
   </div>
@@ -659,8 +675,13 @@ function renderDashboard(){
   const avgDaily=totalRev/dates.length;
   const chg30=revPrev30>0?(revLast30-revPrev30)/revPrev30:0;
 
+  const fd=new Date(dates[0]+'T00:00:00'),ld=new Date(dates[dates.length-1]+'T00:00:00');
+  const subEl=document.getElementById('dashSubtitle');
+  if(subEl)subEl.textContent='Revenue overview & KPIs — '+fd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' – '+ld.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const tTitle=document.getElementById('topSvcTitle');
+  if(tTitle)tTitle.innerHTML='<i class="fa-solid fa-ranking-star"></i> Top Services by Revenue ('+dates.length+'-Day Period)';
   document.getElementById('dashMetrics').innerHTML=`
-    <div class="metric-card teal stagger"><div class="metric-label">Total Revenue (60d)</div><div class="metric-value">${fmtShort(totalRev)}</div><div class="metric-sub">${totalPcs.toLocaleString()} total pieces</div></div>
+    <div class="metric-card teal stagger"><div class="metric-label">Total Revenue (${dates.length}d)</div><div class="metric-value">${fmtShort(totalRev)}</div><div class="metric-sub">${totalPcs.toLocaleString()} total pieces</div></div>
     <div class="metric-card amber stagger"><div class="metric-label">Avg Daily Revenue</div><div class="metric-value">${fmt(avgDaily)}</div><div class="metric-sub">${Math.round(totalPcs/dates.length)} pieces / day</div></div>
     <div class="metric-card green stagger"><div class="metric-label">Last 30 Days</div><div class="metric-value">${fmtShort(revLast30)}</div><div class="metric-sub ${chg30>=0?'up':'down'}">${pct(chg30)} vs prior 30d</div></div>
     <div class="metric-card teal stagger"><div class="metric-label">Last 7 Days</div><div class="metric-value">${fmtShort(revLast7)}</div><div class="metric-sub">Avg ticket: ${fmt(totalRev/totalPcs)}</div></div>`;
@@ -837,6 +858,120 @@ function parsePastedReport(){
   const totalPcs=parsed.reduce((s,p)=>s+p.pieces,0);
   statusEl.innerHTML=`<span style="color:var(--success)">✓ Loaded <strong>${parsed.length}</strong> services — ${totalPcs.toLocaleString()} pieces — ${fmt(totalRev)} revenue over ${periodDays} days</span>`;
   showToast(`Parsed ${parsed.length} services`,'success');
+  renderServicesTable();populateServiceDropdown();renderSalesTable();renderDashboard();
+  switchTab('dashboard');
+}
+
+/* ======== SALES BY CATEGORY PARSER (daily split-page format) ======== */
+function parseCategoryReport(){
+  const raw=document.getElementById('catPasteArea').value.trim();
+  const statusEl=document.getElementById('catPasteStatus');
+  if(!raw){showToast('Paste your category report first','error');return}
+
+  // Split into sections by 3+ consecutive newlines (pages separated by ~16 blank lines)
+  const sections=raw.split(/\n{3,}/).filter(s=>s.trim().length>0);
+  const leftSections=[],rightSections=[];
+
+  sections.forEach(sec=>{
+    const lines=sec.split('\n');
+    const dataLines=[];
+    for(const line of lines){
+      const t=line.trim();
+      if(!t)continue;
+      // Skip headers
+      if(/sales report by category/i.test(t))continue;
+      if(/^\d{4}\/\d{2}\s*~\s*\d{4}\/\d{2}/.test(t))continue;
+      if(/^\d{4}\.\d{2}\.\d{2}\s*$/.test(t))continue;
+      if(/drop/i.test(t)&&/dry/i.test(t))continue;
+      if(/press\s*pcs/i.test(t))continue;
+      // Only keep lines starting with digit/minus/date
+      if(!/^[\d\-]/.test(t))continue;
+      dataLines.push(t);
+    }
+    if(dataLines.length===0)return;
+    // Left pages start with a date YYYY/MM/DD
+    const isLeft=/^\d{4}\/\d{2}\/\d{2}\s/.test(dataLines[0]);
+    const isRight=!isLeft&&/^\-?\d/.test(dataLines[0]);
+    if(isLeft)leftSections.push(dataLines);
+    else if(isRight)rightSections.push(dataLines);
+  });
+
+  // Pair left and right sections and merge rows by position
+  const pairs=Math.min(leftSections.length,rightSections.length);
+  const records=[];
+
+  for(let p=0;p<pairs;p++){
+    const left=leftSections[p],right=rightSections[p];
+    const rowCount=Math.min(left.length,right.length);
+    for(let r=0;r<rowCount;r++){
+      const lp=left[r].trim().split(/\s+/);
+      const rp=right[r].trim().split(/\s+/);
+      // Left: [date, dryPcs, dryAmt, laundPcs, laundAmt, alterPcs, alterAmt]
+      // Right: [pressPcs, pressAmt, dcAmt, totalPcs, totalAmt]
+      if(lp.length<7||rp.length<5)continue;
+      const isoDate=lp[0].replace(/\//g,'-');
+      records.push({
+        date:isoDate,
+        dryPcs:parseFloat(lp[1])||0, dryAmt:parseFloat(lp[2])||0,
+        laundPcs:parseFloat(lp[3])||0, laundAmt:parseFloat(lp[4])||0,
+        alterPcs:parseFloat(lp[5])||0, alterAmt:parseFloat(lp[6])||0,
+        pressPcs:parseFloat(rp[0])||0, pressAmt:parseFloat(rp[1])||0,
+        dcAmt:parseFloat(rp[2])||0,
+        totalPcs:parseFloat(rp[3])||0, totalAmt:parseFloat(rp[4])||0
+      });
+    }
+  }
+
+  if(records.length===0){
+    statusEl.innerHTML='<span style="color:var(--danger)">⚠ No daily records found. Make sure you pasted the full split-page report.</span>';
+    showToast('Could not parse any records','error');
+    return;
+  }
+
+  records.sort((a,b)=>a.date.localeCompare(b.date));
+
+  // Build category-level services
+  const catDefs=[
+    {key:'dry',name:'Dry Cleaning',pF:'dryPcs',aF:'dryAmt'},
+    {key:'laund',name:'Laundry',pF:'laundPcs',aF:'laundAmt'},
+    {key:'alter',name:'Alterations',pF:'alterPcs',aF:'alterAmt'},
+    {key:'press',name:'Pressing',pF:'pressPcs',aF:'pressAmt'}
+  ];
+
+  const totalDays=records.length;
+  const newServices=catDefs.map((c,i)=>{
+    const tp=records.reduce((s,r)=>s+r[c.pF],0);
+    const ta=records.reduce((s,r)=>s+r[c.aF],0);
+    return{id:'cat'+i,name:c.name,category:c.name,price:tp>0?+(ta/tp).toFixed(2):0,totalPieces:Math.round(tp),totalAmount:+ta.toFixed(2),avgVol:+(tp/totalDays).toFixed(2)};
+  }).filter(s=>s.totalPieces>0);
+
+  APP.services=newServices;
+  APP.proposedPrices={};
+  newServices.forEach(s=>{APP.proposedPrices[s.id]=s.price});
+
+  // Build REAL daily sales data (actual dates — no simulation needed!)
+  const dailyData=[];
+  records.forEach(r=>{
+    catDefs.forEach(c=>{
+      const pcs=r[c.pF],amt=r[c.aF];
+      if(pcs>0||amt>0){
+        dailyData.push({date:r.date,category:c.name,service:c.name,quantity:Math.round(pcs),unitPrice:pcs>0?+(amt/pcs).toFixed(2):0,total:+amt.toFixed(2)});
+      }
+    });
+  });
+  dailyData.sort((a,b)=>a.date.localeCompare(b.date));
+  APP.salesData=dailyData;
+
+  // Update date inputs to match actual range
+  const firstDate=records[0].date,lastDate=records[records.length-1].date;
+  document.getElementById('catPasteStart').value=firstDate;
+  document.getElementById('catPasteEnd').value=lastDate;
+
+  const totalRev=records.reduce((s,r)=>s+r.totalAmt,0);
+  const totalPcs=records.reduce((s,r)=>s+r.totalPcs,0);
+  const totalDC=records.reduce((s,r)=>s+r.dcAmt,0);
+  statusEl.innerHTML='<span style="color:var(--success)">✓ Loaded <strong>'+records.length+'</strong> daily records — '+Math.round(totalPcs).toLocaleString()+' total pieces — '+fmt(totalRev)+' revenue'+(totalDC>0?' — '+fmt(totalDC)+' in discounts':'')+'<br>Date range: '+firstDate+' to '+lastDate+' ('+catDefs.filter((_c,i)=>newServices.some(s=>s.id==='cat'+i)).map(c=>c.name).join(', ')+')</span>';
+  showToast('Parsed '+records.length+' daily records ('+firstDate+' to '+lastDate+')','success');
   renderServicesTable();populateServiceDropdown();renderSalesTable();renderDashboard();
   switchTab('dashboard');
 }
