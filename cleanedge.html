@@ -260,17 +260,35 @@ tbody tr:hover{background:var(--surface2)}
     </div>
     <button class="btn btn-outline btn-sm" onclick="clearAllSales()"><i class="fa-solid fa-trash-can"></i> Clear All</button>
   </div>
+  <!-- PASTE POS REPORT -->
+  <div class="card stagger" style="margin-bottom:20px">
+    <div class="card-title"><i class="fa-solid fa-paste"></i> Paste POS Report</div>
+    <p style="font-size:.85rem;color:var(--text2);margin-bottom:12px">Paste your "Sales by Item" report directly below. The parser auto-detects service names, piece counts, and dollar amounts.</p>
+    <div class="form-row" style="margin-bottom:12px">
+      <div class="form-group"><label class="form-label">Report Start Date</label><input type="date" class="form-input" id="pasteStartDate" value="2026-01-01"></div>
+      <div class="form-group"><label class="form-label">Report End Date</label><input type="date" class="form-input" id="pasteEndDate" value="2026-03-01"></div>
+    </div>
+    <textarea id="pasteArea" class="form-input" style="min-height:180px;font-size:14px;font-family:monospace;resize:vertical;line-height:1.4" placeholder="Paste your POS report text here...&#10;&#10;Example:&#10;Dress Shirt ()&#10;1457      19.2      $7,946.15 11.3&#10;----------------------------------------&#10;Pants Hem ()&#10;381       5         $5,501.50 7.8"></textarea>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="parsePastedReport()"><i class="fa-solid fa-bolt"></i> Parse &amp; Load</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('pasteArea').value='';showToast('Cleared','info')"><i class="fa-solid fa-eraser"></i> Clear</button>
+      <span id="pasteStatus" style="font-size:.85rem;color:var(--text2)"></span>
+    </div>
+  </div>
+
   <div class="grid-2">
+    <!-- CSV UPLOAD -->
     <div class="card stagger">
-      <div class="card-title"><i class="fa-solid fa-file-csv"></i> Upload POS Report</div>
+      <div class="card-title"><i class="fa-solid fa-file-csv"></i> Upload CSV</div>
       <div class="file-drop" id="fileDrop" onclick="document.getElementById('csvInput').click()">
         <i class="fa-solid fa-cloud-arrow-up"></i>
         <p>Drop a CSV file here or click to browse</p>
-        <p class="hint">Expected columns: Date, Category, Service, Quantity, UnitPrice, Total</p>
+        <p class="hint">Columns: Date, Category, Service, Quantity, UnitPrice, Total</p>
       </div>
       <input type="file" id="csvInput" accept=".csv" style="display:none" onchange="handleCSVUpload(this)">
       <div id="uploadStatus" style="margin-top:12px;font-size:.85rem;color:var(--text2)"></div>
     </div>
+    <!-- MANUAL ENTRY -->
     <div class="card stagger">
       <div class="card-title"><i class="fa-solid fa-pen-to-square"></i> Manual Entry</div>
       <div class="form-row">
@@ -708,6 +726,120 @@ function renderSalesTable(){
 }
 function deleteSalesRow(idx){APP.salesData.splice(idx,1);renderSalesTable();showToast('Record deleted','info')}
 function clearAllSales(){showModal('Clear All Sales Data','Remove all sales records? This cannot be undone.',()=>{APP.salesData=[];renderSalesTable();showToast('All sales cleared','info')})}
+
+/* ======== PASTE POS REPORT PARSER ======== */
+function parsePastedReport(){
+  const raw=document.getElementById('pasteArea').value.trim();
+  const statusEl=document.getElementById('pasteStatus');
+  if(!raw){showToast('Paste your report text first','error');return}
+
+  const startDate=document.getElementById('pasteStartDate').value||'2026-01-01';
+  const endDate=document.getElementById('pasteEndDate').value||'2026-03-01';
+  const d0=new Date(startDate+'T00:00:00'),d1=new Date(endDate+'T00:00:00');
+  const periodDays=Math.max(1,Math.round((d1-d0)/(86400000)));
+
+  const lines=raw.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  const parsed=[];
+  let currentName=null;
+
+  // Categoriser: maps service name keywords to categories
+  function categorize(name){
+    const n=name.toLowerCase();
+    const altKeys=['hem','taper','take-in','take in','zipper','patch','repair','sew','create','button','sleeve length','sleeve take','waist','elastic','crotch','belt loop','let out','hook','cuff','bustle','puller','seam','pocket','slit','shoulder strap','suspender','custom per hour'];
+    const rushKeys=['rush'];
+    const specKeys=['sneaker','leather','wedding','comforter','table cover','drape','blanket','rug','sheet','pillow','bag','glove','ugg','sleeping','shoe','sandal','boot','handbag','sports cap','placemat','other'];
+    if(rushKeys.some(k=>n.includes(k)))return'Rush';
+    if(altKeys.some(k=>n.includes(k)))return'Alterations';
+    if(specKeys.some(k=>n.includes(k)))return'Specialty';
+    return'Dry Cleaning';
+  }
+
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    // Skip separator lines, headers, totals
+    if(/^[-=]+$/.test(line))continue;
+    if(/^(sales by item|date\s*:|printed|desc|piece|total [cq]|total amount|balance)/i.test(line))continue;
+    if(/^\+1 sample/i.test(line))continue;
+    if(/^balance$/i.test(line)){currentName=null;continue}
+
+    // Try to match a data line: number  number  $number  number
+    const dataMatch=line.match(/^\s*(\d[\d,]*)\s+([\d.]+)\s+(-?\$[\d,.]+)\s+([\d.]+)\s*$/);
+    if(dataMatch&&currentName){
+      const pieces=parseInt(dataMatch[1].replace(/,/g,''))||0;
+      const amount=parseFloat(dataMatch[3].replace(/[$,]/g,''))||0;
+      if(pieces>0&&amount!==0){
+        parsed.push({name:currentName,pieces,amount,unitPrice:pieces>0?+(amount/pieces).toFixed(2):0});
+      }
+      currentName=null;
+      continue;
+    }
+
+    // Also try: pieces and amount on same line as name (compact format)
+    const inlineMatch=line.match(/^(.+?)\s+(\d[\d,]*)\s+([\d.]+)\s+(-?\$[\d,.]+)\s+([\d.]+)\s*$/);
+    if(inlineMatch){
+      const nm=inlineMatch[1].replace(/\(\)|\(\s*\)/g,'').trim();
+      const pieces=parseInt(inlineMatch[2].replace(/,/g,''))||0;
+      const amount=parseFloat(inlineMatch[4].replace(/[$,]/g,''))||0;
+      if(nm&&pieces>0&&amount!==0){
+        parsed.push({name:nm,pieces,amount,unitPrice:pieces>0?+(amount/pieces).toFixed(2):0});
+      }
+      currentName=null;
+      continue;
+    }
+
+    // Otherwise it's a service name line
+    const cleaned=line.replace(/\(\)|\(\s*\)/g,'').replace(/\(.*?\)/g,'').trim();
+    if(cleaned&&!/^\d/.test(cleaned)&&cleaned.length>1){
+      currentName=cleaned;
+    }
+  }
+
+  if(parsed.length===0){
+    statusEl.innerHTML='<span style="color:var(--danger)">⚠ No services found. Check the report format.</span>';
+    showToast('Could not parse any items','error');
+    return;
+  }
+
+  // Build services & generate daily data
+  const newServices=parsed.map((p,i)=>({
+    id:'p'+Date.now().toString(36)+i,
+    name:p.name,
+    category:categorize(p.name),
+    price:p.unitPrice,
+    totalPieces:p.pieces,
+    totalAmount:p.amount,
+    avgVol:+(p.pieces/periodDays).toFixed(2)
+  }));
+
+  // Replace services and regenerate
+  APP.services=newServices;
+  APP.proposedPrices={};
+  newServices.forEach(s=>{APP.proposedPrices[s.id]=s.price});
+
+  // Generate daily breakdown
+  const dayWeights=[0.25,1.15,1.0,1.0,1.05,1.0,0.55];
+  const dailyData=[];
+  newServices.forEach(svc=>{
+    if(svc.totalPieces<=0)return;
+    let wSum=0;const weights=[];
+    for(let d=0;d<periodDays;d++){const dt=new Date(d0);dt.setDate(dt.getDate()+d);weights.push(dayWeights[dt.getDay()]);wSum+=weights[d]}
+    const dailyPcs=[];
+    for(let d=0;d<periodDays;d++){let q=Math.round(svc.totalPieces*(weights[d]/wSum)*(0.6+Math.random()*0.8));if(q<0)q=0;dailyPcs.push(q)}
+    let diff=svc.totalPieces-dailyPcs.reduce((a,b)=>a+b,0);
+    let guard=0;while(diff!==0&&guard<5000){const idx=Math.floor(Math.random()*periodDays);if(diff>0&&weights[idx]>0.3){dailyPcs[idx]++;diff--}else if(diff<0&&dailyPcs[idx]>0){dailyPcs[idx]--;diff++}guard++}
+    for(let d=0;d<periodDays;d++){if(dailyPcs[d]<=0)continue;const dt=new Date(d0);dt.setDate(dt.getDate()+d);
+      dailyData.push({date:dt.toISOString().split('T')[0],category:svc.category,service:svc.name,quantity:dailyPcs[d],unitPrice:svc.price,total:+(dailyPcs[d]*svc.price).toFixed(2)})}
+  });
+  dailyData.sort((a,b)=>a.date.localeCompare(b.date));
+  APP.salesData=dailyData;
+
+  const totalRev=parsed.reduce((s,p)=>s+p.amount,0);
+  const totalPcs=parsed.reduce((s,p)=>s+p.pieces,0);
+  statusEl.innerHTML=`<span style="color:var(--success)">✓ Loaded <strong>${parsed.length}</strong> services — ${totalPcs.toLocaleString()} pieces — ${fmt(totalRev)} revenue over ${periodDays} days</span>`;
+  showToast(`Parsed ${parsed.length} services`,'success');
+  renderServicesTable();populateServiceDropdown();renderSalesTable();renderDashboard();
+  switchTab('dashboard');
+}
 
 /* file drop */
 const dz=document.getElementById('fileDrop');
