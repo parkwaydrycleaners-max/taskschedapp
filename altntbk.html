@@ -1167,6 +1167,41 @@ if (_fouc_loader) _fouc_loader.remove();
         </div>
     </div>
 
+    <!-- Move Confirmation Modal -->
+    <div id="moveConfirmModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden fade-in">
+            <!-- Header -->
+            <div class="bg-blue-600 px-5 py-3 flex items-center space-x-2">
+                <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                </svg>
+                <h3 class="text-white text-base font-bold">Confirm Move</h3>
+            </div>
+
+            <!-- Body -->
+            <div class="px-5 py-4 space-y-4">
+                <!-- Order info -->
+                <div id="moveOrderInfo" class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-1">
+                </div>
+
+                <!-- User selection -->
+                <div>
+                    <span class="block text-sm font-medium mb-2">Your Name: <span class="text-red-500">*</span></span>
+                    <select id="moveUserSelect" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">— Select your name —</option>
+                    </select>
+                    <p id="moveUserError" class="text-xs text-red-500 mt-1 hidden">Please select your name before confirming.</p>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-5 py-3 bg-gray-50 flex justify-end space-x-3 border-t border-gray-200">
+                <button id="moveCancelBtn" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">Cancel</button>
+                <button id="moveConfirmBtn" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">Move Order</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Airtable Service Interruption Modal -->
     <div id="serviceInterruptionModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] hidden">
         <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden fade-in">
@@ -4450,9 +4485,117 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  let slotPosition = Math.floor(y / 32);
 
  const adjustedPosition = this.findNonCollidingPosition(newPerson, newDate, slotPosition, this.draggedElement.dataset.taskId);
+ const taskId = this.draggedElement.dataset.taskId;
 
- this.moveTask(this.draggedElement.dataset.taskId, newPerson, adjustedPosition, newDate);
+ // Find the task to show details in confirmation
+ let task = null;
+ let oldPerson = null;
+ let oldDateKey = null;
+ for (const dateKey in this.tasks) {
+ for (const person in this.tasks[dateKey]) {
+ const found = this.tasks[dateKey][person].find(t => t.id == taskId);
+ if (found) {
+ task = found;
+ oldPerson = person;
+ oldDateKey = dateKey;
+ break;
  }
+ }
+ if (task) break;
+ }
+
+ if (task) {
+ // If only repositioning within the same person+date, skip confirmation
+ if (oldPerson === newPerson && oldDateKey === newDate) {
+ this.moveTask(taskId, newPerson, adjustedPosition, newDate);
+ } else {
+ this.showMoveConfirmation(task, taskId, oldPerson, oldDateKey, newPerson, newDate, adjustedPosition);
+ }
+ }
+ }
+ }
+
+ showMoveConfirmation(task, taskId, oldPerson, oldDateKey, newPerson, newDate, newPosition) {
+ // Store pending move data
+ this.pendingMove = { taskId, oldPerson, oldDateKey, newPerson, newDate, newPosition };
+
+ // Populate order info
+ const infoEl = document.getElementById('moveOrderInfo');
+ const formatDate = (d) => {
+ const dt = new Date(d + 'T00:00:00');
+ return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+ };
+ let moveDetails = `<div class="font-semibold text-gray-800">Order #${task.orderNumber}</div>`;
+ if (task.description) {
+ moveDetails += `<div class="text-gray-500 truncate">${task.description}</div>`;
+ }
+ moveDetails += `<div class="mt-2 text-gray-700"><span class="font-medium">${oldPerson}</span> <span class="text-gray-400">(${formatDate(oldDateKey)})</span></div>`;
+ moveDetails += `<div class="flex items-center text-blue-600 font-medium"><svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg> <span>${newPerson}</span> <span class="text-gray-400 font-normal ml-1">(${formatDate(newDate)})</span></div>`;
+ infoEl.innerHTML = moveDetails;
+
+ // Populate user dropdown
+ const select = document.getElementById('moveUserSelect');
+ select.innerHTML = '<option value="">— Select your name —</option>';
+ this.users.forEach(name => {
+ const opt = document.createElement('option');
+ opt.value = name;
+ opt.textContent = name;
+ if (name === this.currentUser) opt.selected = true;
+ select.appendChild(opt);
+ });
+
+ // Clear previous error
+ const errorEl = document.getElementById('moveUserError');
+ if (errorEl) errorEl.classList.add('hidden');
+
+ // Show modal
+ document.getElementById('moveConfirmModal').classList.remove('hidden');
+
+ // Wire up buttons (clone to remove old listeners)
+ const confirmBtn = document.getElementById('moveConfirmBtn');
+ const cancelBtn = document.getElementById('moveCancelBtn');
+ const newConfirm = confirmBtn.cloneNode(true);
+ const newCancel = cancelBtn.cloneNode(true);
+ confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+ cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+
+ newConfirm.addEventListener('click', () => this.confirmMoveTask());
+ newCancel.addEventListener('click', () => this.cancelMoveTask());
+ }
+
+ confirmMoveTask() {
+ const select = document.getElementById('moveUserSelect');
+ const selectedUser = select ? select.value : '';
+ const errorEl = document.getElementById('moveUserError');
+
+ if (!selectedUser) {
+ if (errorEl) errorEl.classList.remove('hidden');
+ if (select) select.focus();
+ return;
+ }
+ if (errorEl) errorEl.classList.add('hidden');
+
+ // Update current user globally
+ this.currentUser = selectedUser;
+ this.saveCurrentUserToLocal();
+ this.updateUserBadge();
+
+ // Execute the move
+ const m = this.pendingMove;
+ if (m) {
+ this.moveTask(m.taskId, m.newPerson, m.newPosition, m.newDate);
+ }
+ this.pendingMove = null;
+
+ // Close modal
+ document.getElementById('moveConfirmModal').classList.add('hidden');
+ }
+
+ cancelMoveTask() {
+ this.pendingMove = null;
+ document.getElementById('moveConfirmModal').classList.add('hidden');
+ // Re-render to snap the card back to its original position
+ this.renderWhiteboard();
  }
  
  findNonCollidingPosition(person, dateKey, slotPosition, taskId) {
