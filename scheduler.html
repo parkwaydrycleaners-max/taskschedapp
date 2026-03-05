@@ -1792,13 +1792,13 @@ const Forecaster = {
   dayOfWeekPattern(dailySales, daysAhead) {
     daysAhead = daysAhead || 14;
     if (dailySales.length < 7) return [];
-    /* Collect clean values per DOW from last 12 weeks with exponential recency weighting.
-       Half-life = 28 days: data from 4 weeks ago gets 50% weight, 8 weeks → 25%.
-       Wider window gives ~12 samples per DOW for more robust averages. */
+    /* Collect clean values per DOW from last 10 weeks with exponential recency weighting.
+       Half-life = 21 days: data from 3 weeks ago gets 50% weight, 6 weeks → 25%.
+       Shorter halfLife is more responsive to recent business-level shifts. */
     var dowVals = [[],[],[],[],[],[],[]];
     var n = dailySales.length;
-    var lookback = Math.min(n, 84); /* 12 weeks */
-    var halfLife = 28;
+    var lookback = Math.min(n, 70); /* 10 weeks */
+    var halfLife = 21;
     for (var ri = n - lookback; ri < n; ri++) {
       var d = dailySales[ri];
       if (!isCleanDay(d)) continue;
@@ -2324,19 +2324,25 @@ const Forecaster = {
         w = mw[m.key];
       } else {
         mape = self._backtestMethod(m.fn, dailySales, 7);
-        w = 1 / Math.pow(Math.max(mape, 1), 2); /* squared inverse for sharper differentiation */
+        w = 1 / Math.pow(Math.max(mape, 1), 3); /* cubed inverse for sharper differentiation — best methods dominate */
+        /* Boost DOW-aware methods: dayOfWeek and yoy capture weekly patterns
+           that other methods (MA, ExpSmoothing, Trend) dilute with flat predictions.
+           This gives the DOW method ~2x its natural weight in the ensemble. */
+        if (m.key === 'dayOfWeek') w *= 2.0;
+        else if (m.key === 'yoy') w *= 1.5;
       }
-      candidates.push({ preds: preds, w: w, mape: mape });
+      candidates.push({ preds: preds, w: w, mape: mape, key: m.key });
     });
 
     if (candidates.length === 0) return [];
 
-    /* Auto-exclude: drop methods with MAPE > 1.3x the best (only when not manual) */
+    /* Auto-exclude: drop methods with MAPE > 1.2x the best (only when not manual).
+       Tighter threshold removes noisy methods that dilute DOW signal. */
     if (!mw) {
       var bestMape = 999;
       candidates.forEach(function(c) { if (c.mape != null && c.mape < bestMape) bestMape = c.mape; });
       if (bestMape < 999) {
-        var threshold = bestMape * 1.3;
+        var threshold = bestMape * 1.2;
         candidates = candidates.filter(function(c) { return c.mape == null || c.mape <= threshold; });
       }
     }
@@ -2402,8 +2408,8 @@ const Forecaster = {
           var rMed = medianFn(dowRecent[db]);
           var pMed = medianFn(dowPrior[db]);
           if (pMed > 0) {
-            /* Cap correction at ±15% per DOW to prevent overcorrection */
-            dowBias[db] = Math.max(0.85, Math.min(1.15, rMed / pMed));
+            /* Cap correction at ±20% per DOW */
+            dowBias[db] = Math.max(0.80, Math.min(1.20, rMed / pMed));
           }
         }
       }
@@ -2556,9 +2562,9 @@ const Forecaster = {
     var globalBiasCorr = 1;
     if (globalSumF > 0 && globalN >= 10) {
       var globalRatio = globalSumA / globalSumF;
-      /* Conservative shrinkage: only apply 60% of the global correction, cap ±10% */
-      globalBiasCorr = 1 + 0.6 * (globalRatio - 1);
-      globalBiasCorr = Math.max(0.90, Math.min(1.10, globalBiasCorr));
+      /* Apply 80% of the global correction, cap ±15% */
+      globalBiasCorr = 1 + 0.8 * (globalRatio - 1);
+      globalBiasCorr = Math.max(0.85, Math.min(1.15, globalBiasCorr));
     }
     best.globalBiasCorr = globalBiasCorr;
     /* Compute per-DOW correction factors from cross-validation residuals.
@@ -2574,11 +2580,11 @@ const Forecaster = {
       dcAvgA /= dcArr.length; dcAvgF /= dcArr.length;
       if (dcAvgF <= 0) { best.dowCorrections.push(1); continue; }
       var rawRatio = dcAvgA / dcAvgF;
-      /* Shrinkage: trust correction more with more data points (denominator=8) */
-      var shrinkage = Math.min(1, dcArr.length / 8);
+      /* Shrinkage: trust correction more with more data points (denominator=6) */
+      var shrinkage = Math.min(1, dcArr.length / 6);
       var corr = 1 + shrinkage * (rawRatio - 1);
-      /* Cap at ±20% to prevent overcorrection */
-      corr = Math.max(0.80, Math.min(1.20, corr));
+      /* Cap at ±30% to allow large DOW corrections (Mon needs ~25% boost) */
+      corr = Math.max(0.70, Math.min(1.30, corr));
       best.dowCorrections.push(corr);
     }
     /* Compute corrected MAPE: apply global + DOW corrections to each test point.
@@ -2600,9 +2606,9 @@ const Forecaster = {
         var looCorr = 1;
         if (looN >= 2 && looSumF > 0) {
           var looRatio = looSumA / looSumF;
-          var looShrink = Math.min(1, looN / 8);
+          var looShrink = Math.min(1, looN / 6);
           looCorr = 1 + looShrink * (looRatio - 1);
-          looCorr = Math.max(0.80, Math.min(1.20, looCorr));
+          looCorr = Math.max(0.70, Math.min(1.30, looCorr));
         }
         var corrPred = x[predKey] * globalBiasCorr * looCorr;
         correctedErrors.push(Math.abs(x.actual - corrPred) / x.actual);
