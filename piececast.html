@@ -403,13 +403,18 @@ const S = {
   dataLoaded: false,
   activeSeries: '__total_pieces',
   methods: {
-    dowAvg:    { name: 'Day-of-Week Average', enabled: true, weight: 15, params: {} },
-    recent:    { name: 'Recent Pattern (4wk)', enabled: true, weight: 20, params: { weeks: 4 } },
-    sma7:      { name: '7-Day Moving Avg',     enabled: true, weight: 10, params: {} },
-    sma28:     { name: '28-Day Moving Avg',    enabled: true, weight: 10, params: {} },
-    expSmooth: { name: 'Exponential Smoothing', enabled: true, weight: 15, params: { alpha: 0.3 } },
-    hw:        { name: 'Holt-Winters Seasonal', enabled: true, weight: 25, params: { alpha: 0.2, beta: 0.05, gamma: 0.3 } },
-    yoy:       { name: 'Year-over-Year',        enabled: false, weight: 5, params: {} }
+    dowAvg:    { name: 'DOW Avg (trailing)',   enabled: true, weight: 5, params: { weeks: 16 } },
+    recent:    { name: 'Recent DOW (4wk)',     enabled: true, weight: 10, params: { weeks: 4 } },
+    wDow:      { name: 'Weighted DOW (decay)', enabled: true, weight: 15, params: { halfLife: 8 } },
+    medDow:    { name: 'Median DOW',           enabled: true, weight: 10, params: { weeks: 20 } },
+    trendDow:  { name: 'Trend + DOW',          enabled: true, weight: 15, params: { weeks: 12 } },
+    annualDow: { name: 'Annual Seasonal',      enabled: true, weight: 15, params: { blendRecent: 0.5 } },
+    hw:        { name: 'Holt-Winters Weekly',  enabled: true, weight: 10, params: { alpha: 0.2, beta: 0.05, gamma: 0.3 } },
+    yoy:       { name: 'Year-over-Year',       enabled: true, weight: 5, params: {} },
+    yoyTrend:  { name: 'YoY Trend-Adjusted',   enabled: true, weight: 10, params: { recentWeeks: 6 } },
+    sma7:      { name: '7-Day Moving Avg',     enabled: false, weight: 0, params: {} },
+    sma28:     { name: '28-Day Moving Avg',     enabled: false, weight: 0, params: {} },
+    expSmooth: { name: 'Exp Smooth + DOW',     enabled: true, weight: 5, params: { alpha: 0.3 } }
   },
   backtestWindow: 14,
   backtestResults: {},
@@ -421,7 +426,7 @@ const S = {
 
 const WINDOWS = [14, 21, 30, 60, 90];
 const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1'];
+const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1','#ea580c','#0d9488','#be123c','#4f46e5','#84cc16'];
 
 /* ==================================================================
    DARK MODE
@@ -715,15 +720,20 @@ function formatDateISO(d) {
 /* ==================================================================
    FORECASTING METHODS
    ================================================================== */
-function forecastDOWAvg(trainData, trainDates, horizon) {
+
+/* Helper: build DOW averages from a subset of training data */
+function buildDOWAvg(data, dates) {
   const sums = [0,0,0,0,0,0,0], counts = [0,0,0,0,0,0,0];
-  for (let i = 0; i < trainData.length; i++) {
-    const dow = trainDates[i].getDay();
-    sums[dow] += trainData[i];
+  for (let i = 0; i < data.length; i++) {
+    const dow = dates[i].getDay();
+    sums[dow] += data[i];
     counts[dow]++;
   }
-  const avgs = sums.map((s,i) => counts[i] > 0 ? s / counts[i] : 0);
-  const lastDate = trainDates[trainDates.length - 1];
+  return sums.map((s,i) => counts[i] > 0 ? s / counts[i] : 0);
+}
+
+/* Helper: project DOW averages array into a forecast */
+function projectDOW(avgs, lastDate, horizon) {
   const fc = [];
   for (let h = 1; h <= horizon; h++) {
     const d = new Date(lastDate); d.setDate(d.getDate() + h);
@@ -732,42 +742,199 @@ function forecastDOWAvg(trainData, trainDates, horizon) {
   return fc;
 }
 
-function forecastRecent(trainData, trainDates, horizon, weeks) {
-  weeks = weeks || 4;
+/* Helper: find closest YoY match index */
+function findYOYIndex(trainDates, targetDate, maxDiffDays) {
+  maxDiffDays = maxDiffDays || 10;
+  const yAgo = new Date(targetDate); yAgo.setFullYear(yAgo.getFullYear() - 1);
+  let best = -1, bestDiff = Infinity;
+  for (let i = trainDates.length - 1; i >= 0; i--) {
+    const diff = Math.abs(trainDates[i] - yAgo);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+    if (bestDiff === 0) break;
+  }
+  return (best >= 0 && bestDiff < maxDiffDays * 86400000) ? best : -1;
+}
+
+/* 1. DOW Average — trailing N weeks (no longer uses all history!) */
+function forecastDOWAvg(trainData, trainDates, horizon, weeks) {
+  weeks = weeks || 16;
   const cutoff = Math.max(0, trainData.length - weeks * 7);
   const sub = trainData.slice(cutoff);
   const subDates = trainDates.slice(cutoff);
-  return forecastDOWAvg(sub, subDates, horizon);
+  const avgs = buildDOWAvg(sub, subDates);
+  return projectDOW(avgs, trainDates[trainDates.length - 1], horizon);
 }
 
-function forecastSMA(trainData, horizon, window) {
-  const ext = [...trainData];
+/* 2. Recent DOW — short recent window */
+function forecastRecent(trainData, trainDates, horizon, weeks) {
+  weeks = weeks || 4;
+  return forecastDOWAvg(trainData, trainDates, horizon, weeks);
+}
+
+/* 3. Weighted DOW — exponential decay, recent same-days weighted more */
+function forecastWeightedDOW(trainData, trainDates, horizon, halfLifeWeeks) {
+  halfLifeWeeks = halfLifeWeeks || 8;
+  const lambda = Math.log(2) / (halfLifeWeeks * 7);
+  const n = trainData.length;
+  const lastDay = n - 1;
+  const wSums = [0,0,0,0,0,0,0], wTotals = [0,0,0,0,0,0,0];
+
+  for (let i = 0; i < n; i++) {
+    const dow = trainDates[i].getDay();
+    const age = lastDay - i; // days ago
+    const w = Math.exp(-lambda * age);
+    wSums[dow] += trainData[i] * w;
+    wTotals[dow] += w;
+  }
+  const avgs = wSums.map((s,i) => wTotals[i] > 0 ? s / wTotals[i] : 0);
+  return projectDOW(avgs, trainDates[n - 1], horizon);
+}
+
+/* 4. Median DOW — robust to holiday outliers */
+function forecastMedianDOW(trainData, trainDates, horizon, weeks) {
+  weeks = weeks || 20;
+  const cutoff = Math.max(0, trainData.length - weeks * 7);
+  const buckets = [[],[],[],[],[],[],[]];
+  for (let i = cutoff; i < trainData.length; i++) {
+    buckets[trainDates[i].getDay()].push(trainData[i]);
+  }
+  const medians = buckets.map(b => {
+    if (b.length === 0) return 0;
+    b.sort((a, c) => a - c);
+    const mid = Math.floor(b.length / 2);
+    return b.length % 2 === 1 ? b[mid] : (b[mid - 1] + b[mid]) / 2;
+  });
+  return projectDOW(medians, trainDates[trainData.length - 1], horizon);
+}
+
+/* 5. Trend + DOW — linear trend on recent weeks + DOW seasonal residuals */
+function forecastTrendDOW(trainData, trainDates, horizon, weeks) {
+  weeks = weeks || 12;
+  const cutoff = Math.max(0, trainData.length - weeks * 7);
+  const n = trainData.length;
+  const sub = trainData.slice(cutoff);
+  const subDates = trainDates.slice(cutoff);
+  const m = sub.length;
+
+  // Fit linear trend via least-squares on the subset
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+  for (let i = 0; i < m; i++) {
+    sumX += i; sumY += sub[i]; sumXY += i * sub[i]; sumX2 += i * i;
+  }
+  const denom = m * sumX2 - sumX * sumX;
+  const slope = denom !== 0 ? (m * sumXY - sumX * sumY) / denom : 0;
+  const intercept = (sumY - slope * sumX) / m;
+
+  // Compute DOW residuals from trend
+  const dowResid = [0,0,0,0,0,0,0], dowCounts = [0,0,0,0,0,0,0];
+  for (let i = 0; i < m; i++) {
+    const trendVal = intercept + slope * i;
+    const dow = subDates[i].getDay();
+    dowResid[dow] += sub[i] - trendVal;
+    dowCounts[dow]++;
+  }
+  for (let d = 0; d < 7; d++) {
+    if (dowCounts[d] > 0) dowResid[d] /= dowCounts[d];
+  }
+
+  // Forecast: extrapolate trend + DOW residual
+  const lastDate = trainDates[n - 1];
   const fc = [];
-  for (let h = 0; h < horizon; h++) {
-    const start = Math.max(0, ext.length - window);
-    const slice = ext.slice(start);
-    const avg = slice.reduce((a,b) => a+b, 0) / slice.length;
-    fc.push(Math.max(0, avg));
-    ext.push(avg);
+  for (let h = 1; h <= horizon; h++) {
+    const trendVal = intercept + slope * (m + h - 1);
+    const d = new Date(lastDate); d.setDate(d.getDate() + h);
+    fc.push(Math.max(0, trendVal + dowResid[d.getDay()]));
   }
   return fc;
 }
 
-function forecastExpSmooth(trainData, horizon, alpha) {
-  alpha = alpha || 0.3;
-  let level = trainData[0];
-  for (let i = 1; i < trainData.length; i++) {
-    level = alpha * trainData[i] + (1 - alpha) * level;
+/* 6. Annual Seasonal — yearly profile by day-of-year, blended with recent DOW */
+function forecastAnnualDOW(trainData, trainDates, horizon, blendRecent) {
+  blendRecent = blendRecent !== undefined ? blendRecent : 0.5;
+  const n = trainData.length;
+
+  // Build day-of-year seasonal profile (365 bins, smoothed)
+  const doySums = new Array(366).fill(0);
+  const doyCounts = new Array(366).fill(0);
+  for (let i = 0; i < n; i++) {
+    const doy = getDayOfYear(trainDates[i]);
+    doySums[doy] += trainData[i];
+    doyCounts[doy]++;
   }
-  return new Array(horizon).fill(Math.max(0, level));
+  // Raw averages
+  const doyAvg = doySums.map((s,j) => doyCounts[j] > 0 ? s / doyCounts[j] : 0);
+  // Fill gaps with neighbors and smooth with 7-day rolling window
+  const smoothed = smoothDOYProfile(doyAvg, doyCounts);
+
+  // Compute a level adjustment: ratio of recent 28-day avg to the annual profile's predicted values for those days
+  const recentN = Math.min(28, n);
+  let recentActual = 0, recentProfile = 0;
+  for (let i = n - recentN; i < n; i++) {
+    recentActual += trainData[i];
+    const doy = getDayOfYear(trainDates[i]);
+    recentProfile += smoothed[doy];
+  }
+  const levelRatio = recentProfile > 0 ? recentActual / recentProfile : 1;
+
+  // Also compute recent DOW averages (last 8 weeks)
+  const recentCutoff = Math.max(0, n - 56);
+  const recentDowAvgs = buildDOWAvg(trainData.slice(recentCutoff), trainDates.slice(recentCutoff));
+
+  // Blend: annual profile (level-adjusted) × (1-blend) + recent DOW × blend
+  const lastDate = trainDates[n - 1];
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const d = new Date(lastDate); d.setDate(d.getDate() + h);
+    const doy = getDayOfYear(d);
+    const annualVal = smoothed[doy] * levelRatio;
+    const dowVal = recentDowAvgs[d.getDay()];
+    fc.push(Math.max(0, annualVal * (1 - blendRecent) + dowVal * blendRecent));
+  }
+  return fc;
 }
 
+function getDayOfYear(d) {
+  const start = new Date(d.getFullYear(), 0, 1);
+  return Math.floor((d - start) / 86400000);
+}
+
+function smoothDOYProfile(doyAvg, doyCounts) {
+  const filled = [...doyAvg];
+  // Fill gaps via nearest neighbor
+  for (let i = 0; i < 366; i++) {
+    if (doyCounts[i] > 0) continue;
+    let left = i - 1, right = i + 1;
+    while (left >= 0 && doyCounts[left] === 0) left--;
+    while (right < 366 && doyCounts[right] === 0) right++;
+    const lv = left >= 0 ? filled[left] : 0;
+    const rv = right < 366 ? filled[right] : 0;
+    if (left >= 0 && right < 366) {
+      const span = right - left;
+      filled[i] = lv + (rv - lv) * ((i - left) / span);
+    } else {
+      filled[i] = lv || rv;
+    }
+  }
+  // 15-day centered rolling average (wrapping around year boundary)
+  const result = new Array(366).fill(0);
+  for (let i = 0; i < 366; i++) {
+    let sum = 0, cnt = 0;
+    for (let j = -7; j <= 7; j++) {
+      const idx = ((i + j) % 366 + 366) % 366;
+      sum += filled[idx];
+      cnt++;
+    }
+    result[i] = sum / cnt;
+  }
+  return result;
+}
+
+/* 7. Holt-Winters Weekly (period=7, additive) — unchanged */
 function forecastHoltWinters(trainData, trainDates, horizon, alpha, beta, gamma) {
   alpha = alpha || 0.2; beta = beta || 0.05; gamma = gamma || 0.3;
   const n = trainData.length;
-  if (n < 14) return forecastExpSmooth(trainData, horizon, alpha);
+  if (n < 14) return forecastDOWAvg(trainData, trainDates, horizon, 16);
 
-  // Initialize
   const firstWeekAvg = trainData.slice(0, Math.min(7, n)).reduce((a,b) => a+b, 0) / Math.min(7, n);
   let L = firstWeekAvg;
   let T = 0;
@@ -777,18 +944,17 @@ function forecastHoltWinters(trainData, trainDates, horizon, alpha, beta, gamma)
   }
 
   const Seas = [0,0,0,0,0,0,0];
-  const dowCounts = [0,0,0,0,0,0,0];
+  const dowCountsArr = [0,0,0,0,0,0,0];
   const initEnd = Math.min(28, n);
   for (let i = 0; i < initEnd; i++) {
     const dow = trainDates[i].getDay();
     Seas[dow] += trainData[i] - L;
-    dowCounts[dow]++;
+    dowCountsArr[dow]++;
   }
   for (let d = 0; d < 7; d++) {
-    if (dowCounts[d] > 0) Seas[d] /= dowCounts[d];
+    if (dowCountsArr[d] > 0) Seas[d] /= dowCountsArr[d];
   }
 
-  // Fit
   for (let t = 0; t < n; t++) {
     const dow = trainDates[t].getDay();
     const oldL = L;
@@ -797,7 +963,6 @@ function forecastHoltWinters(trainData, trainDates, horizon, alpha, beta, gamma)
     Seas[dow] = gamma * (trainData[t] - L) + (1 - gamma) * Seas[dow];
   }
 
-  // Forecast
   const lastDate = trainDates[n - 1];
   const fc = [];
   for (let h = 1; h <= horizon; h++) {
@@ -807,23 +972,113 @@ function forecastHoltWinters(trainData, trainDates, horizon, alpha, beta, gamma)
   return fc;
 }
 
+/* 8. Year-over-Year (raw) */
 function forecastYOY(trainData, trainDates, horizon) {
   const n = trainData.length;
   const lastDate = trainDates[n - 1];
   const fc = [];
+  // Fallback: recent 28-day DOW average
+  const fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
   for (let h = 1; h <= horizon; h++) {
     const target = new Date(lastDate); target.setDate(target.getDate() + h);
-    const yAgo = new Date(target); yAgo.setFullYear(yAgo.getFullYear() - 1);
-    let best = -1, bestDiff = Infinity;
-    for (let i = 0; i < n; i++) {
-      const diff = Math.abs(trainDates[i] - yAgo);
-      if (diff < bestDiff) { bestDiff = diff; best = i; }
-    }
-    if (best >= 0 && bestDiff < 10 * 86400000) {
-      fc.push(Math.max(0, trainData[best]));
+    const idx = findYOYIndex(trainDates, target);
+    if (idx >= 0) {
+      fc.push(Math.max(0, trainData[idx]));
     } else {
-      fc.push(Math.max(0, trainData.reduce((a,b) => a+b, 0) / n));
+      fc.push(Math.max(0, fallbackAvgs[target.getDay()]));
     }
+  }
+  return fc;
+}
+
+/* 9. YoY Trend-Adjusted — last year's value scaled by recent growth ratio */
+function forecastYOYTrend(trainData, trainDates, horizon, recentWeeks) {
+  recentWeeks = recentWeeks || 6;
+  const n = trainData.length;
+  const lastDate = trainDates[n - 1];
+  const recentDays = recentWeeks * 7;
+
+  // Compute recent average and same-period-last-year average
+  const recentStart = Math.max(0, n - recentDays);
+  let recentSum = 0, recentCnt = 0;
+  let yoySum = 0, yoyCnt = 0;
+
+  for (let i = recentStart; i < n; i++) {
+    recentSum += trainData[i];
+    recentCnt++;
+    const yIdx = findYOYIndex(trainDates, trainDates[i]);
+    if (yIdx >= 0) {
+      yoySum += trainData[yIdx];
+      yoyCnt++;
+    }
+  }
+
+  const growthRatio = (yoyCnt > 0 && yoySum > 0) ? (recentSum / recentCnt) / (yoySum / yoyCnt) : 1;
+  const fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
+
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const target = new Date(lastDate); target.setDate(target.getDate() + h);
+    const idx = findYOYIndex(trainDates, target);
+    if (idx >= 0) {
+      fc.push(Math.max(0, trainData[idx] * growthRatio));
+    } else {
+      fc.push(Math.max(0, fallbackAvgs[target.getDay()] * growthRatio));
+    }
+  }
+  return fc;
+}
+
+/* 10. SMA — simple moving average (kept for optional use) */
+function forecastSMA(trainData, horizon, win) {
+  const ext = [...trainData];
+  const fc = [];
+  for (let h = 0; h < horizon; h++) {
+    const start = Math.max(0, ext.length - win);
+    const slice = ext.slice(start);
+    const avg = slice.reduce((a,b) => a+b, 0) / slice.length;
+    fc.push(Math.max(0, avg));
+    ext.push(avg);
+  }
+  return fc;
+}
+
+/* 11. Exp Smooth + DOW overlay — fixes the flat-line problem */
+function forecastExpSmoothDOW(trainData, trainDates, horizon, alpha) {
+  alpha = alpha || 0.3;
+  const n = trainData.length;
+
+  // Build DOW ratios from recent 12 weeks
+  const cutoff = Math.max(0, n - 84);
+  const dowSums = [0,0,0,0,0,0,0], dowCounts = [0,0,0,0,0,0,0];
+  let overallSum = 0;
+  for (let i = cutoff; i < n; i++) {
+    const dow = trainDates[i].getDay();
+    dowSums[dow] += trainData[i];
+    dowCounts[dow]++;
+    overallSum += trainData[i];
+  }
+  const overallAvg = overallSum / (n - cutoff);
+  const dowRatios = dowSums.map((s,j) => {
+    const dayAvg = dowCounts[j] > 0 ? s / dowCounts[j] : overallAvg;
+    return overallAvg > 0 ? dayAvg / overallAvg : 1;
+  });
+
+  // Exponential smoothing on de-seasonalized data
+  let level = trainData[0];
+  for (let i = 1; i < n; i++) {
+    const dow = trainDates[i].getDay();
+    const ratio = dowRatios[dow] || 1;
+    const deseason = ratio > 0 ? trainData[i] / ratio : trainData[i];
+    level = alpha * deseason + (1 - alpha) * level;
+  }
+
+  // Forecast: level × DOW ratio
+  const lastDate = trainDates[n - 1];
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const d = new Date(lastDate); d.setDate(d.getDate() + h);
+    fc.push(Math.max(0, level * dowRatios[d.getDay()]));
   }
   return fc;
 }
@@ -831,13 +1086,18 @@ function forecastYOY(trainData, trainDates, horizon) {
 function runMethod(key, trainData, trainDates, horizon) {
   const m = S.methods[key];
   switch (key) {
-    case 'dowAvg': return forecastDOWAvg(trainData, trainDates, horizon);
+    case 'dowAvg': return forecastDOWAvg(trainData, trainDates, horizon, m.params.weeks);
     case 'recent': return forecastRecent(trainData, trainDates, horizon, m.params.weeks);
-    case 'sma7': return forecastSMA(trainData, horizon, 7);
-    case 'sma28': return forecastSMA(trainData, horizon, 28);
-    case 'expSmooth': return forecastExpSmooth(trainData, horizon, m.params.alpha);
+    case 'wDow': return forecastWeightedDOW(trainData, trainDates, horizon, m.params.halfLife);
+    case 'medDow': return forecastMedianDOW(trainData, trainDates, horizon, m.params.weeks);
+    case 'trendDow': return forecastTrendDOW(trainData, trainDates, horizon, m.params.weeks);
+    case 'annualDow': return forecastAnnualDOW(trainData, trainDates, horizon, m.params.blendRecent);
     case 'hw': return forecastHoltWinters(trainData, trainDates, horizon, m.params.alpha, m.params.beta, m.params.gamma);
     case 'yoy': return forecastYOY(trainData, trainDates, horizon);
+    case 'yoyTrend': return forecastYOYTrend(trainData, trainDates, horizon, m.params.recentWeeks);
+    case 'sma7': return forecastSMA(trainData, horizon, 7);
+    case 'sma28': return forecastSMA(trainData, horizon, 28);
+    case 'expSmooth': return forecastExpSmoothDOW(trainData, trainDates, horizon, m.params.alpha);
     default: return new Array(horizon).fill(0);
   }
 }
@@ -927,24 +1187,11 @@ function autoOptimize() {
 
   // Get forecasts for each method
   const forecasts = {};
+  const mapes = {};
   for (const k of enabledKeys) {
     forecasts[k] = runMethod(k, trainData, trainDates, win);
+    mapes[k] = calculateMAPE(testData, forecasts[k]);
   }
-
-  // Initialize weights inversely proportional to individual MAPE
-  const weights = {};
-  let totalInv = 0;
-  for (const k of enabledKeys) {
-    const mape = calculateMAPE(testData, forecasts[k]);
-    const inv = mape > 0.01 ? 1 / mape : 100;
-    weights[k] = inv;
-    totalInv += inv;
-  }
-  for (const k of enabledKeys) weights[k] = Math.round((weights[k] / totalInv) * 100);
-
-  // Ensure sum is 100
-  const diff = 100 - enabledKeys.reduce((s,k) => s + weights[k], 0);
-  if (enabledKeys.length > 0) weights[enabledKeys[0]] += diff;
 
   function getEnsembleMAPE(w) {
     const total = enabledKeys.reduce((s,k) => s + w[k], 0);
@@ -957,31 +1204,81 @@ function autoOptimize() {
     return calculateMAPE(testData, ens);
   }
 
-  // Coordinate descent
-  let bestMape = getEnsembleMAPE(weights);
-  for (let iter = 0; iter < 300; iter++) {
-    let improved = false;
-    for (const k of enabledKeys) {
-      // Try +2
-      weights[k] += 2;
-      let newMape = getEnsembleMAPE(weights);
-      if (newMape < bestMape - 0.001) { bestMape = newMape; improved = true; continue; }
-      weights[k] -= 2;
+  // Try multiple starting points:
+  // 1) Inverse-MAPE weighted  2) Equal weights  3) Best-method-only
+  const startingPoints = [];
 
-      // Try -2
-      if (weights[k] >= 2) {
-        weights[k] -= 2;
-        newMape = getEnsembleMAPE(weights);
-        if (newMape < bestMape - 0.001) { bestMape = newMape; improved = true; continue; }
-        weights[k] += 2;
+  // Start 1: inverse MAPE
+  const invW = {};
+  let totalInv = 0;
+  for (const k of enabledKeys) {
+    const inv = mapes[k] > 0.01 ? 1 / (mapes[k] * mapes[k]) : 10000; // Square for stronger preference
+    invW[k] = inv;
+    totalInv += inv;
+  }
+  for (const k of enabledKeys) invW[k] = Math.round((invW[k] / totalInv) * 100) || 1;
+  startingPoints.push({...invW});
+
+  // Start 2: equal weights
+  const eqW = {};
+  const eqVal = Math.round(100 / enabledKeys.length);
+  for (const k of enabledKeys) eqW[k] = eqVal;
+  startingPoints.push(eqW);
+
+  // Start 3: concentrate on best method
+  const bestKey = enabledKeys.reduce((best, k) => mapes[k] < mapes[best] ? k : best, enabledKeys[0]);
+  const concW = {};
+  for (const k of enabledKeys) concW[k] = k === bestKey ? 80 : Math.round(20 / (enabledKeys.length - 1)) || 1;
+  startingPoints.push(concW);
+
+  // Start 4: top-3 methods only
+  const sorted = [...enabledKeys].sort((a,b) => mapes[a] - mapes[b]);
+  const top3W = {};
+  for (const k of enabledKeys) top3W[k] = 0;
+  const top3 = sorted.slice(0, Math.min(3, sorted.length));
+  for (const k of top3) top3W[k] = Math.round(100 / top3.length);
+  startingPoints.push(top3W);
+
+  let globalBestMape = 999;
+  let globalBestWeights = startingPoints[0];
+
+  for (const start of startingPoints) {
+    const weights = {...start};
+
+    // Multi-resolution coordinate descent: coarse (step=5) then fine (step=1)
+    const stepSizes = [5, 2, 1];
+    for (const step of stepSizes) {
+      let bestMape = getEnsembleMAPE(weights);
+      for (let iter = 0; iter < 200; iter++) {
+        let improved = false;
+        for (const k of enabledKeys) {
+          // Try +step
+          weights[k] += step;
+          let newMape = getEnsembleMAPE(weights);
+          if (newMape < bestMape - 0.0001) { bestMape = newMape; improved = true; continue; }
+          weights[k] -= step;
+
+          // Try -step
+          if (weights[k] >= step) {
+            weights[k] -= step;
+            newMape = getEnsembleMAPE(weights);
+            if (newMape < bestMape - 0.0001) { bestMape = newMape; improved = true; continue; }
+            weights[k] += step;
+          }
+        }
+        if (!improved) break;
       }
     }
-    if (!improved) break;
+
+    const finalMape = getEnsembleMAPE(weights);
+    if (finalMape < globalBestMape) {
+      globalBestMape = finalMape;
+      globalBestWeights = {...weights};
+    }
   }
 
-  // Apply
-  for (const k of enabledKeys) S.methods[k].weight = Math.max(0, weights[k]);
-  // Zero out disabled
+  // Apply best weights
+  for (const k of enabledKeys) S.methods[k].weight = Math.max(0, globalBestWeights[k]);
   for (const k of Object.keys(S.methods)) {
     if (!S.methods[k].enabled) S.methods[k].weight = 0;
   }
@@ -1012,7 +1309,7 @@ function renderBacktestChart(bt) {
 
   const methodKeys = Object.keys(bt.results).filter(k => k !== '__ensemble');
   const chartColors = document.documentElement.classList.contains('dark')
-    ? ['#22d3ee','#fbbf24','#a78bfa','#f87171','#34d399','#f0abfc','#818cf8']
+    ? ['#22d3ee','#fbbf24','#a78bfa','#f87171','#34d399','#f0abfc','#818cf8','#fb923c','#2dd4bf','#fb7185','#a5b4fc','#a3e635']
     : CHART_COLORS;
 
   methodKeys.forEach((k, i) => {
@@ -1358,15 +1655,26 @@ function renderMethodGrid() {
     }
 
     let paramsHTML = '';
-    if (key === 'recent') {
-      paramsHTML = '<div class="param-row"><label>Weeks:</label><input type="number" class="param-input" data-method="' + key + '" data-param="weeks" value="' + m.params.weeks + '" min="2" max="16" step="1"></div>';
-    } else if (key === 'expSmooth') {
-      paramsHTML = '<div class="param-row"><label>Alpha:</label><input type="number" class="param-input" data-method="' + key + '" data-param="alpha" value="' + m.params.alpha + '" min="0.01" max="0.99" step="0.05"></div>';
-    } else if (key === 'hw') {
-      paramsHTML =
-        '<div class="param-row"><label>\u03B1:</label><input type="number" class="param-input" data-method="' + key + '" data-param="alpha" value="' + m.params.alpha + '" min="0.01" max="0.99" step="0.05">' +
-        '<label>\u03B2:</label><input type="number" class="param-input" data-method="' + key + '" data-param="beta" value="' + m.params.beta + '" min="0.01" max="0.5" step="0.01">' +
-        '<label>\u03B3:</label><input type="number" class="param-input" data-method="' + key + '" data-param="gamma" value="' + m.params.gamma + '" min="0.01" max="0.99" step="0.05"></div>';
+    const paramMeta = {
+      dowAvg:    [{ key: 'weeks', label: 'Weeks', min: 4, max: 52, step: 2 }],
+      recent:    [{ key: 'weeks', label: 'Weeks', min: 2, max: 16, step: 1 }],
+      wDow:      [{ key: 'halfLife', label: 'Half-life (wk)', min: 2, max: 26, step: 1 }],
+      medDow:    [{ key: 'weeks', label: 'Weeks', min: 4, max: 52, step: 2 }],
+      trendDow:  [{ key: 'weeks', label: 'Weeks', min: 4, max: 26, step: 2 }],
+      annualDow: [{ key: 'blendRecent', label: 'Recent blend', min: 0, max: 1, step: 0.1 }],
+      hw:        [
+        { key: 'alpha', label: '\u03B1', min: 0.01, max: 0.99, step: 0.05 },
+        { key: 'beta', label: '\u03B2', min: 0.01, max: 0.5, step: 0.01 },
+        { key: 'gamma', label: '\u03B3', min: 0.01, max: 0.99, step: 0.05 }
+      ],
+      yoyTrend:  [{ key: 'recentWeeks', label: 'Recent wk', min: 2, max: 16, step: 1 }],
+      expSmooth: [{ key: 'alpha', label: 'Alpha', min: 0.01, max: 0.99, step: 0.05 }]
+    };
+    const pmList = paramMeta[key];
+    if (pmList && pmList.length > 0) {
+      paramsHTML = '<div class="param-row">' + pmList.map(function(pm) {
+        return '<label>' + pm.label + ':</label><input type="number" class="param-input" data-method="' + key + '" data-param="' + pm.key + '" value="' + m.params[pm.key] + '" min="' + pm.min + '" max="' + pm.max + '" step="' + pm.step + '">';
+      }).join('') + '</div>';
     }
 
     const card = document.createElement('div');
@@ -1532,7 +1840,16 @@ function onDataLoaded() {
   document.getElementById('backtestContent').style.display = '';
   renderWindowPills();
   const daySpan = (S.series.dates[S.series.dates.length - 1] - S.series.dates[0]) / 86400000;
-  S.methods.yoy.enabled = daySpan >= 365;
+  // Enable/disable YoY-family methods based on data span
+  const hasYear = daySpan >= 365;
+  S.methods.yoy.enabled = hasYear;
+  S.methods.yoyTrend.enabled = hasYear;
+  S.methods.annualDow.enabled = hasYear;
+  if (!hasYear) {
+    S.methods.yoy.weight = 0;
+    S.methods.yoyTrend.weight = 0;
+    S.methods.annualDow.weight = 0;
+  }
   renderMethodGrid();
   doBacktest();
 }
