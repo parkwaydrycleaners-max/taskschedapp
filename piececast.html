@@ -233,6 +233,12 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 .modal-box h3{font-size:1rem;font-weight:600;margin-bottom:10px}
 .modal-box p{font-size:.85rem;color:var(--text-secondary);margin-bottom:16px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px}
+
+/* Closed day toggles */
+.closed-day-btn{padding:10px 16px;border-radius:var(--radius);border:2px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-family:'Sora',sans-serif;font-size:.82rem;font-weight:500;cursor:pointer;transition:all .2s;min-width:56px;text-align:center;user-select:none}
+.closed-day-btn:hover{border-color:var(--accent)}
+.closed-day-btn.closed{background:var(--error);border-color:var(--error);color:#fff;font-weight:700}
+.closed-day-btn .closed-label{display:block;font-size:.65rem;font-weight:400;opacity:.8;margin-top:2px}
 </style>
 </head>
 <body>
@@ -269,6 +275,13 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
       <button class="btn btn-secondary" id="sampleBtn">Load Sample Data</button>
       <button class="btn btn-secondary" id="clearBtn">Clear</button>
     </div>
+  </div>
+
+  <!-- Closed Days Settings -->
+  <div id="closedDaysCard" class="card" style="display:none">
+    <div class="card-title"><span class="icon">&#x1F6D1;</span> Closed Days <span id="closedDaysBadge" class="badge badge-info" style="margin-left:auto;display:none">Auto-detected</span></div>
+    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:10px">Select the days your business is closed. Closed days are excluded from accuracy metrics and always forecast as 0.</p>
+    <div id="closedDaysGrid" style="display:flex;flex-wrap:wrap;gap:8px"></div>
   </div>
 
   <!-- Column Mapping -->
@@ -416,6 +429,7 @@ const S = {
     sma28:     { name: '28-Day Moving Avg',     enabled: false, weight: 0, params: {} },
     expSmooth: { name: 'Exp Smooth + DOW',     enabled: true, weight: 5, params: { alpha: 0.3 } }
   },
+  closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   backtestWindow: 14,
   backtestResults: {},
   forecastResults: null,
@@ -689,6 +703,77 @@ function processData() {
 
   S.dataLoaded = true;
   return true;
+}
+
+/* ==================================================================
+   CLOSED DAYS DETECTION & UI
+   ================================================================== */
+function autoDetectClosedDays() {
+  const dates = S.series.dates;
+  const pieces = S.series.totalPieces;
+  if (dates.length < 28) return [];
+
+  // Count how many days per DOW have 0 pieces vs total days per DOW
+  const zeroCounts = [0,0,0,0,0,0,0];
+  const totalCounts = [0,0,0,0,0,0,0];
+  for (let i = 0; i < dates.length; i++) {
+    const dow = dates[i].getDay();
+    totalCounts[dow]++;
+    if (pieces[i] === 0) zeroCounts[dow]++;
+  }
+
+  // A DOW is closed if >85% of its values are 0
+  const closed = [];
+  for (let d = 0; d < 7; d++) {
+    if (totalCounts[d] > 0 && zeroCounts[d] / totalCounts[d] > 0.85) {
+      closed.push(d);
+    }
+  }
+  return closed;
+}
+
+function renderClosedDaysUI() {
+  const grid = document.getElementById('closedDaysGrid');
+  grid.innerHTML = '';
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dayFull = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  dayNames.forEach(function(name, idx) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const isClosed = S.closedDays.includes(idx);
+    btn.className = 'closed-day-btn' + (isClosed ? ' closed' : '');
+    btn.innerHTML = name + (isClosed ? '<span class="closed-label">CLOSED</span>' : '<span class="closed-label">Open</span>');
+    btn.title = dayFull[idx];
+    btn.addEventListener('click', function() {
+      const pos = S.closedDays.indexOf(idx);
+      if (pos >= 0) {
+        S.closedDays.splice(pos, 1);
+      } else {
+        S.closedDays.push(idx);
+      }
+      renderClosedDaysUI();
+      // Re-run backtest if data is loaded
+      if (S.dataLoaded) doBacktest();
+    });
+    grid.appendChild(btn);
+  });
+}
+
+function isClosedDay(date) {
+  return S.closedDays.includes(date.getDay());
+}
+
+/* Zero out forecast values on closed days */
+function applyClosedDays(forecast, lastDate, horizon) {
+  if (S.closedDays.length === 0) return forecast;
+  const result = [...forecast];
+  for (let h = 0; h < horizon; h++) {
+    const d = new Date(lastDate);
+    d.setDate(d.getDate() + h + 1);
+    if (isClosedDay(d)) result[h] = 0;
+  }
+  return result;
 }
 
 function getActiveSeries() {
@@ -1105,9 +1190,11 @@ function runMethod(key, trainData, trainDates, horizon) {
 /* ==================================================================
    BACKTESTING
    ================================================================== */
-function calculateMAPE(actual, forecast) {
+function calculateMAPE(actual, forecast, dates) {
   let sum = 0, count = 0;
   for (let i = 0; i < actual.length; i++) {
+    // Skip closed days
+    if (dates && isClosedDay(dates[i])) continue;
     if (actual[i] !== 0) {
       sum += Math.abs((actual[i] - forecast[i]) / actual[i]);
       count++;
@@ -1116,10 +1203,15 @@ function calculateMAPE(actual, forecast) {
   return count > 0 ? (sum / count) * 100 : 999;
 }
 
-function calculateMAE(actual, forecast) {
-  let sum = 0;
-  for (let i = 0; i < actual.length; i++) sum += Math.abs(actual[i] - forecast[i]);
-  return actual.length > 0 ? sum / actual.length : 0;
+function calculateMAE(actual, forecast, dates) {
+  let sum = 0, count = 0;
+  for (let i = 0; i < actual.length; i++) {
+    // Skip closed days
+    if (dates && isClosedDay(dates[i])) continue;
+    sum += Math.abs(actual[i] - forecast[i]);
+    count++;
+  }
+  return count > 0 ? sum / count : 0;
 }
 
 function runBacktest(windowSize) {
@@ -1132,24 +1224,27 @@ function runBacktest(windowSize) {
   const trainDates = dates.slice(0, n - windowSize);
   const testData = data.slice(n - windowSize);
   const testDates = dates.slice(n - windowSize);
+  const lastTrainDate = trainDates[trainDates.length - 1];
 
   const results = {};
   for (const [key, method] of Object.entries(S.methods)) {
     if (!method.enabled) continue;
-    const fc = runMethod(key, trainData, trainDates, windowSize);
+    let fc = runMethod(key, trainData, trainDates, windowSize);
+    fc = applyClosedDays(fc, lastTrainDate, windowSize);
     results[key] = {
       forecast: fc,
-      mape: calculateMAPE(testData, fc),
-      mae: calculateMAE(testData, fc)
+      mape: calculateMAPE(testData, fc, testDates),
+      mae: calculateMAE(testData, fc, testDates)
     };
   }
 
   // Ensemble
-  const ensemble = computeEnsemble(results, windowSize);
+  let ensemble = computeEnsemble(results, windowSize);
+  ensemble = applyClosedDays(ensemble, lastTrainDate, windowSize);
   results.__ensemble = {
     forecast: ensemble,
-    mape: calculateMAPE(testData, ensemble),
-    mae: calculateMAE(testData, ensemble)
+    mape: calculateMAPE(testData, ensemble, testDates),
+    mae: calculateMAE(testData, ensemble, testDates)
   };
 
   return { results, testData, testDates, trainData, trainDates };
@@ -1181,16 +1276,18 @@ function autoOptimize() {
   const trainData = data.slice(0, n - win);
   const trainDates = dates.slice(0, n - win);
   const testData = data.slice(n - win);
+  const testDates = dates.slice(n - win);
+  const lastTrainDate = trainDates[trainDates.length - 1];
 
   const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled);
   if (enabledKeys.length === 0) return;
 
-  // Get forecasts for each method
+  // Get forecasts for each method (with closed days applied)
   const forecasts = {};
   const mapes = {};
   for (const k of enabledKeys) {
-    forecasts[k] = runMethod(k, trainData, trainDates, win);
-    mapes[k] = calculateMAPE(testData, forecasts[k]);
+    forecasts[k] = applyClosedDays(runMethod(k, trainData, trainDates, win), lastTrainDate, win);
+    mapes[k] = calculateMAPE(testData, forecasts[k], testDates);
   }
 
   function getEnsembleMAPE(w) {
@@ -1201,7 +1298,7 @@ function autoOptimize() {
       const wt = w[k] / total;
       for (let i = 0; i < win; i++) ens[i] += wt * forecasts[k][i];
     }
-    return calculateMAPE(testData, ens);
+    return calculateMAPE(testData, ens, testDates);
   }
 
   // Try multiple starting points:
@@ -1419,6 +1516,9 @@ function generateExport(scope) {
   lines.push('# Forecast Period: ' + formatDateISO(fcStart) + ' to ' + formatDateISO(fcEnd));
   lines.push('# Backtest Window: ' + S.backtestWindow + ' days');
   lines.push('# Ensemble MAPE: ' + ensembleMape + '%');
+  if (S.closedDays.length > 0) {
+    lines.push('# Closed Days: ' + S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') + ' (forecast=0)');
+  }
   lines.push('# Methods: ' + methodStr);
   lines.push('#');
 
@@ -1483,13 +1583,14 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon) {
   const totalW = enabledKeys.reduce((s,k) => s + S.methods[k].weight, 0);
   if (totalW === 0 || enabledKeys.length === 0) return new Array(horizon).fill(0);
 
+  const lastDate = seriesDates[seriesDates.length - 1];
   const ensemble = new Array(horizon).fill(0);
   for (const k of enabledKeys) {
     const fc = runMethod(k, seriesData, seriesDates, horizon);
     const w = S.methods[k].weight / totalW;
     for (let i = 0; i < horizon; i++) ensemble[i] += w * fc[i];
   }
-  return ensemble;
+  return applyClosedDays(ensemble, lastDate, horizon);
 }
 
 /* ==================================================================
@@ -1795,8 +1896,11 @@ function renderForecastTable(fc) {
   let bodyHTML = '';
   for (let h = 0; h < fc.length; h++) {
     const d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
+    const closed = isClosedDay(d);
     const val = isRevenue ? '$' + fc[h].toFixed(2) : Math.round(fc[h]);
-    bodyHTML += '<tr><td>' + formatDateISO(d) + '</td><td>' + DOW_NAMES[d.getDay()] + '</td><td class="num">' + val + '</td></tr>';
+    const rowStyle = closed ? ' style="opacity:.4;text-decoration:line-through"' : '';
+    const closedTag = closed ? ' <span style="font-size:.7rem;color:var(--error);font-weight:600">CLOSED</span>' : '';
+    bodyHTML += '<tr' + rowStyle + '><td>' + formatDateISO(d) + '</td><td>' + DOW_NAMES[d.getDay()] + closedTag + '</td><td class="num">' + val + '</td></tr>';
   }
   tbody.innerHTML = bodyHTML;
   document.getElementById('fcResultCard').style.display = '';
@@ -1836,6 +1940,21 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 function onDataLoaded() {
   renderDataPreview();
   populateSeriesDropdowns();
+
+  // Auto-detect closed days and show the UI
+  const detected = autoDetectClosedDays();
+  S.closedDays = detected;
+  document.getElementById('closedDaysCard').style.display = '';
+  const badge = document.getElementById('closedDaysBadge');
+  if (detected.length > 0) {
+    const names = detected.map(function(d) { return DOW_NAMES[d]; });
+    badge.textContent = 'Auto-detected: ' + names.join(', ');
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+  renderClosedDaysUI();
+
   document.getElementById('noDataBacktest').style.display = 'none';
   document.getElementById('backtestContent').style.display = '';
   renderWindowPills();
@@ -1900,6 +2019,8 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   document.getElementById('pasteArea').value = '';
   document.getElementById('mappingCard').style.display = 'none';
   document.getElementById('previewCard').style.display = 'none';
+  document.getElementById('closedDaysCard').style.display = 'none';
+  S.closedDays = [];
 });
 
 document.getElementById('loadDataBtn').addEventListener('click', () => {
