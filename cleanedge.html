@@ -362,8 +362,10 @@ tbody tr:hover{background:var(--surface2)}
       <select class="form-select" id="forecastMethod" onchange="runForecast()">
         <option value="exponential">Exponential Smoothing</option>
         <option value="holt">Holt's Double Smoothing</option>
+        <option value="holtwinters">Holt-Winters (Seasonal)</option>
         <option value="moving">Moving Average</option>
         <option value="linear">Linear Regression</option>
+        <option value="snaive">Seasonal Naïve</option>
       </select>
     </div>
     <div class="form-group"><label class="form-label">Time Horizon</label>
@@ -387,15 +389,48 @@ tbody tr:hover{background:var(--surface2)}
     <div class="card-title"><i class="fa-solid fa-chart-line"></i> Revenue Forecast</div>
     <div class="chart-box" style="min-height:340px"><canvas id="chartForecast"></canvas></div>
   </div>
+  <div class="metrics-grid" id="forecastMetrics" style="margin-bottom:20px"></div>
   <div class="grid-2">
     <div class="card stagger">
       <div class="card-title"><i class="fa-solid fa-list-ol"></i> Forecast Summary</div>
-      <div class="table-wrap"><table><thead><tr><th>Period</th><th>Forecast Revenue</th><th>Lower Bound</th><th>Upper Bound</th></tr></thead>
+      <div class="table-wrap"><table><thead><tr><th>Period</th><th>Forecast</th><th>Lower</th><th>Upper</th></tr></thead>
       <tbody id="forecastSummary"></tbody></table></div>
     </div>
     <div class="card stagger">
       <div class="card-title"><i class="fa-solid fa-layer-group"></i> Volume Forecast by Category</div>
       <div class="chart-box"><canvas id="chartVolumeForecast"></canvas></div>
+    </div>
+  </div>
+  <!-- BACKTEST -->
+  <div style="margin-top:32px">
+    <div class="section-header">
+      <div>
+        <div class="section-title" style="font-size:1.2rem"><i class="fa-solid fa-flask" style="color:var(--accent);margin-right:6px"></i>Backtest</div>
+        <div class="section-subtitle">Hold out recent data and compare all methods against actuals</div>
+      </div>
+    </div>
+    <div class="controls-row" style="margin-bottom:20px">
+      <div class="form-group"><label class="form-label">Holdout Periods</label>
+        <input type="number" class="form-input" id="backtestPeriods" value="12" min="2" max="200">
+      </div>
+      <div class="form-group" style="flex:0 0 auto;align-self:flex-end">
+        <button class="btn btn-accent" onclick="runBacktest()"><i class="fa-solid fa-flask"></i> Run Backtest</button>
+      </div>
+    </div>
+    <div id="backtestResults" style="display:none">
+      <div class="card stagger" style="margin-bottom:20px">
+        <div class="card-title"><i class="fa-solid fa-chart-line"></i> Actual vs Predicted (Holdout Period)</div>
+        <div class="chart-box" style="min-height:320px"><canvas id="chartBacktest"></canvas></div>
+      </div>
+      <div class="card stagger">
+        <div class="card-title"><i class="fa-solid fa-trophy"></i> Method Comparison</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Method</th><th>MAPE</th><th>MAE</th><th>RMSE</th><th></th></tr></thead>
+            <tbody id="backtestTable"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -1017,15 +1052,67 @@ function expSmooth(ys,a){const s=[ys[0]];for(let i=1;i<ys.length;i++)s.push(a*ys
 function holtSmooth(ys,a,b){if(ys.length<2)return{level:ys,trend:[0]};let l=ys[0],t=ys[1]-ys[0];const ls=[l],ts=[t];for(let i=1;i<ys.length;i++){const nl=a*ys[i]+(1-a)*(l+t);const nt=b*(nl-l)+(1-b)*t;l=nl;t=nt;ls.push(l);ts.push(t)}return{level:ls,trend:ts}}
 function movAvg(ys,w){const r=[];for(let i=0;i<ys.length;i++){const s=Math.max(0,i-w+1);const sl=ys.slice(s,i+1);r.push(sl.reduce((a,b)=>a+b,0)/sl.length)}return r}
 
-function genForecast(vals,method,periods,alpha){
-  const n=vals.length;if(n<2)return{forecast:[],lower:[],upper:[],rmse:0};
-  const fc=[];let res=[];
-  if(method==='linear'){const lr=linearRegression(vals);for(let i=0;i<n;i++)res.push(vals[i]-(lr.intercept+lr.slope*i));for(let i=0;i<periods;i++)fc.push(lr.intercept+lr.slope*(n+i))}
-  else if(method==='exponential'){const sm=expSmooth(vals,alpha);for(let i=0;i<n;i++)res.push(vals[i]-sm[i]);for(let i=0;i<periods;i++)fc.push(sm[n-1])}
-  else if(method==='holt'){const h=holtSmooth(vals,alpha,0.1);for(let i=0;i<n;i++)res.push(vals[i]-h.level[i]);for(let i=1;i<=periods;i++)fc.push(h.level[n-1]+h.trend[n-1]*i)}
-  else{const w=Math.min(4,Math.max(2,Math.floor(n/3)));const ma=movAvg(vals,w);for(let i=0;i<n;i++)res.push(vals[i]-ma[i]);for(let i=0;i<periods;i++)fc.push(ma[n-1])}
-  const rmse=Math.sqrt(res.reduce((s,r)=>s+r*r,0)/res.length)||0;
-  return{forecast:fc,lower:fc.map((f,i)=>Math.max(0,f-1.96*rmse*Math.sqrt(1+i*0.1))),upper:fc.map((f,i)=>f+1.96*rmse*Math.sqrt(1+i*0.1)),rmse};
+/* Holt-Winters Additive Seasonal */
+function getSeasonLen(hz){return hz==='daily'?7:hz==='weekly'?52:12}
+function holtWintersAdd(ys,a,b,g,sLen){
+  const n=ys.length;if(n<sLen*2)return null;
+  let L=0;for(let i=0;i<sLen;i++)L+=ys[i];L/=sLen;
+  let T=0;for(let i=0;i<sLen;i++)T+=(ys[sLen+i]-ys[i]);T/=(sLen*sLen);
+  const S=[];for(let i=0;i<sLen;i++)S[i]=ys[i]-L;
+  const fitted=[];
+  for(let i=0;i<n;i++){
+    const si=i%sLen;
+    fitted.push(L+T+S[si]);
+    const pL=L,pT=T;
+    L=a*(ys[i]-S[si])+(1-a)*(pL+pT);
+    T=b*(L-pL)+(1-b)*pT;
+    S[si]=g*(ys[i]-L)+(1-g)*S[si];
+  }
+  return{level:L,trend:T,seasonals:S,fitted};
+}
+
+function genForecast(vals,method,periods,alpha,hz){
+  const n=vals.length;if(n<2)return{forecast:[],lower:[],upper:[],rmse:0,mape:0,mae:0};
+  const fc=[];const res=[];
+  if(method==='linear'){
+    const lr=linearRegression(vals);
+    for(let i=0;i<n;i++)res.push(vals[i]-(lr.intercept+lr.slope*i));
+    for(let i=0;i<periods;i++)fc.push(Math.max(0,lr.intercept+lr.slope*(n+i)));
+  } else if(method==='exponential'){
+    const sm=expSmooth(vals,alpha);
+    for(let i=0;i<n;i++)res.push(vals[i]-sm[i]);
+    for(let i=0;i<periods;i++)fc.push(Math.max(0,sm[n-1]));
+  } else if(method==='holt'){
+    const h=holtSmooth(vals,alpha,0.1);
+    for(let i=0;i<n;i++)res.push(vals[i]-h.level[i]);
+    for(let i=1;i<=periods;i++)fc.push(Math.max(0,h.level[n-1]+h.trend[n-1]*i));
+  } else if(method==='holtwinters'){
+    const sLen=getSeasonLen(hz||'weekly');
+    const hw=holtWintersAdd(vals,alpha,0.1,0.15,sLen);
+    if(!hw)return genForecast(vals,'holt',periods,alpha,hz);
+    for(let i=0;i<n;i++)res.push(vals[i]-hw.fitted[i]);
+    for(let i=1;i<=periods;i++){
+      const si=(n-1+i)%sLen;
+      fc.push(Math.max(0,hw.level+hw.trend*i+hw.seasonals[si]));
+    }
+  } else if(method==='snaive'){
+    const sLen=getSeasonLen(hz||'weekly');
+    if(n<sLen)return genForecast(vals,'moving',periods,alpha,hz);
+    for(let i=0;i<n;i++){if(i<sLen)res.push(0);else res.push(vals[i]-vals[i-sLen])}
+    for(let i=0;i<periods;i++){
+      const idx=n-sLen+(i%sLen);
+      fc.push(Math.max(0,vals[idx>=0?idx:n-1]));
+    }
+  } else {
+    const w=Math.min(4,Math.max(2,Math.floor(n/3)));const ma=movAvg(vals,w);
+    for(let i=0;i<n;i++)res.push(vals[i]-ma[i]);
+    for(let i=0;i<periods;i++)fc.push(Math.max(0,ma[n-1]));
+  }
+  const rmse=Math.sqrt(res.reduce((s,r2)=>s+r2*r2,0)/res.length)||0;
+  let mapeS=0,mapeC=0;for(let i=0;i<n;i++){if(vals[i]!==0){mapeS+=Math.abs(res[i])/Math.abs(vals[i]);mapeC++}}
+  const mape=mapeC>0?(mapeS/mapeC)*100:0;
+  const mae=res.reduce((s,r2)=>s+Math.abs(r2),0)/res.length;
+  return{forecast:fc,lower:fc.map((f,i)=>Math.max(0,f-1.96*rmse*Math.sqrt(1+i*0.1))),upper:fc.map((f,i)=>f+1.96*rmse*Math.sqrt(1+i*0.1)),rmse,mape,mae};
 }
 
 function aggregateByHorizon(data,hz){
@@ -1053,14 +1140,23 @@ function runForecast(){
   document.getElementById('alphaVal').textContent=alpha.toFixed(2);
   const agg=aggregateByHorizon(APP.salesData,hz),labels=agg.map(a=>a.label),vals=agg.map(a=>a.revenue);
   if(vals.length<3){showToast('Need ≥3 data periods','error');return}
-  const r=genForecast(vals,method,periods,alpha),fl=futureLabels(agg,hz,periods);
+  const r=genForecast(vals,method,periods,alpha,hz),fl=futureLabels(agg,hz,periods);
+  // Accuracy metrics
+  const mEl=document.getElementById('forecastMetrics');
+  if(mEl){
+    const mapeClass=r.mape<10?'green':r.mape<25?'amber':'red';
+    mEl.innerHTML=`<div class="metric-card ${mapeClass} stagger"><div class="metric-label">MAPE (In-Sample)</div><div class="metric-value">${r.mape.toFixed(1)}%</div><div class="metric-sub">${r.mape<10?'Excellent':r.mape<25?'Reasonable':'High error'}</div></div>`+
+    `<div class="metric-card teal stagger"><div class="metric-label">RMSE</div><div class="metric-value">${fmtShort(r.rmse)}</div><div class="metric-sub">Root Mean Sq Error</div></div>`+
+    `<div class="metric-card amber stagger"><div class="metric-label">MAE</div><div class="metric-value">${fmtShort(r.mae)}</div><div class="metric-sub">Mean Abs Error</div></div>`+
+    `<div class="metric-card teal stagger"><div class="metric-label">Data Points</div><div class="metric-value">${vals.length}</div><div class="metric-sub">${hz} periods used</div></div>`;
+  }
   const all=[...labels,...fl];
   const hLine=[...vals,...new Array(periods).fill(null)];
   const fLine=[...new Array(vals.length).fill(null),...r.forecast];
   const uLine=[...new Array(vals.length).fill(null),...r.upper];
   const lLine=[...new Array(vals.length).fill(null),...r.lower];
   renderChart('chartForecast','fc',{type:'line',data:{labels:all,datasets:[
-    {label:'Historical',data:hLine,borderColor:'#0D5E5E',backgroundColor:'rgba(13,94,94,.08)',fill:false,tension:.3,pointRadius:3,pointHoverRadius:6},
+    {label:'Historical',data:hLine,borderColor:'#0D5E5E',backgroundColor:'rgba(13,94,94,.08)',fill:false,tension:.3,pointRadius:vals.length>100?0:3,pointHoverRadius:5},
     {label:'Forecast',data:fLine,borderColor:'#C9872A',borderDash:[6,3],backgroundColor:'rgba(201,135,42,.08)',fill:false,tension:.3,pointRadius:4,pointHoverRadius:6,pointStyle:'triangle'},
     {label:'Confidence Band',data:uLine,borderColor:'transparent',backgroundColor:'rgba(201,135,42,.12)',fill:'+1',pointRadius:0},
     {label:'Lower',data:lLine,borderColor:'transparent',backgroundColor:'rgba(201,135,42,.12)',fill:false,pointRadius:0}]},
@@ -1068,8 +1164,53 @@ function runForecast(){
   document.getElementById('forecastSummary').innerHTML=fl.map((l,i)=>`<tr><td><strong>${l}</strong></td><td>${fmt(r.forecast[i])}</td><td style="color:var(--text3)">${fmt(r.lower[i])}</td><td style="color:var(--text3)">${fmt(r.upper[i])}</td></tr>`).join('');
   // Volume by category
   const cats=[...new Set(APP.salesData.map(r2=>r2.category))];
-  const ds=cats.map((cat,ci)=>{const cd=APP.salesData.filter(r2=>r2.category===cat);const ca=aggregateByHorizon(cd,hz);const cv=ca.map(a=>a.volume);if(cv.length<3)return null;const cf=genForecast(cv,method,periods,alpha);return{label:cat,data:cf.forecast,backgroundColor:PALETTE[ci%PALETTE.length]+'CC',borderRadius:4}}).filter(Boolean);
+  const ds=cats.map((cat,ci)=>{const cd=APP.salesData.filter(r2=>r2.category===cat);const ca=aggregateByHorizon(cd,hz);const cv=ca.map(a=>a.volume);if(cv.length<3)return null;const cf=genForecast(cv,method,periods,alpha,hz);return{label:cat,data:cf.forecast,backgroundColor:PALETTE[ci%PALETTE.length]+'CC',borderRadius:4}}).filter(Boolean);
   renderChart('chartVolumeForecast','volFc',{type:'bar',data:{labels:fl,datasets:ds},options:{...chartOpts(''),scales:{...chartOpts('').scales,x:{...chartOpts('').scales.x,stacked:true},y:{...chartOpts('').scales.y,stacked:true,title:{display:true,text:'Pieces',font:{family:"'Outfit'"},color:'#5A5A7A'}}}}});
+}
+
+/* ======== BACKTEST ======== */
+function runBacktest(){
+  if(!APP.salesData.length){showToast('No sales data loaded','error');return}
+  const hz=document.getElementById('forecastHorizon').value;
+  const alpha=parseFloat(document.getElementById('forecastAlpha').value)||0.3;
+  const agg=aggregateByHorizon(APP.salesData,hz);
+  const maxHold=Math.floor(agg.length*0.5);
+  const testSize=Math.min(parseInt(document.getElementById('backtestPeriods').value)||12,maxHold);
+  if(testSize<2){showToast('Need at least 2 holdout periods','error');return}
+  const trainSize=agg.length-testSize;
+  if(trainSize<6){showToast('Not enough training data — reduce holdout periods','error');return}
+  const trainVals=agg.slice(0,trainSize).map(a=>a.revenue);
+  const testVals=agg.slice(trainSize).map(a=>a.revenue);
+  const testLabels=agg.slice(trainSize).map(a=>a.label);
+  const methods=['exponential','holt','holtwinters','moving','linear','snaive'];
+  const mNames={exponential:'Exp. Smoothing',holt:"Holt's Double",holtwinters:'Holt-Winters',moving:'Moving Average',linear:'Linear Regression',snaive:'Seasonal Naïve'};
+  const results=[];
+  methods.forEach(m=>{
+    try{
+      const fc=genForecast(trainVals,m,testSize,alpha,hz);
+      if(!fc.forecast.length)return;
+      const pred=fc.forecast.slice(0,testVals.length);
+      let mapeS=0,maeS=0,rmseS=0,cnt=0;
+      for(let i=0;i<pred.length;i++){const e=Math.abs(testVals[i]-pred[i]);maeS+=e;rmseS+=e*e;if(testVals[i]!==0){mapeS+=e/Math.abs(testVals[i]);cnt++}}
+      const nn=pred.length;
+      results.push({method:m,name:mNames[m],mape:cnt>0?(mapeS/cnt)*100:Infinity,mae:nn>0?maeS/nn:0,rmse:nn>0?Math.sqrt(rmseS/nn):0,predicted:pred});
+    }catch(ex){/* skip failing methods */}
+  });
+  if(!results.length){showToast('No methods produced results','error');return}
+  results.sort((a,b)=>a.mape-b.mape);
+  document.getElementById('backtestResults').style.display='block';
+  // Table
+  document.getElementById('backtestTable').innerHTML=results.map((r,i)=>{
+    const best=i===0?' style="background:var(--success-l)"':'';
+    return`<tr${best}><td>${i+1}</td><td><strong>${r.name}</strong></td><td>${r.mape===Infinity?'N/A':r.mape.toFixed(1)+'%'}</td><td>${fmt(r.mae)}</td><td>${fmt(r.rmse)}</td><td>${i===0?'<span class="badge badge-green">Best</span>':''}</td></tr>`;
+  }).join('');
+  // Chart — actual + top 3 methods
+  const top3=results.slice(0,3);
+  const dsets=[{label:'Actual',data:testVals,borderColor:'#1A1A2E',backgroundColor:'rgba(26,26,46,0.08)',fill:false,tension:.3,pointRadius:4,borderWidth:2.5}];
+  const clrs=['#0D5E5E','#C9872A','#7C5CBF'];
+  top3.forEach((r,i)=>{dsets.push({label:r.name+' ('+r.mape.toFixed(1)+'%)',data:r.predicted,borderColor:clrs[i],borderDash:[5,3],fill:false,tension:.3,pointRadius:3,pointStyle:'triangle',borderWidth:2})});
+  renderChart('chartBacktest','bt',{type:'line',data:{labels:testLabels,datasets:dsets},options:{...chartOpts('$'),plugins:{...chartOpts('$').plugins,legend:{labels:{font:{family:"'Outfit'",size:11},color:'#5A5A7A',padding:12}}}}});
+  showToast('Best method: '+results[0].name+' (MAPE: '+results[0].mape.toFixed(1)+'%)','success');
 }
 
 /* ======== PRICE OPTIMIZER ======== */
