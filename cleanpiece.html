@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PieceCast — Dry Cleaning Sales Forecaster</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-base:#f0f3f8;--bg-surface:#fff;--bg-surface-alt:#f7f9fc;--bg-elevated:#eef1f7;
+  --text-primary:#1a2236;--text-secondary:#5a6478;--text-muted:#8d95a7;
+  --border:#d8dde8;--border-light:#e8ecf3;
+  --accent:#0c7c8a;--accent-light:#14b8a6;--accent-bg:rgba(12,124,138,.07);
+  --secondary:#c27b1a;--secondary-light:#e5a130;
+  --success:#148a5c;--success-light:#34d399;--success-bg:rgba(20,138,92,.08);
+  --error:#c03030;--error-light:#f87171;--error-bg:rgba(192,48,48,.08);
+  --warning:#b8860b;--warning-light:#fbbf24;
+  --chart-1:#0c7c8a;--chart-2:#c27b1a;--chart-3:#7c3aed;--chart-4:#dc2626;
+  --chart-5:#059669;--chart-6:#d946ef;--chart-7:#6366f1;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06);--shadow-md:0 4px 12px rgba(0,0,0,.08);
+  --radius:10px;--radius-sm:6px;
+}
+html.dark{
+  --bg-base:#0a0f1c;--bg-surface:#111827;--bg-surface-alt:#1a2332;--bg-elevated:#1f2b3d;
+  --text-primary:#e2e8f0;--text-secondary:#94a3b8;--text-muted:#64748b;
+  --border:#2a3650;--border-light:#1e2d42;
+  --accent:#22d3ee;--accent-light:#67e8f9;--accent-bg:rgba(34,211,238,.08);
+  --secondary:#fbbf24;--secondary-light:#fde68a;
+  --success:#34d399;--success-light:#6ee7b7;--success-bg:rgba(52,211,153,.1);
+  --error:#f87171;--error-light:#fca5a5;--error-bg:rgba(248,113,113,.1);
+  --warning:#fbbf24;--warning-light:#fde68a;
+  --chart-1:#22d3ee;--chart-2:#fbbf24;--chart-3:#a78bfa;--chart-4:#f87171;
+  --chart-5:#34d399;--chart-6:#f0abfc;--chart-7:#818cf8;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.3);--shadow-md:0 4px 12px rgba(0,0,0,.4);
+}
+html{font-family:'Sora',system-ui,sans-serif;font-size:16px;line-height:1.5;background:var(--bg-base);color:var(--text-primary)}
+body{min-height:100vh;overflow-x:hidden}
+.mono{font-family:'JetBrains Mono',monospace}
+a{color:var(--accent)}
+input,select,textarea,button{font-family:inherit;font-size:16px}
+
+/* Header */
+.app-header{
+  background:var(--bg-surface);border-bottom:1px solid var(--border);
+  padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50;
+}
+.app-logo{font-size:1.3rem;font-weight:700;letter-spacing:-.02em;color:var(--accent)}
+.app-logo span{color:var(--secondary)}
+.app-subtitle{font-size:.75rem;color:var(--text-muted);margin-left:4px}
+
+/* Tabs */
+.tab-bar{
+  display:flex;gap:2px;background:var(--bg-surface);border-bottom:1px solid var(--border);
+  padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+}
+.tab-btn{
+  padding:12px 18px;font-size:.82rem;font-weight:500;color:var(--text-muted);
+  border:none;background:none;cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;transition:all .2s;
+}
+.tab-btn:hover{color:var(--text-primary)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tab-panel{display:none;padding:16px;max-width:1200px;margin:0 auto}
+.tab-panel.active{display:block}
+
+/* Cards */
+.card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow-sm)}
+.card-title{font-size:.95rem;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title .icon{font-size:1.1rem}
+
+/* Form controls */
+.textarea-paste{
+  width:100%;min-height:200px;padding:12px;border:1px dashed var(--border);
+  border-radius:var(--radius-sm);background:var(--bg-surface-alt);color:var(--text-primary);
+  font-family:'JetBrains Mono',monospace;font-size:.82rem;resize:vertical;
+}
+.textarea-paste:focus{outline:none;border-color:var(--accent);border-style:solid}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:var(--radius-sm);
+  font-weight:500;font-size:.85rem;border:1px solid transparent;cursor:pointer;transition:all .15s;
+}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{opacity:.9}
+.btn-secondary{background:var(--bg-elevated);color:var(--text-primary);border-color:var(--border)}
+.btn-secondary:hover{background:var(--bg-surface-alt)}
+.btn-sm{padding:5px 12px;font-size:.78rem}
+.btn-accent{background:var(--secondary);color:#fff;border-color:var(--secondary)}
+.btn-accent:hover{opacity:.9}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Data table */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:var(--radius-sm)}
+.data-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.data-table th{
+  background:var(--bg-elevated);color:var(--text-secondary);font-weight:600;
+  padding:8px 10px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:2;
+}
+.data-table td{padding:6px 10px;border-bottom:1px solid var(--border-light);white-space:nowrap}
+.data-table tr:hover td{background:var(--accent-bg)}
+.data-table .num{text-align:right;font-family:'JetBrains Mono',monospace;font-size:.78rem}
+
+/* Column mapping */
+.col-map{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:12px}
+.col-map-item{
+  background:var(--bg-surface-alt);border:1px solid var(--border-light);border-radius:var(--radius-sm);
+  padding:10px;font-size:.8rem;
+}
+.col-map-item label{display:block;font-weight:500;margin-bottom:4px;color:var(--text-secondary)}
+.col-map-item select,.col-map-item input{
+  width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;
+  background:var(--bg-surface);color:var(--text-primary);font-size:16px;
+}
+.col-map-item .preview{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--text-muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Method cards */
+.method-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.method-card{
+  background:var(--bg-surface-alt);border:1px solid var(--border-light);border-radius:var(--radius-sm);
+  padding:14px;transition:all .2s;
+}
+.method-card.active{border-color:var(--accent);background:var(--accent-bg)}
+.method-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.method-name{font-weight:600;font-size:.85rem}
+.method-mape{font-family:'JetBrains Mono',monospace;font-size:.82rem;font-weight:600}
+.method-mape.good{color:var(--success)}
+.method-mape.ok{color:var(--warning)}
+.method-mape.bad{color:var(--error)}
+.toggle{position:relative;width:40px;height:22px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.toggle .slider{
+  position:absolute;inset:0;background:var(--border);border-radius:11px;transition:.2s;
+}
+.toggle .slider::before{
+  content:'';position:absolute;width:16px;height:16px;border-radius:50%;
+  background:#fff;left:3px;top:3px;transition:.2s;
+}
+.toggle input:checked+.slider{background:var(--accent)}
+.toggle input:checked+.slider::before{transform:translateX(18px)}
+
+/* Weight slider */
+.weight-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.weight-row label{font-size:.75rem;color:var(--text-muted);min-width:48px}
+.weight-slider{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;background:var(--border);outline:none}
+.weight-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg-surface);
+}
+.weight-val{font-family:'JetBrains Mono',monospace;font-size:.75rem;min-width:28px;text-align:right}
+
+/* Param row */
+.param-row{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.75rem}
+.param-row label{color:var(--text-muted);min-width:40px}
+.param-input{
+  width:60px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;
+  background:var(--bg-surface);color:var(--text-primary);font-size:16px;
+  font-family:'JetBrains Mono',monospace;text-align:center;
+}
+
+/* MAPE results */
+.mape-table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:10px}
+.mape-table th{text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-secondary)}
+.mape-table td{padding:7px 10px;border-bottom:1px solid var(--border-light)}
+.mape-table tr.ensemble{background:var(--accent-bg);font-weight:600}
+.mape-table tr.ensemble td{border-bottom:2px solid var(--accent)}
+.mape-bar{display:inline-block;height:6px;border-radius:3px;min-width:2px;max-width:120px;vertical-align:middle;margin-left:6px}
+
+/* Backtest window pills */
+.window-pills{display:flex;gap:6px;flex-wrap:wrap}
+.window-pill{
+  padding:6px 14px;border:1px solid var(--border);border-radius:16px;font-size:.78rem;
+  cursor:pointer;background:var(--bg-surface-alt);color:var(--text-secondary);font-weight:500;
+  transition:all .15s;
+}
+.window-pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.window-pill:hover:not(.active){border-color:var(--accent);color:var(--accent)}
+
+/* Status badges */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:600}
+.badge-success{background:var(--success-bg);color:var(--success)}
+.badge-error{background:var(--error-bg);color:var(--error)}
+.badge-info{background:var(--accent-bg);color:var(--accent)}
+
+/* Chart container */
+.chart-box{position:relative;width:100%;max-height:380px;margin-top:12px}
+
+/* Export area */
+.export-area{
+  width:100%;min-height:300px;padding:12px;border:1px solid var(--border);
+  border-radius:var(--radius-sm);background:var(--bg-surface-alt);color:var(--text-primary);
+  font-family:'JetBrains Mono',monospace;font-size:.75rem;resize:vertical;white-space:pre;
+  overflow:auto;
+}
+
+/* Responsive */
+@media(max-width:640px){
+  .tab-btn{padding:10px 12px;font-size:.78rem}
+  .method-grid{grid-template-columns:1fr}
+  .col-map{grid-template-columns:1fr}
+  .card{padding:14px}
+  .app-subtitle{display:none}
+}
+
+/* Loader */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Animate in */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.animate-in{animation:fadeUp .35s ease-out}
+
+/* Info box */
+.info-box{background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--radius-sm);padding:12px 14px;font-size:.8rem;color:var(--text-secondary);margin-bottom:14px;line-height:1.6}
+.info-box strong{color:var(--text-primary)}
+
+/* Select styling */
+.select-styled{
+  padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--bg-surface);color:var(--text-primary);font-size:16px;
+}
+
+/* Forecast table */
+.forecast-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.forecast-table th{background:var(--bg-elevated);padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-secondary);white-space:nowrap}
+.forecast-table td{padding:6px 10px;border-bottom:1px solid var(--border-light);white-space:nowrap}
+.forecast-table td.num{text-align:right;font-family:'JetBrains Mono',monospace}
+
+/* Custom modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal-box{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:400px;width:100%;box-shadow:var(--shadow-md)}
+.modal-box h3{font-size:1rem;font-weight:600;margin-bottom:10px}
+.modal-box p{font-size:.85rem;color:var(--text-secondary);margin-bottom:16px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header">
+  <div class="app-logo">Piece<span>Cast</span></div>
+  <span class="app-subtitle">Dry Cleaning Sales Forecaster</span>
+  <div style="flex:1"></div>
+  <select id="seriesSelect" class="select-styled" style="max-width:200px;font-size:.82rem" disabled>
+    <option value="__total_pieces">Total Pieces</option>
+  </select>
+</header>
+
+<!-- TAB BAR -->
+<nav class="tab-bar" role="tablist">
+  <button class="tab-btn active" data-tab="import" role="tab">&#x1F4E5; Import</button>
+  <button class="tab-btn" data-tab="backtest" role="tab">&#x1F4CA; Backtest</button>
+  <button class="tab-btn" data-tab="forecast" role="tab">&#x1F52E; Forecast</button>
+  <button class="tab-btn" data-tab="export" role="tab">&#x1F4CB; Export</button>
+</nav>
+
+<!-- ===================== TAB: IMPORT ===================== -->
+<section id="tab-import" class="tab-panel active">
+  <div class="card animate-in">
+    <div class="card-title"><span class="icon">&#x1F4CB;</span> Paste POS Report Data</div>
+    <div class="info-box">
+      Paste your <strong>Sales Report By Category</strong> directly from your POS. The multi-page format (left page with Drop/Dry/Laundry/Alterations, right page with Press/Totals) is <strong>auto-detected</strong> — no manual column mapping needed. The last day is automatically excluded (partial data).
+      <br><br>Also supports generic tab-separated and CSV formats with manual column mapping.
+    </div>
+    <textarea id="pasteArea" class="textarea-paste" placeholder="Paste your POS report data here...&#10;&#10;Example:&#10;Date&#9;Dry Cleaning&#9;Laundry&#9;Alterations&#9;Total Pcs&#9;Total Rev&#10;1/2/2025&#9;45&#9;28&#9;12&#9;85&#9;$595.00&#10;1/3/2025&#9;52&#9;32&#9;15&#9;99&#9;$693.00"></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn btn-primary" id="parseBtn">Parse Data</button>
+      <button class="btn btn-secondary" id="sampleBtn">Load Sample Data</button>
+      <button class="btn btn-secondary" id="clearBtn">Clear</button>
+    </div>
+  </div>
+
+  <!-- Column Mapping -->
+  <div id="mappingCard" class="card" style="display:none">
+    <div class="card-title"><span class="icon">&#x1F3AF;</span> Column Mapping</div>
+    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:10px">Assign each column a role. Pick one <strong>Date</strong> column and classify the rest as Pieces, Revenue, or Skip.</p>
+    <div id="colMappings" class="col-map"></div>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" id="loadDataBtn">Load Data</button>
+      <span id="mappingStatus" style="font-size:.8rem;color:var(--text-muted);align-self:center"></span>
+    </div>
+  </div>
+
+  <!-- Data Preview -->
+  <div id="previewCard" class="card" style="display:none">
+    <div class="card-title"><span class="icon">&#x1F50D;</span> Data Preview <span id="dataStats" class="badge badge-info" style="margin-left:auto"></span></div>
+    <div class="table-wrap" style="max-height:300px;overflow-y:auto">
+      <table class="data-table" id="previewTable"><thead></thead><tbody></tbody></table>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== TAB: BACKTEST ===================== -->
+<section id="tab-backtest" class="tab-panel">
+  <div id="noDataBacktest" class="card">
+    <p style="text-align:center;color:var(--text-muted);padding:30px 0;font-size:.9rem">Import data first to run backtests.</p>
+  </div>
+
+  <div id="backtestContent" style="display:none">
+    <!-- Backtest Window -->
+    <div class="card animate-in">
+      <div class="card-title"><span class="icon">&#x1F4C5;</span> Backtest Window</div>
+      <div class="window-pills" id="windowPills"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" id="runBacktestBtn">Run Backtest</button>
+        <button class="btn btn-accent" id="autoOptBtn">Auto-Optimize Weights</button>
+        <span id="backtestStatus" style="font-size:.8rem;color:var(--text-muted)"></span>
+      </div>
+    </div>
+
+    <!-- Methods -->
+    <div class="card">
+      <div class="card-title"><span class="icon">&#x2699;&#xFE0F;</span> Forecasting Methods &amp; Weights</div>
+      <div class="method-grid" id="methodGrid"></div>
+    </div>
+
+    <!-- MAPE Results -->
+    <div class="card" id="mapeCard" style="display:none">
+      <div class="card-title"><span class="icon">&#x1F3AF;</span> MAPE Results</div>
+      <div class="table-wrap">
+        <table class="mape-table" id="mapeTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <!-- Backtest Chart -->
+    <div class="card" id="btChartCard" style="display:none">
+      <div class="card-title"><span class="icon">&#x1F4C8;</span> Backtest: Actual vs Forecast</div>
+      <div class="chart-box"><canvas id="btChart"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== TAB: FORECAST ===================== -->
+<section id="tab-forecast" class="tab-panel">
+  <div id="noDataForecast" class="card">
+    <p style="text-align:center;color:var(--text-muted);padding:30px 0;font-size:.9rem">Import data and run a backtest first.</p>
+  </div>
+
+  <div id="forecastContent" style="display:none">
+    <div class="card animate-in">
+      <div class="card-title"><span class="icon">&#x1F52E;</span> Generate Forecast</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:.85rem;font-weight:500">Horizon (days):</label>
+        <input type="number" id="horizonInput" class="param-input" style="width:70px" value="14" min="1" max="180">
+        <label style="font-size:.85rem;font-weight:500">Forecast for:</label>
+        <select id="forecastSeriesSelect" class="select-styled" style="font-size:.82rem"></select>
+        <button class="btn btn-primary" id="genForecastBtn">Generate Forecast</button>
+      </div>
+    </div>
+
+    <!-- Forecast Results -->
+    <div class="card" id="fcResultCard" style="display:none">
+      <div class="card-title"><span class="icon">&#x1F4C3;</span> Forecast Results <span id="fcBadge" class="badge badge-success" style="margin-left:auto"></span></div>
+      <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+        <table class="forecast-table" id="fcTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <!-- Forecast Chart -->
+    <div class="card" id="fcChartCard" style="display:none">
+      <div class="card-title"><span class="icon">&#x1F4C8;</span> Forecast Visualization</div>
+      <div class="chart-box"><canvas id="fcChart"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== TAB: EXPORT ===================== -->
+<section id="tab-export" class="tab-panel">
+  <div id="noDataExport" class="card">
+    <p style="text-align:center;color:var(--text-muted);padding:30px 0;font-size:.9rem">Generate a forecast first, then export here.</p>
+  </div>
+
+  <div id="exportContent" style="display:none">
+    <div class="card animate-in">
+      <div class="card-title"><span class="icon">&#x1F4CB;</span> Export Forecast</div>
+      <div class="info-box">
+        Copy-paste this output into your <strong>Employee Scheduling</strong> or <strong>Price Optimization</strong> app.
+        Lines starting with <code>#</code> are metadata (parseable apps can skip them). Data is tab-separated.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:.85rem;font-weight:500">Export scope:</label>
+        <select id="exportScope" class="select-styled" style="font-size:.82rem">
+          <option value="selected">Current Series Only</option>
+          <option value="all" selected>All Categories + Totals</option>
+        </select>
+        <button class="btn btn-primary" id="copyExportBtn">&#x1F4CB; Copy to Clipboard</button>
+        <span id="copyStatus" style="font-size:.8rem;color:var(--success);display:none">Copied!</span>
+      </div>
+      <pre class="export-area" id="exportArea"></pre>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ==================================================================
+   STATE
+   ================================================================== */
+const S = {
+  raw: { headers: [], rows: [] },
+  mappings: { dateCol: -1, columns: [] },
+  series: { dates: [], dayLabels: [], categories: {}, totalPieces: [], totalRevenue: [] },
+  dataLoaded: false,
+  activeSeries: '__total_pieces',
+  methods: {
+    dowAvg:    { name: 'Day-of-Week Average', enabled: true, weight: 15, params: {} },
+    recent:    { name: 'Recent Pattern (4wk)', enabled: true, weight: 20, params: { weeks: 4 } },
+    sma7:      { name: '7-Day Moving Avg',     enabled: true, weight: 10, params: {} },
+    sma28:     { name: '28-Day Moving Avg',    enabled: true, weight: 10, params: {} },
+    expSmooth: { name: 'Exponential Smoothing', enabled: true, weight: 15, params: { alpha: 0.3 } },
+    hw:        { name: 'Holt-Winters Seasonal', enabled: true, weight: 25, params: { alpha: 0.2, beta: 0.05, gamma: 0.3 } },
+    yoy:       { name: 'Year-over-Year',        enabled: false, weight: 5, params: {} }
+  },
+  backtestWindow: 14,
+  backtestResults: {},
+  forecastResults: null,
+  forecastHorizon: 14,
+  btChart: null,
+  fcChart: null
+};
+
+const WINDOWS = [14, 21, 30, 60, 90];
+const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1'];
+
+/* ==================================================================
+   DARK MODE
+   ================================================================== */
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  document.documentElement.classList.add('dark');
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+  e.matches ? document.documentElement.classList.add('dark') : document.documentElement.classList.remove('dark');
+});
+
+/* ==================================================================
+   DATA PARSING
+   ================================================================== */
+function detectDelimiter(text) {
+  const lines = text.trim().split('\n').slice(0, 8);
+  const delims = ['\t', ',', '|', ';'];
+  let best = '\t', bestScore = 0;
+  for (const d of delims) {
+    const counts = lines.map(l => l.split(d).length);
+    const mn = Math.min(...counts), mx = Math.max(...counts);
+    if (mn > 1 && mx - mn <= 2) {
+      const avg = counts.reduce((a,b) => a+b, 0) / counts.length;
+      if (avg > bestScore) { bestScore = avg; best = d; }
+    }
+  }
+  return best;
+}
+
+function parseDate(s) {
+  if (!s) return null;
+  s = s.trim();
+  let m, d, y;
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (iso) { [, y, m, d] = iso.map(Number); return new Date(y, m-1, d); }
+  const us = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+  if (us) {
+    [, m, d, y] = us.map(Number);
+    if (y < 100) y += 2000;
+    return new Date(y, m-1, d);
+  }
+  const obj = new Date(s);
+  if (!isNaN(obj.getTime()) && obj.getFullYear() > 1900 && obj.getFullYear() < 2100) return obj;
+  return null;
+}
+
+function parseNumeric(s) {
+  if (s == null || s === '') return NaN;
+  s = String(s).trim().replace(/[$,]/g, '');
+  if (s === '' || s === '-') return NaN;
+  return parseFloat(s);
+}
+
+function parseRawData(text) {
+  const delim = detectDelimiter(text);
+  const lines = text.trim().split('\n').filter(l => l.trim().length > 0);
+  if (lines.length < 2) return null;
+
+  // Find header row: first row where at least 2 cells look non-empty
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    const cells = lines[i].split(delim).map(c => c.trim());
+    if (cells.filter(c => c.length > 0).length >= 2) { headerIdx = i; break; }
+  }
+
+  const headers = lines[headerIdx].split(delim).map(c => c.trim());
+  const rows = [];
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const cells = lines[i].split(delim).map(c => c.trim());
+    if (cells.filter(c => c.length > 0).length >= 2) rows.push(cells);
+  }
+
+  return { headers, rows };
+}
+
+/* POS "Sales Report By Category" multi-page format parser */
+function isPOSReport(text) {
+  return text.includes('Sales Report By Category') && text.includes('Drop');
+}
+
+function isReportHeaderLine(line) {
+  if (line === '') return true;
+  if (line.includes('Sales Report')) return true;
+  if (/^\d{4}\/\d{2}\s*~/.test(line)) return true;
+  if (/^\d{4}\.\d{2}\.\d{2}$/.test(line)) return true;
+  if (line.includes('Drop') && line.includes('Dry')) return true;
+  if (line.includes('Press Pcs') || (line.includes('Total Pcs') && line.includes('Press Amt'))) return true;
+  return false;
+}
+
+function parsePOSReport(text) {
+  const lines = text.split('\n');
+
+  // Split into sections starting at each "Sales Report By Category" header
+  const sections = [];
+  let current = [];
+  for (const line of lines) {
+    if (line.includes('Sales Report By Category')) {
+      if (current.length > 0) sections.push(current);
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) sections.push(current);
+
+  // Classify sections and extract data rows
+  const leftRows = [];
+  const rightRows = [];
+
+  for (const section of sections) {
+    // Find the column header line to classify
+    const colHeader = section.find(l => {
+      const t = l.trim();
+      return (t.includes('Drop') && t.includes('Dry')) ||
+             (t.includes('Press Pcs') && t.includes('Total'));
+    });
+    if (!colHeader) continue;
+
+    const isLeft = colHeader.includes('Drop');
+
+    // Extract numeric data rows (skip header/meta lines)
+    for (const line of section) {
+      const trimmed = line.trim();
+      if (isReportHeaderLine(trimmed)) continue;
+      // Split on 2+ whitespace
+      const cells = trimmed.split(/\s{2,}/).filter(c => c.length > 0);
+      if (cells.length < 2) continue;
+
+      // Left rows start with a date (YYYY/MM/DD); right rows start with a number
+      if (isLeft) {
+        if (/^\d{4}\//.test(cells[0])) leftRows.push(cells);
+      } else {
+        if (/^-?[\d.]/.test(cells[0])) rightRows.push(cells);
+      }
+    }
+  }
+
+  // Combine left + right rows (must be same count)
+  const headers = ['Date', 'Dry Pcs', 'Dry Amt', 'Laund Pcs', 'Laund Amt',
+    'Alter Pcs', 'Alter Amt', 'Press Pcs', 'Press Amt', 'DC Amt', 'Total Pcs', 'Total Amt'];
+
+  const rows = [];
+  for (let i = 0; i < leftRows.length; i++) {
+    const left = leftRows[i];
+    const right = i < rightRows.length ? rightRows[i] : [];
+    rows.push([...left, ...right]);
+  }
+
+  // Always drop the last row (partial day — report run mid-day)
+  if (rows.length > 0) rows.pop();
+
+  // Build auto-mapping
+  const mappings = {
+    dateCol: 0,
+    columns: [
+      { index: 0, type: 'date', name: 'Date' },
+      { index: 1, type: 'pieces', name: 'Dry Cleaning' },
+      { index: 2, type: 'revenue', name: 'Dry Cleaning' },
+      { index: 3, type: 'pieces', name: 'Laundry' },
+      { index: 4, type: 'revenue', name: 'Laundry' },
+      { index: 5, type: 'pieces', name: 'Alterations' },
+      { index: 6, type: 'revenue', name: 'Alterations' },
+      { index: 7, type: 'pieces', name: 'Press' },
+      { index: 8, type: 'revenue', name: 'Press' },
+      { index: 9, type: 'skip', name: 'DC Amt' },
+      { index: 10, type: 'skip', name: 'Total Pcs' },
+      { index: 11, type: 'skip', name: 'Total Amt' }
+    ]
+  };
+
+  return { headers, rows, mappings };
+}
+
+function autoDetectColumns(headers, rows) {
+  const mappings = [];
+  let dateCol = -1;
+  const sample = rows.slice(0, Math.min(5, rows.length));
+
+  headers.forEach((h, i) => {
+    const vals = sample.map(r => r[i] || '');
+    const dateParsed = vals.filter(v => parseDate(v) !== null).length;
+    const hLow = h.toLowerCase();
+
+    if (dateCol === -1 && (dateParsed >= vals.length * 0.6 || hLow.includes('date'))) {
+      dateCol = i;
+      mappings.push({ index: i, type: 'date', name: h });
+    } else if (hLow.includes('rev') || hLow.includes('$') || hLow.includes('sales') || hLow.includes('amount') || hLow.includes('dollar')) {
+      mappings.push({ index: i, type: 'revenue', name: h.replace(/[$]/g, '').trim() });
+    } else {
+      const numParsed = vals.filter(v => !isNaN(parseNumeric(v))).length;
+      if (numParsed >= vals.length * 0.5) {
+        mappings.push({ index: i, type: 'pieces', name: h });
+      } else {
+        mappings.push({ index: i, type: 'skip', name: h });
+      }
+    }
+  });
+
+  return { dateCol, columns: mappings };
+}
+
+function processData() {
+  const { dateCol, columns } = S.mappings;
+  if (dateCol < 0) return false;
+
+  const dates = [], dayLabels = [], categories = {};
+  const pieceCols = columns.filter(c => c.type === 'pieces');
+  const revCols = columns.filter(c => c.type === 'revenue');
+
+  pieceCols.forEach(c => { categories[c.name] = { pieces: [], revenue: [] }; });
+  revCols.forEach(c => {
+    if (!categories[c.name]) categories[c.name] = { pieces: [], revenue: [] };
+  });
+
+  const dateMap = {};
+  for (const row of S.raw.rows) {
+    const d = parseDate(row[dateCol]);
+    if (!d) continue;
+    const key = d.toISOString().slice(0, 10);
+    if (dateMap[key]) continue;
+    dateMap[key] = true;
+
+    dates.push(d);
+    dayLabels.push(formatDateShort(d));
+
+    pieceCols.forEach(c => {
+      const v = parseNumeric(row[c.index]);
+      categories[c.name].pieces.push(isNaN(v) ? 0 : v);
+    });
+    revCols.forEach(c => {
+      const v = parseNumeric(row[c.index]);
+      if (categories[c.name]) categories[c.name].revenue.push(isNaN(v) ? 0 : v);
+    });
+  }
+
+  // Sort by date
+  const indices = dates.map((_, i) => i).sort((a, b) => dates[a] - dates[b]);
+  S.series.dates = indices.map(i => dates[i]);
+  S.series.dayLabels = indices.map(i => dayLabels[i]);
+  const sortedCats = {};
+  for (const [name, cat] of Object.entries(categories)) {
+    sortedCats[name] = {
+      pieces: indices.map(i => cat.pieces[i] || 0),
+      revenue: indices.map(i => cat.revenue[i] || 0)
+    };
+  }
+  S.series.categories = sortedCats;
+
+  // Totals
+  const n = S.series.dates.length;
+  S.series.totalPieces = new Array(n).fill(0);
+  S.series.totalRevenue = new Array(n).fill(0);
+  for (const cat of Object.values(sortedCats)) {
+    for (let i = 0; i < n; i++) {
+      S.series.totalPieces[i] += cat.pieces[i];
+      S.series.totalRevenue[i] += cat.revenue[i];
+    }
+  }
+
+  S.dataLoaded = true;
+  return true;
+}
+
+function getActiveSeries() {
+  const key = S.activeSeries;
+  if (key === '__total_pieces') return S.series.totalPieces;
+  if (key === '__total_revenue') return S.series.totalRevenue;
+  const [type, ...nameParts] = key.split(':');
+  const name = nameParts.join(':');
+  const cat = S.series.categories[name];
+  if (!cat) return S.series.totalPieces;
+  return type === 'revenue' ? cat.revenue : cat.pieces;
+}
+
+function getSeriesLabel() {
+  const key = S.activeSeries;
+  if (key === '__total_pieces') return 'Total Pieces';
+  if (key === '__total_revenue') return 'Total Revenue ($)';
+  const [type, ...nameParts] = key.split(':');
+  return nameParts.join(':') + (type === 'revenue' ? ' ($)' : ' (pcs)');
+}
+
+function formatDateShort(d) {
+  return (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+}
+function formatDateISO(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+/* ==================================================================
+   FORECASTING METHODS
+   ================================================================== */
+function forecastDOWAvg(trainData, trainDates, horizon) {
+  const sums = [0,0,0,0,0,0,0], counts = [0,0,0,0,0,0,0];
+  for (let i = 0; i < trainData.length; i++) {
+    const dow = trainDates[i].getDay();
+    sums[dow] += trainData[i];
+    counts[dow]++;
+  }
+  const avgs = sums.map((s,i) => counts[i] > 0 ? s / counts[i] : 0);
+  const lastDate = trainDates[trainDates.length - 1];
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const d = new Date(lastDate); d.setDate(d.getDate() + h);
+    fc.push(Math.max(0, avgs[d.getDay()]));
+  }
+  return fc;
+}
+
+function forecastRecent(trainData, trainDates, horizon, weeks) {
+  weeks = weeks || 4;
+  const cutoff = Math.max(0, trainData.length - weeks * 7);
+  const sub = trainData.slice(cutoff);
+  const subDates = trainDates.slice(cutoff);
+  return forecastDOWAvg(sub, subDates, horizon);
+}
+
+function forecastSMA(trainData, horizon, window) {
+  const ext = [...trainData];
+  const fc = [];
+  for (let h = 0; h < horizon; h++) {
+    const start = Math.max(0, ext.length - window);
+    const slice = ext.slice(start);
+    const avg = slice.reduce((a,b) => a+b, 0) / slice.length;
+    fc.push(Math.max(0, avg));
+    ext.push(avg);
+  }
+  return fc;
+}
+
+function forecastExpSmooth(trainData, horizon, alpha) {
+  alpha = alpha || 0.3;
+  let level = trainData[0];
+  for (let i = 1; i < trainData.length; i++) {
+    level = alpha * trainData[i] + (1 - alpha) * level;
+  }
+  return new Array(horizon).fill(Math.max(0, level));
+}
+
+function forecastHoltWinters(trainData, trainDates, horizon, alpha, beta, gamma) {
+  alpha = alpha || 0.2; beta = beta || 0.05; gamma = gamma || 0.3;
+  const n = trainData.length;
+  if (n < 14) return forecastExpSmooth(trainData, horizon, alpha);
+
+  // Initialize
+  const firstWeekAvg = trainData.slice(0, Math.min(7, n)).reduce((a,b) => a+b, 0) / Math.min(7, n);
+  let L = firstWeekAvg;
+  let T = 0;
+  if (n >= 14) {
+    const w2 = trainData.slice(7, 14).reduce((a,b) => a+b, 0) / 7;
+    T = (w2 - firstWeekAvg) / 7;
+  }
+
+  const Seas = [0,0,0,0,0,0,0];
+  const dowCounts = [0,0,0,0,0,0,0];
+  const initEnd = Math.min(28, n);
+  for (let i = 0; i < initEnd; i++) {
+    const dow = trainDates[i].getDay();
+    Seas[dow] += trainData[i] - L;
+    dowCounts[dow]++;
+  }
+  for (let d = 0; d < 7; d++) {
+    if (dowCounts[d] > 0) Seas[d] /= dowCounts[d];
+  }
+
+  // Fit
+  for (let t = 0; t < n; t++) {
+    const dow = trainDates[t].getDay();
+    const oldL = L;
+    L = alpha * (trainData[t] - Seas[dow]) + (1 - alpha) * (L + T);
+    T = beta * (L - oldL) + (1 - beta) * T;
+    Seas[dow] = gamma * (trainData[t] - L) + (1 - gamma) * Seas[dow];
+  }
+
+  // Forecast
+  const lastDate = trainDates[n - 1];
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const d = new Date(lastDate); d.setDate(d.getDate() + h);
+    fc.push(Math.max(0, L + h * T + Seas[d.getDay()]));
+  }
+  return fc;
+}
+
+function forecastYOY(trainData, trainDates, horizon) {
+  const n = trainData.length;
+  const lastDate = trainDates[n - 1];
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const target = new Date(lastDate); target.setDate(target.getDate() + h);
+    const yAgo = new Date(target); yAgo.setFullYear(yAgo.getFullYear() - 1);
+    let best = -1, bestDiff = Infinity;
+    for (let i = 0; i < n; i++) {
+      const diff = Math.abs(trainDates[i] - yAgo);
+      if (diff < bestDiff) { bestDiff = diff; best = i; }
+    }
+    if (best >= 0 && bestDiff < 10 * 86400000) {
+      fc.push(Math.max(0, trainData[best]));
+    } else {
+      fc.push(Math.max(0, trainData.reduce((a,b) => a+b, 0) / n));
+    }
+  }
+  return fc;
+}
+
+function runMethod(key, trainData, trainDates, horizon) {
+  const m = S.methods[key];
+  switch (key) {
+    case 'dowAvg': return forecastDOWAvg(trainData, trainDates, horizon);
+    case 'recent': return forecastRecent(trainData, trainDates, horizon, m.params.weeks);
+    case 'sma7': return forecastSMA(trainData, horizon, 7);
+    case 'sma28': return forecastSMA(trainData, horizon, 28);
+    case 'expSmooth': return forecastExpSmooth(trainData, horizon, m.params.alpha);
+    case 'hw': return forecastHoltWinters(trainData, trainDates, horizon, m.params.alpha, m.params.beta, m.params.gamma);
+    case 'yoy': return forecastYOY(trainData, trainDates, horizon);
+    default: return new Array(horizon).fill(0);
+  }
+}
+
+/* ==================================================================
+   BACKTESTING
+   ================================================================== */
+function calculateMAPE(actual, forecast) {
+  let sum = 0, count = 0;
+  for (let i = 0; i < actual.length; i++) {
+    if (actual[i] !== 0) {
+      sum += Math.abs((actual[i] - forecast[i]) / actual[i]);
+      count++;
+    }
+  }
+  return count > 0 ? (sum / count) * 100 : 999;
+}
+
+function calculateMAE(actual, forecast) {
+  let sum = 0;
+  for (let i = 0; i < actual.length; i++) sum += Math.abs(actual[i] - forecast[i]);
+  return actual.length > 0 ? sum / actual.length : 0;
+}
+
+function runBacktest(windowSize) {
+  const data = getActiveSeries();
+  const dates = S.series.dates;
+  const n = data.length;
+  if (windowSize >= n - 14) return null;
+
+  const trainData = data.slice(0, n - windowSize);
+  const trainDates = dates.slice(0, n - windowSize);
+  const testData = data.slice(n - windowSize);
+  const testDates = dates.slice(n - windowSize);
+
+  const results = {};
+  for (const [key, method] of Object.entries(S.methods)) {
+    if (!method.enabled) continue;
+    const fc = runMethod(key, trainData, trainDates, windowSize);
+    results[key] = {
+      forecast: fc,
+      mape: calculateMAPE(testData, fc),
+      mae: calculateMAE(testData, fc)
+    };
+  }
+
+  // Ensemble
+  const ensemble = computeEnsemble(results, windowSize);
+  results.__ensemble = {
+    forecast: ensemble,
+    mape: calculateMAPE(testData, ensemble),
+    mae: calculateMAE(testData, ensemble)
+  };
+
+  return { results, testData, testDates, trainData, trainDates };
+}
+
+function computeEnsemble(methodResults, horizon) {
+  const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled && methodResults[k]);
+  if (enabledKeys.length === 0) return new Array(horizon).fill(0);
+
+  const totalWeight = enabledKeys.reduce((s, k) => s + S.methods[k].weight, 0);
+  if (totalWeight === 0) return new Array(horizon).fill(0);
+
+  const ensemble = new Array(horizon).fill(0);
+  for (const k of enabledKeys) {
+    const w = S.methods[k].weight / totalWeight;
+    const fc = methodResults[k].forecast;
+    for (let i = 0; i < horizon; i++) ensemble[i] += w * (fc[i] || 0);
+  }
+  return ensemble;
+}
+
+function autoOptimize() {
+  const data = getActiveSeries();
+  const dates = S.series.dates;
+  const n = data.length;
+  const win = S.backtestWindow;
+  if (win >= n - 14) return;
+
+  const trainData = data.slice(0, n - win);
+  const trainDates = dates.slice(0, n - win);
+  const testData = data.slice(n - win);
+
+  const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled);
+  if (enabledKeys.length === 0) return;
+
+  // Get forecasts for each method
+  const forecasts = {};
+  for (const k of enabledKeys) {
+    forecasts[k] = runMethod(k, trainData, trainDates, win);
+  }
+
+  // Initialize weights inversely proportional to individual MAPE
+  const weights = {};
+  let totalInv = 0;
+  for (const k of enabledKeys) {
+    const mape = calculateMAPE(testData, forecasts[k]);
+    const inv = mape > 0.01 ? 1 / mape : 100;
+    weights[k] = inv;
+    totalInv += inv;
+  }
+  for (const k of enabledKeys) weights[k] = Math.round((weights[k] / totalInv) * 100);
+
+  // Ensure sum is 100
+  const diff = 100 - enabledKeys.reduce((s,k) => s + weights[k], 0);
+  if (enabledKeys.length > 0) weights[enabledKeys[0]] += diff;
+
+  function getEnsembleMAPE(w) {
+    const total = enabledKeys.reduce((s,k) => s + w[k], 0);
+    if (total === 0) return 999;
+    const ens = new Array(win).fill(0);
+    for (const k of enabledKeys) {
+      const wt = w[k] / total;
+      for (let i = 0; i < win; i++) ens[i] += wt * forecasts[k][i];
+    }
+    return calculateMAPE(testData, ens);
+  }
+
+  // Coordinate descent
+  let bestMape = getEnsembleMAPE(weights);
+  for (let iter = 0; iter < 300; iter++) {
+    let improved = false;
+    for (const k of enabledKeys) {
+      // Try +2
+      weights[k] += 2;
+      let newMape = getEnsembleMAPE(weights);
+      if (newMape < bestMape - 0.001) { bestMape = newMape; improved = true; continue; }
+      weights[k] -= 2;
+
+      // Try -2
+      if (weights[k] >= 2) {
+        weights[k] -= 2;
+        newMape = getEnsembleMAPE(weights);
+        if (newMape < bestMape - 0.001) { bestMape = newMape; improved = true; continue; }
+        weights[k] += 2;
+      }
+    }
+    if (!improved) break;
+  }
+
+  // Apply
+  for (const k of enabledKeys) S.methods[k].weight = Math.max(0, weights[k]);
+  // Zero out disabled
+  for (const k of Object.keys(S.methods)) {
+    if (!S.methods[k].enabled) S.methods[k].weight = 0;
+  }
+}
+
+/* ==================================================================
+   CHARTING
+   ================================================================== */
+function getChartColors() {
+  const isDark = document.documentElement.classList.contains('dark');
+  return {
+    grid: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)',
+    text: isDark ? '#94a3b8' : '#64748b',
+    actual: isDark ? '#e2e8f0' : '#1e293b'
+  };
+}
+
+function renderBacktestChart(bt) {
+  if (!bt) return;
+  const ctx = document.getElementById('btChart');
+  if (S.btChart) S.btChart.destroy();
+
+  const colors = getChartColors();
+  const labels = bt.testDates.map(d => formatDateShort(d));
+  const datasets = [
+    { label: 'Actual', data: bt.testData, borderColor: colors.actual, backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 2, tension: 0.2, order: 0 }
+  ];
+
+  const methodKeys = Object.keys(bt.results).filter(k => k !== '__ensemble');
+  const chartColors = document.documentElement.classList.contains('dark')
+    ? ['#22d3ee','#fbbf24','#a78bfa','#f87171','#34d399','#f0abfc','#818cf8']
+    : CHART_COLORS;
+
+  methodKeys.forEach((k, i) => {
+    datasets.push({
+      label: S.methods[k].name,
+      data: bt.results[k].forecast,
+      borderColor: chartColors[i % chartColors.length],
+      backgroundColor: 'transparent',
+      borderWidth: 1.5, borderDash: [4, 3], pointRadius: 0, tension: 0.2, order: i + 2
+    });
+  });
+
+  if (bt.results.__ensemble) {
+    datasets.push({
+      label: 'Ensemble',
+      data: bt.results.__ensemble.forecast,
+      borderColor: document.documentElement.classList.contains('dark') ? '#facc15' : '#b45309',
+      backgroundColor: 'transparent',
+      borderWidth: 3, pointRadius: 2, tension: 0.2, order: 1
+    });
+  }
+
+  S.btChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: { legend: { labels: { color: colors.text, font: { family: 'Sora', size: 11 } } } },
+      scales: {
+        x: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 10 }, maxRotation: 45 } },
+        y: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderForecastChart(fcData, histDays) {
+  const ctx = document.getElementById('fcChart');
+  if (S.fcChart) S.fcChart.destroy();
+
+  const colors = getChartColors();
+  const data = getActiveSeries();
+  const dates = S.series.dates;
+  const hStart = Math.max(0, data.length - histDays);
+
+  const labels = [];
+  for (let i = hStart; i < data.length; i++) labels.push(formatDateShort(dates[i]));
+  const lastDate = dates[dates.length - 1];
+  for (let h = 1; h <= fcData.length; h++) {
+    const d = new Date(lastDate); d.setDate(d.getDate() + h);
+    labels.push(formatDateShort(d));
+  }
+
+  const histData = data.slice(hStart);
+  const fcPadded = new Array(histData.length).fill(null).concat(fcData);
+  const histPadded = histData.concat([histData[histData.length - 1]]).concat(new Array(fcData.length - 1).fill(null));
+
+  S.fcChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Historical', data: histPadded, borderColor: colors.actual, backgroundColor: 'transparent', borderWidth: 2, pointRadius: 1, tension: 0.2, spanGaps: false },
+        { label: 'Forecast', data: fcPadded, borderColor: document.documentElement.classList.contains('dark') ? '#22d3ee' : '#0c7c8a', backgroundColor: document.documentElement.classList.contains('dark') ? 'rgba(34,211,238,.1)' : 'rgba(12,124,138,.1)', borderWidth: 2.5, pointRadius: 2, tension: 0.2, fill: true, borderDash: [6, 3] }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: { legend: { labels: { color: colors.text, font: { family: 'Sora', size: 11 } } } },
+      scales: {
+        x: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 10 }, maxRotation: 45 } },
+        y: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+/* ==================================================================
+   EXPORT
+   ================================================================== */
+function generateExport(scope) {
+  const data = getActiveSeries();
+  const dates = S.series.dates;
+  const lastDate = dates[dates.length - 1];
+  const horizon = S.forecastHorizon;
+
+  // Get backtest MAPE info
+  const btKey = String(S.backtestWindow);
+  const btResult = S.backtestResults[btKey];
+  const ensembleMape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.mape.toFixed(1) : 'N/A';
+
+  // Build method weight string
+  const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled);
+  const totalW = enabledKeys.reduce((s,k) => s + S.methods[k].weight, 0);
+  const methodStr = enabledKeys.map(k => {
+    const pct = totalW > 0 ? Math.round(S.methods[k].weight / totalW * 100) : 0;
+    return S.methods[k].name + ' (' + pct + '%)';
+  }).join(', ');
+
+  let lines = [];
+  lines.push('# PIECECAST FORECAST EXPORT');
+  lines.push('# Generated: ' + formatDateISO(new Date()));
+  const fcStart = new Date(lastDate); fcStart.setDate(fcStart.getDate() + 1);
+  const fcEnd = new Date(lastDate); fcEnd.setDate(fcEnd.getDate() + horizon);
+  lines.push('# Forecast Period: ' + formatDateISO(fcStart) + ' to ' + formatDateISO(fcEnd));
+  lines.push('# Backtest Window: ' + S.backtestWindow + ' days');
+  lines.push('# Ensemble MAPE: ' + ensembleMape + '%');
+  lines.push('# Methods: ' + methodStr);
+  lines.push('#');
+
+  if (scope === 'all') {
+    // Run forecast for all categories + totals
+    const trainDates = dates;
+    const catNames = Object.keys(S.series.categories);
+    const allForecasts = {};
+
+    for (const catName of catNames) {
+      const pData = S.series.categories[catName].pieces;
+      allForecasts['pcs_' + catName] = computeAllMethodEnsemble(pData, trainDates, horizon);
+      const rData = S.series.categories[catName].revenue;
+      if (rData.some(v => v > 0)) {
+        allForecasts['rev_' + catName] = computeAllMethodEnsemble(rData, trainDates, horizon);
+      }
+    }
+    allForecasts['Total Pieces'] = computeAllMethodEnsemble(S.series.totalPieces, trainDates, horizon);
+    if (S.series.totalRevenue.some(v => v > 0)) {
+      allForecasts['Total Revenue'] = computeAllMethodEnsemble(S.series.totalRevenue, trainDates, horizon);
+    }
+
+    // Header
+    const colNames = [];
+    for (const catName of catNames) {
+      colNames.push(catName + ' (pcs)');
+      if (allForecasts['rev_' + catName]) colNames.push(catName + ' ($)');
+    }
+    colNames.push('Total Pieces');
+    if (allForecasts['Total Revenue']) colNames.push('Total Revenue ($)');
+
+    lines.push('Date\tDOW\t' + colNames.join('\t'));
+
+    for (let h = 0; h < horizon; h++) {
+      const d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
+      const vals = [];
+      for (const catName of catNames) {
+        vals.push(Math.round(allForecasts['pcs_' + catName][h]));
+        if (allForecasts['rev_' + catName]) vals.push(allForecasts['rev_' + catName][h].toFixed(2));
+      }
+      vals.push(Math.round(allForecasts['Total Pieces'][h]));
+      if (allForecasts['Total Revenue']) vals.push(allForecasts['Total Revenue'][h].toFixed(2));
+      lines.push(formatDateISO(d) + '\t' + DOW_NAMES[d.getDay()] + '\t' + vals.join('\t'));
+    }
+  } else {
+    // Selected series only
+    const fc = computeAllMethodEnsemble(data, dates, horizon);
+    const label = getSeriesLabel();
+    lines.push('Date\tDOW\t' + label);
+    for (let h = 0; h < horizon; h++) {
+      const d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
+      const v = label.includes('$') ? fc[h].toFixed(2) : String(Math.round(fc[h]));
+      lines.push(formatDateISO(d) + '\t' + DOW_NAMES[d.getDay()] + '\t' + v);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function computeAllMethodEnsemble(seriesData, seriesDates, horizon) {
+  const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled);
+  const totalW = enabledKeys.reduce((s,k) => s + S.methods[k].weight, 0);
+  if (totalW === 0 || enabledKeys.length === 0) return new Array(horizon).fill(0);
+
+  const ensemble = new Array(horizon).fill(0);
+  for (const k of enabledKeys) {
+    const fc = runMethod(k, seriesData, seriesDates, horizon);
+    const w = S.methods[k].weight / totalW;
+    for (let i = 0; i < horizon; i++) ensemble[i] += w * fc[i];
+  }
+  return ensemble;
+}
+
+/* ==================================================================
+   SAMPLE DATA GENERATOR
+   ================================================================== */
+function generateSampleData() {
+  const startDate = new Date(2025, 0, 1);
+  const endDate = new Date(2026, 2, 1);
+  const rows = ['Date\tDry Cleaning\tLaundry\tAlterations\tHousehold\tTotal Pcs\tTotal Rev'];
+
+  const totalDays = Math.round((endDate - startDate) / 86400000) + 1;
+  for (let dayIdx = 0; dayIdx < totalDays; dayIdx++) {
+    const d = new Date(startDate.getTime() + dayIdx * 86400000);
+    const dow = d.getDay();
+    const dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 86400000);
+
+    // Seasonal multiplier (busier in spring Mar-May and fall Sep-Nov)
+    const seasonal = 1 + 0.15 * Math.sin((dayOfYear - 60) * 2 * Math.PI / 365) + 0.08 * Math.sin((dayOfYear - 240) * 2 * Math.PI / 365);
+
+    // Day-of-week multiplier
+    const dowMult = [0.15, 1.0, 0.95, 0.88, 0.92, 1.05, 0.55][dow];
+
+    // Base piece counts per category
+    const noise = () => 0.85 + Math.random() * 0.3;
+    const dc = Math.round(42 * seasonal * dowMult * noise());
+    const laundry = Math.round(30 * seasonal * dowMult * noise());
+    const alt = Math.round(12 * seasonal * dowMult * noise());
+    const hh = Math.round(7 * seasonal * dowMult * noise());
+    const total = dc + laundry + alt + hh;
+
+    // Revenue: approximate per-piece pricing
+    const rev = (dc * 7.5 + laundry * 4.0 + alt * 14.0 + hh * 8.5) * (0.95 + Math.random() * 0.1);
+
+    const dateStr = (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+    rows.push(dateStr + '\t' + dc + '\t' + laundry + '\t' + alt + '\t' + hh + '\t' + total + '\t$' + rev.toFixed(2));
+  }
+
+  return rows.join('\n');
+}
+
+/* ==================================================================
+   UI RENDERING
+   ================================================================== */
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tabId));
+}
+
+function renderColumnMappings() {
+  const el = document.getElementById('colMappings');
+  const { headers, rows } = S.raw;
+  const detected = autoDetectColumns(headers, rows);
+  S.mappings = detected;
+
+  el.innerHTML = '';
+  headers.forEach((h, i) => {
+    const col = detected.columns.find(c => c.index === i) || { type: 'skip', name: h };
+    const sample = rows.slice(0, 3).map(r => r[i] || '').join(', ');
+    const div = document.createElement('div');
+    div.className = 'col-map-item';
+    div.innerHTML =
+      '<label>' + escHtml(h || 'Col ' + (i+1)) + '</label>' +
+      '<select data-col="' + i + '" class="col-type-select">' +
+        '<option value="date"' + (col.type === 'date' ? ' selected' : '') + '>Date</option>' +
+        '<option value="pieces"' + (col.type === 'pieces' ? ' selected' : '') + '>Pieces</option>' +
+        '<option value="revenue"' + (col.type === 'revenue' ? ' selected' : '') + '>Revenue</option>' +
+        '<option value="skip"' + (col.type === 'skip' ? ' selected' : '') + '>Skip</option>' +
+      '</select>' +
+      '<div class="preview">' + escHtml(sample) + '</div>';
+    el.appendChild(div);
+  });
+
+  document.getElementById('mappingCard').style.display = '';
+}
+
+function readColumnMappings() {
+  const selects = document.querySelectorAll('.col-type-select');
+  const columns = [];
+  let dateCol = -1;
+  selects.forEach(sel => {
+    const i = parseInt(sel.dataset.col);
+    const type = sel.value;
+    const name = S.raw.headers[i] || ('Column ' + (i+1));
+    if (type === 'date') dateCol = i;
+    columns.push({ index: i, type, name });
+  });
+  S.mappings = { dateCol, columns };
+  return dateCol >= 0;
+}
+
+function renderDataPreview() {
+  const table = document.getElementById('previewTable');
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+
+  const dates = S.series.dates;
+  const cats = S.series.categories;
+  const catNames = Object.keys(cats);
+
+  let headerHTML = '<tr><th>Date</th><th>DOW</th>';
+  catNames.forEach(n => {
+    headerHTML += '<th class="num">' + escHtml(n) + '</th>';
+  });
+  headerHTML += '<th class="num" style="font-weight:700">Total Pcs</th>';
+  if (S.series.totalRevenue.some(v => v > 0)) headerHTML += '<th class="num">Total Rev</th>';
+  headerHTML += '</tr>';
+  thead.innerHTML = headerHTML;
+
+  let bodyHTML = '';
+  const showRows = Math.min(dates.length, 50);
+  for (let i = 0; i < showRows; i++) {
+    bodyHTML += '<tr><td>' + formatDateShort(dates[i]) + '</td><td>' + DOW_NAMES[dates[i].getDay()] + '</td>';
+    catNames.forEach(n => {
+      bodyHTML += '<td class="num">' + cats[n].pieces[i] + '</td>';
+    });
+    bodyHTML += '<td class="num" style="font-weight:600">' + S.series.totalPieces[i] + '</td>';
+    if (S.series.totalRevenue.some(v => v > 0)) bodyHTML += '<td class="num">$' + S.series.totalRevenue[i].toFixed(2) + '</td>';
+    bodyHTML += '</tr>';
+  }
+  if (dates.length > showRows) {
+    bodyHTML += '<tr><td colspan="99" style="text-align:center;color:var(--text-muted);padding:8px">... and ' + (dates.length - showRows) + ' more rows</td></tr>';
+  }
+  tbody.innerHTML = bodyHTML;
+
+  document.getElementById('dataStats').textContent = dates.length + ' days \u00B7 ' + catNames.length + ' categories';
+  document.getElementById('previewCard').style.display = '';
+}
+
+function populateSeriesDropdowns() {
+  const cats = S.series.categories;
+  const catNames = Object.keys(cats);
+  const hasRevenue = S.series.totalRevenue.some(v => v > 0);
+
+  const options = ['<option value="__total_pieces">Total Pieces</option>'];
+  if (hasRevenue) options.push('<option value="__total_revenue">Total Revenue ($)</option>');
+  catNames.forEach(n => {
+    if (cats[n].pieces.some(v => v > 0)) {
+      options.push('<option value="pieces:' + escHtml(n) + '">' + escHtml(n) + ' (pcs)</option>');
+    }
+    if (cats[n].revenue.some(v => v > 0)) {
+      options.push('<option value="revenue:' + escHtml(n) + '">' + escHtml(n) + ' ($)</option>');
+    }
+  });
+
+  const html = options.join('');
+  document.getElementById('seriesSelect').innerHTML = html;
+  document.getElementById('seriesSelect').disabled = false;
+  document.getElementById('forecastSeriesSelect').innerHTML = html;
+}
+
+function renderMethodGrid() {
+  const grid = document.getElementById('methodGrid');
+  grid.innerHTML = '';
+
+  for (const [key, m] of Object.entries(S.methods)) {
+    const btKey = String(S.backtestWindow);
+    const bt = S.backtestResults[btKey];
+    let mapeStr = '', mapeClass = '';
+    if (bt && bt.results[key]) {
+      const mape = bt.results[key].mape;
+      mapeStr = mape.toFixed(1) + '%';
+      mapeClass = mape < 10 ? 'good' : mape < 20 ? 'ok' : 'bad';
+    }
+
+    let paramsHTML = '';
+    if (key === 'recent') {
+      paramsHTML = '<div class="param-row"><label>Weeks:</label><input type="number" class="param-input" data-method="' + key + '" data-param="weeks" value="' + m.params.weeks + '" min="2" max="16" step="1"></div>';
+    } else if (key === 'expSmooth') {
+      paramsHTML = '<div class="param-row"><label>Alpha:</label><input type="number" class="param-input" data-method="' + key + '" data-param="alpha" value="' + m.params.alpha + '" min="0.01" max="0.99" step="0.05"></div>';
+    } else if (key === 'hw') {
+      paramsHTML =
+        '<div class="param-row"><label>\u03B1:</label><input type="number" class="param-input" data-method="' + key + '" data-param="alpha" value="' + m.params.alpha + '" min="0.01" max="0.99" step="0.05">' +
+        '<label>\u03B2:</label><input type="number" class="param-input" data-method="' + key + '" data-param="beta" value="' + m.params.beta + '" min="0.01" max="0.5" step="0.01">' +
+        '<label>\u03B3:</label><input type="number" class="param-input" data-method="' + key + '" data-param="gamma" value="' + m.params.gamma + '" min="0.01" max="0.99" step="0.05"></div>';
+    }
+
+    const card = document.createElement('div');
+    card.className = 'method-card' + (m.enabled ? ' active' : '');
+    card.innerHTML =
+      '<div class="method-header">' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<label class="toggle"><input type="checkbox"' + (m.enabled ? ' checked' : '') + ' data-method-toggle="' + key + '"><span class="slider"></span></label>' +
+          '<span class="method-name">' + escHtml(m.name) + '</span>' +
+        '</div>' +
+        (mapeStr ? '<span class="method-mape ' + mapeClass + '">' + mapeStr + '</span>' : '') +
+      '</div>' +
+      '<div class="weight-row">' +
+        '<label>Weight:</label>' +
+        '<input type="range" class="weight-slider" data-method-weight="' + key + '" min="0" max="100" value="' + m.weight + '"' + (!m.enabled ? ' disabled' : '') + '>' +
+        '<span class="weight-val">' + m.weight + '</span>' +
+      '</div>' +
+      paramsHTML;
+
+    grid.appendChild(card);
+  }
+
+  // Event listeners
+  grid.querySelectorAll('[data-method-toggle]').forEach(cb => {
+    cb.addEventListener('change', function() {
+      const k = this.dataset.methodToggle;
+      S.methods[k].enabled = this.checked;
+      const card = this.closest('.method-card');
+      card.classList.toggle('active', this.checked);
+      const slider = card.querySelector('.weight-slider');
+      if (slider) slider.disabled = !this.checked;
+    });
+  });
+
+  grid.querySelectorAll('[data-method-weight]').forEach(sl => {
+    sl.addEventListener('input', function() {
+      const k = this.dataset.methodWeight;
+      S.methods[k].weight = parseInt(this.value);
+      this.nextElementSibling.textContent = this.value;
+    });
+  });
+
+  grid.querySelectorAll('.param-input[data-method]').forEach(inp => {
+    inp.addEventListener('change', function() {
+      const k = this.dataset.method;
+      const p = this.dataset.param;
+      S.methods[k].params[p] = parseFloat(this.value);
+    });
+  });
+}
+
+function renderWindowPills() {
+  const el = document.getElementById('windowPills');
+  const maxWin = S.series.dates.length - 14;
+  el.innerHTML = '';
+  WINDOWS.forEach(w => {
+    const pill = document.createElement('button');
+    pill.className = 'window-pill' + (w === S.backtestWindow ? ' active' : '');
+    pill.textContent = w + ' days';
+    pill.disabled = w > maxWin;
+    if (w > maxWin) pill.style.opacity = '0.4';
+    pill.addEventListener('click', () => {
+      S.backtestWindow = w;
+      el.querySelectorAll('.window-pill').forEach(p => p.classList.toggle('active', parseInt(p.textContent) === w));
+    });
+    el.appendChild(pill);
+  });
+}
+
+function renderMAPETable(bt) {
+  if (!bt) return;
+  const table = document.getElementById('mapeTable');
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+
+  thead.innerHTML = '<tr><th>Method</th><th style="text-align:right">MAPE</th><th style="text-align:right">MAE</th><th>Visual</th></tr>';
+
+  const allMapes = Object.values(bt.results).map(r => r.mape).filter(m => m < 900);
+  const maxMape = Math.max(...allMapes, 1);
+
+  let bodyHTML = '';
+  const sortedKeys = Object.keys(bt.results).filter(k => k !== '__ensemble').sort((a,b) => bt.results[a].mape - bt.results[b].mape);
+
+  sortedKeys.forEach(k => {
+    const r = bt.results[k];
+    const mapeClass = r.mape < 10 ? 'good' : r.mape < 20 ? 'ok' : 'bad';
+    const barColor = r.mape < 10 ? 'var(--success)' : r.mape < 20 ? 'var(--warning)' : 'var(--error)';
+    const barW = Math.min(120, (r.mape / maxMape) * 120);
+    bodyHTML += '<tr><td>' + escHtml(S.methods[k].name) + '</td>' +
+      '<td class="num" style="text-align:right"><span class="method-mape ' + mapeClass + '">' + r.mape.toFixed(1) + '%</span></td>' +
+      '<td class="num" style="text-align:right">' + r.mae.toFixed(1) + '</td>' +
+      '<td><span class="mape-bar" style="width:' + barW + 'px;background:' + barColor + '"></span></td></tr>';
+  });
+
+  if (bt.results.__ensemble) {
+    const e = bt.results.__ensemble;
+    const mapeClass = e.mape < 10 ? 'good' : e.mape < 20 ? 'ok' : 'bad';
+    bodyHTML += '<tr class="ensemble"><td><strong>Weighted Ensemble</strong></td>' +
+      '<td class="num" style="text-align:right"><span class="method-mape ' + mapeClass + '">' + e.mape.toFixed(1) + '%</span></td>' +
+      '<td class="num" style="text-align:right">' + e.mae.toFixed(1) + '</td>' +
+      '<td></td></tr>';
+  }
+
+  tbody.innerHTML = bodyHTML;
+  document.getElementById('mapeCard').style.display = '';
+}
+
+function renderForecastTable(fc) {
+  const table = document.getElementById('fcTable');
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+  const lastDate = S.series.dates[S.series.dates.length - 1];
+  const label = getSeriesLabel();
+  const isRevenue = label.includes('$');
+
+  thead.innerHTML = '<tr><th>Date</th><th>Day</th><th class="num">' + escHtml(label) + '</th></tr>';
+
+  let bodyHTML = '';
+  for (let h = 0; h < fc.length; h++) {
+    const d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
+    const val = isRevenue ? '$' + fc[h].toFixed(2) : Math.round(fc[h]);
+    bodyHTML += '<tr><td>' + formatDateISO(d) + '</td><td>' + DOW_NAMES[d.getDay()] + '</td><td class="num">' + val + '</td></tr>';
+  }
+  tbody.innerHTML = bodyHTML;
+  document.getElementById('fcResultCard').style.display = '';
+}
+
+function escHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function showNotification(msg, type) {
+  const existing = document.querySelector('.modal-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  const bgColor = type === 'error' ? 'var(--error)' : type === 'success' ? 'var(--success)' : 'var(--accent)';
+  overlay.innerHTML =
+    '<div class="modal-box">' +
+      '<h3 style="color:' + bgColor + '">' + (type === 'error' ? 'Error' : type === 'success' ? 'Success' : 'Info') + '</h3>' +
+      '<p>' + msg + '</p>' +
+      '<div class="modal-actions"><button class="btn btn-primary" onclick="this.closest(\'.modal-overlay\').remove()">OK</button></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+}
+
+/* ==================================================================
+   EVENT HANDLERS
+   ================================================================== */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+/* Shared post-load setup */
+function onDataLoaded() {
+  renderDataPreview();
+  populateSeriesDropdowns();
+  document.getElementById('noDataBacktest').style.display = 'none';
+  document.getElementById('backtestContent').style.display = '';
+  renderWindowPills();
+  const daySpan = (S.series.dates[S.series.dates.length - 1] - S.series.dates[0]) / 86400000;
+  S.methods.yoy.enabled = daySpan >= 365;
+  renderMethodGrid();
+  doBacktest();
+}
+
+document.getElementById('parseBtn').addEventListener('click', () => {
+  const text = document.getElementById('pasteArea').value.trim();
+  if (!text) { showNotification('Please paste your POS data first.', 'error'); return; }
+
+  if (isPOSReport(text)) {
+    // Auto-parse the multi-page POS "Sales Report By Category" format
+    const result = parsePOSReport(text);
+    if (!result || result.rows.length < 28) {
+      showNotification('Could not parse the POS report. Found ' + (result ? result.rows.length : 0) + ' data rows (need at least 28).', 'error');
+      return;
+    }
+    S.raw = { headers: result.headers, rows: result.rows };
+    S.mappings = result.mappings;
+    document.getElementById('mappingCard').style.display = 'none';
+
+    if (!processData()) {
+      showNotification('Failed to process the POS data. Please check the format.', 'error');
+      return;
+    }
+    showNotification('Auto-detected <strong>Sales Report By Category</strong> format.<br>' +
+      S.series.dates.length + ' days loaded across ' +
+      Object.keys(S.series.categories).length + ' categories (last day excluded).', 'success');
+    onDataLoaded();
+  } else {
+    // Generic tab/CSV format — show manual column mapping
+    const parsed = parseRawData(text);
+    if (!parsed || parsed.rows.length < 2) {
+      showNotification('Could not parse the data. Make sure it has at least a header row and 2 data rows.', 'error');
+      return;
+    }
+    S.raw = parsed;
+    renderColumnMappings();
+  }
+});
+
+document.getElementById('sampleBtn').addEventListener('click', () => {
+  document.getElementById('pasteArea').value = generateSampleData();
+  const parsed = parseRawData(document.getElementById('pasteArea').value);
+  S.raw = parsed;
+  renderColumnMappings();
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  document.getElementById('pasteArea').value = '';
+  document.getElementById('mappingCard').style.display = 'none';
+  document.getElementById('previewCard').style.display = 'none';
+});
+
+document.getElementById('loadDataBtn').addEventListener('click', () => {
+  if (!readColumnMappings()) {
+    showNotification('Please assign one column as "Date".', 'error');
+    return;
+  }
+  const piecesCols = S.mappings.columns.filter(c => c.type === 'pieces');
+  if (piecesCols.length === 0) {
+    showNotification('Please assign at least one column as "Pieces".', 'error');
+    return;
+  }
+  if (!processData()) {
+    showNotification('Failed to process data. Check your date column is valid.', 'error');
+    return;
+  }
+  if (S.series.dates.length < 28) {
+    showNotification('Need at least 28 days of data for meaningful forecasting. You have ' + S.series.dates.length + ' days.', 'error');
+    return;
+  }
+  document.getElementById('mappingStatus').textContent = '\u2705 Loaded ' + S.series.dates.length + ' days across ' + Object.keys(S.series.categories).length + ' categories';
+  onDataLoaded();
+});
+
+document.getElementById('seriesSelect').addEventListener('change', function() {
+  S.activeSeries = this.value;
+  document.getElementById('forecastSeriesSelect').value = this.value;
+  if (S.dataLoaded) doBacktest();
+});
+
+document.getElementById('runBacktestBtn').addEventListener('click', doBacktest);
+
+document.getElementById('autoOptBtn').addEventListener('click', () => {
+  document.getElementById('backtestStatus').innerHTML = '<span class="spinner"></span> Optimizing...';
+  setTimeout(() => {
+    autoOptimize();
+    renderMethodGrid();
+    doBacktest();
+    document.getElementById('backtestStatus').textContent = '\u2705 Weights optimized';
+  }, 50);
+});
+
+document.getElementById('genForecastBtn').addEventListener('click', doForecast);
+
+document.getElementById('copyExportBtn').addEventListener('click', () => {
+  const text = document.getElementById('exportArea').textContent;
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      const st = document.getElementById('copyStatus');
+      st.style.display = 'inline';
+      setTimeout(() => { st.style.display = 'none'; }, 2000);
+    });
+  }
+});
+
+function doBacktest() {
+  const bt = runBacktest(S.backtestWindow);
+  if (!bt) {
+    showNotification('Not enough data for a ' + S.backtestWindow + '-day backtest. Need at least ' + (S.backtestWindow + 14) + ' days.', 'error');
+    return;
+  }
+  S.backtestResults[String(S.backtestWindow)] = bt;
+
+  renderMAPETable(bt);
+  renderBacktestChart(bt);
+  document.getElementById('btChartCard').style.display = '';
+  renderMethodGrid(); // Update MAPE badges
+
+  // Enable forecast tab
+  document.getElementById('noDataForecast').style.display = 'none';
+  document.getElementById('forecastContent').style.display = '';
+
+  document.getElementById('backtestStatus').textContent = '\u2705 Backtest complete (' + S.backtestWindow + ' days)';
+}
+
+function doForecast() {
+  const horizon = parseInt(document.getElementById('horizonInput').value) || 14;
+  S.forecastHorizon = horizon;
+
+  const selVal = document.getElementById('forecastSeriesSelect').value;
+  S.activeSeries = selVal;
+  document.getElementById('seriesSelect').value = selVal;
+
+  const data = getActiveSeries();
+  const dates = S.series.dates;
+  const fc = computeAllMethodEnsemble(data, dates, horizon);
+
+  S.forecastResults = fc;
+  renderForecastTable(fc);
+
+  const btKey = String(S.backtestWindow);
+  const btResult = S.backtestResults[btKey];
+  const mape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.mape.toFixed(1) + '% MAPE' : '';
+  document.getElementById('fcBadge').textContent = horizon + '-day forecast \u00B7 ' + mape;
+
+  renderForecastChart(fc, Math.min(60, data.length));
+  document.getElementById('fcChartCard').style.display = '';
+
+  // Enable export
+  document.getElementById('noDataExport').style.display = 'none';
+  document.getElementById('exportContent').style.display = '';
+  document.getElementById('exportArea').textContent = generateExport(document.getElementById('exportScope').value);
+}
+
+document.getElementById('exportScope').addEventListener('change', function() {
+  if (S.forecastResults) {
+    document.getElementById('exportArea').textContent = generateExport(this.value);
+  }
+});
+
+document.getElementById('forecastSeriesSelect').addEventListener('change', function() {
+  S.activeSeries = this.value;
+  document.getElementById('seriesSelect').value = this.value;
+});
+</script>
+</body>
+</html>
