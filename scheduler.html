@@ -486,16 +486,28 @@ select.form-input { appearance: auto; }
         <div style="display:flex;gap:8px;align-items:center;">
           <select id="forecastDaysSelect" class="form-input" style="width:auto;padding:4px 8px;font-size:13px;" onchange="changeForecastDays(this.value)">
             <option value="3">3 Days</option>
-            <option value="7">7 Days</option>
-            <option value="14" selected>14 Days</option>
-            <option value="21">21 Days</option>
+            <option value="7">1 Week</option>
+            <option value="14" selected>2 Weeks</option>
+            <option value="21">3 Weeks</option>
             <option value="30">1 Month</option>
+            <option value="60">2 Months</option>
+            <option value="90">3 Months</option>
+            <option value="180">6 Months</option>
+            <option value="365">1 Year</option>
           </select>
           <button class="btn btn-sm btn-secondary" onclick="runForecast()">&#x1F504; Run Forecast</button>
           <button class="btn btn-sm btn-secondary" onclick="saveForeccastSnapshot()" style="margin-left:4px;">💾 Save</button>
         </div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:0 16px 8px;">
+        <label style="font-size:12px;color:var(--muted);font-weight:600;">VIEW</label>
+        <select id="fcViewToggle" class="form-input" style="width:auto;padding:3px 8px;font-size:13px;" onchange="changeForecastView()">
+          <option value="daily" selected>Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+        <span style="border-left:1px solid var(--border);height:20px;"></span>
         <label style="font-size:12px;color:var(--muted);font-weight:600;">METRIC</label>
         <select id="fcMetricToggle" class="form-input" style="width:auto;padding:3px 8px;font-size:13px;" onchange="renderForecastChart()">
           <option value="sales" selected>Sales ($)</option>
@@ -3135,9 +3147,20 @@ function renderWeatherPreview() {
 
 /* ============ RUN FORECAST ============ */
 function changeForecastDays(val) {
-  AppState.settings.forecastDays = parseInt(val, 10) || 14;
+  var days = parseInt(val, 10) || 14;
+  AppState.settings.forecastDays = days;
   var titleEl = document.getElementById('forecastTitle');
-  if (titleEl) titleEl.textContent = val + '-Day Sales Forecast';
+  var view = (document.getElementById('fcViewToggle') || {}).value || 'daily';
+  var viewLabel = view === 'daily' ? '' : (' (' + view.charAt(0).toUpperCase() + view.slice(1) + ')');
+  /* Friendly title based on duration */
+  var durLabel;
+  if (days <= 21) durLabel = days + '-Day';
+  else if (days <= 31) durLabel = '1-Month';
+  else if (days <= 62) durLabel = '2-Month';
+  else if (days <= 93) durLabel = '3-Month';
+  else if (days <= 186) durLabel = '6-Month';
+  else durLabel = '1-Year';
+  if (titleEl) titleEl.textContent = durLabel + ' Sales Forecast' + viewLabel;
   runForecast();
   renderForecastChart();
   renderForecastTable();
@@ -3725,8 +3748,143 @@ function getDailyPieces() {
     .map(function(e){return {date:e[0], total:e[1]};});
 }
 
+/* ============ FORECAST VIEW AGGREGATION ============ */
+/* Groups daily forecast data into weekly/monthly/yearly buckets */
+function getISOWeekKey(dateStr) {
+  /* Returns 'YYYY-Www' ISO week key for grouping */
+  var d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  var yearStart = new Date(d.getFullYear(), 0, 4);
+  var weekNum = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  return d.getFullYear() + '-W' + String(weekNum).padStart(2, '0');
+}
+
+function getMonthKey(dateStr) { return dateStr.slice(0, 7); /* YYYY-MM */ }
+function getYearKey(dateStr) { return dateStr.slice(0, 4); /* YYYY */ }
+
+function formatWeekLabel(weekKey, dates) {
+  /* Format: "Mar 3 – Mar 9" using the first and last dates in the week */
+  if (!dates || dates.length === 0) return weekKey;
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var first = dates[0], last = dates[dates.length - 1];
+  var d1 = new Date(first + 'T12:00:00'), d2 = new Date(last + 'T12:00:00');
+  return months[d1.getMonth()] + ' ' + d1.getDate() + ' – ' + months[d2.getMonth()] + ' ' + d2.getDate();
+}
+
+function formatMonthLabel(monthKey) {
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var parts = monthKey.split('-');
+  return months[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
+}
+
+function aggregateForecasts(forecasts, pcsFcArr, view) {
+  /* Aggregate daily forecasts into the given view period.
+     Returns array of { label, key, dateFrom, dateTo, totalSales, totalPcs, totalHours, totalCost, dayCount, closedDays, days[] } */
+  if (view === 'daily') return null; /* No aggregation needed */
+  var pRatio = getPiecesPerDollar();
+  var hasPcsFc = pcsFcArr && pcsFcArr.length > 0;
+  var pcsFcMap = {};
+  if (hasPcsFc) pcsFcArr.forEach(function(p) { pcsFcMap[p.date] = p.predicted; });
+
+  var keyFn;
+  if (view === 'weekly') keyFn = getISOWeekKey;
+  else if (view === 'monthly') keyFn = getMonthKey;
+  else keyFn = getYearKey;
+
+  /* Group daily forecasts by period */
+  var groups = {};
+  var groupOrder = [];
+  forecasts.forEach(function(f) {
+    var key = keyFn(f.date);
+    if (!groups[key]) {
+      groups[key] = { key: key, days: [], totalSales: 0, totalPcs: 0, totalHours: 0, closedDays: 0, dates: [] };
+      groupOrder.push(key);
+    }
+    var closed = isClosedDate(f.date);
+    var fcPcs = hasPcsFc && pcsFcMap[f.date] != null ? Math.round(pcsFcMap[f.date]) : Math.round(f.predicted * pRatio);
+    var hours = calculateDailyHours(f.predicted, f.date, fcPcs);
+    groups[key].days.push(f);
+    groups[key].dates.push(f.date);
+    if (closed) {
+      groups[key].closedDays++;
+    } else {
+      groups[key].totalSales += f.predicted;
+      groups[key].totalPcs += fcPcs;
+      groups[key].totalHours += hours;
+    }
+  });
+
+  /* Build result array */
+  return groupOrder.map(function(key) {
+    var g = groups[key];
+    var label;
+    if (view === 'weekly') label = formatWeekLabel(key, g.dates);
+    else if (view === 'monthly') label = formatMonthLabel(key);
+    else label = key;
+    var avgWage = AppState.settings.avgWage || 18;
+    return {
+      key: key,
+      label: label,
+      dateFrom: g.dates[0],
+      dateTo: g.dates[g.dates.length - 1],
+      totalSales: g.totalSales,
+      totalPcs: g.totalPcs,
+      totalHours: g.totalHours,
+      totalCost: g.totalHours * avgWage,
+      dayCount: g.days.length,
+      openDays: g.days.length - g.closedDays,
+      closedDays: g.closedDays,
+      avgSales: g.days.length - g.closedDays > 0 ? g.totalSales / (g.days.length - g.closedDays) : 0,
+      avgPcs: g.days.length - g.closedDays > 0 ? g.totalPcs / (g.days.length - g.closedDays) : 0,
+      avgHours: g.days.length - g.closedDays > 0 ? g.totalHours / (g.days.length - g.closedDays) : 0,
+      days: g.days
+    };
+  });
+}
+
+function aggregateActuals(dailyArr, view) {
+  /* Aggregate actual daily data into the given view period */
+  if (view === 'daily') return null;
+  var keyFn;
+  if (view === 'weekly') keyFn = getISOWeekKey;
+  else if (view === 'monthly') keyFn = getMonthKey;
+  else keyFn = getYearKey;
+  var groups = {};
+  var groupOrder = [];
+  dailyArr.forEach(function(d) {
+    var key = keyFn(d.date);
+    if (!groups[key]) { groups[key] = { total: 0, count: 0 }; groupOrder.push(key); }
+    if (isCleanDay(d)) {
+      groups[key].total += d.total;
+      groups[key].count++;
+    }
+  });
+  var result = {};
+  groupOrder.forEach(function(key) { result[key] = groups[key]; });
+  return result;
+}
+
+function changeForecastView() {
+  var view = (document.getElementById('fcViewToggle') || {}).value || 'daily';
+  /* Auto-adjust forecast days if view is bigger than current horizon */
+  var daysSelect = document.getElementById('forecastDaysSelect');
+  var currentDays = parseInt(daysSelect.value, 10) || 14;
+  if (view === 'weekly' && currentDays < 7) {
+    daysSelect.value = '14'; changeForecastDays('14'); return;
+  }
+  if (view === 'monthly' && currentDays < 30) {
+    daysSelect.value = '90'; changeForecastDays('90'); return;
+  }
+  if (view === 'yearly' && currentDays < 365) {
+    daysSelect.value = '365'; changeForecastDays('365'); return;
+  }
+  renderForecastChart();
+  renderForecastTable();
+}
+
 function renderForecastChart() {
   var metric = (document.getElementById('fcMetricToggle') || {}).value || 'sales';
+  var view = (document.getElementById('fcViewToggle') || {}).value || 'daily';
   var isPcs = metric === 'pieces';
   var pRatio = getPiecesPerDollar();
   var fromDate = (document.getElementById('fcCompareFrom') || {}).value || '';
@@ -3735,6 +3893,46 @@ function renderForecastChart() {
   /* Use real pieces forecast when available, fallback to $ × ratio */
   var fc = isPcs && AppState.forecastCachePcs.length > 0 ? AppState.forecastCachePcs : AppState.forecastCache;
   var needConvert = isPcs && AppState.forecastCachePcs.length === 0;
+
+  /* ---- AGGREGATED CHART VIEW (Weekly / Monthly / Yearly) ---- */
+  if (view !== 'daily' && fc.length > 0) {
+    var aggFc = aggregateForecasts(AppState.forecastCache, AppState.forecastCachePcs, view);
+    var aggAct = aggregateActuals(daily, view);
+    if (aggFc && aggFc.length > 0) {
+      /* Build recent actuals in same period grouping for context */
+      var actKeys = aggAct ? Object.keys(aggAct) : [];
+      /* Take last N periods of actuals for context (same count as forecast periods, max 12) */
+      var nCtx = Math.min(aggFc.length, 12);
+      var recentActKeys = actKeys.slice(-nCtx);
+      var allLabels = recentActKeys.map(function(k) {
+        if (view === 'weekly') return k;
+        if (view === 'monthly') return formatMonthLabel(k).replace(/\s\d{4}$/, '');
+        return k;
+      }).concat(aggFc.map(function(g) {
+        if (view === 'weekly') return g.label.split(' – ')[0];
+        if (view === 'monthly') return g.label.replace(/\s\d{4}$/, '');
+        return g.label;
+      }));
+      var actData = recentActKeys.map(function(k) {
+        return isPcs ? (aggAct[k] ? aggAct[k].total : null) : (aggAct[k] ? aggAct[k].total : null);
+      }).concat(aggFc.map(function() { return null; }));
+      var fcData = recentActKeys.map(function() { return null; }).concat(
+        aggFc.map(function(g) { return isPcs ? g.totalPcs : g.totalSales; })
+      );
+      /* Connect forecast to last actual */
+      if (recentActKeys.length > 0 && aggFc.length > 0) {
+        var lastActKey = recentActKeys[recentActKeys.length - 1];
+        fcData[recentActKeys.length - 1] = aggAct[lastActKey] ? aggAct[lastActKey].total : null;
+      }
+      var aggLbl = isPcs ? 'Pieces' : 'Sales';
+      renderBarChart('forecastChart', allLabels, [
+        { label: 'Actual ' + aggLbl, data: actData, color: CHART_COLORS[0] },
+        { label: 'Forecast ' + aggLbl, data: fcData, color: CHART_COLORS[1] }
+      ]);
+      return;
+    }
+  }
+
   /* Compare mode: show forecast overlaid on actuals for same date range */
   if (fromDate && toDate && fc.length > 0) {
     var actSlice = daily.filter(function(d){return d.date >= fromDate && d.date <= toDate;});
@@ -3748,12 +3946,12 @@ function renderForecastChart() {
       fcMap[f.date] = needConvert ? Math.round(f.predicted * pRatio) : (isPcs ? Math.round(f.predicted) : f.predicted);
     });
     var labels = dates.map(function(d){return d.slice(5);});
-    var actData = dates.map(function(d){return actMap[d] != null ? actMap[d] : null;});
-    var fcData = dates.map(function(d){return fcMap[d] != null ? fcMap[d] : null;});
+    var cActData = dates.map(function(d){return actMap[d] != null ? actMap[d] : null;});
+    var cFcData = dates.map(function(d){return fcMap[d] != null ? fcMap[d] : null;});
     var lbl = isPcs ? 'Pieces' : 'Sales';
     renderLineChart('forecastChart', labels, [
-      {label:'Actual '+lbl, data:actData, color:CHART_COLORS[0]},
-      {label:'Forecast '+lbl, data:fcData, color:CHART_COLORS[1], dashed:true}
+      {label:'Actual '+lbl, data:cActData, color:CHART_COLORS[0]},
+      {label:'Forecast '+lbl, data:cFcData, color:CHART_COLORS[1], dashed:true}
     ]);
     return;
   }
@@ -3806,13 +4004,63 @@ function renderForecastTable() {
     wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;">Import sales data to see forecasts.</p>';
     return;
   }
+  var view = (document.getElementById('fcViewToggle') || {}).value || 'daily';
+
+  var html = '';
+
+  /* ---- AGGREGATED VIEWS (Weekly / Monthly / Yearly) ---- */
+  if (view !== 'daily') {
+    var agg = aggregateForecasts(AppState.forecastCache, AppState.forecastCachePcs, view);
+    if (!agg || agg.length === 0) { wrap.innerHTML = '<p style="color:var(--muted);">Not enough data for this view.</p>'; return; }
+    var viewTitle = view === 'weekly' ? 'Week' : (view === 'monthly' ? 'Month' : 'Year');
+    html = '<table><thead><tr><th>' + viewTitle + '</th><th style="text-align:right">Total Sales</th>' +
+      '<th style="text-align:right">Avg/Day</th>' +
+      '<th style="text-align:right">Total Pcs</th>' +
+      '<th style="text-align:right">Total Hours</th>' +
+      '<th style="text-align:right">Avg Hrs/Day</th>' +
+      '<th style="text-align:right">Est. Labor Cost</th>' +
+      '<th style="text-align:center">Open Days</th></tr></thead><tbody>';
+    var grandSales = 0, grandPcs = 0, grandHours = 0, grandCost = 0, grandOpen = 0;
+    agg.forEach(function(g) {
+      grandSales += g.totalSales; grandPcs += g.totalPcs; grandHours += g.totalHours;
+      grandCost += g.totalCost; grandOpen += g.openDays;
+      html += '<tr>' +
+        '<td><strong>' + g.label + '</strong><div style="font-size:10px;color:var(--muted);">' + g.dateFrom + ' → ' + g.dateTo + '</div></td>' +
+        '<td style="text-align:right;font-weight:600;">' + fmt(g.totalSales) + '</td>' +
+        '<td style="text-align:right;color:var(--muted);font-size:12px;">' + fmt(g.avgSales) + '</td>' +
+        '<td style="text-align:right;font-weight:600;">' + Math.round(g.totalPcs).toLocaleString() + '</td>' +
+        '<td style="text-align:right;color:var(--accent);font-weight:600;">' + fmtDec(g.totalHours) + '</td>' +
+        '<td style="text-align:right;color:var(--muted);font-size:12px;">' + fmtDec(g.avgHours) + '</td>' +
+        '<td style="text-align:right;font-weight:600;">' + fmt(g.totalCost) + '</td>' +
+        '<td style="text-align:center;">' + g.openDays + (g.closedDays > 0 ? ' <span style="color:var(--muted);font-size:11px;">(' + g.closedDays + ' closed)</span>' : '') + '</td>' +
+        '</tr>';
+    });
+    /* Grand total row */
+    var grandAvgSales = grandOpen > 0 ? grandSales / grandOpen : 0;
+    var grandAvgHours = grandOpen > 0 ? grandHours / grandOpen : 0;
+    html += '<tr style="background:var(--accent-bg);font-weight:700;border-top:2px solid var(--border);">' +
+      '<td>TOTAL</td>' +
+      '<td style="text-align:right;">' + fmt(grandSales) + '</td>' +
+      '<td style="text-align:right;font-size:12px;">' + fmt(grandAvgSales) + '</td>' +
+      '<td style="text-align:right;">' + Math.round(grandPcs).toLocaleString() + '</td>' +
+      '<td style="text-align:right;color:var(--accent);">' + fmtDec(grandHours) + '</td>' +
+      '<td style="text-align:right;font-size:12px;">' + fmtDec(grandAvgHours) + '</td>' +
+      '<td style="text-align:right;">' + fmt(grandCost) + '</td>' +
+      '<td style="text-align:center;">' + grandOpen + '</td>' +
+      '</tr>';
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    return;
+  }
+
+  /* ---- DAILY VIEW (original) ---- */
   var pRatio = getPiecesPerDollar();
   /* Build pieces forecast lookup for direct pieces forecast */
   var pcsFcMap = {};
   AppState.forecastCachePcs.forEach(function(p) { pcsFcMap[p.date] = p.predicted; });
   var hasPcsFc = AppState.forecastCachePcs.length > 0;
   var hasCI = AppState.forecastCache.length > 0 && AppState.forecastCache[0].ciHigh != null;
-  let html = '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast Sales</th>';
+  html = '<table><thead><tr><th>Date</th><th>Day</th><th style="text-align:right">Forecast Sales</th>';
   if (hasCI) html += '<th style="text-align:right">Range</th>';
   html += '<th style="text-align:right">' + (hasPcsFc ? 'Forecast Pcs' : 'Est. Pieces') + '</th><th style="text-align:right">Rec. Hours</th>' +
     '<th style="text-align:right">Est. Cost</th><th>Holiday</th><th>Weather</th></tr></thead><tbody>';
@@ -4865,20 +5113,33 @@ function renderBarChart(canvasId, labels, data) {
   destroyChart(canvasId);
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
+  /* Support both simple array and multi-dataset [{label, data, color}] formats */
+  var isMulti = Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && data[0].label;
+  var dsArr;
+  if (isMulti) {
+    dsArr = data.map(function(ds) {
+      return {
+        label: ds.label,
+        data: ds.data,
+        backgroundColor: ds.color + '80',
+        borderColor: ds.color,
+        borderWidth: 2, borderRadius: 6
+      };
+    });
+  } else {
+    dsArr = [{
+      data: data,
+      backgroundColor: CHART_COLORS.slice(0, labels.length).map(function(c) { return c + '80'; }),
+      borderColor: CHART_COLORS.slice(0, labels.length),
+      borderWidth: 2, borderRadius: 6
+    }];
+  }
   chartInstances[canvasId] = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        data: data,
-        backgroundColor: CHART_COLORS.slice(0, labels.length).map(c => c + '80'),
-        borderColor: CHART_COLORS.slice(0, labels.length),
-        borderWidth: 2, borderRadius: 6
-      }]
-    },
+    data: { labels: labels, datasets: dsArr },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: isMulti, labels: { color: getChartTextColor(), font: { family: 'Outfit', size: 12 } } } },
       scales: {
         x: { ticks: { color: getChartTextColor(), font: { family: 'Outfit', size: 12 } }, grid: { display: false } },
         y: { ticks: { color: getChartTextColor(), font: { family: 'Outfit', size: 11 } }, grid: { color: getChartGridColor() } }
