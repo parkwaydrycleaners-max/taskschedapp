@@ -1001,6 +1001,13 @@ function parseCategoryReport(){
 
   records.sort((a,b)=>a.date.localeCompare(b.date));
 
+  // Always drop the last date — report is run mid-day so last day is incomplete
+  if(records.length>1){
+    const droppedDate=records[records.length-1].date;
+    records.pop();
+    statusEl.innerHTML='<span style="font-size:.8rem;color:var(--text3)">Dropped incomplete last day: '+droppedDate+'</span>';
+  }
+
   // Build category-level services
   const catDefs=[
     {key:'dry',name:'Dry Cleaning',pF:'dryPcs',aF:'dryAmt'},
