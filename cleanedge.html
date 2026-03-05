@@ -819,6 +819,18 @@ function renderSalesTable(){
 function deleteSalesRow(idx){APP.salesData.splice(idx,1);renderSalesTable();showToast('Record deleted','info')}
 function clearAllSales(){showModal('Clear All Sales Data','Remove all sales records? This cannot be undone.',()=>{APP.salesData=[];renderSalesTable();showToast('All sales cleared','info')})}
 
+/* ======== CATEGORIZE SERVICE ======== */
+function categorizeService(name){
+  const n=name.toLowerCase();
+  const altKeys=['hem','taper','take-in','take in','zipper','patch','repair','sew','create','button','sleeve length','sleeve take','waist','elastic','crotch','belt loop','let out','hook','cuff','bustle','puller','seam','pocket','slit','shoulder strap','suspender','custom per hour'];
+  const rushKeys=['rush'];
+  const specKeys=['sneaker','leather','wedding','comforter','table cover','drape','blanket','rug','sheet','pillow','bag','glove','ugg','sleeping','shoe','sandal','boot','handbag','sports cap','placemat','other','belt','wallet','backpack','loafer','high heel','pineapple'];
+  if(rushKeys.some(k=>n.includes(k)))return'Rush';
+  if(altKeys.some(k=>n.includes(k)))return'Alterations';
+  if(specKeys.some(k=>n.includes(k)))return'Specialty';
+  return'Dry Cleaning';
+}
+
 /* ======== PASTE POS REPORT PARSER ======== */
 function parsePastedReport(){
   const raw=document.getElementById('pasteArea').value.trim();
@@ -834,17 +846,7 @@ function parsePastedReport(){
   const parsed=[];
   let currentName=null;
 
-  // Categoriser: maps service name keywords to categories
-  function categorize(name){
-    const n=name.toLowerCase();
-    const altKeys=['hem','taper','take-in','take in','zipper','patch','repair','sew','create','button','sleeve length','sleeve take','waist','elastic','crotch','belt loop','let out','hook','cuff','bustle','puller','seam','pocket','slit','shoulder strap','suspender','custom per hour'];
-    const rushKeys=['rush'];
-    const specKeys=['sneaker','leather','wedding','comforter','table cover','drape','blanket','rug','sheet','pillow','bag','glove','ugg','sleeping','shoe','sandal','boot','handbag','sports cap','placemat','other'];
-    if(rushKeys.some(k=>n.includes(k)))return'Rush';
-    if(altKeys.some(k=>n.includes(k)))return'Alterations';
-    if(specKeys.some(k=>n.includes(k)))return'Specialty';
-    return'Dry Cleaning';
-  }
+  // Categoriser is now module-scope — see categorizeService()
 
   for(let i=0;i<lines.length;i++){
     const line=lines[i];
@@ -896,7 +898,7 @@ function parsePastedReport(){
   const newServices=parsed.map((p,i)=>({
     id:'p'+Date.now().toString(36)+i,
     name:p.name,
-    category:categorize(p.name),
+    category:categorizeService(p.name),
     price:p.unitPrice,
     totalPieces:p.pieces,
     totalAmount:p.amount,
@@ -1062,7 +1064,10 @@ function parsePriceList(){
   const parsed=Papa.parse(raw,{header:true,skipEmptyLines:true});
   if(!parsed.data||!parsed.data.length){statusEl.innerHTML='<span style="color:var(--danger)">⚠ No rows parsed. Check format.</span>';showToast('Could not parse price list','error');return}
   function normN(n){return n.replace(/\(\)/g,'').replace(/\([^)]*\)/g,'').replace(/\s*\+\s*/g,'+').replace(/\s+/g,' ').trim().toLowerCase()}
-  let matched=0;const unmatched=[];
+  // Skip system/utility rows by description or zero price+cost
+  const skipNames=['balance','sample only','restora','sales item','pickup/delivery','ozone odor'];
+  let matched=0,created=0,skipped=0;
+  const seen=new Set();
   parsed.data.forEach(row=>{
     const desc=row.Description||row.description||'';
     const costStr=row.DirectCOL||row.directcol||'';
@@ -1070,16 +1075,29 @@ function parsePriceList(){
     if(!desc)return;
     const cost=parseFloat(costStr.replace(/[$,]/g,''))||0;
     const price=parseFloat(priceStr.replace(/[$,]/g,''))||0;
-    if(price<=0&&cost<=0)return;
+    if(price<=0&&cost<=0){skipped++;return}
     const norm=normN(desc);
+    if(skipNames.some(sk=>norm.includes(sk))){skipped++;return}
+    if(seen.has(norm))return; // skip duplicate variants (e.g. Dress Shirt N/S, L/S, etc.)
+    seen.add(norm);
+    // Try matching existing service
     let svc=APP.services.find(s=>normN(s.name)===norm);
     if(!svc)svc=APP.services.find(s=>{const sn=normN(s.name);return sn.length>2&&(norm.includes(sn)||sn.includes(norm))});
-    if(svc){if(svc.setPrice==null){svc.setPrice=price;svc.costPrice=cost;matched++}}
-    else{const cl=desc.replace(/\(\)/g,'').replace(/\([^)]*\)/g,'').trim();if(cl.length>2&&price>0)unmatched.push(cl)}
+    if(svc){
+      svc.setPrice=price;svc.costPrice=cost;matched++;
+    }else{
+      // Create new service from price list
+      const cleanName=desc.replace(/\(\)/g,'').replace(/\([^)]*\)/g,'').replace(/\s*\+\s*/g,' + ').replace(/\s+/g,' ').trim();
+      if(cleanName.length<2)return;
+      const newSvc={id:uid(),name:cleanName,category:categorizeService(cleanName),price:price,setPrice:price,costPrice:cost,totalPieces:0,totalAmount:0,avgVol:0};
+      APP.services.push(newSvc);
+      APP.proposedPrices[newSvc.id]=price;
+      created++;
+    }
   });
-  statusEl.innerHTML='<span style="color:var(--success)">✓ Matched <strong>'+matched+'</strong> of '+APP.services.length+' services with pricing data</span>'+(unmatched.length?'<br><span style="font-size:.78rem;color:var(--text3)">Unmatched in price list ('+unmatched.length+'): '+unmatched.slice(0,8).join(', ')+(unmatched.length>8?' …':'')+'</span>':'');
-  showToast('Price list: '+matched+' services matched','success');
-  renderServicesTable();
+  statusEl.innerHTML='<span style="color:var(--success)">✓ Matched <strong>'+matched+'</strong> existing services, created <strong>'+created+'</strong> new'+(skipped>0?', skipped '+skipped+' system rows':'')+'</span><br><span style="font-size:.78rem;color:var(--text3)">Total catalog: '+APP.services.length+' services</span>';
+  showToast('Price list: '+matched+' matched, '+created+' created','success');
+  renderServicesTable();populateServiceDropdown();
 }
 
 /* file drop */
