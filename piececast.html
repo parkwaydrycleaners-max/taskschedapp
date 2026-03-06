@@ -362,9 +362,9 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
       <div class="method-grid" id="methodGrid"></div>
     </div>
 
-    <!-- MAPE Results -->
+    <!-- Accuracy Results -->
     <div class="card" id="mapeCard" style="display:none">
-      <div class="card-title"><span class="icon">&#x1F3AF;</span> MAPE Results</div>
+      <div class="card-title"><span class="icon">&#x1F3AF;</span> Accuracy Results</div>
       <div class="table-wrap">
         <table class="mape-table" id="mapeTable"><thead></thead><tbody></tbody></table>
       </div>
@@ -1675,8 +1675,8 @@ function calculateMAE(actual, forecast, dates) {
   return count > 0 ? sum / count : 0;
 }
 
-/* WAPE: Weighted Absolute Percentage Error = sum(|error|) / sum(actual)
-   Better than MAPE for high-variance data — doesn't overweight low-volume days */
+/* WMAPE: Weighted Mean Absolute Percentage Error = sum(|error|) / sum(actual)
+   Better than MAPE for high-variance data — weights errors by volume */
 function calculateWAPE(actual, forecast, dates) {
   let errorSum = 0, actualSum = 0;
   for (let i = 0; i < actual.length; i++) {
@@ -2065,7 +2065,7 @@ function generateExport(scope) {
   const fcEnd = new Date(lastDate); fcEnd.setDate(fcEnd.getDate() + horizon);
   lines.push('# Forecast Period: ' + formatDateISO(fcStart) + ' to ' + formatDateISO(fcEnd));
   lines.push('# Backtest Window: ' + S.backtestWindow + ' days');
-  lines.push('# Ensemble WAPE: ' + ensembleWape + '% | MAPE: ' + ensembleMape + '%');
+  lines.push('# Ensemble WMAPE: ' + ensembleWape + '% | MAPE: ' + ensembleMape + '%');
   if (S.closedDays.length > 0) {
     lines.push('# Closed Days: ' + S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') + ' (forecast=0)');
   }
@@ -2329,6 +2329,8 @@ function renderMethodGrid() {
       ],
       yoyTrend:  [{ key: 'recentWeeks', label: 'Recent wk', min: 2, max: 16, step: 1 }],
       multiYear: [{ key: 'windowDays', label: '\u00b1 Days', min: 3, max: 30, step: 1 }],
+      trimDow:   [{ key: 'trimPct', label: 'Trim %', min: 5, max: 40, step: 5 }],
+      momentum:  [{ key: 'lookback', label: 'Weeks', min: 1, max: 8, step: 1 }],
       expSmooth: [{ key: 'alpha', label: 'Alpha', min: 0.01, max: 0.99, step: 0.05 }]
     };
     const pmList = paramMeta[key];
@@ -2413,7 +2415,7 @@ function renderMAPETable(bt) {
   const thead = table.querySelector('thead');
   const tbody = table.querySelector('tbody');
 
-  thead.innerHTML = '<tr><th>Method</th><th style="text-align:right" title="Weighted Absolute % Error — better for high-variance data">WAPE</th><th style="text-align:right" title="Mean Absolute % Error">MAPE</th><th style="text-align:right">MAE</th><th>Visual</th></tr>';
+  thead.innerHTML = '<tr><th>Method</th><th style="text-align:right" title="Weighted Mean Absolute % Error = sum(|error|) / sum(actual). Better for high-variance data — weights errors by volume.">WMAPE</th><th style="text-align:right" title="Mean Absolute % Error — gives equal weight to each day">MAPE</th><th style="text-align:right" title="Mean Absolute Error in pieces">MAE</th><th>Visual</th></tr>';
 
   const allWapes = Object.values(bt.results).map(r => r.wape).filter(m => m < 900);
   const maxWape = Math.max(...allWapes, 1);
@@ -2739,7 +2741,7 @@ function doForecast() {
 
   const btKey = String(S.backtestWindow);
   const btResult = S.backtestResults[btKey];
-  const mape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.wape.toFixed(1) + '% WAPE' : '';
+  const mape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.wape.toFixed(1) + '% WMAPE' : '';
   document.getElementById('fcBadge').textContent = horizon + '-day forecast \u00B7 ' + mape;
 
   renderForecastChart(fc, Math.min(60, data.length));
@@ -2818,12 +2820,12 @@ document.getElementById('exportBacktestBtn').addEventListener('click', function(
   lines.push('');
 
   // Show per-method MAPE
-  lines.push('--- METHOD MAPES ---');
+  lines.push('--- METHOD METRICS ---');
   methodKeys.forEach(function(k) {
-    lines.push(S.methods[k].name + '\tWAPE: ' + bt.results[k].wape.toFixed(1) + '%\tMAPE: ' + bt.results[k].mape.toFixed(1) + '%\tMAE: ' + bt.results[k].mae.toFixed(1));
+    lines.push(S.methods[k].name + '\tWMAPE: ' + bt.results[k].wape.toFixed(1) + '%\tMAPE: ' + bt.results[k].mape.toFixed(1) + '%\tMAE: ' + bt.results[k].mae.toFixed(1));
   });
   if (bt.results.__ensemble) {
-    lines.push('Ensemble\tWAPE: ' + bt.results.__ensemble.wape.toFixed(1) + '%\tMAPE: ' + bt.results.__ensemble.mape.toFixed(1) + '%\tMAE: ' + bt.results.__ensemble.mae.toFixed(1));
+    lines.push('Ensemble\tWMAPE: ' + bt.results.__ensemble.wape.toFixed(1) + '%\tMAPE: ' + bt.results.__ensemble.mape.toFixed(1) + '%\tMAE: ' + bt.results.__ensemble.mae.toFixed(1));
   }
   lines.push('');
 
