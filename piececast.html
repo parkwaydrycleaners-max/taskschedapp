@@ -334,6 +334,10 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
       <div class="table-wrap">
         <table class="mape-table" id="mapeTable"><thead></thead><tbody></tbody></table>
       </div>
+      <div style="margin-top:12px">
+        <button class="btn btn-secondary" id="exportBacktestBtn">&#x1F4CB; Copy Backtest Debug Data</button>
+        <span id="exportBtStatus" style="font-size:.78rem;color:var(--text-muted);margin-left:8px"></span>
+      </div>
     </div>
 
     <!-- Backtest Chart -->
@@ -2158,6 +2162,91 @@ document.getElementById('exportScope').addEventListener('change', function() {
 document.getElementById('forecastSeriesSelect').addEventListener('change', function() {
   S.activeSeries = this.value;
   document.getElementById('seriesSelect').value = this.value;
+});
+
+document.getElementById('exportBacktestBtn').addEventListener('click', function() {
+  const btKey = String(S.backtestWindow);
+  const bt = S.backtestResults[btKey];
+  if (!bt) { showNotification('No backtest results to export.', 'error'); return; }
+
+  const lines = [];
+  lines.push('=== PIECECAST BACKTEST DEBUG EXPORT ===');
+  lines.push('Series: ' + getSeriesLabel());
+  lines.push('Window: ' + S.backtestWindow + ' data points');
+  lines.push('Closed Days: ' + (S.closedDays.length > 0 ? S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') : 'None'));
+  lines.push('');
+
+  // Show train tail (last 14 data points + dates)
+  lines.push('--- LAST 14 TRAINING POINTS ---');
+  lines.push('Index\tDate\tDOW\tValue');
+  const trainN = bt.trainData.length;
+  const tailStart = Math.max(0, trainN - 14);
+  for (let i = tailStart; i < trainN; i++) {
+    const d = bt.trainDates[i];
+    lines.push(i + '\t' + formatDateISO(d) + '\t' + DOW_NAMES[d.getDay()] + '\t' + bt.trainData[i]);
+  }
+  lines.push('');
+
+  // Show date gaps in data
+  lines.push('--- DATE GAP ANALYSIS (last 30 data points) ---');
+  const gapStart = Math.max(0, trainN - 30);
+  const allDates = bt.trainDates.concat(bt.testDates);
+  const allData = bt.trainData.concat(bt.testData);
+  for (let i = gapStart + 1; i < Math.min(allDates.length, gapStart + 45); i++) {
+    const diff = Math.round((allDates[i] - allDates[i - 1]) / 86400000);
+    if (diff > 1) {
+      lines.push('GAP: ' + formatDateISO(allDates[i - 1]) + ' -> ' + formatDateISO(allDates[i]) + ' (' + diff + ' calendar days, ' + (diff - 1) + ' missing)');
+    }
+  }
+  lines.push('');
+
+  // Show test data vs all method forecasts
+  const methodKeys = Object.keys(bt.results).filter(function(k) { return k !== '__ensemble'; });
+  lines.push('--- TEST DATA vs FORECASTS ---');
+  const header = ['Index', 'Date', 'DOW', 'Actual'];
+  methodKeys.forEach(function(k) { header.push(S.methods[k] ? S.methods[k].name : k); });
+  header.push('Ensemble');
+  lines.push(header.join('\t'));
+
+  for (let i = 0; i < bt.testData.length; i++) {
+    const d = bt.testDates[i];
+    const row = [i, formatDateISO(d), DOW_NAMES[d.getDay()], bt.testData[i]];
+    methodKeys.forEach(function(k) {
+      row.push(bt.results[k].forecast[i] !== undefined ? Math.round(bt.results[k].forecast[i] * 10) / 10 : 'N/A');
+    });
+    row.push(bt.results.__ensemble ? Math.round(bt.results.__ensemble.forecast[i] * 10) / 10 : 'N/A');
+    lines.push(row.join('\t'));
+  }
+  lines.push('');
+
+  // Show per-method MAPE
+  lines.push('--- METHOD MAPES ---');
+  methodKeys.forEach(function(k) {
+    lines.push(S.methods[k].name + '\tMAPE: ' + bt.results[k].mape.toFixed(1) + '%\tMAE: ' + bt.results[k].mae.toFixed(1));
+  });
+  if (bt.results.__ensemble) {
+    lines.push('Ensemble\tMAPE: ' + bt.results.__ensemble.mape.toFixed(1) + '%\tMAE: ' + bt.results.__ensemble.mae.toFixed(1));
+  }
+  lines.push('');
+
+  // Alignment debug info
+  lines.push('--- ALIGNMENT DEBUG ---');
+  const lastTrainDate = bt.trainDates[bt.trainDates.length - 1];
+  const firstTestDate = bt.testDates[0];
+  const lastTestDate = bt.testDates[bt.testDates.length - 1];
+  const calendarHorizon = Math.round((lastTestDate - lastTrainDate) / 86400000);
+  lines.push('Last train date: ' + formatDateISO(lastTrainDate) + ' (' + DOW_NAMES[lastTrainDate.getDay()] + ')');
+  lines.push('First test date: ' + formatDateISO(firstTestDate) + ' (' + DOW_NAMES[firstTestDate.getDay()] + ')');
+  lines.push('Last test date: ' + formatDateISO(lastTestDate) + ' (' + DOW_NAMES[lastTestDate.getDay()] + ')');
+  lines.push('Test data points: ' + bt.testData.length);
+  lines.push('Calendar horizon: ' + calendarHorizon + ' days');
+  lines.push('Gap between train end and test start: ' + Math.round((firstTestDate - lastTrainDate) / 86400000) + ' calendar days');
+
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(function() {
+    document.getElementById('exportBtStatus').textContent = '\u2705 Copied to clipboard!';
+    setTimeout(function() { document.getElementById('exportBtStatus').textContent = ''; }, 3000);
+  });
 });
 </script>
 </body>
