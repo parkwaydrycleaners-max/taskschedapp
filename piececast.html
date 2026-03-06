@@ -291,7 +291,7 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
   <!-- Outlier Alert -->
   <div id="outlierCard" class="card" style="display:none">
     <div class="card-title"><span class="icon">&#x26A0;&#xFE0F;</span> Outliers Detected <span id="outlierBadge" class="badge badge-error" style="margin-left:auto"></span></div>
-    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:10px">These data points are statistical outliers (&gt;3 standard deviations from the DOW mean). They will corrupt mean-based forecasts. You can auto-cap them or adjust in Settings.</p>
+    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:10px">These values exceed the max daily pieces cap (<span id="outlierCapDisplay">0</span> pieces). They will corrupt forecasts. Cap them below or adjust the threshold in <span style="font-size:.75rem;color:var(--accent);cursor:pointer" onclick="switchTab('settings');initSettingsUI();document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab==='settings')})">Settings &rarr;</span></p>
     <div class="table-wrap" style="max-height:200px;overflow-y:auto">
       <table class="data-table" id="outlierTable"><thead></thead><tbody></tbody></table>
     </div>
@@ -448,16 +448,16 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
   <div class="card animate-in">
     <div class="card-title"><span class="icon">&#x26A0;&#xFE0F;</span> Outlier Detection</div>
     <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:12px">
-      Values that are extreme outliers (far from the day-of-week mean) can corrupt forecasting methods. Configure the sensitivity and auto-cap to protect accuracy.
+      Set the maximum reasonable pieces per day. Any value above this is flagged as a data error and can be auto-capped.
     </p>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
-      <label class="settings-label">Outlier threshold:</label>
-      <input type="range" id="outlierThresholdSlider" class="threshold-slider" min="2" max="6" value="3" step="0.5">
-      <span id="outlierThresholdVal" class="mono" style="font-size:.82rem;min-width:56px">3.0 &sigma;</span>
+      <label class="settings-label">Max daily pieces:</label>
+      <input type="number" id="outlierCapInput" class="param-input" style="width:100px" min="50" max="99999" placeholder="e.g. 350">
+      <button class="btn btn-secondary btn-sm" id="autoCalcCapBtn">Auto-Calculate</button>
       <button class="btn btn-secondary btn-sm" id="rescanOutliersBtn">Re-scan</button>
-      <button class="btn btn-primary btn-sm" id="settingsCapOutliersBtn">Auto-Cap All</button>
+      <button class="btn btn-primary btn-sm" id="settingsCapOutliersBtn">Cap All Outliers</button>
     </div>
-    <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:10px">Values beyond <span id="outlierSigmaText">3.0</span>&sigma; from their DOW mean are flagged. Capping replaces them with the DOW cap (mean + threshold &times; StdDev).</p>
+    <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:10px">Auto-calculate uses the 99th percentile of your data. For your business, a typical cap might be 300&ndash;400 pieces.</p>
     <div id="settingsOutlierSummary" style="font-size:.82rem;color:var(--text-secondary)">No data loaded yet.</div>
   </div>
 
@@ -514,14 +514,16 @@ const S = {
     yoy:       { name: 'Year-over-Year',       enabled: true, weight: 5, params: {} },
     yoyTrend:  { name: 'YoY Trend-Adjusted',   enabled: true, weight: 10, params: { recentWeeks: 6 } },
     multiYear: { name: 'Multi-Year Smoothed',  enabled: true, weight: 10, params: { windowDays: 14 } },
+    trimDow:   { name: 'Trimmed Mean DOW',    enabled: true, weight: 10, params: { trimPct: 15 } },
+    momentum:  { name: 'Momentum-Adjusted',   enabled: true, weight: 10, params: { lookback: 3 } },
     sma7:      { name: '7-Day Moving Avg',     enabled: false, weight: 0, params: {} },
     sma28:     { name: '28-Day Moving Avg',     enabled: false, weight: 0, params: {} },
     expSmooth: { name: 'Exp Smooth + DOW',     enabled: true, weight: 5, params: { alpha: 0.3 } }
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
-  outlierThreshold: 3.0,  // standard deviations from DOW mean to flag as outlier
-  outliers: [],           // array of { index, date, dow, value, cap, dowMean, dowStd }
+  outlierCap: 0,          // max pieces per day (0 = auto-calculated)
+  outliers: [],           // array of { index, date, dow, value, cap, dowMean }
   backtestWindow: 14,
   backtestWindows: [14, 21, 30, 60, 90],
   backtestSplitDate: null, // Date object or null for date-based split
@@ -532,7 +534,7 @@ const S = {
   fcChart: null
 };
 const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1','#ea580c','#0d9488','#be123c','#4f46e5','#84cc16','#ca8a04'];
+const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1','#ea580c','#0d9488','#be123c','#4f46e5','#84cc16','#ca8a04','#0891b2','#9333ea'];
 
 /* ==================================================================
    DARK MODE
@@ -800,48 +802,51 @@ function processData() {
 /* ==================================================================
    OUTLIER DETECTION & CAPPING
    ================================================================== */
+function autoCalculateOutlierCap() {
+  var pieces = S.series.totalPieces;
+  if (pieces.length < 28) return 999;
+  // Use 99th percentile, rounded up to nearest 25
+  var sorted = pieces.slice().sort(function(a,b){return a-b;});
+  var p99idx = Math.floor(sorted.length * 0.99);
+  var p99 = sorted[Math.min(p99idx, sorted.length - 1)];
+  return Math.ceil(p99 / 25) * 25;
+}
+
 function detectOutliers() {
   var dates = S.series.dates;
   var pieces = S.series.totalPieces;
   if (dates.length < 28) { S.outliers = []; return; }
 
-  var sigma = S.outlierThreshold;
+  // Auto-calculate cap if not set
+  if (!S.outlierCap || S.outlierCap <= 0) {
+    S.outlierCap = autoCalculateOutlierCap();
+  }
 
-  // Compute per-DOW mean and std
-  var dowVals = [[],[],[],[],[],[],[]];
+  var cap = S.outlierCap;
+
+  // Compute per-DOW means for context display
+  var dowSums = [0,0,0,0,0,0,0];
+  var dowCounts = [0,0,0,0,0,0,0];
   for (var i = 0; i < dates.length; i++) {
-    dowVals[dates[i].getDay()].push({ idx: i, val: pieces[i] });
+    var dow = dates[i].getDay();
+    dowSums[dow] += pieces[i];
+    dowCounts[dow]++;
   }
+  var dowMeans = dowSums.map(function(s,idx){ return dowCounts[idx] > 0 ? s / dowCounts[idx] : 0; });
 
-  var dowStats = [];
-  for (var d = 0; d < 7; d++) {
-    var vals = dowVals[d].map(function(v) { return v.val; });
-    if (vals.length < 3) { dowStats.push({ mean: 0, std: 0 }); continue; }
-    var mean = vals.reduce(function(a,b){return a+b;},0) / vals.length;
-    var variance = vals.reduce(function(a,b){return a + (b - mean) * (b - mean);},0) / vals.length;
-    dowStats.push({ mean: mean, std: Math.sqrt(variance) });
-  }
-
-  // Find outliers
+  // Find values above the cap
   var outliers = [];
-  for (var dd = 0; dd < 7; dd++) {
-    var st = dowStats[dd];
-    if (st.std === 0) continue;
-    var cap = st.mean + sigma * st.std;
-    var floor = Math.max(0, st.mean - sigma * st.std);
-    dowVals[dd].forEach(function(entry) {
-      if (entry.val > cap || entry.val < floor) {
-        outliers.push({
-          index: entry.idx,
-          date: dates[entry.idx],
-          dow: dd,
-          value: entry.val,
-          cap: entry.val > cap ? cap : floor,
-          dowMean: st.mean,
-          dowStd: st.std
-        });
-      }
-    });
+  for (var j = 0; j < dates.length; j++) {
+    if (pieces[j] > cap) {
+      outliers.push({
+        index: j,
+        date: dates[j],
+        dow: dates[j].getDay(),
+        value: pieces[j],
+        cap: cap,
+        dowMean: dowMeans[dates[j].getDay()]
+      });
+    }
   }
 
   outliers.sort(function(a,b) { return b.value - a.value; }); // Largest first
@@ -860,20 +865,22 @@ function renderOutlierCard() {
 
   card.style.display = '';
   badge.textContent = S.outliers.length + ' outlier' + (S.outliers.length > 1 ? 's' : '');
+  var capDisplay = document.getElementById('outlierCapDisplay');
+  if (capDisplay) capDisplay.textContent = S.outlierCap;
 
   var thead = table.querySelector('thead');
   var tbody = table.querySelector('tbody');
-  thead.innerHTML = '<tr><th>Date</th><th>DOW</th><th style="text-align:right">Value</th><th style="text-align:right">DOW Mean</th><th style="text-align:right">Sigma</th><th style="text-align:right">Would Cap To</th></tr>';
+  thead.innerHTML = '<tr><th>Date</th><th>DOW</th><th style="text-align:right">Value</th><th style="text-align:right">DOW Avg</th><th style="text-align:right">Over By</th><th style="text-align:right">Capped To</th></tr>';
 
   var bodyHTML = '';
   S.outliers.forEach(function(o) {
-    var sigmaAway = o.dowStd > 0 ? ((o.value - o.dowMean) / o.dowStd).toFixed(1) : '?';
+    var overBy = Math.round(o.value - o.cap);
     bodyHTML += '<tr style="color:var(--error)">' +
       '<td>' + formatDateISO(o.date) + '</td>' +
       '<td>' + DOW_NAMES[o.dow] + '</td>' +
-      '<td class="num" style="text-align:right;font-weight:700">' + Math.round(o.value * 100) / 100 + '</td>' +
+      '<td class="num" style="text-align:right;font-weight:700">' + Math.round(o.value) + '</td>' +
       '<td class="num" style="text-align:right">' + Math.round(o.dowMean) + '</td>' +
-      '<td class="num" style="text-align:right">' + sigmaAway + '\u03C3</td>' +
+      '<td class="num" style="text-align:right;font-weight:600">+' + overBy + '</td>' +
       '<td class="num" style="text-align:right;color:var(--success)">' + Math.round(o.cap) + '</td>' +
       '</tr>';
   });
@@ -882,15 +889,15 @@ function renderOutlierCard() {
 
 function capOutliers() {
   if (S.outliers.length === 0) return;
+  var capVal = S.outlierCap;
 
   // Cap each outlier in all affected series
   S.outliers.forEach(function(o) {
     var i = o.index;
-    // Cap totalPieces
-    if (S.series.totalPieces[i] === o.value) {
-      // Find what ratio this outlier represents vs original total
-      var ratio = o.value > 0 ? o.cap / o.value : 0;
-      S.series.totalPieces[i] = Math.round(o.cap * 100) / 100;
+    var original = S.series.totalPieces[i];
+    if (original > capVal) {
+      var ratio = original > 0 ? capVal / original : 0;
+      S.series.totalPieces[i] = capVal;
 
       // Also scale category values proportionally
       for (var catName in S.series.categories) {
@@ -901,6 +908,20 @@ function capOutliers() {
       }
     }
   });
+
+  // Recalculate totals
+  var n = S.series.dates.length;
+  S.series.totalPieces = new Array(n).fill(0);
+  S.series.totalRevenue = new Array(n).fill(0);
+  for (var catName in S.series.categories) {
+    if (S.series.categories.hasOwnProperty(catName)) {
+      var cat = S.series.categories[catName];
+      for (var i = 0; i < n; i++) {
+        S.series.totalPieces[i] += cat.pieces[i];
+        S.series.totalRevenue[i] += cat.revenue[i];
+      }
+    }
+  }
 
   // Re-detect (should find zero outliers now)
   detectOutliers();
@@ -920,10 +941,10 @@ function updateOutlierSettingsSummary() {
   if (!el) return;
   if (!S.dataLoaded) { el.textContent = 'No data loaded yet.'; return; }
   if (S.outliers.length === 0) {
-    el.innerHTML = '<span style="color:var(--success);font-weight:600">No outliers detected</span> at ' + S.outlierThreshold + '\u03C3 threshold.';
+    el.innerHTML = '<span style="color:var(--success);font-weight:600">No outliers detected</span> \u2014 all values are under ' + S.outlierCap + ' pieces.';
   } else {
-    el.innerHTML = '<span style="color:var(--error);font-weight:600">' + S.outliers.length + ' outlier' + (S.outliers.length > 1 ? 's' : '') + ' detected</span> at ' + S.outlierThreshold + '\u03C3 threshold. Largest: ' +
-      formatDateISO(S.outliers[0].date) + ' = ' + Math.round(S.outliers[0].value) + ' (DOW mean: ' + Math.round(S.outliers[0].dowMean) + ')';
+    el.innerHTML = '<span style="color:var(--error);font-weight:600">' + S.outliers.length + ' value' + (S.outliers.length > 1 ? 's' : '') + ' above ' + S.outlierCap + ' pieces.</span> Largest: ' +
+      formatDateISO(S.outliers[0].date) + ' = ' + Math.round(S.outliers[0].value) + ' pieces (typical ' + DOW_NAMES[S.outliers[0].dow] + ': ' + Math.round(S.outliers[0].dowMean) + ')';
   }
 }
 
@@ -1547,6 +1568,65 @@ function forecastExpSmoothDOW(trainData, trainDates, horizon, alpha) {
   return fc;
 }
 
+/* 14. Trimmed Mean DOW — drops top/bottom trimPct% of each DOW's values before averaging.
+   More robust than mean (resists outliers) but uses more data than median. */
+function forecastTrimmedMeanDOW(trainData, trainDates, horizon, trimPct) {
+  trimPct = trimPct || 15;
+  var lastDate = trainDates[trainDates.length - 1];
+  var seasonal = collectSeasonalDOW(trainData, trainDates, lastDate, 28);
+  var avgs = [0,0,0,0,0,0,0];
+
+  for (var d = 0; d < 7; d++) {
+    var vals = seasonal[d].map(function(e){ return e.value; });
+    if (vals.length < 3) {
+      avgs[d] = vals.length > 0 ? vals.reduce(function(a,b){return a+b;},0) / vals.length : 0;
+      continue;
+    }
+    vals.sort(function(a,b){return a-b;});
+    var trimCount = Math.max(1, Math.floor(vals.length * trimPct / 100));
+    var trimmed = vals.slice(trimCount, vals.length - trimCount);
+    if (trimmed.length === 0) trimmed = vals; // fallback
+    avgs[d] = trimmed.reduce(function(a,b){return a+b;},0) / trimmed.length;
+  }
+  return projectDOW(avgs, lastDate, horizon);
+}
+
+/* 15. Momentum-Adjusted — takes seasonal DOW average and adjusts based on
+   whether recent weeks are running above or below the seasonal expectation.
+   Captures short-term trends that pure DOW methods miss. */
+function forecastMomentum(trainData, trainDates, horizon, lookback) {
+  lookback = lookback || 3;
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+
+  // Get the base seasonal DOW forecast
+  var seasonal = collectSeasonalDOW(trainData, trainDates, lastDate, 28);
+  var seasonalAvgs = [0,0,0,0,0,0,0];
+  for (var d = 0; d < 7; d++) {
+    var vals = seasonal[d].map(function(e){return e.value;});
+    if (vals.length > 0) seasonalAvgs[d] = vals.reduce(function(a,b){return a+b;},0) / vals.length;
+  }
+
+  // Compute recent momentum: ratio of last `lookback` weeks' actuals to their seasonal expectation
+  var recentN = Math.min(lookback * 6, n); // ~lookback weeks of business days
+  var recentActualSum = 0, recentExpectedSum = 0;
+  for (var i = n - recentN; i < n; i++) {
+    var dow = trainDates[i].getDay();
+    recentActualSum += trainData[i];
+    recentExpectedSum += seasonalAvgs[dow] > 0 ? seasonalAvgs[dow] : trainData[i];
+  }
+  var momentumRatio = recentExpectedSum > 0 ? recentActualSum / recentExpectedSum : 1;
+  // Dampen the momentum adjustment (don't apply 100% of the ratio)
+  momentumRatio = 0.6 + 0.4 * momentumRatio; // Blend: 60% baseline + 40% momentum
+
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var fd = new Date(lastDate); fd.setDate(fd.getDate() + h);
+    fc.push(Math.max(0, seasonalAvgs[fd.getDay()] * momentumRatio));
+  }
+  return fc;
+}
+
 function runMethod(key, trainData, trainDates, horizon) {
   const m = S.methods[key];
   switch (key) {
@@ -1560,6 +1640,8 @@ function runMethod(key, trainData, trainDates, horizon) {
     case 'yoy': return forecastYOY(trainData, trainDates, horizon);
     case 'yoyTrend': return forecastYOYTrend(trainData, trainDates, horizon, m.params.recentWeeks);
     case 'multiYear': return forecastMultiYearSmoothed(trainData, trainDates, horizon, m.params.windowDays);
+    case 'trimDow': return forecastTrimmedMeanDOW(trainData, trainDates, horizon, m.params.trimPct);
+    case 'momentum': return forecastMomentum(trainData, trainDates, horizon, m.params.lookback);
     case 'sma7': return forecastSMA(trainData, horizon, 7);
     case 'sma28': return forecastSMA(trainData, horizon, 28);
     case 'expSmooth': return forecastExpSmoothDOW(trainData, trainDates, horizon, m.params.alpha);
@@ -1650,7 +1732,9 @@ function runBacktest(windowSize) {
   }
 
   // Ensemble (uses the already-aligned per-method forecasts)
-  const ensemble = computeEnsemble(results, windowSize);
+  var ensemble = computeEnsemble(results, windowSize);
+  // Apply bias correction based on recent DOW performance
+  ensemble = applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, testDates);
   results.__ensemble = {
     forecast: ensemble,
     mape: calculateMAPE(testData, ensemble, testDates),
@@ -1675,6 +1759,52 @@ function computeEnsemble(methodResults, horizon) {
     for (let i = 0; i < horizon; i++) ensemble[i] += w * (fc[i] || 0);
   }
   return ensemble;
+}
+
+/* Bias correction: if the ensemble systematically over/under-predicts
+   based on recent training data, apply a correction factor per DOW. */
+function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, testDates) {
+  if (trainData.length < 28) return ensemble;
+
+  // Compute per-DOW bias from the last 8 weeks of training data
+  var recentN = Math.min(48, trainData.length);
+  var dowActualSum = [0,0,0,0,0,0,0];
+  var dowCount = [0,0,0,0,0,0,0];
+  for (var i = trainData.length - recentN; i < trainData.length; i++) {
+    var dow = trainDates[i].getDay();
+    dowActualSum[dow] += trainData[i];
+    dowCount[dow]++;
+  }
+
+  // Get the seasonal DOW values the methods would have predicted for those same dates
+  var seasonal = collectSeasonalDOW(trainData, trainDates, lastTrainDate, 28);
+  var seasonalAvgs = [0,0,0,0,0,0,0];
+  for (var d = 0; d < 7; d++) {
+    var vals = seasonal[d].map(function(e){return e.value;});
+    if (vals.length > 0) seasonalAvgs[d] = vals.reduce(function(a,b){return a+b;},0) / vals.length;
+  }
+
+  // Correction ratio per DOW: recent actual / seasonal average
+  var correction = [1,1,1,1,1,1,1];
+  for (var dd = 0; dd < 7; dd++) {
+    if (dowCount[dd] > 0 && seasonalAvgs[dd] > 0) {
+      var recentAvg = dowActualSum[dd] / dowCount[dd];
+      var rawRatio = recentAvg / seasonalAvgs[dd];
+      // Dampen: only apply 30% of the correction to avoid overfitting
+      correction[dd] = 0.7 + 0.3 * rawRatio;
+    }
+  }
+
+  // Apply per-DOW correction to ensemble
+  var corrected = [];
+  for (var j = 0; j < ensemble.length; j++) {
+    if (testDates && testDates[j]) {
+      corrected.push(Math.max(0, ensemble[j] * correction[testDates[j].getDay()]));
+    } else {
+      corrected.push(ensemble[j]);
+    }
+  }
+  return corrected;
 }
 
 function autoOptimize() {
@@ -1710,12 +1840,14 @@ function autoOptimize() {
   function getEnsembleMAPE(w) {
     const total = enabledKeys.reduce((s,k) => s + w[k], 0);
     if (total === 0) return 999;
-    const ens = new Array(win).fill(0);
+    var ens = new Array(win).fill(0);
     for (const k of enabledKeys) {
       const wt = w[k] / total;
       for (let i = 0; i < win; i++) ens[i] += wt * (forecasts[k][i] || 0);
     }
-    return calculateMAPE(testData, ens, testDates);
+    // Apply bias correction in optimization too
+    ens = applyBiasCorrection(ens, trainData, trainDates, lastTrainDate, testDates);
+    return calculateWAPE(testData, ens, testDates);
   }
 
   // Try multiple starting points:
@@ -2002,12 +2134,21 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon) {
   if (totalW === 0 || enabledKeys.length === 0) return new Array(horizon).fill(0);
 
   const lastDate = seriesDates[seriesDates.length - 1];
-  const ensemble = new Array(horizon).fill(0);
+  var ensemble = new Array(horizon).fill(0);
   for (const k of enabledKeys) {
     const fc = runMethod(k, seriesData, seriesDates, horizon);
     const w = S.methods[k].weight / totalW;
     for (let i = 0; i < horizon; i++) ensemble[i] += w * fc[i];
   }
+
+  // Apply bias correction: build forecast dates, then correct
+  var fcDates = [];
+  for (var h = 1; h <= horizon; h++) {
+    var fd = new Date(lastDate); fd.setDate(fd.getDate() + h);
+    fcDates.push(fd);
+  }
+  ensemble = applyBiasCorrection(ensemble, seriesData, seriesDates, lastDate, fcDates);
+
   return applyClosedDays(ensemble, lastDate, horizon);
 }
 
@@ -2771,16 +2912,29 @@ function updateThresholdLabels() {
   if (missingEl) missingEl.textContent = (100 - val);
 }
 
-// Settings: outlier threshold slider
-document.getElementById('outlierThresholdSlider').addEventListener('input', function() {
-  S.outlierThreshold = parseFloat(this.value);
-  document.getElementById('outlierThresholdVal').textContent = S.outlierThreshold.toFixed(1) + ' \u03C3';
-  document.getElementById('outlierSigmaText').textContent = S.outlierThreshold.toFixed(1);
+// Settings: outlier cap input
+document.getElementById('outlierCapInput').addEventListener('change', function() {
+  var val = parseInt(this.value);
+  if (val && val > 0) {
+    S.outlierCap = val;
+  }
+});
+
+// Settings: auto-calculate cap
+document.getElementById('autoCalcCapBtn').addEventListener('click', function() {
+  if (!S.dataLoaded) { showNotification('Import data first.', 'error'); return; }
+  S.outlierCap = autoCalculateOutlierCap();
+  document.getElementById('outlierCapInput').value = S.outlierCap;
+  detectOutliers();
+  renderOutlierCard();
+  updateOutlierSettingsSummary();
 });
 
 // Settings: rescan outliers
 document.getElementById('rescanOutliersBtn').addEventListener('click', function() {
   if (!S.dataLoaded) { showNotification('Import data first.', 'error'); return; }
+  var inputVal = parseInt(document.getElementById('outlierCapInput').value);
+  if (inputVal && inputVal > 0) S.outlierCap = inputVal;
   detectOutliers();
   renderOutlierCard();
   updateOutlierSettingsSummary();
@@ -2792,7 +2946,7 @@ document.getElementById('settingsCapOutliersBtn').addEventListener('click', func
   var count = S.outliers.length;
   capOutliers();
   updateOutlierSettingsSummary();
-  showNotification('Capped ' + count + ' outlier value' + (count > 1 ? 's' : '') + '. Data and forecasts updated.', 'success');
+  showNotification('Capped ' + count + ' value' + (count > 1 ? 's' : '') + ' to ' + S.outlierCap + ' pieces. Data updated.', 'success');
 });
 
 // Settings: threshold slider
@@ -2942,9 +3096,7 @@ function initSettingsUI() {
   renderSettingsClosedDays();
   renderSettingsWindows();
   // Outlier settings
-  document.getElementById('outlierThresholdSlider').value = S.outlierThreshold;
-  document.getElementById('outlierThresholdVal').textContent = S.outlierThreshold.toFixed(1) + ' \u03C3';
-  document.getElementById('outlierSigmaText').textContent = S.outlierThreshold.toFixed(1);
+  document.getElementById('outlierCapInput').value = S.outlierCap || '';
   updateOutlierSettingsSummary();
 }
 </script>
