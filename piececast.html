@@ -160,8 +160,9 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 }
 
 /* MAPE results */
-.mape-table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:10px}
-.mape-table th{text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-secondary)}
+.mape-wrap{overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:var(--radius-sm);max-height:55vh}
+.mape-table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:0}
+.mape-table th{text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-secondary);background:var(--bg-surface);position:sticky;top:0;z-index:2}
 .mape-table td{padding:7px 10px;border-bottom:1px solid var(--border-light)}
 .mape-table tr.ensemble{background:var(--accent-bg);font-weight:600}
 .mape-table tr.ensemble td{border-bottom:2px solid var(--accent)}
@@ -185,19 +186,6 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 
 /* Chart container */
 .chart-box{position:relative;width:100%;max-height:380px;margin-top:12px}
-
-/* Y-axis zoom controls */
-.y-zoom-row{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 12px;background:var(--bg-surface-alt);border-radius:var(--radius-sm);flex-wrap:wrap}
-.y-zoom-label{font-size:.75rem;font-weight:600;color:var(--text-muted);white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
-.y-zoom-btn{font-size:.7rem;padding:3px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-surface);color:var(--text-secondary);cursor:pointer;font-family:'Sora',sans-serif;transition:background .15s}
-.y-zoom-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-.y-zoom-group{display:flex;align-items:center;gap:8px;flex:1;min-width:180px}
-.y-zoom-val{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--text-secondary);min-width:36px;text-align:center}
-.y-range-wrap{position:relative;flex:1;height:28px}
-.y-range{-webkit-appearance:none;appearance:none;position:absolute;left:0;top:50%;transform:translateY(-50%);width:100%;height:5px;background:transparent;pointer-events:none;margin:0}
-.y-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;height:18px;width:18px;border-radius:50%;background:var(--accent);cursor:pointer;pointer-events:all;border:2px solid var(--bg-surface);box-shadow:0 1px 4px rgba(0,0,0,.25)}
-.y-range::-moz-range-thumb{height:18px;width:18px;border-radius:50%;background:var(--accent);cursor:pointer;pointer-events:all;border:2px solid var(--bg-surface);box-shadow:0 1px 4px rgba(0,0,0,.25)}
-.y-range-wrap::before{content:'';position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:5px;background:var(--border);border-radius:3px}
 
 /* Export area */
 .export-area{
@@ -378,7 +366,7 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
     <!-- Accuracy Results -->
     <div class="card" id="mapeCard" style="display:none">
       <div class="card-title"><span class="icon">&#x1F3AF;</span> Accuracy Results</div>
-      <div class="table-wrap">
+      <div class="mape-wrap">
         <table class="mape-table" id="mapeTable"><thead></thead><tbody></tbody></table>
       </div>
       <div style="margin-top:12px">
@@ -391,18 +379,6 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
     <div class="card" id="btChartCard" style="display:none">
       <div class="card-title"><span class="icon">&#x1F4C8;</span> Backtest: Actual vs Forecast</div>
       <div class="chart-box"><canvas id="btChart"></canvas></div>
-      <div class="y-zoom-row">
-        <label class="y-zoom-label">Y-Axis Zoom</label>
-        <button class="y-zoom-btn" id="btYReset" title="Reset zoom">Reset</button>
-        <div class="y-zoom-group">
-          <span class="y-zoom-val" id="btYMinLabel">0</span>
-          <div class="y-range-wrap">
-            <input type="range" id="btYMin" class="y-range y-range-lo" min="0" max="500" value="0" step="5">
-            <input type="range" id="btYMax" class="y-range y-range-hi" min="0" max="500" value="500" step="5">
-          </div>
-          <span class="y-zoom-val" id="btYMaxLabel">auto</span>
-        </div>
-      </div>
     </div>
   </div>
 </section>
@@ -2101,14 +2077,6 @@ function renderBacktestChart(bt) {
     });
   }
 
-  // Compute data range for zoom sliders
-  var allVals = [];
-  datasets.forEach(function(ds) { ds.data.forEach(function(v) { if (v != null && isFinite(v)) allVals.push(v); }); });
-  var dataMin = allVals.length ? Math.min.apply(null, allVals) : 0;
-  var dataMax = allVals.length ? Math.max.apply(null, allVals) : 500;
-  var rangeMax = Math.ceil(dataMax * 1.4 / 10) * 10;
-  var rangeStep = Math.max(1, Math.round(rangeMax / 200));
-
   S.btChart = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
@@ -2122,38 +2090,6 @@ function renderBacktestChart(bt) {
       }
     }
   });
-
-  // Initialize zoom sliders
-  var yMinSlider = document.getElementById('btYMin');
-  var yMaxSlider = document.getElementById('btYMax');
-  var yMinLabel = document.getElementById('btYMinLabel');
-  var yMaxLabel = document.getElementById('btYMaxLabel');
-  yMinSlider.min = 0; yMinSlider.max = rangeMax; yMinSlider.step = rangeStep; yMinSlider.value = 0;
-  yMaxSlider.min = 0; yMaxSlider.max = rangeMax; yMaxSlider.step = rangeStep; yMaxSlider.value = rangeMax;
-  yMinLabel.textContent = '0';
-  yMaxLabel.textContent = 'auto';
-  S._btYZoomMax = rangeMax;
-}
-
-function applyBtYZoom() {
-  if (!S.btChart) return;
-  var yMinSlider = document.getElementById('btYMin');
-  var yMaxSlider = document.getElementById('btYMax');
-  var lo = parseInt(yMinSlider.value, 10);
-  var hi = parseInt(yMaxSlider.value, 10);
-  var rangeMax = S._btYZoomMax || 500;
-
-  // Enforce min < max with a gap
-  if (lo >= hi - 10) { lo = Math.max(0, hi - 10); yMinSlider.value = lo; }
-
-  document.getElementById('btYMinLabel').textContent = lo;
-  document.getElementById('btYMaxLabel').textContent = (hi >= rangeMax) ? 'auto' : hi;
-
-  var yScale = S.btChart.options.scales.y;
-  yScale.min = lo > 0 ? lo : undefined;
-  yScale.max = (hi < rangeMax) ? hi : undefined;
-  yScale.beginAtZero = (lo === 0);
-  S.btChart.update('none');
 }
 
 function renderForecastChart(fcData, histDays) {
@@ -2588,7 +2524,7 @@ function renderMAPETable(bt) {
   const thead = table.querySelector('thead');
   const tbody = table.querySelector('tbody');
 
-  thead.innerHTML = '<tr><th>Method</th><th style="text-align:right" title="Weighted Mean Absolute % Error = sum(|error|) / sum(actual). Better for high-variance data — weights errors by volume.">WMAPE</th><th style="text-align:right" title="Mean Absolute % Error — gives equal weight to each day">MAPE</th><th style="text-align:right" title="Mean Absolute Error in pieces">MAE</th><th>Visual</th></tr>';
+  thead.innerHTML = '<tr><th>Method</th><th style="text-align:right">Wt</th><th style="text-align:right" title="Weighted Mean Absolute % Error = sum(|error|) / sum(actual). Better for high-variance data — weights errors by volume.">WMAPE</th><th style="text-align:right" title="Mean Absolute % Error — gives equal weight to each day">MAPE</th><th style="text-align:right" title="Mean Absolute Error in pieces">MAE</th><th>Visual</th></tr>';
 
   const allWapes = Object.values(bt.results).map(r => r.wape).filter(m => m < 900);
   const maxWape = Math.max(...allWapes, 1);
@@ -2598,10 +2534,12 @@ function renderMAPETable(bt) {
 
   sortedKeys.forEach(k => {
     const r = bt.results[k];
+    const w = S.methods[k].weight || 0;
     const wapeClass = r.wape < 15 ? 'good' : r.wape < 25 ? 'ok' : 'bad';
     const barColor = r.wape < 15 ? 'var(--success)' : r.wape < 25 ? 'var(--warning)' : 'var(--error)';
     const barW = Math.min(120, (r.wape / maxWape) * 120);
     bodyHTML += '<tr><td>' + escHtml(S.methods[k].name) + '</td>' +
+      '<td class="num" style="text-align:right;opacity:.7">' + w + '</td>' +
       '<td class="num" style="text-align:right"><span class="method-mape ' + wapeClass + '">' + r.wape.toFixed(1) + '%</span></td>' +
       '<td class="num" style="text-align:right;opacity:.6">' + r.mape.toFixed(1) + '%</td>' +
       '<td class="num" style="text-align:right">' + r.mae.toFixed(1) + '</td>' +
@@ -2611,7 +2549,9 @@ function renderMAPETable(bt) {
   if (bt.results.__ensemble) {
     const e = bt.results.__ensemble;
     const wapeClass = e.wape < 15 ? 'good' : e.wape < 25 ? 'ok' : 'bad';
+    var totalWt = sortedKeys.reduce(function(s,k){ return s + (S.methods[k].weight || 0); }, 0);
     bodyHTML += '<tr class="ensemble"><td><strong>Weighted Ensemble</strong></td>' +
+      '<td class="num" style="text-align:right">' + totalWt + '</td>' +
       '<td class="num" style="text-align:right"><span class="method-mape ' + wapeClass + '">' + e.wape.toFixed(1) + '%</span></td>' +
       '<td class="num" style="text-align:right;opacity:.6">' + e.mape.toFixed(1) + '%</td>' +
       '<td class="num" style="text-align:right">' + e.mae.toFixed(1) + '</td>' +
@@ -2632,7 +2572,7 @@ function renderMAPETable(bt) {
       dowErrors[dayName].count++;
     }
 
-    bodyHTML += '<tr><td colspan="5" style="padding:12px 0 4px;font-size:.72rem;font-weight:600;color:var(--text-muted);letter-spacing:.5px;border:none">ENSEMBLE ERROR BY DAY OF WEEK</td></tr>';
+    bodyHTML += '<tr><td colspan="6" style="padding:12px 0 4px;font-size:.72rem;font-weight:600;color:var(--text-muted);letter-spacing:.5px;border:none">ENSEMBLE ERROR BY DAY OF WEEK</td></tr>';
     const dowOrder = ['Mon','Tue','Wed','Thu','Fri','Sat'];
     dowOrder.forEach(function(dayName) {
       const de = dowErrors[dayName];
@@ -2642,6 +2582,7 @@ function renderMAPETable(bt) {
       const avgActual = de.actSum / de.count;
       const wapeClass = dowWape < 15 ? 'good' : dowWape < 25 ? 'ok' : 'bad';
       bodyHTML += '<tr style="font-size:.75rem"><td style="padding-left:16px">' + dayName + ' <span style="color:var(--text-muted);font-size:.68rem">(avg ' + Math.round(avgActual) + ', n=' + de.count + ')</span></td>' +
+        '<td></td>' +
         '<td class="num" style="text-align:right"><span class="method-mape ' + wapeClass + '">' + dowWape.toFixed(1) + '%</span></td>' +
         '<td class="num" style="text-align:right;opacity:.6"></td>' +
         '<td class="num" style="text-align:right">' + dowMae.toFixed(1) + '</td>' +
@@ -2851,15 +2792,6 @@ document.getElementById('capOutliersBtn').addEventListener('click', function() {
   var count = S.outliers.length;
   capOutliers();
   showNotification('Fixed ' + count + ' outlier' + (count > 1 ? 's' : '') + '. High values capped, low values raised.', 'success');
-});
-
-document.getElementById('btYMin').addEventListener('input', applyBtYZoom);
-document.getElementById('btYMax').addEventListener('input', applyBtYZoom);
-document.getElementById('btYReset').addEventListener('click', function() {
-  var rangeMax = S._btYZoomMax || 500;
-  document.getElementById('btYMin').value = 0;
-  document.getElementById('btYMax').value = rangeMax;
-  applyBtYZoom();
 });
 
 document.getElementById('runBacktestBtn').addEventListener('click', doBacktest);
