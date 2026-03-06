@@ -1214,6 +1214,18 @@ function calculateMAE(actual, forecast, dates) {
   return count > 0 ? sum / count : 0;
 }
 
+/* Align forecast (generated for consecutive calendar days) to actual test dates.
+   Forecast index 0 = lastTrainDate + 1 calendar day, etc.
+   Returns an array matching the length of testDates. */
+function alignForecastToTestDates(fullForecast, lastTrainDate, testDates) {
+  const trainTime = lastTrainDate.getTime();
+  const oneDay = 86400000;
+  return testDates.map(function(td) {
+    const dayOffset = Math.round((td.getTime() - trainTime) / oneDay); // 1-based
+    return (dayOffset >= 1 && dayOffset <= fullForecast.length) ? fullForecast[dayOffset - 1] : 0;
+  });
+}
+
 function runBacktest(windowSize) {
   const data = getActiveSeries();
   const dates = S.series.dates;
@@ -1226,11 +1238,17 @@ function runBacktest(windowSize) {
   const testDates = dates.slice(n - windowSize);
   const lastTrainDate = trainDates[trainDates.length - 1];
 
+  // Calculate the true calendar horizon (may be > windowSize if data skips closed days)
+  const lastTestDate = testDates[testDates.length - 1];
+  const calendarHorizon = Math.round((lastTestDate - lastTrainDate) / 86400000);
+
   const results = {};
   for (const [key, method] of Object.entries(S.methods)) {
     if (!method.enabled) continue;
-    let fc = runMethod(key, trainData, trainDates, windowSize);
-    fc = applyClosedDays(fc, lastTrainDate, windowSize);
+    // Generate forecast for full calendar span, then align to test dates
+    let fullFc = runMethod(key, trainData, trainDates, calendarHorizon);
+    fullFc = applyClosedDays(fullFc, lastTrainDate, calendarHorizon);
+    const fc = alignForecastToTestDates(fullFc, lastTrainDate, testDates);
     results[key] = {
       forecast: fc,
       mape: calculateMAPE(testData, fc, testDates),
@@ -1238,9 +1256,8 @@ function runBacktest(windowSize) {
     };
   }
 
-  // Ensemble
-  let ensemble = computeEnsemble(results, windowSize);
-  ensemble = applyClosedDays(ensemble, lastTrainDate, windowSize);
+  // Ensemble (uses the already-aligned per-method forecasts)
+  const ensemble = computeEnsemble(results, windowSize);
   results.__ensemble = {
     forecast: ensemble,
     mape: calculateMAPE(testData, ensemble, testDates),
@@ -1279,14 +1296,20 @@ function autoOptimize() {
   const testDates = dates.slice(n - win);
   const lastTrainDate = trainDates[trainDates.length - 1];
 
+  // Calendar horizon for alignment
+  const lastTestDate = testDates[testDates.length - 1];
+  const calendarHorizon = Math.round((lastTestDate - lastTrainDate) / 86400000);
+
   const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled);
   if (enabledKeys.length === 0) return;
 
-  // Get forecasts for each method (with closed days applied)
+  // Get date-aligned forecasts for each method
   const forecasts = {};
   const mapes = {};
   for (const k of enabledKeys) {
-    forecasts[k] = applyClosedDays(runMethod(k, trainData, trainDates, win), lastTrainDate, win);
+    let fullFc = runMethod(k, trainData, trainDates, calendarHorizon);
+    fullFc = applyClosedDays(fullFc, lastTrainDate, calendarHorizon);
+    forecasts[k] = alignForecastToTestDates(fullFc, lastTrainDate, testDates);
     mapes[k] = calculateMAPE(testData, forecasts[k], testDates);
   }
 
@@ -1296,7 +1319,7 @@ function autoOptimize() {
     const ens = new Array(win).fill(0);
     for (const k of enabledKeys) {
       const wt = w[k] / total;
-      for (let i = 0; i < win; i++) ens[i] += wt * forecasts[k][i];
+      for (let i = 0; i < win; i++) ens[i] += wt * (forecasts[k][i] || 0);
     }
     return calculateMAPE(testData, ens, testDates);
   }
@@ -1305,11 +1328,11 @@ function autoOptimize() {
   // 1) Inverse-MAPE weighted  2) Equal weights  3) Best-method-only
   const startingPoints = [];
 
-  // Start 1: inverse MAPE
+  // Start 1: inverse MAPE (squared for stronger preference)
   const invW = {};
   let totalInv = 0;
   for (const k of enabledKeys) {
-    const inv = mapes[k] > 0.01 ? 1 / (mapes[k] * mapes[k]) : 10000; // Square for stronger preference
+    const inv = mapes[k] > 0.01 ? 1 / (mapes[k] * mapes[k]) : 10000;
     invW[k] = inv;
     totalInv += inv;
   }
