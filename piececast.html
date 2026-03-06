@@ -186,6 +186,19 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 /* Chart container */
 .chart-box{position:relative;width:100%;max-height:380px;margin-top:12px}
 
+/* Y-axis zoom controls */
+.y-zoom-row{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 12px;background:var(--bg-surface-alt);border-radius:var(--radius-sm);flex-wrap:wrap}
+.y-zoom-label{font-size:.75rem;font-weight:600;color:var(--text-muted);white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
+.y-zoom-btn{font-size:.7rem;padding:3px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-surface);color:var(--text-secondary);cursor:pointer;font-family:'Sora',sans-serif;transition:background .15s}
+.y-zoom-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.y-zoom-group{display:flex;align-items:center;gap:8px;flex:1;min-width:180px}
+.y-zoom-val{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--text-secondary);min-width:36px;text-align:center}
+.y-range-wrap{position:relative;flex:1;height:28px}
+.y-range{-webkit-appearance:none;appearance:none;position:absolute;left:0;top:50%;transform:translateY(-50%);width:100%;height:5px;background:transparent;pointer-events:none;margin:0}
+.y-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;height:18px;width:18px;border-radius:50%;background:var(--accent);cursor:pointer;pointer-events:all;border:2px solid var(--bg-surface);box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.y-range::-moz-range-thumb{height:18px;width:18px;border-radius:50%;background:var(--accent);cursor:pointer;pointer-events:all;border:2px solid var(--bg-surface);box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.y-range-wrap::before{content:'';position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:5px;background:var(--border);border-radius:3px}
+
 /* Export area */
 .export-area{
   width:100%;min-height:300px;padding:12px;border:1px solid var(--border);
@@ -378,6 +391,18 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
     <div class="card" id="btChartCard" style="display:none">
       <div class="card-title"><span class="icon">&#x1F4C8;</span> Backtest: Actual vs Forecast</div>
       <div class="chart-box"><canvas id="btChart"></canvas></div>
+      <div class="y-zoom-row">
+        <label class="y-zoom-label">Y-Axis Zoom</label>
+        <button class="y-zoom-btn" id="btYReset" title="Reset zoom">Reset</button>
+        <div class="y-zoom-group">
+          <span class="y-zoom-val" id="btYMinLabel">0</span>
+          <div class="y-range-wrap">
+            <input type="range" id="btYMin" class="y-range y-range-lo" min="0" max="500" value="0" step="5">
+            <input type="range" id="btYMax" class="y-range y-range-hi" min="0" max="500" value="500" step="5">
+          </div>
+          <span class="y-zoom-val" id="btYMaxLabel">auto</span>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -2076,6 +2101,14 @@ function renderBacktestChart(bt) {
     });
   }
 
+  // Compute data range for zoom sliders
+  var allVals = [];
+  datasets.forEach(function(ds) { ds.data.forEach(function(v) { if (v != null && isFinite(v)) allVals.push(v); }); });
+  var dataMin = allVals.length ? Math.min.apply(null, allVals) : 0;
+  var dataMax = allVals.length ? Math.max.apply(null, allVals) : 500;
+  var rangeMax = Math.ceil(dataMax * 1.4 / 10) * 10;
+  var rangeStep = Math.max(1, Math.round(rangeMax / 200));
+
   S.btChart = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
@@ -2089,6 +2122,38 @@ function renderBacktestChart(bt) {
       }
     }
   });
+
+  // Initialize zoom sliders
+  var yMinSlider = document.getElementById('btYMin');
+  var yMaxSlider = document.getElementById('btYMax');
+  var yMinLabel = document.getElementById('btYMinLabel');
+  var yMaxLabel = document.getElementById('btYMaxLabel');
+  yMinSlider.min = 0; yMinSlider.max = rangeMax; yMinSlider.step = rangeStep; yMinSlider.value = 0;
+  yMaxSlider.min = 0; yMaxSlider.max = rangeMax; yMaxSlider.step = rangeStep; yMaxSlider.value = rangeMax;
+  yMinLabel.textContent = '0';
+  yMaxLabel.textContent = 'auto';
+  S._btYZoomMax = rangeMax;
+}
+
+function applyBtYZoom() {
+  if (!S.btChart) return;
+  var yMinSlider = document.getElementById('btYMin');
+  var yMaxSlider = document.getElementById('btYMax');
+  var lo = parseInt(yMinSlider.value, 10);
+  var hi = parseInt(yMaxSlider.value, 10);
+  var rangeMax = S._btYZoomMax || 500;
+
+  // Enforce min < max with a gap
+  if (lo >= hi - 10) { lo = Math.max(0, hi - 10); yMinSlider.value = lo; }
+
+  document.getElementById('btYMinLabel').textContent = lo;
+  document.getElementById('btYMaxLabel').textContent = (hi >= rangeMax) ? 'auto' : hi;
+
+  var yScale = S.btChart.options.scales.y;
+  yScale.min = lo > 0 ? lo : undefined;
+  yScale.max = (hi < rangeMax) ? hi : undefined;
+  yScale.beginAtZero = (lo === 0);
+  S.btChart.update('none');
 }
 
 function renderForecastChart(fcData, histDays) {
@@ -2786,6 +2851,15 @@ document.getElementById('capOutliersBtn').addEventListener('click', function() {
   var count = S.outliers.length;
   capOutliers();
   showNotification('Fixed ' + count + ' outlier' + (count > 1 ? 's' : '') + '. High values capped, low values raised.', 'success');
+});
+
+document.getElementById('btYMin').addEventListener('input', applyBtYZoom);
+document.getElementById('btYMax').addEventListener('input', applyBtYZoom);
+document.getElementById('btYReset').addEventListener('click', function() {
+  var rangeMax = S._btYZoomMax || 500;
+  document.getElementById('btYMin').value = 0;
+  document.getElementById('btYMax').value = rangeMax;
+  applyBtYZoom();
 });
 
 document.getElementById('runBacktestBtn').addEventListener('click', doBacktest);
