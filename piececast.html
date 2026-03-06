@@ -429,6 +429,7 @@ const S = {
     hw:        { name: 'Holt-Winters Weekly',  enabled: true, weight: 10, params: { alpha: 0.2, beta: 0.05, gamma: 0.3 } },
     yoy:       { name: 'Year-over-Year',       enabled: true, weight: 5, params: {} },
     yoyTrend:  { name: 'YoY Trend-Adjusted',   enabled: true, weight: 10, params: { recentWeeks: 6 } },
+    multiYear: { name: 'Multi-Year Smoothed',  enabled: true, weight: 10, params: { windowDays: 14 } },
     sma7:      { name: '7-Day Moving Avg',     enabled: false, weight: 0, params: {} },
     sma28:     { name: '28-Day Moving Avg',     enabled: false, weight: 0, params: {} },
     expSmooth: { name: 'Exp Smooth + DOW',     enabled: true, weight: 5, params: { alpha: 0.3 } }
@@ -444,7 +445,7 @@ const S = {
 
 const WINDOWS = [14, 21, 30, 60, 90];
 const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1','#ea580c','#0d9488','#be123c','#4f46e5','#84cc16'];
+const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1','#ea580c','#0d9488','#be123c','#4f46e5','#84cc16','#ca8a04'];
 
 /* ==================================================================
    DARK MODE
@@ -844,9 +845,53 @@ function findYOYIndex(trainDates, targetDate, maxDiffDays) {
   return (best >= 0 && bestDiff < maxDiffDays * 86400000) ? best : -1;
 }
 
-/* 1. DOW Average — trailing N weeks (no longer uses all history!) */
+/* Helper: collect data points from the same ±windowDays period across all years */
+function collectSeasonalDOW(trainData, trainDates, targetDate, windowDays) {
+  windowDays = windowDays || 21;
+  const targetDOY = getDayOfYear(targetDate);
+  const results = [[],[],[],[],[],[],[]]; // per DOW
+  for (let i = 0; i < trainData.length; i++) {
+    const doy = getDayOfYear(trainDates[i]);
+    let doyDiff = Math.abs(doy - targetDOY);
+    if (doyDiff > 183) doyDiff = 366 - doyDiff;
+    if (doyDiff <= windowDays) {
+      results[trainDates[i].getDay()].push({ value: trainData[i], date: trainDates[i] });
+    }
+  }
+  return results;
+}
+
+/* 1. DOW Average — seasonal: uses same period across all years + recent trailing weeks */
 function forecastDOWAvg(trainData, trainDates, horizon, weeks) {
   weeks = weeks || 16;
+  const n = trainData.length;
+  const lastDate = trainDates[n - 1];
+
+  // Recent trailing average (for blending)
+  const recentCutoff = Math.max(0, n - weeks * 7);
+  const recentAvgs = buildDOWAvg(trainData.slice(recentCutoff), trainDates.slice(recentCutoff));
+
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const d = new Date(lastDate); d.setDate(d.getDate() + h);
+    const dow = d.getDay();
+    // Seasonal: same DOW in same ±21-day window across all years
+    const seasonal = collectSeasonalDOW(trainData, trainDates, d, 21);
+    const sameDow = seasonal[dow];
+    if (sameDow.length >= 3) {
+      const seasonalAvg = sameDow.reduce(function(s, p) { return s + p.value; }, 0) / sameDow.length;
+      // Blend: 60% seasonal, 40% recent
+      fc.push(Math.max(0, seasonalAvg * 0.6 + recentAvgs[dow] * 0.4));
+    } else {
+      fc.push(Math.max(0, recentAvgs[dow]));
+    }
+  }
+  return fc;
+}
+
+/* 2. Recent DOW — short recent window (pure recency, no seasonal) */
+function forecastRecent(trainData, trainDates, horizon, weeks) {
+  weeks = weeks || 4;
   const cutoff = Math.max(0, trainData.length - weeks * 7);
   const sub = trainData.slice(cutoff);
   const subDates = trainDates.slice(cutoff);
@@ -854,49 +899,73 @@ function forecastDOWAvg(trainData, trainDates, horizon, weeks) {
   return projectDOW(avgs, trainDates[trainDates.length - 1], horizon);
 }
 
-/* 2. Recent DOW — short recent window */
-function forecastRecent(trainData, trainDates, horizon, weeks) {
-  weeks = weeks || 4;
-  return forecastDOWAvg(trainData, trainDates, horizon, weeks);
-}
-
-/* 3. Weighted DOW — exponential decay, recent same-days weighted more */
+/* 3. Weighted DOW — seasonal decay: weights by both recency AND seasonal proximity */
 function forecastWeightedDOW(trainData, trainDates, horizon, halfLifeWeeks) {
   halfLifeWeeks = halfLifeWeeks || 8;
-  const lambda = Math.log(2) / (halfLifeWeeks * 7);
   const n = trainData.length;
-  const lastDay = n - 1;
-  const wSums = [0,0,0,0,0,0,0], wTotals = [0,0,0,0,0,0,0];
+  const lastDate = trainDates[n - 1];
+  const lambdaRecency = Math.log(2) / (halfLifeWeeks * 7);
 
-  for (let i = 0; i < n; i++) {
-    const dow = trainDates[i].getDay();
-    const age = lastDay - i; // days ago
-    const w = Math.exp(-lambda * age);
-    wSums[dow] += trainData[i] * w;
-    wTotals[dow] += w;
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const d = new Date(lastDate); d.setDate(d.getDate() + h);
+    const targetDow = d.getDay();
+    const targetDOY = getDayOfYear(d);
+
+    let wSum = 0, wTotal = 0;
+    for (let i = 0; i < n; i++) {
+      if (trainDates[i].getDay() !== targetDow) continue;
+      // Recency weight
+      const age = n - 1 - i;
+      const wRecency = Math.exp(-lambdaRecency * age);
+      // Seasonal proximity weight (Gaussian, sigma=21 days)
+      const doy = getDayOfYear(trainDates[i]);
+      let doyDiff = Math.abs(doy - targetDOY);
+      if (doyDiff > 183) doyDiff = 366 - doyDiff;
+      const wSeasonal = Math.exp(-(doyDiff * doyDiff) / (2 * 21 * 21));
+      // Combined weight
+      const w = wRecency * (0.3 + 0.7 * wSeasonal); // Always some recency, boosted by seasonal match
+      wSum += trainData[i] * w;
+      wTotal += w;
+    }
+    fc.push(Math.max(0, wTotal > 0 ? wSum / wTotal : 0));
   }
-  const avgs = wSums.map((s,i) => wTotals[i] > 0 ? s / wTotals[i] : 0);
-  return projectDOW(avgs, trainDates[n - 1], horizon);
+  return fc;
 }
 
-/* 4. Median DOW — robust to holiday outliers */
+/* 4. Median DOW — seasonal: median of same DOW in same period across all years */
 function forecastMedianDOW(trainData, trainDates, horizon, weeks) {
   weeks = weeks || 20;
-  const cutoff = Math.max(0, trainData.length - weeks * 7);
-  const buckets = [[],[],[],[],[],[],[]];
-  for (let i = cutoff; i < trainData.length; i++) {
-    buckets[trainDates[i].getDay()].push(trainData[i]);
+  const n = trainData.length;
+  const lastDate = trainDates[n - 1];
+
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const d = new Date(lastDate); d.setDate(d.getDate() + h);
+    const dow = d.getDay();
+    const seasonal = collectSeasonalDOW(trainData, trainDates, d, 21);
+    const sameDow = seasonal[dow];
+    if (sameDow.length >= 3) {
+      const vals = sameDow.map(function(p) { return p.value; }).sort(function(a, c) { return a - c; });
+      const mid = Math.floor(vals.length / 2);
+      const median = vals.length % 2 === 1 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+      fc.push(Math.max(0, median));
+    } else {
+      // Fallback to recent trailing median
+      const cutoff = Math.max(0, n - weeks * 7);
+      const bucket = [];
+      for (let i = cutoff; i < n; i++) {
+        if (trainDates[i].getDay() === dow) bucket.push(trainData[i]);
+      }
+      bucket.sort(function(a, c) { return a - c; });
+      const mid2 = Math.floor(bucket.length / 2);
+      fc.push(Math.max(0, bucket.length > 0 ? (bucket.length % 2 === 1 ? bucket[mid2] : (bucket[mid2 - 1] + bucket[mid2]) / 2) : 0));
+    }
   }
-  const medians = buckets.map(b => {
-    if (b.length === 0) return 0;
-    b.sort((a, c) => a - c);
-    const mid = Math.floor(b.length / 2);
-    return b.length % 2 === 1 ? b[mid] : (b[mid - 1] + b[mid]) / 2;
-  });
-  return projectDOW(medians, trainDates[trainData.length - 1], horizon);
+  return fc;
 }
 
-/* 5. Trend + DOW — linear trend on recent weeks + DOW seasonal residuals */
+/* 5. Trend + DOW — linear trend on recent weeks + seasonal DOW residuals */
 function forecastTrendDOW(trainData, trainDates, horizon, weeks) {
   weeks = weeks || 12;
   const cutoff = Math.max(0, trainData.length - weeks * 7);
@@ -1118,7 +1187,76 @@ function forecastYOYTrend(trainData, trainDates, horizon, recentWeeks) {
   return fc;
 }
 
-/* 10. SMA — simple moving average (kept for optional use) */
+/* 10. Multi-Year Smoothed — averages same DOW in a ±window across all years, trend-adjusted */
+function forecastMultiYearSmoothed(trainData, trainDates, horizon, windowDays) {
+  windowDays = windowDays || 14;
+  const n = trainData.length;
+  const lastDate = trainDates[n - 1];
+
+  // Recent level for trend adjustment
+  const recentN = Math.min(42, n);
+  const recentAvg = trainData.slice(n - recentN).reduce(function(a, b) { return a + b; }, 0) / recentN;
+
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const target = new Date(lastDate); target.setDate(target.getDate() + h);
+    const targetDOW = target.getDay();
+    const targetDOY = getDayOfYear(target);
+
+    // Find all same-DOW values within ±windowDays of this day-of-year across all years
+    let matchSum = 0, matchCount = 0;
+    let matchYearAvgs = [];
+    let currentYearDates = {};
+
+    for (let i = 0; i < n; i++) {
+      if (trainDates[i].getDay() !== targetDOW) continue;
+      const doy = getDayOfYear(trainDates[i]);
+      // Check if within ±window (wrapping around year boundary)
+      let doyDiff = Math.abs(doy - targetDOY);
+      if (doyDiff > 183) doyDiff = 366 - doyDiff;
+      if (doyDiff <= windowDays) {
+        matchSum += trainData[i];
+        matchCount++;
+        const yr = trainDates[i].getFullYear();
+        if (!currentYearDates[yr]) currentYearDates[yr] = { sum: 0, count: 0 };
+        currentYearDates[yr].sum += trainData[i];
+        currentYearDates[yr].count++;
+      }
+    }
+
+    if (matchCount === 0) {
+      fc.push(Math.max(0, recentAvg));
+      continue;
+    }
+
+    // Compute per-year averages for this period
+    const yearKeys = Object.keys(currentYearDates);
+    const yearAvgs = yearKeys.map(function(yr) { return currentYearDates[yr].sum / currentYearDates[yr].count; });
+
+    // Historical average for this period
+    const historicalAvg = matchSum / matchCount;
+
+    // Trend adjustment: ratio of recent level to historical average
+    const trendRatio = historicalAvg > 0 ? recentAvg / historicalAvg : 1;
+
+    // Weighted: more recent years get higher weight
+    let weightedSum = 0, weightTotal = 0;
+    yearKeys.forEach(function(yr, idx) {
+      const yearsAgo = target.getFullYear() - parseInt(yr);
+      const weight = Math.max(0.1, 1 / (1 + yearsAgo * 0.3));
+      weightedSum += yearAvgs[idx] * weight;
+      weightTotal += weight;
+    });
+
+    const weightedAvg = weightTotal > 0 ? weightedSum / weightTotal : historicalAvg;
+    // Blend weighted historical with trend-adjusted historical
+    const val = weightedAvg * 0.6 + (historicalAvg * trendRatio) * 0.4;
+    fc.push(Math.max(0, val));
+  }
+  return fc;
+}
+
+/* 11. SMA — simple moving average (kept for optional use) */
 function forecastSMA(trainData, horizon, win) {
   const ext = [...trainData];
   const fc = [];
@@ -1184,6 +1322,7 @@ function runMethod(key, trainData, trainDates, horizon) {
     case 'hw': return forecastHoltWinters(trainData, trainDates, horizon, m.params.alpha, m.params.beta, m.params.gamma);
     case 'yoy': return forecastYOY(trainData, trainDates, horizon);
     case 'yoyTrend': return forecastYOYTrend(trainData, trainDates, horizon, m.params.recentWeeks);
+    case 'multiYear': return forecastMultiYearSmoothed(trainData, trainDates, horizon, m.params.windowDays);
     case 'sma7': return forecastSMA(trainData, horizon, 7);
     case 'sma28': return forecastSMA(trainData, horizon, 28);
     case 'expSmooth': return forecastExpSmoothDOW(trainData, trainDates, horizon, m.params.alpha);
@@ -1210,12 +1349,24 @@ function calculateMAPE(actual, forecast, dates) {
 function calculateMAE(actual, forecast, dates) {
   let sum = 0, count = 0;
   for (let i = 0; i < actual.length; i++) {
-    // Skip closed days
     if (dates && isClosedDay(dates[i])) continue;
     sum += Math.abs(actual[i] - forecast[i]);
     count++;
   }
   return count > 0 ? sum / count : 0;
+}
+
+/* WAPE: Weighted Absolute Percentage Error = sum(|error|) / sum(actual)
+   Better than MAPE for high-variance data — doesn't overweight low-volume days */
+function calculateWAPE(actual, forecast, dates) {
+  let errorSum = 0, actualSum = 0;
+  for (let i = 0; i < actual.length; i++) {
+    if (dates && isClosedDay(dates[i])) continue;
+    if (actual[i] === 0) continue;
+    errorSum += Math.abs(actual[i] - forecast[i]);
+    actualSum += actual[i];
+  }
+  return actualSum > 0 ? (errorSum / actualSum) * 100 : 999;
 }
 
 /* Align forecast (generated for consecutive calendar days) to actual test dates.
@@ -1256,6 +1407,7 @@ function runBacktest(windowSize) {
     results[key] = {
       forecast: fc,
       mape: calculateMAPE(testData, fc, testDates),
+      wape: calculateWAPE(testData, fc, testDates),
       mae: calculateMAE(testData, fc, testDates)
     };
   }
@@ -1265,6 +1417,7 @@ function runBacktest(windowSize) {
   results.__ensemble = {
     forecast: ensemble,
     mape: calculateMAPE(testData, ensemble, testDates),
+    wape: calculateWAPE(testData, ensemble, testDates),
     mae: calculateMAE(testData, ensemble, testDates)
   };
 
@@ -1433,7 +1586,7 @@ function renderBacktestChart(bt) {
 
   const methodKeys = Object.keys(bt.results).filter(k => k !== '__ensemble');
   const chartColors = document.documentElement.classList.contains('dark')
-    ? ['#22d3ee','#fbbf24','#a78bfa','#f87171','#34d399','#f0abfc','#818cf8','#fb923c','#2dd4bf','#fb7185','#a5b4fc','#a3e635']
+    ? ['#22d3ee','#fbbf24','#a78bfa','#f87171','#34d399','#f0abfc','#818cf8','#fb923c','#2dd4bf','#fb7185','#a5b4fc','#a3e635','#fde047']
     : CHART_COLORS;
 
   methodKeys.forEach((k, i) => {
@@ -1525,6 +1678,7 @@ function generateExport(scope) {
   // Get backtest MAPE info
   const btKey = String(S.backtestWindow);
   const btResult = S.backtestResults[btKey];
+  const ensembleWape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.wape.toFixed(1) : 'N/A';
   const ensembleMape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.mape.toFixed(1) : 'N/A';
 
   // Build method weight string
@@ -1542,7 +1696,7 @@ function generateExport(scope) {
   const fcEnd = new Date(lastDate); fcEnd.setDate(fcEnd.getDate() + horizon);
   lines.push('# Forecast Period: ' + formatDateISO(fcStart) + ' to ' + formatDateISO(fcEnd));
   lines.push('# Backtest Window: ' + S.backtestWindow + ' days');
-  lines.push('# Ensemble MAPE: ' + ensembleMape + '%');
+  lines.push('# Ensemble WAPE: ' + ensembleWape + '% | MAPE: ' + ensembleMape + '%');
   if (S.closedDays.length > 0) {
     lines.push('# Closed Days: ' + S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') + ' (forecast=0)');
   }
@@ -1777,9 +1931,9 @@ function renderMethodGrid() {
     const bt = S.backtestResults[btKey];
     let mapeStr = '', mapeClass = '';
     if (bt && bt.results[key]) {
-      const mape = bt.results[key].mape;
-      mapeStr = mape.toFixed(1) + '%';
-      mapeClass = mape < 10 ? 'good' : mape < 20 ? 'ok' : 'bad';
+      const wape = bt.results[key].wape;
+      mapeStr = wape.toFixed(1) + '%';
+      mapeClass = wape < 15 ? 'good' : wape < 25 ? 'ok' : 'bad';
     }
 
     let paramsHTML = '';
@@ -1796,6 +1950,7 @@ function renderMethodGrid() {
         { key: 'gamma', label: '\u03B3', min: 0.01, max: 0.99, step: 0.05 }
       ],
       yoyTrend:  [{ key: 'recentWeeks', label: 'Recent wk', min: 2, max: 16, step: 1 }],
+      multiYear: [{ key: 'windowDays', label: '\u00b1 Days', min: 3, max: 30, step: 1 }],
       expSmooth: [{ key: 'alpha', label: 'Alpha', min: 0.01, max: 0.99, step: 0.05 }]
     };
     const pmList = paramMeta[key];
@@ -1878,32 +2033,65 @@ function renderMAPETable(bt) {
   const thead = table.querySelector('thead');
   const tbody = table.querySelector('tbody');
 
-  thead.innerHTML = '<tr><th>Method</th><th style="text-align:right">MAPE</th><th style="text-align:right">MAE</th><th>Visual</th></tr>';
+  thead.innerHTML = '<tr><th>Method</th><th style="text-align:right" title="Weighted Absolute % Error — better for high-variance data">WAPE</th><th style="text-align:right" title="Mean Absolute % Error">MAPE</th><th style="text-align:right">MAE</th><th>Visual</th></tr>';
 
-  const allMapes = Object.values(bt.results).map(r => r.mape).filter(m => m < 900);
-  const maxMape = Math.max(...allMapes, 1);
+  const allWapes = Object.values(bt.results).map(r => r.wape).filter(m => m < 900);
+  const maxWape = Math.max(...allWapes, 1);
 
   let bodyHTML = '';
-  const sortedKeys = Object.keys(bt.results).filter(k => k !== '__ensemble').sort((a,b) => bt.results[a].mape - bt.results[b].mape);
+  const sortedKeys = Object.keys(bt.results).filter(k => k !== '__ensemble').sort((a,b) => bt.results[a].wape - bt.results[b].wape);
 
   sortedKeys.forEach(k => {
     const r = bt.results[k];
-    const mapeClass = r.mape < 10 ? 'good' : r.mape < 20 ? 'ok' : 'bad';
-    const barColor = r.mape < 10 ? 'var(--success)' : r.mape < 20 ? 'var(--warning)' : 'var(--error)';
-    const barW = Math.min(120, (r.mape / maxMape) * 120);
+    const wapeClass = r.wape < 15 ? 'good' : r.wape < 25 ? 'ok' : 'bad';
+    const barColor = r.wape < 15 ? 'var(--success)' : r.wape < 25 ? 'var(--warning)' : 'var(--error)';
+    const barW = Math.min(120, (r.wape / maxWape) * 120);
     bodyHTML += '<tr><td>' + escHtml(S.methods[k].name) + '</td>' +
-      '<td class="num" style="text-align:right"><span class="method-mape ' + mapeClass + '">' + r.mape.toFixed(1) + '%</span></td>' +
+      '<td class="num" style="text-align:right"><span class="method-mape ' + wapeClass + '">' + r.wape.toFixed(1) + '%</span></td>' +
+      '<td class="num" style="text-align:right;opacity:.6">' + r.mape.toFixed(1) + '%</td>' +
       '<td class="num" style="text-align:right">' + r.mae.toFixed(1) + '</td>' +
       '<td><span class="mape-bar" style="width:' + barW + 'px;background:' + barColor + '"></span></td></tr>';
   });
 
   if (bt.results.__ensemble) {
     const e = bt.results.__ensemble;
-    const mapeClass = e.mape < 10 ? 'good' : e.mape < 20 ? 'ok' : 'bad';
+    const wapeClass = e.wape < 15 ? 'good' : e.wape < 25 ? 'ok' : 'bad';
     bodyHTML += '<tr class="ensemble"><td><strong>Weighted Ensemble</strong></td>' +
-      '<td class="num" style="text-align:right"><span class="method-mape ' + mapeClass + '">' + e.mape.toFixed(1) + '%</span></td>' +
+      '<td class="num" style="text-align:right"><span class="method-mape ' + wapeClass + '">' + e.wape.toFixed(1) + '%</span></td>' +
+      '<td class="num" style="text-align:right;opacity:.6">' + e.mape.toFixed(1) + '%</td>' +
       '<td class="num" style="text-align:right">' + e.mae.toFixed(1) + '</td>' +
       '<td></td></tr>';
+  }
+
+  // Per-DOW breakdown for the ensemble
+  if (bt.results.__ensemble && bt.testDates.length > 0) {
+    const ensFc = bt.results.__ensemble.forecast;
+    const dowErrors = {};
+    for (let i = 0; i < bt.testData.length; i++) {
+      if (isClosedDay(bt.testDates[i])) continue;
+      const dow = bt.testDates[i].getDay();
+      const dayName = DOW_NAMES[dow];
+      if (!dowErrors[dayName]) dowErrors[dayName] = { errSum: 0, actSum: 0, count: 0 };
+      dowErrors[dayName].errSum += Math.abs(bt.testData[i] - ensFc[i]);
+      dowErrors[dayName].actSum += bt.testData[i];
+      dowErrors[dayName].count++;
+    }
+
+    bodyHTML += '<tr><td colspan="5" style="padding:12px 0 4px;font-size:.72rem;font-weight:600;color:var(--text-muted);letter-spacing:.5px;border:none">ENSEMBLE ERROR BY DAY OF WEEK</td></tr>';
+    const dowOrder = ['Mon','Tue','Wed','Thu','Fri','Sat'];
+    dowOrder.forEach(function(dayName) {
+      const de = dowErrors[dayName];
+      if (!de || de.count === 0) return;
+      const dowWape = de.actSum > 0 ? (de.errSum / de.actSum * 100) : 0;
+      const dowMae = de.errSum / de.count;
+      const avgActual = de.actSum / de.count;
+      const wapeClass = dowWape < 15 ? 'good' : dowWape < 25 ? 'ok' : 'bad';
+      bodyHTML += '<tr style="font-size:.75rem"><td style="padding-left:16px">' + dayName + ' <span style="color:var(--text-muted);font-size:.68rem">(avg ' + Math.round(avgActual) + ', n=' + de.count + ')</span></td>' +
+        '<td class="num" style="text-align:right"><span class="method-mape ' + wapeClass + '">' + dowWape.toFixed(1) + '%</span></td>' +
+        '<td class="num" style="text-align:right;opacity:.6"></td>' +
+        '<td class="num" style="text-align:right">' + dowMae.toFixed(1) + '</td>' +
+        '<td></td></tr>';
+    });
   }
 
   tbody.innerHTML = bodyHTML;
@@ -1991,13 +2179,22 @@ function onDataLoaded() {
   S.methods.yoy.enabled = hasYear;
   S.methods.yoyTrend.enabled = hasYear;
   S.methods.annualDow.enabled = hasYear;
+  S.methods.multiYear.enabled = hasYear;
   if (!hasYear) {
     S.methods.yoy.weight = 0;
     S.methods.yoyTrend.weight = 0;
     S.methods.annualDow.weight = 0;
+    S.methods.multiYear.weight = 0;
   }
   renderMethodGrid();
   doBacktest();
+
+  // Auto-optimize weights immediately so the best methods dominate
+  if (S.dataLoaded) {
+    autoOptimize();
+    renderMethodGrid();
+    doBacktest();
+  }
 }
 
 document.getElementById('parseBtn').addEventListener('click', () => {
@@ -2141,7 +2338,7 @@ function doForecast() {
 
   const btKey = String(S.backtestWindow);
   const btResult = S.backtestResults[btKey];
-  const mape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.mape.toFixed(1) + '% MAPE' : '';
+  const mape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.wape.toFixed(1) + '% WAPE' : '';
   document.getElementById('fcBadge').textContent = horizon + '-day forecast \u00B7 ' + mape;
 
   renderForecastChart(fc, Math.min(60, data.length));
@@ -2222,10 +2419,10 @@ document.getElementById('exportBacktestBtn').addEventListener('click', function(
   // Show per-method MAPE
   lines.push('--- METHOD MAPES ---');
   methodKeys.forEach(function(k) {
-    lines.push(S.methods[k].name + '\tMAPE: ' + bt.results[k].mape.toFixed(1) + '%\tMAE: ' + bt.results[k].mae.toFixed(1));
+    lines.push(S.methods[k].name + '\tWAPE: ' + bt.results[k].wape.toFixed(1) + '%\tMAPE: ' + bt.results[k].mape.toFixed(1) + '%\tMAE: ' + bt.results[k].mae.toFixed(1));
   });
   if (bt.results.__ensemble) {
-    lines.push('Ensemble\tMAPE: ' + bt.results.__ensemble.mape.toFixed(1) + '%\tMAE: ' + bt.results.__ensemble.mae.toFixed(1));
+    lines.push('Ensemble\tWAPE: ' + bt.results.__ensemble.wape.toFixed(1) + '%\tMAPE: ' + bt.results.__ensemble.mape.toFixed(1) + '%\tMAE: ' + bt.results.__ensemble.mae.toFixed(1));
   }
   lines.push('');
 
