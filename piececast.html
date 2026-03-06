@@ -1843,17 +1843,14 @@ function computeEnsemble(methodResults, horizon) {
 
   const ensemble = new Array(horizon).fill(0);
   for (let i = 0; i < horizon; i++) {
-    // Collect (forecast, weight) pairs for this horizon point
-    let pairs = enabledKeys.map(k => ({ fc: methodResults[k].forecast[i] || 0, w: S.methods[k].weight }));
-    // Trimming: drop 2 highest and 2 lowest if >= 6 methods
-    if (pairs.length >= 6) {
-      pairs.sort((a, b) => a.fc - b.fc);
-      pairs = pairs.slice(2, pairs.length - 2);
-    }
-    const tw = pairs.reduce((s, p) => s + p.w, 0);
-    if (tw > 0) {
-      ensemble[i] = pairs.reduce((s, p) => s + (p.w / tw) * p.fc, 0);
-    }
+    let wSum = 0, weighted = 0;
+    enabledKeys.forEach(k => {
+      var w = S.methods[k].weight;
+      var fc = methodResults[k].forecast[i] || 0;
+      weighted += w * fc;
+      wSum += w;
+    });
+    ensemble[i] = wSum > 0 ? weighted / wSum : 0;
   }
   return ensemble;
 }
@@ -1863,8 +1860,8 @@ function computeEnsemble(methodResults, horizon) {
 function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, testDates) {
   if (trainData.length < 28) return ensemble;
 
-  // Compute per-DOW bias from the last 4 weeks of training data
-  var recentN = Math.min(28, trainData.length);
+  // Compute per-DOW bias from the last 6 weeks of training data
+  var recentN = Math.min(36, trainData.length);
   var dowActualSum = [0,0,0,0,0,0,0];
   var dowCount = [0,0,0,0,0,0,0];
   for (var i = trainData.length - recentN; i < trainData.length; i++) {
@@ -1887,8 +1884,8 @@ function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, tes
     if (dowCount[dd] > 0 && seasonalAvgs[dd] > 0) {
       var recentAvg = dowActualSum[dd] / dowCount[dd];
       var rawRatio = recentAvg / seasonalAvgs[dd];
-      // Dampen: apply 40% of the correction for more aggressive bias fix
-      correction[dd] = 0.6 + 0.4 * rawRatio;
+      // Dampen: apply 35% of the correction
+      correction[dd] = 0.65 + 0.35 * rawRatio;
     }
   }
 
@@ -1939,17 +1936,12 @@ function autoOptimize() {
     if (total === 0) return 999;
     var ens = new Array(win).fill(0);
     for (let i = 0; i < win; i++) {
-      // Collect (forecast, weight) pairs for this horizon point
-      let pairs = enabledKeys.map(k => ({ fc: forecasts[k][i] || 0, wt: w[k] }));
-      // Trimming: drop 2 highest and 2 lowest if >= 6 methods
-      if (pairs.length >= 6) {
-        pairs.sort((a, b) => a.fc - b.fc);
-        pairs = pairs.slice(2, pairs.length - 2);
-      }
-      const tw = pairs.reduce((s, p) => s + p.wt, 0);
-      if (tw > 0) {
-        ens[i] = pairs.reduce((s, p) => s + (p.wt / tw) * p.fc, 0);
-      }
+      var wSum = 0, weighted = 0;
+      enabledKeys.forEach(k => {
+        weighted += w[k] * (forecasts[k][i] || 0);
+        wSum += w[k];
+      });
+      ens[i] = wSum > 0 ? weighted / wSum : 0;
     }
     // Apply bias correction in optimization too
     ens = applyBiasCorrection(ens, trainData, trainDates, lastTrainDate, testDates);
@@ -1991,17 +1983,6 @@ function autoOptimize() {
   for (const k of top3) top3W[k] = Math.round(100 / top3.length);
   startingPoints.push(top3W);
 
-  // Start 5+: method-biased starting points for each method with WMAPE < 30%
-  for (const k of enabledKeys) {
-    if (mapes[k] < 30) {
-      const biasW = {};
-      const othersCount = enabledKeys.length - 1;
-      const otherWeight = othersCount > 0 ? Math.round(40 / othersCount) : 0;
-      for (const j of enabledKeys) biasW[j] = j === k ? 60 : (otherWeight || 1);
-      startingPoints.push(biasW);
-    }
-  }
-
   let globalBestMape = 999;
   let globalBestWeights = startingPoints[0];
 
@@ -2040,8 +2021,43 @@ function autoOptimize() {
     }
   }
 
+  // Regularization: cap any single method at 30% of total weight
+  var rawTotal = enabledKeys.reduce((s,k) => s + globalBestWeights[k], 0);
+  if (rawTotal > 0) {
+    var maxW = rawTotal * 0.30;
+    var excess = 0;
+    var uncapped = 0;
+    for (const k of enabledKeys) {
+      if (globalBestWeights[k] > maxW) {
+        excess += globalBestWeights[k] - maxW;
+        globalBestWeights[k] = maxW;
+      } else {
+        uncapped += globalBestWeights[k];
+      }
+    }
+    // Redistribute excess proportionally to uncapped methods
+    if (excess > 0 && uncapped > 0) {
+      for (const k of enabledKeys) {
+        if (globalBestWeights[k] < maxW) {
+          globalBestWeights[k] += excess * (globalBestWeights[k] / uncapped);
+        }
+      }
+    }
+  }
+
+  // Reliability discount: halve weight of methods with WMAPE > 1.5× the median
+  var methodWapes = enabledKeys.map(k => ({ k: k, w: calculateWAPE(testData, forecasts[k], testDates) }));
+  methodWapes.sort((a,b) => a.w - b.w);
+  var medianWape = methodWapes[Math.floor(methodWapes.length / 2)].w;
+  var threshold = medianWape * 1.5;
+  for (const m of methodWapes) {
+    if (m.w > threshold && globalBestWeights[m.k] > 0) {
+      globalBestWeights[m.k] *= 0.5;
+    }
+  }
+
   // Apply best weights
-  for (const k of enabledKeys) S.methods[k].weight = Math.max(0, globalBestWeights[k]);
+  for (const k of enabledKeys) S.methods[k].weight = Math.max(0, Math.round(globalBestWeights[k]));
   for (const k of Object.keys(S.methods)) {
     if (!S.methods[k].enabled) S.methods[k].weight = 0;
   }
@@ -2258,17 +2274,14 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon) {
   }
   var ensemble = new Array(horizon).fill(0);
   for (let i = 0; i < horizon; i++) {
-    // Collect (forecast, weight) pairs for this horizon point
-    let pairs = enabledKeys.map(k => ({ fc: allForecasts[k][i], w: S.methods[k].weight }));
-    // Trimming: drop 2 highest and 2 lowest if >= 6 methods
-    if (pairs.length >= 6) {
-      pairs.sort((a, b) => a.fc - b.fc);
-      pairs = pairs.slice(2, pairs.length - 2);
-    }
-    const tw = pairs.reduce((s, p) => s + p.w, 0);
-    if (tw > 0) {
-      ensemble[i] = pairs.reduce((s, p) => s + (p.w / tw) * p.fc, 0);
-    }
+    var wSum = 0, weighted = 0;
+    enabledKeys.forEach(k => {
+      var w = S.methods[k].weight;
+      var fc = allForecasts[k][i];
+      weighted += w * fc;
+      wSum += w;
+    });
+    ensemble[i] = wSum > 0 ? weighted / wSum : 0;
   }
 
   // Apply bias correction: build forecast dates, then correct
