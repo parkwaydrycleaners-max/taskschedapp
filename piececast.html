@@ -291,13 +291,13 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
   <!-- Outlier Alert -->
   <div id="outlierCard" class="card" style="display:none">
     <div class="card-title"><span class="icon">&#x26A0;&#xFE0F;</span> Outliers Detected <span id="outlierBadge" class="badge badge-error" style="margin-left:auto"></span></div>
-    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:10px">These values exceed the max daily pieces cap (<span id="outlierCapDisplay">0</span> pieces). They will corrupt forecasts. Cap them below or adjust the threshold in <span style="font-size:.75rem;color:var(--accent);cursor:pointer" onclick="switchTab('settings');initSettingsUI();document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab==='settings')})">Settings &rarr;</span></p>
+    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:10px">Values outside the daily pieces range (max: <span id="outlierCapDisplay" class="mono" style="font-weight:600">0</span>, min: <span id="outlierFloorDisplay" class="mono" style="font-weight:600">0</span>) are flagged as data errors. Cap them below or adjust thresholds in <span style="font-size:.75rem;color:var(--accent);cursor:pointer" onclick="switchTab('settings');initSettingsUI();document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab==='settings')})">Settings &rarr;</span></p>
     <div class="table-wrap" style="max-height:200px;overflow-y:auto">
       <table class="data-table" id="outlierTable"><thead></thead><tbody></tbody></table>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-primary btn-sm" id="capOutliersBtn">Auto-Cap Outliers</button>
-      <span style="font-size:.75rem;color:var(--text-muted)">Replaces outlier values with the DOW-specific cap (mean + 3&times;StdDev)</span>
+      <button class="btn btn-primary btn-sm" id="capOutliersBtn">Auto-Fix Outliers</button>
+      <span style="font-size:.75rem;color:var(--text-muted)">High values capped down; low values raised to their DOW average</span>
     </div>
   </div>
 
@@ -448,16 +448,23 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
   <div class="card animate-in">
     <div class="card-title"><span class="icon">&#x26A0;&#xFE0F;</span> Outlier Detection</div>
     <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:12px">
-      Set the maximum reasonable pieces per day. Any value above this is flagged as a data error and can be auto-capped.
+      Set the daily pieces range. Values above the max or below the min are flagged as data errors and can be auto-fixed.
     </p>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
       <label class="settings-label">Max daily pieces:</label>
       <input type="number" id="outlierCapInput" class="param-input" style="width:100px" min="50" max="99999" placeholder="e.g. 350">
-      <button class="btn btn-secondary btn-sm" id="autoCalcCapBtn">Auto-Calculate</button>
-      <button class="btn btn-secondary btn-sm" id="rescanOutliersBtn">Re-scan</button>
-      <button class="btn btn-primary btn-sm" id="settingsCapOutliersBtn">Cap All Outliers</button>
+      <button class="btn btn-secondary btn-sm" id="autoCalcCapBtn">Auto</button>
     </div>
-    <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:10px">Auto-calculate uses the 99th percentile of your data. For your business, a typical cap might be 300&ndash;400 pieces.</p>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+      <label class="settings-label">Min daily pieces:</label>
+      <input type="number" id="outlierFloorInput" class="param-input" style="width:100px" min="0" max="99999" placeholder="e.g. 20">
+      <button class="btn btn-secondary btn-sm" id="autoCalcFloorBtn">Auto</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn btn-secondary btn-sm" id="rescanOutliersBtn">Re-scan</button>
+      <button class="btn btn-primary btn-sm" id="settingsCapOutliersBtn">Fix All Outliers</button>
+    </div>
+    <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:10px">Auto uses 99th percentile (max) and 1st percentile (min) of open-day data. Closed days are excluded.</p>
     <div id="settingsOutlierSummary" style="font-size:.82rem;color:var(--text-secondary)">No data loaded yet.</div>
   </div>
 
@@ -523,7 +530,8 @@ const S = {
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
   outlierCap: 0,          // max pieces per day (0 = auto-calculated)
-  outliers: [],           // array of { index, date, dow, value, cap, dowMean }
+  outlierFloor: null,      // min pieces per day (null = auto-calculate, 0 = disabled)
+  outliers: [],           // array of { index, date, dow, value, cap, dowMean, type:'high'|'low' }
   backtestWindow: 14,
   backtestWindows: [14, 21, 30, 60, 90],
   backtestSplitDate: null, // Date object or null for date-based split
@@ -804,12 +812,34 @@ function processData() {
    ================================================================== */
 function autoCalculateOutlierCap() {
   var pieces = S.series.totalPieces;
+  var dates = S.series.dates;
   if (pieces.length < 28) return 999;
+  // Filter out closed days for a clean calculation
+  var openVals = [];
+  for (var i = 0; i < pieces.length; i++) {
+    if (!isClosedDay(dates[i]) && pieces[i] > 0) openVals.push(pieces[i]);
+  }
+  if (openVals.length < 10) return 999;
+  openVals.sort(function(a,b){return a-b;});
   // Use 99th percentile, rounded up to nearest 25
-  var sorted = pieces.slice().sort(function(a,b){return a-b;});
-  var p99idx = Math.floor(sorted.length * 0.99);
-  var p99 = sorted[Math.min(p99idx, sorted.length - 1)];
+  var p99 = openVals[Math.floor(openVals.length * 0.99)];
   return Math.ceil(p99 / 25) * 25;
+}
+
+function autoCalculateOutlierFloor() {
+  var pieces = S.series.totalPieces;
+  var dates = S.series.dates;
+  if (pieces.length < 28) return 0;
+  // Filter to only open days with non-zero values
+  var openVals = [];
+  for (var i = 0; i < pieces.length; i++) {
+    if (!isClosedDay(dates[i]) && pieces[i] > 0) openVals.push(pieces[i]);
+  }
+  if (openVals.length < 10) return 0;
+  openVals.sort(function(a,b){return a-b;});
+  // Use 1st percentile, rounded down to nearest 5
+  var p1 = openVals[Math.floor(openVals.length * 0.01)];
+  return Math.max(0, Math.floor(p1 / 5) * 5);
 }
 
 function detectOutliers() {
@@ -817,39 +847,61 @@ function detectOutliers() {
   var pieces = S.series.totalPieces;
   if (dates.length < 28) { S.outliers = []; return; }
 
-  // Auto-calculate cap if not set
+  // Auto-calculate cap and floor if not yet set (null = never calculated)
   if (!S.outlierCap || S.outlierCap <= 0) {
     S.outlierCap = autoCalculateOutlierCap();
   }
+  if (S.outlierFloor === null) {
+    S.outlierFloor = autoCalculateOutlierFloor();
+  }
 
   var cap = S.outlierCap;
+  var floor = S.outlierFloor;
 
-  // Compute per-DOW means for context display
+  // Compute per-DOW means for context display (excluding closed days)
   var dowSums = [0,0,0,0,0,0,0];
   var dowCounts = [0,0,0,0,0,0,0];
   for (var i = 0; i < dates.length; i++) {
+    if (isClosedDay(dates[i])) continue;
     var dow = dates[i].getDay();
     dowSums[dow] += pieces[i];
     dowCounts[dow]++;
   }
   var dowMeans = dowSums.map(function(s,idx){ return dowCounts[idx] > 0 ? s / dowCounts[idx] : 0; });
 
-  // Find values above the cap
+  // Find values above the cap OR below the floor (skip closed days)
   var outliers = [];
   for (var j = 0; j < dates.length; j++) {
+    if (isClosedDay(dates[j])) continue;
+    var dowJ = dates[j].getDay();
     if (pieces[j] > cap) {
       outliers.push({
         index: j,
         date: dates[j],
-        dow: dates[j].getDay(),
+        dow: dowJ,
         value: pieces[j],
         cap: cap,
-        dowMean: dowMeans[dates[j].getDay()]
+        dowMean: dowMeans[dowJ],
+        type: 'high'
+      });
+    } else if (floor > 0 && pieces[j] < floor && pieces[j] >= 0) {
+      outliers.push({
+        index: j,
+        date: dates[j],
+        dow: dowJ,
+        value: pieces[j],
+        cap: Math.round(dowMeans[dowJ]),
+        dowMean: dowMeans[dowJ],
+        type: 'low'
       });
     }
   }
 
-  outliers.sort(function(a,b) { return b.value - a.value; }); // Largest first
+  // Sort: high outliers first (largest first), then low outliers (smallest first)
+  outliers.sort(function(a,b) {
+    if (a.type !== b.type) return a.type === 'high' ? -1 : 1;
+    return a.type === 'high' ? b.value - a.value : a.value - b.value;
+  });
   S.outliers = outliers;
 }
 
@@ -864,23 +916,36 @@ function renderOutlierCard() {
   }
 
   card.style.display = '';
-  badge.textContent = S.outliers.length + ' outlier' + (S.outliers.length > 1 ? 's' : '');
+  var highCount = S.outliers.filter(function(o){ return o.type === 'high'; }).length;
+  var lowCount = S.outliers.filter(function(o){ return o.type === 'low'; }).length;
+  var badgeParts = [];
+  if (highCount > 0) badgeParts.push(highCount + ' high');
+  if (lowCount > 0) badgeParts.push(lowCount + ' low');
+  badge.textContent = badgeParts.join(', ');
+
   var capDisplay = document.getElementById('outlierCapDisplay');
   if (capDisplay) capDisplay.textContent = S.outlierCap;
+  var floorDisplay = document.getElementById('outlierFloorDisplay');
+  if (floorDisplay) floorDisplay.textContent = S.outlierFloor !== null ? S.outlierFloor : 0;
 
   var thead = table.querySelector('thead');
   var tbody = table.querySelector('tbody');
-  thead.innerHTML = '<tr><th>Date</th><th>DOW</th><th style="text-align:right">Value</th><th style="text-align:right">DOW Avg</th><th style="text-align:right">Over By</th><th style="text-align:right">Capped To</th></tr>';
+  thead.innerHTML = '<tr><th>Date</th><th>DOW</th><th>Type</th><th style="text-align:right">Value</th><th style="text-align:right">DOW Avg</th><th style="text-align:right">Diff</th><th style="text-align:right">Fixed To</th></tr>';
 
   var bodyHTML = '';
   S.outliers.forEach(function(o) {
-    var overBy = Math.round(o.value - o.cap);
-    bodyHTML += '<tr style="color:var(--error)">' +
+    var isHigh = o.type === 'high';
+    var diff = Math.round(o.value - o.cap);
+    var diffLabel = isHigh ? ('+' + Math.abs(diff)) : ('\u2212' + Math.abs(diff));
+    var typeLabel = isHigh ? '<span style="color:var(--error);font-weight:600">\u25B2 HIGH</span>' : '<span style="color:var(--warning);font-weight:600">\u25BC LOW</span>';
+    var rowColor = isHigh ? 'var(--error)' : 'var(--warning)';
+    bodyHTML += '<tr style="color:' + rowColor + '">' +
       '<td>' + formatDateISO(o.date) + '</td>' +
       '<td>' + DOW_NAMES[o.dow] + '</td>' +
+      '<td>' + typeLabel + '</td>' +
       '<td class="num" style="text-align:right;font-weight:700">' + Math.round(o.value) + '</td>' +
       '<td class="num" style="text-align:right">' + Math.round(o.dowMean) + '</td>' +
-      '<td class="num" style="text-align:right;font-weight:600">+' + overBy + '</td>' +
+      '<td class="num" style="text-align:right;font-weight:600">' + diffLabel + '</td>' +
       '<td class="num" style="text-align:right;color:var(--success)">' + Math.round(o.cap) + '</td>' +
       '</tr>';
   });
@@ -889,21 +954,33 @@ function renderOutlierCard() {
 
 function capOutliers() {
   if (S.outliers.length === 0) return;
-  var capVal = S.outlierCap;
 
-  // Cap each outlier in all affected series
+  // Fix each outlier in all affected series
   S.outliers.forEach(function(o) {
     var i = o.index;
     var original = S.series.totalPieces[i];
-    if (original > capVal) {
-      var ratio = original > 0 ? capVal / original : 0;
-      S.series.totalPieces[i] = capVal;
+    var target = o.cap; // For high: the cap; for low: the DOW mean
 
-      // Also scale category values proportionally
+    if (o.type === 'high' && original > target) {
+      // Scale DOWN to the cap
+      var ratio = original > 0 ? target / original : 0;
+      S.series.totalPieces[i] = target;
       for (var catName in S.series.categories) {
         if (S.series.categories.hasOwnProperty(catName)) {
           var cat = S.series.categories[catName];
           cat.pieces[i] = Math.round(cat.pieces[i] * ratio * 100) / 100;
+        }
+      }
+    } else if (o.type === 'low' && original < target) {
+      // Scale UP to the DOW mean
+      var ratio2 = original > 0 ? target / original : 0;
+      S.series.totalPieces[i] = target;
+      for (var catName2 in S.series.categories) {
+        if (S.series.categories.hasOwnProperty(catName2)) {
+          var cat2 = S.series.categories[catName2];
+          if (original > 0) {
+            cat2.pieces[i] = Math.round(cat2.pieces[i] * ratio2 * 100) / 100;
+          }
         }
       }
     }
@@ -941,10 +1018,22 @@ function updateOutlierSettingsSummary() {
   if (!el) return;
   if (!S.dataLoaded) { el.textContent = 'No data loaded yet.'; return; }
   if (S.outliers.length === 0) {
-    el.innerHTML = '<span style="color:var(--success);font-weight:600">No outliers detected</span> \u2014 all values are under ' + S.outlierCap + ' pieces.';
+    var floorDisp = S.outlierFloor !== null ? S.outlierFloor : 0;
+    var rangeMsg = 'Range: ' + floorDisp + ' \u2013 ' + S.outlierCap + ' pieces.';
+    el.innerHTML = '<span style="color:var(--success);font-weight:600">No outliers detected</span> \u2014 all open-day values within range. ' + rangeMsg;
   } else {
-    el.innerHTML = '<span style="color:var(--error);font-weight:600">' + S.outliers.length + ' value' + (S.outliers.length > 1 ? 's' : '') + ' above ' + S.outlierCap + ' pieces.</span> Largest: ' +
-      formatDateISO(S.outliers[0].date) + ' = ' + Math.round(S.outliers[0].value) + ' pieces (typical ' + DOW_NAMES[S.outliers[0].dow] + ': ' + Math.round(S.outliers[0].dowMean) + ')';
+    var highOuts = S.outliers.filter(function(o){ return o.type === 'high'; });
+    var lowOuts = S.outliers.filter(function(o){ return o.type === 'low'; });
+    var parts = [];
+    if (highOuts.length > 0) {
+      parts.push('<span style="color:var(--error);font-weight:600">' + highOuts.length + ' above ' + S.outlierCap + '</span>');
+    }
+    if (lowOuts.length > 0) {
+      parts.push('<span style="color:var(--warning);font-weight:600">' + lowOuts.length + ' below ' + S.outlierFloor + '</span>');
+    }
+    var worst = S.outliers[0];
+    el.innerHTML = parts.join(' &bull; ') + ' &mdash; Worst: ' +
+      formatDateISO(worst.date) + ' = ' + Math.round(worst.value) + ' pieces (' + (worst.type === 'high' ? 'max' : 'min') + ': ' + Math.round(worst.cap) + ')';
   }
 }
 
@@ -2674,8 +2763,10 @@ document.getElementById('seriesSelect').addEventListener('change', function() {
 });
 
 document.getElementById('capOutliersBtn').addEventListener('click', function() {
+  if (S.outliers.length === 0) { showNotification('No outliers to fix.', 'info'); return; }
+  var count = S.outliers.length;
   capOutliers();
-  showNotification('Capped ' + 'outlier values to their DOW-specific thresholds. Data and forecasts updated.', 'success');
+  showNotification('Fixed ' + count + ' outlier' + (count > 1 ? 's' : '') + '. High values capped, low values raised.', 'success');
 });
 
 document.getElementById('runBacktestBtn').addEventListener('click', doBacktest);
@@ -2922,6 +3013,14 @@ document.getElementById('outlierCapInput').addEventListener('change', function()
   }
 });
 
+// Settings: outlier floor input
+document.getElementById('outlierFloorInput').addEventListener('change', function() {
+  var val = parseInt(this.value);
+  if (!isNaN(val) && val >= 0) {
+    S.outlierFloor = val;
+  }
+});
+
 // Settings: auto-calculate cap
 document.getElementById('autoCalcCapBtn').addEventListener('click', function() {
   if (!S.dataLoaded) { showNotification('Import data first.', 'error'); return; }
@@ -2932,23 +3031,35 @@ document.getElementById('autoCalcCapBtn').addEventListener('click', function() {
   updateOutlierSettingsSummary();
 });
 
-// Settings: rescan outliers
-document.getElementById('rescanOutliersBtn').addEventListener('click', function() {
+// Settings: auto-calculate floor
+document.getElementById('autoCalcFloorBtn').addEventListener('click', function() {
   if (!S.dataLoaded) { showNotification('Import data first.', 'error'); return; }
-  var inputVal = parseInt(document.getElementById('outlierCapInput').value);
-  if (inputVal && inputVal > 0) S.outlierCap = inputVal;
+  S.outlierFloor = autoCalculateOutlierFloor();
+  document.getElementById('outlierFloorInput').value = S.outlierFloor;
   detectOutliers();
   renderOutlierCard();
   updateOutlierSettingsSummary();
 });
 
-// Settings: cap outliers
+// Settings: rescan outliers
+document.getElementById('rescanOutliersBtn').addEventListener('click', function() {
+  if (!S.dataLoaded) { showNotification('Import data first.', 'error'); return; }
+  var capVal = parseInt(document.getElementById('outlierCapInput').value);
+  if (capVal && capVal > 0) S.outlierCap = capVal;
+  var floorVal = parseInt(document.getElementById('outlierFloorInput').value);
+  if (!isNaN(floorVal) && floorVal >= 0) S.outlierFloor = floorVal;
+  detectOutliers();
+  renderOutlierCard();
+  updateOutlierSettingsSummary();
+});
+
+// Settings: fix outliers
 document.getElementById('settingsCapOutliersBtn').addEventListener('click', function() {
-  if (S.outliers.length === 0) { showNotification('No outliers to cap.', 'info'); return; }
+  if (S.outliers.length === 0) { showNotification('No outliers to fix.', 'info'); return; }
   var count = S.outliers.length;
   capOutliers();
   updateOutlierSettingsSummary();
-  showNotification('Capped ' + count + ' value' + (count > 1 ? 's' : '') + ' to ' + S.outlierCap + ' pieces. Data updated.', 'success');
+  showNotification('Fixed ' + count + ' outlier' + (count > 1 ? 's' : '') + '. High values capped, low values raised. Data updated.', 'success');
 });
 
 // Settings: threshold slider
@@ -3099,6 +3210,7 @@ function initSettingsUI() {
   renderSettingsWindows();
   // Outlier settings
   document.getElementById('outlierCapInput').value = S.outlierCap || '';
+  document.getElementById('outlierFloorInput').value = S.outlierFloor !== null ? S.outlierFloor : '';
   updateOutlierSettingsSummary();
 }
 </script>
