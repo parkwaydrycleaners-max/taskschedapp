@@ -239,6 +239,16 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 .closed-day-btn:hover{border-color:var(--accent)}
 .closed-day-btn.closed{background:var(--error);border-color:var(--error);color:#fff;font-weight:700}
 .closed-day-btn .closed-label{display:block;font-size:.65rem;font-weight:400;opacity:.8;margin-top:2px}
+
+/* Settings */
+.settings-section{margin-bottom:8px}
+.settings-label{font-size:.82rem;font-weight:500;color:var(--text-secondary)}
+.threshold-slider{-webkit-appearance:none;height:6px;border-radius:3px;background:var(--border);outline:none;width:160px}
+.threshold-slider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg-surface)}
+.window-manage-pill{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid var(--border);border-radius:16px;font-size:.78rem;background:var(--bg-surface-alt);color:var(--text-primary);font-weight:500}
+.window-manage-pill .remove-btn{background:none;border:none;color:var(--error);cursor:pointer;font-size:.9rem;padding:0 2px;line-height:1;font-weight:700;opacity:.7;transition:opacity .15s}
+.window-manage-pill .remove-btn:hover{opacity:1}
+.split-info{font-size:.75rem;color:var(--accent);font-weight:500;margin-top:6px}
 </style>
 </head>
 <body>
@@ -259,6 +269,7 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
   <button class="tab-btn" data-tab="backtest" role="tab">&#x1F4CA; Backtest</button>
   <button class="tab-btn" data-tab="forecast" role="tab">&#x1F52E; Forecast</button>
   <button class="tab-btn" data-tab="export" role="tab">&#x1F4CB; Export</button>
+  <button class="tab-btn" data-tab="settings" role="tab">&#x2699;&#xFE0F; Settings</button>
 </nav>
 
 <!-- ===================== TAB: IMPORT ===================== -->
@@ -280,7 +291,7 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
   <!-- Closed Days Settings -->
   <div id="closedDaysCard" class="card" style="display:none">
     <div class="card-title"><span class="icon">&#x1F6D1;</span> Closed Days <span id="closedDaysBadge" class="badge badge-info" style="margin-left:auto;display:none">Auto-detected</span></div>
-    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:10px">Select the days your business is closed. Closed days are excluded from accuracy metrics and always forecast as 0.</p>
+    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:10px">Select the days your business is closed. Closed days are excluded from accuracy metrics and always forecast as 0. <span style="font-size:.75rem;color:var(--accent);cursor:pointer" onclick="switchTab('settings');initSettingsUI();document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab==='settings')})">Configure detection threshold in Settings &rarr;</span></p>
     <div id="closedDaysGrid" style="display:flex;flex-wrap:wrap;gap:8px"></div>
   </div>
 
@@ -315,6 +326,16 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
     <div class="card animate-in">
       <div class="card-title"><span class="icon">&#x1F4C5;</span> Backtest Window</div>
       <div class="window-pills" id="windowPills"></div>
+      <div style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border-light)">
+        <label class="settings-label">Custom:</label>
+        <input type="number" id="customWindowInput" class="param-input" style="width:80px" min="7" max="9999" placeholder="days">
+        <button class="btn btn-secondary btn-sm" id="applyCustomWindowBtn">Apply</button>
+        <span style="color:var(--text-muted);font-size:.82rem;margin:0 2px">|</span>
+        <label class="settings-label">Split at date:</label>
+        <input type="date" id="splitDateInput" class="param-input" style="width:150px;text-align:left">
+        <button class="btn btn-secondary btn-sm" id="applySplitDateBtn">Apply</button>
+      </div>
+      <div id="splitInfo" class="split-info" style="display:none"></div>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-primary" id="runBacktestBtn">Run Backtest</button>
         <button class="btn btn-accent" id="autoOptBtn">Auto-Optimize Weights</button>
@@ -409,6 +430,40 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
   </div>
 </section>
 
+<!-- ===================== TAB: SETTINGS ===================== -->
+<section id="tab-settings" class="tab-panel">
+  <div class="card animate-in">
+    <div class="card-title"><span class="icon">&#x1F6D1;</span> Closed Days Detection</div>
+    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:12px">
+      Configure how closed days are auto-detected from your data. Days are flagged if they are mostly <strong>zeros</strong> or mostly <strong>absent</strong> from the dataset.
+    </p>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+      <label class="settings-label">Detection threshold:</label>
+      <input type="range" id="closedThresholdSlider" class="threshold-slider" min="50" max="100" value="85" step="5">
+      <span id="closedThresholdVal" class="mono" style="font-size:.82rem;min-width:36px">85%</span>
+      <button class="btn btn-secondary btn-sm" id="redetectClosedBtn">Re-detect</button>
+    </div>
+    <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:14px">
+      A day is closed if &gt;<span id="thresholdPctText">85</span>% of its values are zero, <em>or</em> it appears in less than <span id="thresholdMissingText">15</span>% of expected dates.
+    </p>
+    <div id="settingsClosedDaysGrid" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    <div id="settingsClosedBadge" class="badge badge-info" style="margin-top:10px;display:none"></div>
+  </div>
+
+  <div class="card animate-in">
+    <div class="card-title"><span class="icon">&#x1F4C5;</span> Backtest Windows</div>
+    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:12px">
+      Manage the preset backtest window sizes shown in the Backtest tab. You can also enter a custom window or split date directly in the Backtest tab.
+    </p>
+    <div id="settingsWindowList" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label class="settings-label">Add window (days):</label>
+      <input type="number" id="addWindowInput" class="param-input" style="width:80px" min="7" max="9999" placeholder="e.g. 120">
+      <button class="btn btn-secondary btn-sm" id="addWindowBtn">Add</button>
+    </div>
+  </div>
+</section>
+
 <script>
 /* ==================================================================
    STATE
@@ -435,15 +490,16 @@ const S = {
     expSmooth: { name: 'Exp Smooth + DOW',     enabled: true, weight: 5, params: { alpha: 0.3 } }
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
+  closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
   backtestWindow: 14,
+  backtestWindows: [14, 21, 30, 60, 90],
+  backtestSplitDate: null, // Date object or null for date-based split
   backtestResults: {},
   forecastResults: null,
   forecastHorizon: 14,
   btChart: null,
   fcChart: null
 };
-
-const WINDOWS = [14, 21, 30, 60, 90];
 const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1','#ea580c','#0d9488','#be123c','#4f46e5','#84cc16','#ca8a04'];
 
@@ -718,19 +774,34 @@ function autoDetectClosedDays() {
   const pieces = S.series.totalPieces;
   if (dates.length < 28) return [];
 
-  // Count how many days per DOW have 0 pieces vs total days per DOW
-  const zeroCounts = [0,0,0,0,0,0,0];
-  const totalCounts = [0,0,0,0,0,0,0];
-  for (let i = 0; i < dates.length; i++) {
-    const dow = dates[i].getDay();
+  var threshold = S.closedDayThreshold / 100; // e.g. 0.85
+
+  // Count how many days per DOW appear in the data, and how many are zero
+  var zeroCounts = [0,0,0,0,0,0,0];
+  var totalCounts = [0,0,0,0,0,0,0];
+  for (var i = 0; i < dates.length; i++) {
+    var dow = dates[i].getDay();
     totalCounts[dow]++;
     if (pieces[i] === 0) zeroCounts[dow]++;
   }
 
-  // A DOW is closed if >85% of its values are 0
-  const closed = [];
-  for (let d = 0; d < 7; d++) {
-    if (totalCounts[d] > 0 && zeroCounts[d] / totalCounts[d] > 0.85) {
+  // Calculate expected count per DOW based on calendar date range
+  var firstDate = dates[0];
+  var lastDate = dates[dates.length - 1];
+  var totalCalendarDays = Math.round((lastDate - firstDate) / 86400000) + 1;
+  var expectedPerDow = totalCalendarDays / 7;
+
+  var closed = [];
+  for (var d = 0; d < 7; d++) {
+    // Method 1: DOW is mostly zeros (e.g. >85% of appearances have 0 pieces)
+    if (totalCounts[d] > 0 && zeroCounts[d] / totalCounts[d] > threshold) {
+      closed.push(d);
+      continue;
+    }
+    // Method 2: DOW is mostly MISSING from data
+    // If a DOW appears in less than (1 - threshold) of expected dates, mark as closed
+    // e.g. with threshold=0.85: if DOW appears < 15% of expected, it's closed
+    if (expectedPerDow > 4 && totalCounts[d] / expectedPerDow < (1 - threshold)) {
       closed.push(d);
     }
   }
@@ -1087,45 +1158,50 @@ function smoothDOYProfile(doyAvg, doyCounts) {
   return result;
 }
 
-/* 7. Holt-Winters Weekly (period=7, additive) — unchanged */
+/* 7. Holt-Winters Weekly (period=7, additive, DAMPED trend) */
 function forecastHoltWinters(trainData, trainDates, horizon, alpha, beta, gamma) {
   alpha = alpha || 0.2; beta = beta || 0.05; gamma = gamma || 0.3;
-  const n = trainData.length;
+  var phi = 0.95; // Trend damping factor — prevents divergence on long horizons
+  var n = trainData.length;
   if (n < 14) return forecastDOWAvg(trainData, trainDates, horizon, 16);
 
-  const firstWeekAvg = trainData.slice(0, Math.min(7, n)).reduce((a,b) => a+b, 0) / Math.min(7, n);
-  let L = firstWeekAvg;
-  let T = 0;
+  var firstWeekAvg = trainData.slice(0, Math.min(7, n)).reduce(function(a,b){return a+b;}, 0) / Math.min(7, n);
+  var L = firstWeekAvg;
+  var T = 0;
   if (n >= 14) {
-    const w2 = trainData.slice(7, 14).reduce((a,b) => a+b, 0) / 7;
+    var w2 = trainData.slice(7, 14).reduce(function(a,b){return a+b;}, 0) / 7;
     T = (w2 - firstWeekAvg) / 7;
   }
 
-  const Seas = [0,0,0,0,0,0,0];
-  const dowCountsArr = [0,0,0,0,0,0,0];
-  const initEnd = Math.min(28, n);
-  for (let i = 0; i < initEnd; i++) {
-    const dow = trainDates[i].getDay();
-    Seas[dow] += trainData[i] - L;
-    dowCountsArr[dow]++;
+  var Seas = [0,0,0,0,0,0,0];
+  var dowCountsArr = [0,0,0,0,0,0,0];
+  var initEnd = Math.min(28, n);
+  for (var i = 0; i < initEnd; i++) {
+    var dowInit = trainDates[i].getDay();
+    Seas[dowInit] += trainData[i] - L;
+    dowCountsArr[dowInit]++;
   }
-  for (let d = 0; d < 7; d++) {
+  for (var d = 0; d < 7; d++) {
     if (dowCountsArr[d] > 0) Seas[d] /= dowCountsArr[d];
   }
 
-  for (let t = 0; t < n; t++) {
-    const dow = trainDates[t].getDay();
-    const oldL = L;
-    L = alpha * (trainData[t] - Seas[dow]) + (1 - alpha) * (L + T);
-    T = beta * (L - oldL) + (1 - beta) * T;
+  // Damped HW update loop
+  for (var t = 0; t < n; t++) {
+    var dow = trainDates[t].getDay();
+    var oldL = L;
+    L = alpha * (trainData[t] - Seas[dow]) + (1 - alpha) * (L + phi * T);
+    T = beta * (L - oldL) + (1 - beta) * phi * T;
     Seas[dow] = gamma * (trainData[t] - L) + (1 - gamma) * Seas[dow];
   }
 
-  const lastDate = trainDates[n - 1];
-  const fc = [];
-  for (let h = 1; h <= horizon; h++) {
-    const d = new Date(lastDate); d.setDate(d.getDate() + h);
-    fc.push(Math.max(0, L + h * T + Seas[d.getDay()]));
+  // Forecast with damped trend: sum of phi^1 + phi^2 + ... + phi^h
+  var lastDate = trainDates[n - 1];
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var fd = new Date(lastDate); fd.setDate(fd.getDate() + h);
+    // Geometric sum: phi*(1 - phi^h) / (1 - phi)
+    var dampedSum = phi * (1 - Math.pow(phi, h)) / (1 - phi);
+    fc.push(Math.max(0, L + dampedSum * T + Seas[fd.getDay()]));
   }
   return fc;
 }
@@ -2010,18 +2086,20 @@ function renderMethodGrid() {
 }
 
 function renderWindowPills() {
-  const el = document.getElementById('windowPills');
-  const maxWin = S.series.dates.length - 14;
+  var el = document.getElementById('windowPills');
+  var maxWin = S.series.dates.length - 14;
   el.innerHTML = '';
-  WINDOWS.forEach(w => {
-    const pill = document.createElement('button');
+  S.backtestWindows.forEach(function(w) {
+    var pill = document.createElement('button');
     pill.className = 'window-pill' + (w === S.backtestWindow ? ' active' : '');
     pill.textContent = w + ' days';
     pill.disabled = w > maxWin;
     if (w > maxWin) pill.style.opacity = '0.4';
-    pill.addEventListener('click', () => {
+    pill.addEventListener('click', function() {
       S.backtestWindow = w;
-      el.querySelectorAll('.window-pill').forEach(p => p.classList.toggle('active', parseInt(p.textContent) === w));
+      S.backtestSplitDate = null;
+      document.getElementById('splitInfo').style.display = 'none';
+      el.querySelectorAll('.window-pill').forEach(function(p) { p.classList.toggle('active', parseInt(p.textContent) === w); });
     });
     el.appendChild(pill);
   });
@@ -2148,7 +2226,10 @@ function showNotification(msg, type) {
    EVENT HANDLERS
    ================================================================== */
 document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  btn.addEventListener('click', function() {
+    switchTab(btn.dataset.tab);
+    if (btn.dataset.tab === 'settings') initSettingsUI();
+  });
 });
 
 /* Shared post-load setup */
@@ -2157,18 +2238,27 @@ function onDataLoaded() {
   populateSeriesDropdowns();
 
   // Auto-detect closed days and show the UI
-  const detected = autoDetectClosedDays();
+  var detected = autoDetectClosedDays();
   S.closedDays = detected;
   document.getElementById('closedDaysCard').style.display = '';
-  const badge = document.getElementById('closedDaysBadge');
+  var badge = document.getElementById('closedDaysBadge');
   if (detected.length > 0) {
-    const names = detected.map(function(d) { return DOW_NAMES[d]; });
-    badge.textContent = 'Auto-detected: ' + names.join(', ');
+    var names = detected.map(function(d) { return DOW_NAMES[d]; });
+    badge.textContent = 'Auto-detected: ' + names.join(', ') + ' (threshold: ' + S.closedDayThreshold + '%)';
     badge.style.display = '';
   } else {
     badge.style.display = 'none';
   }
   renderClosedDaysUI();
+
+  // Also set the split date input range based on data
+  if (S.series.dates.length > 28) {
+    var splitInput = document.getElementById('splitDateInput');
+    var earliest = S.series.dates[14];
+    var latest = S.series.dates[S.series.dates.length - 3];
+    splitInput.min = formatDateISO(earliest);
+    splitInput.max = formatDateISO(latest);
+  }
 
   document.getElementById('noDataBacktest').style.display = 'none';
   document.getElementById('backtestContent').style.display = '';
@@ -2445,6 +2535,219 @@ document.getElementById('exportBacktestBtn').addEventListener('click', function(
     setTimeout(function() { document.getElementById('exportBtStatus').textContent = ''; }, 3000);
   });
 });
+
+/* ==================================================================
+   SETTINGS TAB
+   ================================================================== */
+function renderSettingsClosedDays() {
+  var grid = document.getElementById('settingsClosedDaysGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var dayFull = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  dayNames.forEach(function(name, idx) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    var isClosed = S.closedDays.includes(idx);
+    btn.className = 'closed-day-btn' + (isClosed ? ' closed' : '');
+    btn.innerHTML = name + (isClosed ? '<span class="closed-label">CLOSED</span>' : '<span class="closed-label">Open</span>');
+    btn.title = dayFull[idx];
+    btn.addEventListener('click', function() {
+      var pos = S.closedDays.indexOf(idx);
+      if (pos >= 0) {
+        S.closedDays.splice(pos, 1);
+      } else {
+        S.closedDays.push(idx);
+      }
+      renderSettingsClosedDays();
+      renderClosedDaysUI();
+      if (S.dataLoaded) doBacktest();
+    });
+    grid.appendChild(btn);
+  });
+}
+
+function renderSettingsWindows() {
+  var list = document.getElementById('settingsWindowList');
+  if (!list) return;
+  list.innerHTML = '';
+  var sorted = S.backtestWindows.slice().sort(function(a,b) { return a - b; });
+  sorted.forEach(function(w) {
+    var pill = document.createElement('span');
+    pill.className = 'window-manage-pill';
+    pill.innerHTML = w + ' days <button class="remove-btn" title="Remove this window">&times;</button>';
+    pill.querySelector('.remove-btn').addEventListener('click', function() {
+      if (S.backtestWindows.length <= 1) return; // Must keep at least one
+      var idx = S.backtestWindows.indexOf(w);
+      if (idx >= 0) S.backtestWindows.splice(idx, 1);
+      if (S.backtestWindow === w) {
+        S.backtestWindow = S.backtestWindows[0];
+      }
+      renderSettingsWindows();
+      if (S.dataLoaded) renderWindowPills();
+    });
+    list.appendChild(pill);
+  });
+}
+
+function updateThresholdLabels() {
+  var val = S.closedDayThreshold;
+  var valEl = document.getElementById('closedThresholdVal');
+  var pctEl = document.getElementById('thresholdPctText');
+  var missingEl = document.getElementById('thresholdMissingText');
+  if (valEl) valEl.textContent = val + '%';
+  if (pctEl) pctEl.textContent = val;
+  if (missingEl) missingEl.textContent = (100 - val);
+}
+
+// Settings: threshold slider
+document.getElementById('closedThresholdSlider').addEventListener('input', function() {
+  S.closedDayThreshold = parseInt(this.value);
+  updateThresholdLabels();
+});
+
+// Settings: re-detect button
+document.getElementById('redetectClosedBtn').addEventListener('click', function() {
+  if (!S.dataLoaded) {
+    showNotification('Import data first before detecting closed days.', 'error');
+    return;
+  }
+  var detected = autoDetectClosedDays();
+  S.closedDays = detected;
+  renderSettingsClosedDays();
+  renderClosedDaysUI();
+
+  var badge = document.getElementById('settingsClosedBadge');
+  if (detected.length > 0) {
+    badge.textContent = 'Detected: ' + detected.map(function(d) { return DOW_NAMES[d]; }).join(', ');
+    badge.style.display = '';
+  } else {
+    badge.textContent = 'No closed days detected at ' + S.closedDayThreshold + '% threshold';
+    badge.style.display = '';
+  }
+
+  // Also update Import tab badge
+  var importBadge = document.getElementById('closedDaysBadge');
+  if (detected.length > 0) {
+    importBadge.textContent = 'Auto-detected: ' + detected.map(function(d) { return DOW_NAMES[d]; }).join(', ');
+    importBadge.style.display = '';
+  } else {
+    importBadge.style.display = 'none';
+  }
+
+  if (S.dataLoaded) doBacktest();
+});
+
+// Settings: add window
+document.getElementById('addWindowBtn').addEventListener('click', function() {
+  var input = document.getElementById('addWindowInput');
+  var val = parseInt(input.value);
+  if (!val || val < 7) {
+    showNotification('Please enter a window size of at least 7 days.', 'error');
+    return;
+  }
+  if (S.backtestWindows.includes(val)) {
+    showNotification('Window size ' + val + ' already exists.', 'info');
+    return;
+  }
+  S.backtestWindows.push(val);
+  S.backtestWindows.sort(function(a,b) { return a - b; });
+  input.value = '';
+  renderSettingsWindows();
+  if (S.dataLoaded) renderWindowPills();
+});
+
+// Backtest: custom window apply
+document.getElementById('applyCustomWindowBtn').addEventListener('click', function() {
+  var val = parseInt(document.getElementById('customWindowInput').value);
+  if (!val || val < 7) {
+    showNotification('Enter a window size of at least 7 days.', 'error');
+    return;
+  }
+  S.backtestWindow = val;
+  S.backtestSplitDate = null;
+  document.getElementById('splitInfo').style.display = 'none';
+  // If not already in windows list, temporarily add to pills
+  renderWindowPills();
+  // Highlight custom if not in list
+  var pills = document.querySelectorAll('#windowPills .window-pill');
+  var found = false;
+  pills.forEach(function(p) {
+    if (parseInt(p.textContent) === val) { p.classList.add('active'); found = true; }
+    else { p.classList.remove('active'); }
+  });
+  if (!found) {
+    // Add a temporary pill for the custom value
+    var el = document.getElementById('windowPills');
+    var pill = document.createElement('button');
+    pill.className = 'window-pill active';
+    pill.textContent = val + ' days';
+    pill.style.borderStyle = 'dashed';
+    el.appendChild(pill);
+  }
+  doBacktest();
+});
+
+// Backtest: split date apply
+document.getElementById('applySplitDateBtn').addEventListener('click', function() {
+  var dateStr = document.getElementById('splitDateInput').value;
+  if (!dateStr) {
+    showNotification('Please select a date for the backtest split.', 'error');
+    return;
+  }
+  var splitDate = new Date(dateStr + 'T00:00:00');
+  var dates = S.series.dates;
+  if (dates.length < 28) {
+    showNotification('Not enough data loaded.', 'error');
+    return;
+  }
+
+  // Find the index of the closest date in the data that's <= splitDate
+  var splitIdx = -1;
+  for (var i = 0; i < dates.length; i++) {
+    if (dates[i] <= splitDate) splitIdx = i;
+    else break;
+  }
+  if (splitIdx < 14) {
+    showNotification('Split date is too early — need at least 14 training data points before it.', 'error');
+    return;
+  }
+  if (splitIdx >= dates.length - 2) {
+    showNotification('Split date is too late — need at least 2 test data points after it.', 'error');
+    return;
+  }
+
+  var windowSize = dates.length - splitIdx - 1;
+  S.backtestWindow = windowSize;
+  S.backtestSplitDate = dates[splitIdx];
+
+  // Show info
+  var info = document.getElementById('splitInfo');
+  info.textContent = 'Split at ' + formatDateISO(dates[splitIdx]) + ' (' + DOW_NAMES[dates[splitIdx].getDay()] + ') \u2192 ' + (splitIdx + 1) + ' training days, ' + windowSize + ' test days';
+  info.style.display = '';
+
+  // Update pills (deselect all, show custom)
+  renderWindowPills();
+  var el = document.getElementById('windowPills');
+  el.querySelectorAll('.window-pill').forEach(function(p) { p.classList.remove('active'); });
+  var pill = document.createElement('button');
+  pill.className = 'window-pill active';
+  pill.textContent = windowSize + ' days';
+  pill.style.borderStyle = 'dashed';
+  pill.title = 'Split at ' + formatDateISO(dates[splitIdx]);
+  el.appendChild(pill);
+
+  doBacktest();
+});
+
+// Initialize settings UI when switching to settings tab
+function initSettingsUI() {
+  document.getElementById('closedThresholdSlider').value = S.closedDayThreshold;
+  updateThresholdLabels();
+  renderSettingsClosedDays();
+  renderSettingsWindows();
+}
 </script>
 </body>
 </html>
