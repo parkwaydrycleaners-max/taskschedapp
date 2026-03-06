@@ -1860,8 +1860,8 @@ function computeEnsemble(methodResults, horizon) {
 function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, testDates) {
   if (trainData.length < 28) return ensemble;
 
-  // Compute per-DOW bias from the last 6 weeks of training data
-  var recentN = Math.min(36, trainData.length);
+  // Compute per-DOW bias from the last 8 weeks of training data
+  var recentN = Math.min(48, trainData.length);
   var dowActualSum = [0,0,0,0,0,0,0];
   var dowCount = [0,0,0,0,0,0,0];
   for (var i = trainData.length - recentN; i < trainData.length; i++) {
@@ -1884,8 +1884,8 @@ function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, tes
     if (dowCount[dd] > 0 && seasonalAvgs[dd] > 0) {
       var recentAvg = dowActualSum[dd] / dowCount[dd];
       var rawRatio = recentAvg / seasonalAvgs[dd];
-      // Dampen: apply 35% of the correction
-      correction[dd] = 0.65 + 0.35 * rawRatio;
+      // Dampen: apply 30% of the correction
+      correction[dd] = 0.7 + 0.3 * rawRatio;
     }
   }
 
@@ -2018,41 +2018,6 @@ function autoOptimize() {
     if (finalMape < globalBestMape) {
       globalBestMape = finalMape;
       globalBestWeights = {...weights};
-    }
-  }
-
-  // Regularization: cap any single method at 30% of total weight
-  var rawTotal = enabledKeys.reduce((s,k) => s + globalBestWeights[k], 0);
-  if (rawTotal > 0) {
-    var maxW = rawTotal * 0.30;
-    var excess = 0;
-    var uncapped = 0;
-    for (const k of enabledKeys) {
-      if (globalBestWeights[k] > maxW) {
-        excess += globalBestWeights[k] - maxW;
-        globalBestWeights[k] = maxW;
-      } else {
-        uncapped += globalBestWeights[k];
-      }
-    }
-    // Redistribute excess proportionally to uncapped methods
-    if (excess > 0 && uncapped > 0) {
-      for (const k of enabledKeys) {
-        if (globalBestWeights[k] < maxW) {
-          globalBestWeights[k] += excess * (globalBestWeights[k] / uncapped);
-        }
-      }
-    }
-  }
-
-  // Reliability discount: halve weight of methods with WMAPE > 1.5× the median
-  var methodWapes = enabledKeys.map(k => ({ k: k, w: calculateWAPE(testData, forecasts[k], testDates) }));
-  methodWapes.sort((a,b) => a.w - b.w);
-  var medianWape = methodWapes[Math.floor(methodWapes.length / 2)].w;
-  var threshold = medianWape * 1.5;
-  for (const m of methodWapes) {
-    if (m.w > threshold && globalBestWeights[m.k] > 0) {
-      globalBestWeights[m.k] *= 0.5;
     }
   }
 
