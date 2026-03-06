@@ -288,6 +288,19 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
     </div>
   </div>
 
+  <!-- Outlier Alert -->
+  <div id="outlierCard" class="card" style="display:none">
+    <div class="card-title"><span class="icon">&#x26A0;&#xFE0F;</span> Outliers Detected <span id="outlierBadge" class="badge badge-error" style="margin-left:auto"></span></div>
+    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:10px">These data points are statistical outliers (&gt;3 standard deviations from the DOW mean). They will corrupt mean-based forecasts. You can auto-cap them or adjust in Settings.</p>
+    <div class="table-wrap" style="max-height:200px;overflow-y:auto">
+      <table class="data-table" id="outlierTable"><thead></thead><tbody></tbody></table>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-primary btn-sm" id="capOutliersBtn">Auto-Cap Outliers</button>
+      <span style="font-size:.75rem;color:var(--text-muted)">Replaces outlier values with the DOW-specific cap (mean + 3&times;StdDev)</span>
+    </div>
+  </div>
+
   <!-- Closed Days Settings -->
   <div id="closedDaysCard" class="card" style="display:none">
     <div class="card-title"><span class="icon">&#x1F6D1;</span> Closed Days <span id="closedDaysBadge" class="badge badge-info" style="margin-left:auto;display:none">Auto-detected</span></div>
@@ -433,6 +446,22 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 <!-- ===================== TAB: SETTINGS ===================== -->
 <section id="tab-settings" class="tab-panel">
   <div class="card animate-in">
+    <div class="card-title"><span class="icon">&#x26A0;&#xFE0F;</span> Outlier Detection</div>
+    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:12px">
+      Values that are extreme outliers (far from the day-of-week mean) can corrupt forecasting methods. Configure the sensitivity and auto-cap to protect accuracy.
+    </p>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+      <label class="settings-label">Outlier threshold:</label>
+      <input type="range" id="outlierThresholdSlider" class="threshold-slider" min="2" max="6" value="3" step="0.5">
+      <span id="outlierThresholdVal" class="mono" style="font-size:.82rem;min-width:56px">3.0 &sigma;</span>
+      <button class="btn btn-secondary btn-sm" id="rescanOutliersBtn">Re-scan</button>
+      <button class="btn btn-primary btn-sm" id="settingsCapOutliersBtn">Auto-Cap All</button>
+    </div>
+    <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:10px">Values beyond <span id="outlierSigmaText">3.0</span>&sigma; from their DOW mean are flagged. Capping replaces them with the DOW cap (mean + threshold &times; StdDev).</p>
+    <div id="settingsOutlierSummary" style="font-size:.82rem;color:var(--text-secondary)">No data loaded yet.</div>
+  </div>
+
+  <div class="card animate-in">
     <div class="card-title"><span class="icon">&#x1F6D1;</span> Closed Days Detection</div>
     <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:12px">
       Configure how closed days are auto-detected from your data. Days are flagged if they are mostly <strong>zeros</strong> or mostly <strong>absent</strong> from the dataset.
@@ -491,6 +520,8 @@ const S = {
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
+  outlierThreshold: 3.0,  // standard deviations from DOW mean to flag as outlier
+  outliers: [],           // array of { index, date, dow, value, cap, dowMean, dowStd }
   backtestWindow: 14,
   backtestWindows: [14, 21, 30, 60, 90],
   backtestSplitDate: null, // Date object or null for date-based split
@@ -764,6 +795,136 @@ function processData() {
 
   S.dataLoaded = true;
   return true;
+}
+
+/* ==================================================================
+   OUTLIER DETECTION & CAPPING
+   ================================================================== */
+function detectOutliers() {
+  var dates = S.series.dates;
+  var pieces = S.series.totalPieces;
+  if (dates.length < 28) { S.outliers = []; return; }
+
+  var sigma = S.outlierThreshold;
+
+  // Compute per-DOW mean and std
+  var dowVals = [[],[],[],[],[],[],[]];
+  for (var i = 0; i < dates.length; i++) {
+    dowVals[dates[i].getDay()].push({ idx: i, val: pieces[i] });
+  }
+
+  var dowStats = [];
+  for (var d = 0; d < 7; d++) {
+    var vals = dowVals[d].map(function(v) { return v.val; });
+    if (vals.length < 3) { dowStats.push({ mean: 0, std: 0 }); continue; }
+    var mean = vals.reduce(function(a,b){return a+b;},0) / vals.length;
+    var variance = vals.reduce(function(a,b){return a + (b - mean) * (b - mean);},0) / vals.length;
+    dowStats.push({ mean: mean, std: Math.sqrt(variance) });
+  }
+
+  // Find outliers
+  var outliers = [];
+  for (var dd = 0; dd < 7; dd++) {
+    var st = dowStats[dd];
+    if (st.std === 0) continue;
+    var cap = st.mean + sigma * st.std;
+    var floor = Math.max(0, st.mean - sigma * st.std);
+    dowVals[dd].forEach(function(entry) {
+      if (entry.val > cap || entry.val < floor) {
+        outliers.push({
+          index: entry.idx,
+          date: dates[entry.idx],
+          dow: dd,
+          value: entry.val,
+          cap: entry.val > cap ? cap : floor,
+          dowMean: st.mean,
+          dowStd: st.std
+        });
+      }
+    });
+  }
+
+  outliers.sort(function(a,b) { return b.value - a.value; }); // Largest first
+  S.outliers = outliers;
+}
+
+function renderOutlierCard() {
+  var card = document.getElementById('outlierCard');
+  var badge = document.getElementById('outlierBadge');
+  var table = document.getElementById('outlierTable');
+
+  if (S.outliers.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+
+  card.style.display = '';
+  badge.textContent = S.outliers.length + ' outlier' + (S.outliers.length > 1 ? 's' : '');
+
+  var thead = table.querySelector('thead');
+  var tbody = table.querySelector('tbody');
+  thead.innerHTML = '<tr><th>Date</th><th>DOW</th><th style="text-align:right">Value</th><th style="text-align:right">DOW Mean</th><th style="text-align:right">Sigma</th><th style="text-align:right">Would Cap To</th></tr>';
+
+  var bodyHTML = '';
+  S.outliers.forEach(function(o) {
+    var sigmaAway = o.dowStd > 0 ? ((o.value - o.dowMean) / o.dowStd).toFixed(1) : '?';
+    bodyHTML += '<tr style="color:var(--error)">' +
+      '<td>' + formatDateISO(o.date) + '</td>' +
+      '<td>' + DOW_NAMES[o.dow] + '</td>' +
+      '<td class="num" style="text-align:right;font-weight:700">' + Math.round(o.value * 100) / 100 + '</td>' +
+      '<td class="num" style="text-align:right">' + Math.round(o.dowMean) + '</td>' +
+      '<td class="num" style="text-align:right">' + sigmaAway + '\u03C3</td>' +
+      '<td class="num" style="text-align:right;color:var(--success)">' + Math.round(o.cap) + '</td>' +
+      '</tr>';
+  });
+  tbody.innerHTML = bodyHTML;
+}
+
+function capOutliers() {
+  if (S.outliers.length === 0) return;
+
+  // Cap each outlier in all affected series
+  S.outliers.forEach(function(o) {
+    var i = o.index;
+    // Cap totalPieces
+    if (S.series.totalPieces[i] === o.value) {
+      // Find what ratio this outlier represents vs original total
+      var ratio = o.value > 0 ? o.cap / o.value : 0;
+      S.series.totalPieces[i] = Math.round(o.cap * 100) / 100;
+
+      // Also scale category values proportionally
+      for (var catName in S.series.categories) {
+        if (S.series.categories.hasOwnProperty(catName)) {
+          var cat = S.series.categories[catName];
+          cat.pieces[i] = Math.round(cat.pieces[i] * ratio * 100) / 100;
+        }
+      }
+    }
+  });
+
+  // Re-detect (should find zero outliers now)
+  detectOutliers();
+  renderOutlierCard();
+  renderDataPreview();
+
+  // Re-run backtest
+  if (S.dataLoaded) {
+    autoOptimize();
+    renderMethodGrid();
+    doBacktest();
+  }
+}
+
+function updateOutlierSettingsSummary() {
+  var el = document.getElementById('settingsOutlierSummary');
+  if (!el) return;
+  if (!S.dataLoaded) { el.textContent = 'No data loaded yet.'; return; }
+  if (S.outliers.length === 0) {
+    el.innerHTML = '<span style="color:var(--success);font-weight:600">No outliers detected</span> at ' + S.outlierThreshold + '\u03C3 threshold.';
+  } else {
+    el.innerHTML = '<span style="color:var(--error);font-weight:600">' + S.outliers.length + ' outlier' + (S.outliers.length > 1 ? 's' : '') + ' detected</span> at ' + S.outlierThreshold + '\u03C3 threshold. Largest: ' +
+      formatDateISO(S.outliers[0].date) + ' = ' + Math.round(S.outliers[0].value) + ' (DOW mean: ' + Math.round(S.outliers[0].dowMean) + ')';
+  }
 }
 
 /* ==================================================================
@@ -2237,6 +2398,10 @@ function onDataLoaded() {
   renderDataPreview();
   populateSeriesDropdowns();
 
+  // Detect outliers and show warning
+  detectOutliers();
+  renderOutlierCard();
+
   // Auto-detect closed days and show the UI
   var detected = autoDetectClosedDays();
   S.closedDays = detected;
@@ -2363,6 +2528,11 @@ document.getElementById('seriesSelect').addEventListener('change', function() {
   S.activeSeries = this.value;
   document.getElementById('forecastSeriesSelect').value = this.value;
   if (S.dataLoaded) doBacktest();
+});
+
+document.getElementById('capOutliersBtn').addEventListener('click', function() {
+  capOutliers();
+  showNotification('Capped ' + 'outlier values to their DOW-specific thresholds. Data and forecasts updated.', 'success');
 });
 
 document.getElementById('runBacktestBtn').addEventListener('click', doBacktest);
@@ -2601,6 +2771,30 @@ function updateThresholdLabels() {
   if (missingEl) missingEl.textContent = (100 - val);
 }
 
+// Settings: outlier threshold slider
+document.getElementById('outlierThresholdSlider').addEventListener('input', function() {
+  S.outlierThreshold = parseFloat(this.value);
+  document.getElementById('outlierThresholdVal').textContent = S.outlierThreshold.toFixed(1) + ' \u03C3';
+  document.getElementById('outlierSigmaText').textContent = S.outlierThreshold.toFixed(1);
+});
+
+// Settings: rescan outliers
+document.getElementById('rescanOutliersBtn').addEventListener('click', function() {
+  if (!S.dataLoaded) { showNotification('Import data first.', 'error'); return; }
+  detectOutliers();
+  renderOutlierCard();
+  updateOutlierSettingsSummary();
+});
+
+// Settings: cap outliers
+document.getElementById('settingsCapOutliersBtn').addEventListener('click', function() {
+  if (S.outliers.length === 0) { showNotification('No outliers to cap.', 'info'); return; }
+  var count = S.outliers.length;
+  capOutliers();
+  updateOutlierSettingsSummary();
+  showNotification('Capped ' + count + ' outlier value' + (count > 1 ? 's' : '') + '. Data and forecasts updated.', 'success');
+});
+
 // Settings: threshold slider
 document.getElementById('closedThresholdSlider').addEventListener('input', function() {
   S.closedDayThreshold = parseInt(this.value);
@@ -2747,6 +2941,11 @@ function initSettingsUI() {
   updateThresholdLabels();
   renderSettingsClosedDays();
   renderSettingsWindows();
+  // Outlier settings
+  document.getElementById('outlierThresholdSlider').value = S.outlierThreshold;
+  document.getElementById('outlierThresholdVal').textContent = S.outlierThreshold.toFixed(1) + ' \u03C3';
+  document.getElementById('outlierSigmaText').textContent = S.outlierThreshold.toFixed(1);
+  updateOutlierSettingsSummary();
 }
 </script>
 </body>
