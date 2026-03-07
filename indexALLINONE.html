@@ -971,6 +971,7 @@ if (_fouc_loader) _fouc_loader.remove();
                 </div>
                 <div class="flex justify-between items-center">
                     <div class="flex space-x-2">
+                        <button id="reportYesterday" class="px-3 py-1 text-sm bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors">Yesterday</button>
                         <button id="reportToday" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Today</button>
                         <button id="reportTomorrow" class="px-3 py-1 text-sm bg-cyan-500 text-white rounded hover:bg-cyan-600 transition-colors">Tomorrow</button>
                         <button id="reportWeek" class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">This Week</button>
@@ -3764,6 +3765,7 @@ attachSearchListeners() {
 }
  
  attachReportsListeners() {
+ document.getElementById('reportYesterday').addEventListener('click', () => this.setReportDateRange('yesterday'));
  document.getElementById('reportToday').addEventListener('click', () => this.setReportDateRange('today'));
  document.getElementById('reportTomorrow').addEventListener('click', () => this.setReportDateRange('tomorrow'));
  document.getElementById('reportWeek').addEventListener('click', () => this.setReportDateRange('week'));
@@ -6180,8 +6182,12 @@ createSearchResultItem(result) {
  setReportDateRange(range) {
  const today = new Date();
  let startDate, endDate;
- 
- if (range === 'today') {
+
+ if (range === 'yesterday') {
+ const yesterday = new Date(today);
+ yesterday.setDate(today.getDate() - 1);
+ startDate = endDate = this.dateToLocalDateString(yesterday);
+ } else if (range === 'today') {
  startDate = endDate = this.dateToLocalDateString(today);
  } else if (range === 'tomorrow') {
  const tomorrow = new Date(today);
