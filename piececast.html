@@ -185,7 +185,17 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 .badge-info{background:var(--accent-bg);color:var(--accent)}
 
 /* Chart container */
-.chart-box{position:relative;width:100%;max-height:380px;margin-top:12px}
+.chart-box{position:relative;width:100%;height:350px;min-height:180px;margin-top:8px}
+.chart-controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px;font-size:.78rem;color:var(--text-secondary)}
+.chart-controls label{font-weight:500;white-space:nowrap}
+.chart-controls input[type="number"]{
+  width:72px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;
+  background:var(--bg-surface);color:var(--text-primary);font-size:16px;
+  font-family:'JetBrains Mono',monospace;text-align:center;
+}
+.chart-controls input[type="range"]{width:100px;vertical-align:middle}
+.chart-controls .ctrl-group{display:flex;align-items:center;gap:4px}
+.chart-controls .height-val{font-family:'JetBrains Mono',monospace;font-size:.72rem;min-width:36px}
 
 /* Export area */
 .export-area{
@@ -378,7 +388,13 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
     <!-- Backtest Chart -->
     <div class="card" id="btChartCard" style="display:none">
       <div class="card-title"><span class="icon">&#x1F4C8;</span> Backtest: Actual vs Forecast</div>
-      <div class="chart-box"><canvas id="btChart"></canvas></div>
+      <div class="chart-controls">
+        <div class="ctrl-group"><label>Y min:</label><input type="number" id="btYMin" placeholder="auto" step="10"></div>
+        <div class="ctrl-group"><label>Y max:</label><input type="number" id="btYMax" placeholder="auto" step="10"></div>
+        <div class="ctrl-group"><label>Height:</label><input type="range" id="btHeightSlider" min="180" max="700" value="350"><span class="height-val" id="btHeightVal">350</span></div>
+        <button class="btn btn-sm btn-secondary" id="btYReset">Reset</button>
+      </div>
+      <div class="chart-box" id="btChartBox"><canvas id="btChart"></canvas></div>
     </div>
   </div>
 </section>
@@ -412,7 +428,13 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
     <!-- Forecast Chart -->
     <div class="card" id="fcChartCard" style="display:none">
       <div class="card-title"><span class="icon">&#x1F4C8;</span> Forecast Visualization</div>
-      <div class="chart-box"><canvas id="fcChart"></canvas></div>
+      <div class="chart-controls">
+        <div class="ctrl-group"><label>Y min:</label><input type="number" id="fcYMin" placeholder="auto" step="10"></div>
+        <div class="ctrl-group"><label>Y max:</label><input type="number" id="fcYMax" placeholder="auto" step="10"></div>
+        <div class="ctrl-group"><label>Height:</label><input type="range" id="fcHeightSlider" min="180" max="700" value="350"><span class="height-val" id="fcHeightVal">350</span></div>
+        <button class="btn btn-sm btn-secondary" id="fcYReset">Reset</button>
+      </div>
+      <div class="chart-box" id="fcChartBox"><canvas id="fcChart"></canvas></div>
     </div>
   </div>
 </section>
@@ -526,7 +548,9 @@ const S = {
     momentum:  { name: 'Momentum-Adjusted',   enabled: true, weight: 10, params: { lookback: 3 } },
     sma7:      { name: '7-Day Moving Avg',     enabled: false, weight: 0, params: {} },
     sma28:     { name: '28-Day Moving Avg',     enabled: false, weight: 0, params: {} },
-    expSmooth: { name: 'Exp Smooth + DOW',     enabled: true, weight: 5, params: { alpha: 0.3 } }
+    expSmooth: { name: 'Exp Smooth + DOW',     enabled: true, weight: 5, params: { alpha: 0.3 } },
+    isoWeekDow:{ name: 'ISO Week × DOW',     enabled: true, weight: 15, params: {} },
+    weekVolSplit:{ name: 'Weekly Vol Split',  enabled: true, weight: 15, params: { yearsBack: 3 } }
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
@@ -1717,6 +1741,153 @@ function forecastMomentum(trainData, trainDates, horizon, lookback) {
   return fc;
 }
 
+/* ISO Week number (Mon=start) */
+function getISOWeek(d) {
+  var tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  var yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  return Math.ceil(((tmp - yearStart) / 86400000 + 1) / 7);
+}
+
+/* 16. ISO Week × DOW
+   For each forecast date, find all training dates that share the same
+   ISO week number AND same day-of-week. Average their values.
+   Falls back to broader ±2 week band, then to overall DOW average. */
+function forecastISOWeekDOW(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var overallDow = buildDOWAvg(trainData, trainDates);
+
+  // Pre-build lookup: key = week*10+dow → array of values
+  var lookup = {};
+  for (var i = 0; i < n; i++) {
+    var wk = getISOWeek(trainDates[i]);
+    var dw = trainDates[i].getDay();
+    var key = wk * 10 + dw;
+    if (!lookup[key]) lookup[key] = [];
+    lookup[key].push(trainData[i]);
+  }
+
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var dow = d.getDay();
+    var targetWk = getISOWeek(d);
+
+    // Exact week match
+    var exactKey = targetWk * 10 + dow;
+    if (lookup[exactKey] && lookup[exactKey].length >= 2) {
+      var vals = lookup[exactKey];
+      fc.push(Math.max(0, vals.reduce(function(a, b) { return a + b; }, 0) / vals.length));
+      continue;
+    }
+
+    // Broaden: ±1 week band
+    var band = [];
+    for (var w = targetWk - 1; w <= targetWk + 1; w++) {
+      var adjW = w < 1 ? w + 52 : w > 52 ? w - 52 : w;
+      var bk = adjW * 10 + dow;
+      if (lookup[bk]) band = band.concat(lookup[bk]);
+    }
+    if (band.length >= 2) {
+      fc.push(Math.max(0, band.reduce(function(a, b) { return a + b; }, 0) / band.length));
+      continue;
+    }
+
+    // Fallback: overall DOW average
+    fc.push(Math.max(0, overallDow[dow]));
+  }
+  return fc;
+}
+
+/* 17. Weekly Volume Split
+   Predict total weekly volume from same ISO week in prior years,
+   then distribute across DOW using recent DOW share ratios. */
+function forecastWeekVolSplit(trainData, trainDates, horizon, yearsBack) {
+  yearsBack = yearsBack || 3;
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+
+  // Build weekly totals: weekKey = year*100+isoWeek → { total, days }
+  var weeklyTotals = {};
+  for (var i = 0; i < n; i++) {
+    var yr = trainDates[i].getFullYear();
+    var wk = getISOWeek(trainDates[i]);
+    var wKey = yr * 100 + wk;
+    if (!weeklyTotals[wKey]) weeklyTotals[wKey] = { total: 0, days: 0 };
+    weeklyTotals[wKey].total += trainData[i];
+    weeklyTotals[wKey].days++;
+  }
+
+  // Compute recent DOW shares from last 6 weeks
+  var recentN = Math.min(36, n);
+  var dowSums = [0,0,0,0,0,0,0];
+  var totalRecent = 0;
+  for (var j = n - recentN; j < n; j++) {
+    var dw = trainDates[j].getDay();
+    dowSums[dw] += trainData[j];
+    totalRecent += trainData[j];
+  }
+  var dowShare = dowSums.map(function(s) { return totalRecent > 0 ? s / totalRecent : 1/6; });
+
+  // For each DOW, how many open days per week? (to normalize weekly total → daily)
+  var openDaysPerWeek = 0;
+  for (var dd = 0; dd < 7; dd++) {
+    if (S.closedDays.indexOf(dd) === -1) openDaysPerWeek++;
+  }
+
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var dow = d.getDay();
+    var targetWk = getISOWeek(d);
+
+    // Find same ISO week from prior years
+    var weekVals = [];
+    var curYear = d.getFullYear();
+    for (var yb = 1; yb <= yearsBack; yb++) {
+      var lookupKey = (curYear - yb) * 100 + targetWk;
+      if (weeklyTotals[lookupKey] && weeklyTotals[lookupKey].days >= 3) {
+        // Normalize to full week if partial
+        var wt = weeklyTotals[lookupKey];
+        var normalized = wt.total * (openDaysPerWeek / Math.max(1, wt.days));
+        weekVals.push(normalized);
+      }
+    }
+
+    if (weekVals.length === 0) {
+      // Fallback: use recent 4 weeks average weekly total
+      var recentWeekTotal = 0;
+      var recentWeekDays = 0;
+      for (var ri = Math.max(0, n - 24); ri < n; ri++) {
+        recentWeekTotal += trainData[ri];
+        recentWeekDays++;
+      }
+      var avgWeek = recentWeekDays > 0 ? recentWeekTotal / recentWeekDays * openDaysPerWeek : 0;
+      weekVals.push(avgWeek);
+    }
+
+    // Average weekly total for this week-of-year
+    var avgWeeklyVol = weekVals.reduce(function(a, b) { return a + b; }, 0) / weekVals.length;
+
+    // Apply recent trend: ratio of last 4 weeks avg to overall avg
+    var last4wkTotal = 0;
+    var last4wkDays = 0;
+    for (var ti = Math.max(0, n - 24); ti < n; ti++) {
+      last4wkTotal += trainData[ti];
+      last4wkDays++;
+    }
+    var recentWeeklyAvg = last4wkDays > 0 ? last4wkTotal / last4wkDays * openDaysPerWeek : avgWeeklyVol;
+    var trendRatio = recentWeeklyAvg > 0 && avgWeeklyVol > 0 ? recentWeeklyAvg / avgWeeklyVol : 1;
+    // Dampen trend: 70% historical week + 30% trend-adjusted
+    var adjustedWeekly = avgWeeklyVol * (0.7 + 0.3 * trendRatio);
+
+    // Daily forecast = weekly volume × DOW share
+    fc.push(Math.max(0, adjustedWeekly * dowShare[dow]));
+  }
+  return fc;
+}
+
 function runMethod(key, trainData, trainDates, horizon) {
   const m = S.methods[key];
   switch (key) {
@@ -1735,6 +1906,8 @@ function runMethod(key, trainData, trainDates, horizon) {
     case 'sma7': return forecastSMA(trainData, horizon, 7);
     case 'sma28': return forecastSMA(trainData, horizon, 28);
     case 'expSmooth': return forecastExpSmoothDOW(trainData, trainDates, horizon, m.params.alpha);
+    case 'isoWeekDow': return forecastISOWeekDOW(trainData, trainDates, horizon);
+    case 'weekVolSplit': return forecastWeekVolSplit(trainData, trainDates, horizon, m.params.yearsBack);
     default: return new Array(horizon).fill(0);
   }
 }
@@ -2077,6 +2250,14 @@ function renderBacktestChart(bt) {
     });
   }
 
+  var btYMinEl = document.getElementById('btYMin');
+  var btYMaxEl = document.getElementById('btYMax');
+  var uMin = btYMinEl && btYMinEl.value !== '' ? Number(btYMinEl.value) : undefined;
+  var uMax = btYMaxEl && btYMaxEl.value !== '' ? Number(btYMaxEl.value) : undefined;
+  var btYOpts = { grid: { color: colors.grid }, ticks: { color: colors.text, font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: uMin === undefined };
+  if (uMin !== undefined) btYOpts.min = uMin;
+  if (uMax !== undefined) btYOpts.max = uMax;
+
   S.btChart = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
@@ -2086,7 +2267,7 @@ function renderBacktestChart(bt) {
       plugins: { legend: { labels: { color: colors.text, font: { family: 'Sora', size: 11 } } } },
       scales: {
         x: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 10 }, maxRotation: 45 } },
-        y: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true }
+        y: btYOpts
       }
     }
   });
@@ -2128,8 +2309,68 @@ function renderForecastChart(fcData, histDays) {
       plugins: { legend: { labels: { color: colors.text, font: { family: 'Sora', size: 11 } } } },
       scales: {
         x: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 10 }, maxRotation: 45 } },
-        y: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true }
+        y: (function() {
+          var el1 = document.getElementById('fcYMin'), el2 = document.getElementById('fcYMax');
+          var mn = el1 && el1.value !== '' ? Number(el1.value) : undefined;
+          var mx = el2 && el2.value !== '' ? Number(el2.value) : undefined;
+          var o = { grid: { color: colors.grid }, ticks: { color: colors.text, font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: mn === undefined };
+          if (mn !== undefined) o.min = mn;
+          if (mx !== undefined) o.max = mx;
+          return o;
+        })()
       }
+    }
+  });
+}
+
+/* ==================================================================
+   CHART AXIS / HEIGHT CONTROLS
+   ================================================================== */
+function setupChartControls(prefix, getChart, getBox) {
+  var yMinEl = document.getElementById(prefix + 'YMin');
+  var yMaxEl = document.getElementById(prefix + 'YMax');
+  var heightSlider = document.getElementById(prefix + 'HeightSlider');
+  var heightVal = document.getElementById(prefix + 'HeightVal');
+  var resetBtn = document.getElementById(prefix + 'YReset');
+
+  function applyYAxis() {
+    var chart = getChart();
+    if (!chart) return;
+    var minV = yMinEl.value !== '' ? Number(yMinEl.value) : undefined;
+    var maxV = yMaxEl.value !== '' ? Number(yMaxEl.value) : undefined;
+    chart.options.scales.y.min = minV;
+    chart.options.scales.y.max = maxV;
+    if (minV !== undefined) chart.options.scales.y.beginAtZero = false;
+    else chart.options.scales.y.beginAtZero = true;
+    chart.update('none');
+  }
+
+  yMinEl.addEventListener('change', applyYAxis);
+  yMaxEl.addEventListener('change', applyYAxis);
+
+  heightSlider.addEventListener('input', function() {
+    var h = Number(this.value);
+    heightVal.textContent = h;
+    var box = getBox();
+    if (box) box.style.height = h + 'px';
+    var chart = getChart();
+    if (chart) chart.resize();
+  });
+
+  resetBtn.addEventListener('click', function() {
+    yMinEl.value = '';
+    yMaxEl.value = '';
+    heightSlider.value = 350;
+    heightVal.textContent = '350';
+    var box = getBox();
+    if (box) box.style.height = '350px';
+    var chart = getChart();
+    if (chart) {
+      chart.options.scales.y.min = undefined;
+      chart.options.scales.y.max = undefined;
+      chart.options.scales.y.beginAtZero = true;
+      chart.resize();
+      chart.update('none');
     }
   });
 }
@@ -2807,6 +3048,10 @@ document.getElementById('autoOptBtn').addEventListener('click', () => {
 });
 
 document.getElementById('genForecastBtn').addEventListener('click', doForecast);
+
+// Wire up chart Y-axis and height controls
+setupChartControls('bt', function(){ return S.btChart; }, function(){ return document.getElementById('btChartBox'); });
+setupChartControls('fc', function(){ return S.fcChart; }, function(){ return document.getElementById('fcChartBox'); });
 
 document.getElementById('copyExportBtn').addEventListener('click', () => {
   const text = document.getElementById('exportArea').textContent;
