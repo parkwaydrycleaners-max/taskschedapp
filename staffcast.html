@@ -173,13 +173,23 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 
 <div class="card anim">
 <div class="ctitle"><i class="fa-solid fa-clock"></i> Employee Hours Report</div>
-<div class="info">Paste your <strong>employee time &amp; attendance</strong> data. Tab or comma separated. Needs at minimum a <strong>Date</strong> column and a <strong>Hours</strong> column. Used to compute actual pieces/hour productivity and validate scheduling.</div>
+<div class="info">Paste your <strong>employee time &amp; attendance</strong> report. Supports both the fixed-width POS format (with ID, Emp Last, Emp First, Date, Time In/Out, Total Hrs, Total Mins columns and <code>====</code> separators) and simple tab/CSV with Date &amp; Hours columns. Multiple punches per employee per day are summed. All employees are aggregated per date.</div>
 <textarea id="hrPaste" class="paste" placeholder="Date&#9;Total Hours&#10;1/6/2025&#9;38.5&#10;1/7/2025&#9;42.0&#10;1/8/2025&#9;35.0"></textarea>
 <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
 <button class="btn btn-p" id="parseHrBtn"><i class="fa-solid fa-bolt"></i> Parse Hours</button>
 <button class="btn btn-s" id="sampleHrBtn">Load Sample</button>
 </div>
 <div id="hrStatus" style="font-size:.8rem;color:var(--tx3);margin-top:8px"></div>
+</div>
+
+<div class="card anim">
+<div class="ctitle"><i class="fa-solid fa-tags"></i> Sales Report By Category <span class="badge badge-ok" style="margin-left:auto;background:var(--bg4);color:var(--tx3)">Optional</span></div>
+<div class="info">Paste your POS <strong>Sales Report By Category</strong> export (the same data PieceCast uses). The fixed-width split-page format is auto-detected. Provides <strong>actual daily pieces &amp; revenue</strong> for true pieces-per-hour productivity analysis when combined with employee hours above.</div>
+<textarea id="salesPaste" class="paste" placeholder="Sales Report By Category&#10;  2022/01 ~ 2026/03&#10;                                      2026.03.07&#10;Drop           Dry Pcs   Dry Amt   Laund Pcs   Laund Amt   Alter Pcs&#10;2022/01/04       287    1488.66        31       88.49        54"></textarea>
+<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+<button class="btn btn-p" id="parseSalesBtn"><i class="fa-solid fa-bolt"></i> Parse Sales</button>
+</div>
+<div id="salesStatus" style="font-size:.8rem;color:var(--tx3);margin-top:8px"></div>
 </div>
 
 <div id="previewCard" class="card" style="display:none">
@@ -318,6 +328,7 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 var ST={
   fc:{dates:[],dow:[],columns:{},meta:{}},
   hr:{dates:[],hours:[],dateMap:{}},
+  sales:{dates:[],pcsMap:{},revMap:{},totalPcs:[],totalRev:[]},
   weather:{loaded:false,daily:[]},
   sched:null,
   schedChart:null
@@ -552,7 +563,102 @@ document.getElementById('parseHrBtn').addEventListener('click',function(){
   var parsed=parseHours(text);
   if(!parsed||parsed.dates.length<1){showMsg('Could not parse hours. Need a Date column and an Hours column.','error');return;}
   ST.hr=parsed;
-  document.getElementById('hrStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days of hours data</span>';
+  document.getElementById('hrStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days of hours data'+(parsed.employees?' ('+Object.keys(parsed.employees).length+' employees)':'')+'</span>';
+  checkImportReady();
+  computeActualProductivity();
+});
+
+/* ================================================================
+   PARSE SALES REPORT BY CATEGORY
+   Split-page fixed-width POS format. Left pages have dates +
+   category piece/amt columns. Right pages have remaining columns
+   including Total Pcs and Total Amt. The two halves are joined by
+   row index (1st left data row ↔ 1st right data row, etc.).
+   ================================================================ */
+function parseSalesReport(text){
+  var lines=text.split('\n');
+
+  /* Collect left-page data rows (contain YYYY/MM/DD dates) and
+     right-page data rows (from pages with Total Pcs header) */
+  var leftRows=[];   /* [{date, rawLine}] */
+  var rightRows=[];  /* [{totalPcs, totalAmt}] */
+
+  var inLeft=false,inRight=false;
+  var rightTotalPcsCol=-1,rightTotalAmtCol=-1;
+
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i];
+    var trimmed=line.trim();
+
+    /* Detect left-page header */
+    if(trimmed.indexOf('Drop')>=0&&trimmed.indexOf('Dry Pcs')>=0){
+      inLeft=true;inRight=false;continue;
+    }
+    /* Detect right-page header */
+    if(trimmed.indexOf('Total Pcs')>=0&&trimmed.indexOf('Total Amt')>=0){
+      inRight=true;inLeft=false;
+      /* Find column positions in this header for Total Pcs and Total Amt */
+      rightTotalPcsCol=line.indexOf('Total Pcs');
+      rightTotalAmtCol=line.indexOf('Total Amt');
+      continue;
+    }
+    /* Skip report title / date-range / separator lines */
+    if(trimmed.length===0||/^[\s=]+$/.test(trimmed))continue;
+    if(trimmed.indexOf('Sales Report By Category')>=0)continue;
+    if(/^\d{4}\/\d{2}\s*~\s*\d{4}\/\d{2}$/.test(trimmed))continue;
+    if(/^\d{4}\.\d{2}\.\d{2}$/.test(trimmed))continue;
+
+    if(inLeft){
+      /* Left data row — starts with date YYYY/MM/DD */
+      var dm=trimmed.match(/^(\d{4}\/\d{1,2}\/\d{1,2})/);
+      if(dm){
+        leftRows.push({dateStr:dm[1],line:line});
+      }
+    }else if(inRight&&rightTotalPcsCol>=0){
+      /* Right data row — extract Total Pcs and Total Amt by column position */
+      if(line.length<rightTotalPcsCol+5)continue;
+      /* Numbers are space-padded in fixed-width columns */
+      var pcsStr=line.substring(rightTotalPcsCol,rightTotalAmtCol).trim();
+      var amtStr=line.substring(rightTotalAmtCol,rightTotalAmtCol+20).trim().split(/\s/)[0];
+      var pcs=parseFloat(pcsStr);
+      var amt=parseFloat(amtStr);
+      if(!isNaN(pcs)){
+        rightRows.push({totalPcs:pcs,totalAmt:isNaN(amt)?0:amt});
+      }
+    }
+  }
+
+  /* Join left and right by index */
+  var len=Math.min(leftRows.length,rightRows.length);
+  if(len<1)return null;
+
+  var dates=[],totalPcs=[],totalRev=[],pcsMap={},revMap={};
+  for(var j=0;j<len;j++){
+    var d=parseDate(leftRows[j].dateStr);
+    if(!d)continue;
+    var key=fmtD(d);
+    /* Handle duplicate dates (should not happen but just in case) */
+    if(pcsMap[key]!==undefined){pcsMap[key]+=rightRows[j].totalPcs;revMap[key]+=rightRows[j].totalAmt;continue;}
+    dates.push(d);
+    totalPcs.push(rightRows[j].totalPcs);
+    totalRev.push(rightRows[j].totalAmt);
+    pcsMap[key]=rightRows[j].totalPcs;
+    revMap[key]=rightRows[j].totalAmt;
+  }
+
+  if(dates.length<1)return null;
+  return{dates:dates,totalPcs:totalPcs,totalRev:totalRev,pcsMap:pcsMap,revMap:revMap};
+}
+
+document.getElementById('parseSalesBtn').addEventListener('click',function(){
+  var text=document.getElementById('salesPaste').value.trim();
+  if(!text){showMsg('Please paste Sales Report By Category data first.','error');return;}
+  var parsed=parseSalesReport(text);
+  if(!parsed||parsed.dates.length<1){showMsg('Could not parse sales data. Paste the full Sales Report By Category export (fixed-width format with Drop/date rows and Total Pcs/Total Amt columns).','error');return;}
+  ST.sales=parsed;
+  var sumPcs=parsed.totalPcs.reduce(function(a,b){return a+b;},0);
+  var sumRev=parsed.totalRev.reduce(function(a,b){return a+b;},0);
+  document.getElementById('salesStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days · '+Math.round(sumPcs).toLocaleString()+' total pcs · $'+Math.round(sumRev).toLocaleString()+' revenue</span>';
   checkImportReady();
   computeActualProductivity();
 });
@@ -567,7 +673,13 @@ function checkImportReady(){
     var html='<strong>Forecast:</strong> '+ST.fc.dates.length+' days ('+fmtD(ST.fc.dates[0])+' to '+fmtD(ST.fc.dates[ST.fc.dates.length-1])+')<br>';
     html+='<strong>Categories:</strong> '+Object.keys(ST.fc.columns).join(', ')+'<br>';
     if(sumPcs>0)html+='<strong>Total Forecasted Pieces:</strong> '+Math.round(sumPcs).toLocaleString();
-    if(ST.hr.dates.length>0)html+='<br><strong>Hours Data:</strong> '+ST.hr.dates.length+' days matched';
+    if(ST.hr.dates.length>0)html+='<br><strong>Hours Data:</strong> '+ST.hr.dates.length+' days';
+    if(ST.sales.dates.length>0)html+='<br><strong>Actual Sales:</strong> '+ST.sales.dates.length+' days of POS data';
+    if(ST.hr.dates.length>0&&ST.sales.dates.length>0){
+      var overlap=0;
+      ST.hr.dates.forEach(function(d){if(ST.sales.pcsMap[fmtD(d)]!==undefined)overlap++;});
+      html+='<br><strong>Actual PPH Coverage:</strong> '+overlap+' days with both hours &amp; sales data';
+    }
     document.getElementById('importSummary').innerHTML=html;
     document.getElementById('importBadge').textContent='Ready';
     document.getElementById('noSchedMsg').style.display='none';
@@ -611,32 +723,50 @@ initDowAdj();
 
 /* ================================================================
    ACTUAL PRODUCTIVITY FROM DATA
+   Prefers actual POS sales data (ST.sales) when available.
+   Falls back to forecast columns (ST.fc) if no sales data.
    ================================================================ */
 function computeActualProductivity(){
-  if(ST.hr.dates.length<7||ST.fc.dates.length<1)return;
+  var hasSales=ST.sales.dates.length>0;
+  var hasFc=ST.fc.dates.length>0;
+  if(ST.hr.dates.length<7||(!hasSales&&!hasFc))return;
   var card=document.getElementById('actualProdCard');
   var content=document.getElementById('actualProdContent');
 
-  var totalCol=findTotalPiecesCol();
-  if(!totalCol){card.style.display='none';return;}
+  var totalCol=hasFc?findTotalPiecesCol():null;
+  if(!hasSales&&!totalCol){card.style.display='none';return;}
 
   var minHr=parseFloat(document.getElementById('minHrProd').value)||0;
-  var dowData={};DOW_N.forEach(function(n){dowData[n]={pieces:0,hours:0,count:0};});
+  var dowData={};DOW_N.forEach(function(n){dowData[n]={pieces:0,hours:0,revenue:0,count:0};});
 
-  var matched=0,excluded=0,totalPcsAll=0,totalHrsAll=0;
+  var matched=0,excluded=0,totalPcsAll=0,totalHrsAll=0,totalRevAll=0;
+  var pcsSource=hasSales?'Actual POS':'Forecast';
+
   ST.hr.dates.forEach(function(d,i){
     var key=fmtD(d);
     var hrs=ST.hr.hours[i];
-    var fcIdx=ST.fc.dates.findIndex(function(fd){return fmtD(fd)===key;});
-    var pcs=0;
-    if(fcIdx>=0)pcs=ST.fc.columns[totalCol][fcIdx]||0;
+    var pcs=0,rev=0;
+
+    /* Prefer actual POS sales data, fall back to forecast */
+    if(hasSales&&ST.sales.pcsMap[key]!==undefined){
+      pcs=ST.sales.pcsMap[key];
+      rev=ST.sales.revMap[key]||0;
+    }else if(hasFc&&totalCol){
+      var fcIdx=ST.fc.dates.findIndex(function(fd){return fmtD(fd)===key;});
+      if(fcIdx>=0)pcs=ST.fc.columns[totalCol][fcIdx]||0;
+    }else{
+      return; /* No pieces data for this date */
+    }
+
     if(hrs<minHr){excluded++;return;}
     var dow=DOW_N[d.getDay()];
     dowData[dow].pieces+=pcs;
     dowData[dow].hours+=hrs;
+    dowData[dow].revenue+=rev;
     dowData[dow].count++;
     totalPcsAll+=pcs;
     totalHrsAll+=hrs;
+    totalRevAll+=rev;
     matched++;
   });
 
@@ -644,14 +774,26 @@ function computeActualProductivity(){
   card.style.display='';
 
   var overallPPH=totalHrsAll>0?(totalPcsAll/totalHrsAll):0;
-  var html='<div style="font-size:.85rem;margin-bottom:10px">Overall average: <strong class="mono" style="color:var(--ac);font-size:1rem">'+overallPPH.toFixed(1)+'</strong> pcs/hr <span style="color:var(--tx3)">('+matched+' days matched'+(excluded>0?', '+excluded+' excluded':'')+')';
+  var overallSPH=totalHrsAll>0?(totalRevAll/totalHrsAll):0;
+
+  var html='<div style="font-size:.85rem;margin-bottom:10px">';
+  html+='<span style="display:inline-block;padding:2px 8px;border-radius:3px;background:var(--bg4);color:var(--tx2);font-size:.72rem;margin-bottom:6px">Source: '+pcsSource+'</span><br>';
+  html+='Overall average: <strong class="mono" style="color:var(--ac);font-size:1rem">'+overallPPH.toFixed(1)+'</strong> pcs/hr';
+  if(totalRevAll>0)html+=' &nbsp;·&nbsp; <strong class="mono" style="color:var(--sc);font-size:1rem">$'+overallSPH.toFixed(2)+'</strong> sales/hr';
+  html+=' <span style="color:var(--tx3)">('+matched+' days matched'+(excluded>0?', '+excluded+' excluded':'')+')';
   html+='</span></div>';
-  html+='<div class="twrap"><table class="dtbl"><thead><tr><th>Day</th><th class="n">Pieces</th><th class="n">Hours</th><th class="n">Pcs/Hr</th></tr></thead><tbody>';
+
+  html+='<div class="twrap"><table class="dtbl"><thead><tr><th>Day</th><th class="n">Days</th><th class="n">Pieces</th><th class="n">Hours</th><th class="n">Pcs/Hr</th>';
+  if(totalRevAll>0)html+='<th class="n">Revenue</th><th class="n">$/Hr</th>';
+  html+='</tr></thead><tbody>';
   ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(function(d){
     var dd=dowData[d];
     var pph=dd.hours>0?(dd.pieces/dd.hours):0;
+    var sph=dd.hours>0?(dd.revenue/dd.hours):0;
     var pphColor=pph>overallPPH*1.05?'var(--ok)':pph<overallPPH*0.95?'var(--err)':'var(--tx)';
-    html+='<tr><td style="font-weight:600">'+d+'</td><td class="n">'+Math.round(dd.pieces).toLocaleString()+'</td><td class="n">'+dd.hours.toFixed(1)+'</td><td class="n" style="color:'+pphColor+';font-weight:600">'+pph.toFixed(1)+'</td></tr>';
+    html+='<tr><td style="font-weight:600">'+d+'</td><td class="n" style="color:var(--tx3)">'+dd.count+'</td><td class="n">'+Math.round(dd.pieces).toLocaleString()+'</td><td class="n">'+dd.hours.toFixed(1)+'</td><td class="n" style="color:'+pphColor+';font-weight:600">'+pph.toFixed(1)+'</td>';
+    if(totalRevAll>0)html+='<td class="n">$'+Math.round(dd.revenue).toLocaleString()+'</td><td class="n">$'+sph.toFixed(2)+'</td>';
+    html+='</tr>';
   });
   html+='</tbody></table></div>';
   content.innerHTML=html;
@@ -865,8 +1007,14 @@ function generateSchedule(){
     day.laborCost=day.recHours*avgWage;
     day.estPPH=day.recHours>0?day.adjustedPcs/day.recHours:0;
 
-    var actualHrs=ST.hr.dateMap[fmtD(day.date)];
+    var dayKey=fmtD(day.date);
+    var actualHrs=ST.hr.dateMap[dayKey];
     day.actualHrs=actualHrs!==undefined?actualHrs:null;
+
+    /* Actual pieces from POS sales data (for true PPH) */
+    day.actualPcs=ST.sales.pcsMap[dayKey]!==undefined?ST.sales.pcsMap[dayKey]:null;
+    day.actualRev=ST.sales.revMap[dayKey]!==undefined?ST.sales.revMap[dayKey]:null;
+    day.actualPPH=(day.actualHrs>0&&day.actualPcs!==null)?(day.actualPcs/day.actualHrs):null;
   });
 
   ST.sched=days;
@@ -898,8 +1046,13 @@ function renderSchedule(){
   var maxHrs=Math.max.apply(null,ST.sched.map(function(d){return d.recHours;}));
   if(maxHrs<1)maxHrs=1;
 
-  var html='<div class="twrap" style="max-height:500px;overflow-y:auto"><table class="dtbl"><thead><tr><th>Date</th><th>Day</th><th>Weather</th><th class="n">Pcs (adj)</th><th class="n">Rec Hours</th><th class="n">Staff</th><th class="n">Pcs/Hr</th><th class="n">Labor $</th>';
-  if(ST.hr.dates.length>0)html+='<th class="n">Actual Hrs</th><th class="n">Diff</th>';
+  var hasHr=ST.hr.dates.length>0;
+  var hasSales=ST.sales.dates.length>0;
+
+  var html='<div class="twrap" style="max-height:500px;overflow-y:auto"><table class="dtbl"><thead><tr><th>Date</th><th>Day</th><th>Weather</th><th class="n">Pcs (adj)</th><th class="n">Rec Hours</th><th class="n">Staff</th><th class="n">Est Pcs/Hr</th><th class="n">Labor $</th>';
+  if(hasHr)html+='<th class="n">Actual Hrs</th><th class="n">Diff</th>';
+  if(hasSales)html+='<th class="n">Actual Pcs</th>';
+  if(hasHr&&hasSales)html+='<th class="n">Actual Pcs/Hr</th>';
   html+='<th style="min-width:100px">Load</th></tr></thead><tbody>';
 
   ST.sched.forEach(function(day){
@@ -915,7 +1068,7 @@ function renderSchedule(){
     html+='<td class="n" style="font-weight:600">'+day.recStaff+'</td>';
     html+='<td class="n" style="color:'+pphColor+'">'+day.estPPH.toFixed(1)+'</td>';
     html+='<td class="n">$'+Math.round(day.laborCost)+'</td>';
-    if(ST.hr.dates.length>0){
+    if(hasHr){
       if(day.actualHrs!==null){
         var diff=day.recHours-day.actualHrs;
         var diffColor=Math.abs(diff)>5?'var(--err)':Math.abs(diff)>2?'var(--warn)':'var(--ok)';
@@ -923,6 +1076,17 @@ function renderSchedule(){
         html+='<td class="n" style="color:'+diffColor+';font-weight:600">'+(diff>0?'+':'')+diff.toFixed(1)+'</td>';
       }else{
         html+='<td class="n" style="color:var(--tx3)">—</td><td></td>';
+      }
+    }
+    if(hasSales){
+      html+='<td class="n">'+(day.actualPcs!==null?Math.round(day.actualPcs):'<span style="color:var(--tx3)">—</span>')+'</td>';
+    }
+    if(hasHr&&hasSales){
+      if(day.actualPPH!==null){
+        var apphColor=day.actualPPH>10?'var(--ok)':day.actualPPH<6?'var(--err)':'var(--tx)';
+        html+='<td class="n" style="color:'+apphColor+';font-weight:600">'+day.actualPPH.toFixed(1)+'</td>';
+      }else{
+        html+='<td class="n" style="color:var(--tx3)">—</td>';
       }
     }
     html+='<td><div style="background:var(--bg4);border-radius:3px;height:16px;width:100%;position:relative"><div style="height:100%;width:'+barPct+'%;background:'+barColor+';border-radius:3px"></div></div></td>';
@@ -935,7 +1099,6 @@ function renderSchedule(){
 
   var totalHrs=ST.sched.reduce(function(s,d){return s+d.recHours;},0);
   var totalLabor=ST.sched.reduce(function(s,d){return s+d.laborCost;},0);
-  var avgDaily=totalHrs/ST.sched.length;
   document.getElementById('schedBadge').textContent=ST.sched.length+' days \u00B7 '+Math.round(totalHrs)+' total hrs \u00B7 $'+Math.round(totalLabor).toLocaleString()+' labor';
 }
 
@@ -1025,6 +1188,8 @@ function renderWeeklySummary(){
    ================================================================ */
 function generateExport(){
   if(!ST.sched)return;
+  var hasHr=ST.hr.dates.length>0;
+  var hasSales=ST.sales.dates.length>0;
   var lines=[];
   lines.push('# STAFFCAST SCHEDULE EXPORT');
   lines.push('# Generated: '+fmtD(new Date()));
@@ -1032,11 +1197,25 @@ function generateExport(){
   lines.push('# Pieces/Labor Hour: '+(parseFloat(document.getElementById('pcsPerHr').value)||8.5));
   lines.push('# Avg Wage: $'+(parseFloat(document.getElementById('avgWage').value)||18));
   if(ST.weather.loaded)lines.push('# Weather: '+ST.weather.location+' ('+ST.weather.daily.length+' days)');
+  if(hasSales)lines.push('# Actual Sales Data: '+ST.sales.dates.length+' days');
+  if(hasHr)lines.push('# Employee Hours Data: '+ST.hr.dates.length+' days');
   lines.push('#');
-  lines.push('Date\tDOW\tAdj Pieces\tRec Hours\tStaff Needed\tPcs/Hr\tLabor Cost\tWeather Adj %');
+
+  var header='Date\tDOW\tAdj Pieces\tRec Hours\tStaff Needed\tEst Pcs/Hr\tLabor Cost\tWeather Adj %';
+  if(hasHr)header+='\tActual Hrs';
+  if(hasSales)header+='\tActual Pcs\tActual Rev';
+  if(hasHr&&hasSales)header+='\tActual Pcs/Hr';
+  lines.push(header);
 
   ST.sched.forEach(function(day){
-    lines.push(fmtD(day.date)+'\t'+day.dowName+'\t'+Math.round(day.adjustedPcs)+'\t'+day.recHours.toFixed(1)+'\t'+day.recStaff+'\t'+day.estPPH.toFixed(1)+'\t$'+Math.round(day.laborCost)+'\t'+(day.weatherAdj>0?'+':'')+day.weatherAdj.toFixed(1)+'%');
+    var row=fmtD(day.date)+'\t'+day.dowName+'\t'+Math.round(day.adjustedPcs)+'\t'+day.recHours.toFixed(1)+'\t'+day.recStaff+'\t'+day.estPPH.toFixed(1)+'\t$'+Math.round(day.laborCost)+'\t'+(day.weatherAdj>0?'+':'')+day.weatherAdj.toFixed(1)+'%';
+    if(hasHr)row+='\t'+(day.actualHrs!==null?day.actualHrs.toFixed(1):'');
+    if(hasSales){
+      row+='\t'+(day.actualPcs!==null?Math.round(day.actualPcs):'');
+      row+='\t'+(day.actualRev!==null?'$'+day.actualRev.toFixed(2):'');
+    }
+    if(hasHr&&hasSales)row+='\t'+(day.actualPPH!==null?day.actualPPH.toFixed(1):'');
+    lines.push(row);
   });
 
   var totalHrs=ST.sched.reduce(function(s,d){return s+d.recHours;},0);
