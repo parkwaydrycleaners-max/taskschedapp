@@ -557,6 +557,7 @@ const S = {
   outlierCap: 0,          // max pieces per day (0 = auto-calculated)
   outlierFloor: null,      // min pieces per day (null = auto-calculate, 0 = disabled)
   outliers: [],           // array of { index, date, dow, value, cap, dowMean, type:'high'|'low' }
+  biasConfig: { weeks: 8, dampen: 0.3 },
   backtestWindow: 14,
   backtestWindows: [14, 21, 30, 60, 90],
   backtestSplitDate: null, // Date object or null for date-based split
@@ -2031,12 +2032,16 @@ function computeEnsemble(methodResults, horizon) {
 }
 
 /* Bias correction: if the ensemble systematically over/under-predicts
-   based on recent training data, apply a correction factor per DOW. */
-function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, testDates) {
+   based on recent training data, apply a correction factor per DOW.
+   Uses S.biasConfig for tunable parameters (set by autoOptimize). */
+var DEFAULT_BIAS = { weeks: 8, dampen: 0.3 };
+
+function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, testDates, config) {
+  config = config || S.biasConfig || DEFAULT_BIAS;
+  if (config.weeks === 0) return ensemble; // bias correction disabled
   if (trainData.length < 28) return ensemble;
 
-  // Compute per-DOW bias from the last 8 weeks of training data
-  var recentN = Math.min(48, trainData.length);
+  var recentN = Math.min(config.weeks * 6, trainData.length);
   var dowActualSum = [0,0,0,0,0,0,0];
   var dowCount = [0,0,0,0,0,0,0];
   for (var i = trainData.length - recentN; i < trainData.length; i++) {
@@ -2045,7 +2050,6 @@ function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, tes
     dowCount[dow]++;
   }
 
-  // Get the seasonal DOW values the methods would have predicted for those same dates
   var seasonal = collectSeasonalDOW(trainData, trainDates, lastTrainDate, 28);
   var seasonalAvgs = [0,0,0,0,0,0,0];
   for (var d = 0; d < 7; d++) {
@@ -2053,18 +2057,16 @@ function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, tes
     if (vals.length > 0) seasonalAvgs[d] = vals.reduce(function(a,b){return a+b;},0) / vals.length;
   }
 
-  // Correction ratio per DOW: recent actual / seasonal average
   var correction = [1,1,1,1,1,1,1];
+  var damp = config.dampen;
   for (var dd = 0; dd < 7; dd++) {
     if (dowCount[dd] > 0 && seasonalAvgs[dd] > 0) {
       var recentAvg = dowActualSum[dd] / dowCount[dd];
       var rawRatio = recentAvg / seasonalAvgs[dd];
-      // Dampen: apply 30% of the correction
-      correction[dd] = 0.7 + 0.3 * rawRatio;
+      correction[dd] = (1 - damp) + damp * rawRatio;
     }
   }
 
-  // Apply per-DOW correction to ensemble
   var corrected = [];
   for (var j = 0; j < ensemble.length; j++) {
     if (testDates && testDates[j]) {
@@ -2106,7 +2108,7 @@ function autoOptimize() {
     mapes[k] = calculateMAPE(testData, forecasts[k], testDates);
   }
 
-  function getEnsembleMAPE(w) {
+  function getEnsembleMAPE(w, biasOvr) {
     const total = enabledKeys.reduce((s,k) => s + w[k], 0);
     if (total === 0) return 999;
     var ens = new Array(win).fill(0);
@@ -2118,8 +2120,8 @@ function autoOptimize() {
       });
       ens[i] = wSum > 0 ? weighted / wSum : 0;
     }
-    // Apply bias correction in optimization too
-    ens = applyBiasCorrection(ens, trainData, trainDates, lastTrainDate, testDates);
+    var bc = biasOvr || S.biasConfig || DEFAULT_BIAS;
+    ens = applyBiasCorrection(ens, trainData, trainDates, lastTrainDate, testDates, bc);
     return calculateWAPE(testData, ens, testDates);
   }
 
@@ -2270,6 +2272,64 @@ function autoOptimize() {
           }
         }
         if (!tImproved) break;
+      }
+    }
+  }
+
+  // --- Adaptive bias correction: search for best settings ---
+  var biasConfigs = [
+    { weeks: 0, dampen: 0 },    // no correction
+    { weeks: 3, dampen: 0.2 },
+    { weeks: 4, dampen: 0.3 },
+    { weeks: 6, dampen: 0.3 },
+    { weeks: 8, dampen: 0.3 },  // current default
+    { weeks: 8, dampen: 0.4 },
+    { weeks: 12, dampen: 0.3 },
+    { weeks: 4, dampen: 0.5 },
+    { weeks: 6, dampen: 0.5 }
+  ];
+  var bestBiasWape = 999;
+  var bestBiasConfig = DEFAULT_BIAS;
+  for (var bi = 0; bi < biasConfigs.length; bi++) {
+    var bw = getEnsembleMAPE(globalBestWeights, biasConfigs[bi]);
+    if (bw < bestBiasWape) {
+      bestBiasWape = bw;
+      bestBiasConfig = biasConfigs[bi];
+    }
+  }
+  S.biasConfig = bestBiasConfig;
+
+  // Re-optimize weights with the best bias config
+  if (bestBiasConfig.weeks !== 8 || bestBiasConfig.dampen !== 0.3) {
+    // Quick re-optimization with new bias settings
+    var reSteps = [2, 1];
+    for (var rs = 0; rs < reSteps.length; rs++) {
+      var rStep = reSteps[rs];
+      var rBest = getEnsembleMAPE(globalBestWeights);
+      for (var rIter = 0; rIter < 100; rIter++) {
+        var rImproved = false;
+        for (var ri = 0; ri < enabledKeys.length; ri++) {
+          var rK = enabledKeys[ri];
+          if (globalBestWeights[rK] <= 0 && rStep > 0) {
+            // Try activating zeroed methods
+            globalBestWeights[rK] = rStep;
+            var rNew = getEnsembleMAPE(globalBestWeights);
+            if (rNew < rBest - 0.0001) { rBest = rNew; rImproved = true; continue; }
+            globalBestWeights[rK] = 0;
+            continue;
+          }
+          globalBestWeights[rK] += rStep;
+          var rNew2 = getEnsembleMAPE(globalBestWeights);
+          if (rNew2 < rBest - 0.0001) { rBest = rNew2; rImproved = true; continue; }
+          globalBestWeights[rK] -= rStep;
+          if (globalBestWeights[rK] >= rStep) {
+            globalBestWeights[rK] -= rStep;
+            rNew2 = getEnsembleMAPE(globalBestWeights);
+            if (rNew2 < rBest - 0.0001) { rBest = rNew2; rImproved = true; continue; }
+            globalBestWeights[rK] += rStep;
+          }
+        }
+        if (!rImproved) break;
       }
     }
   }
