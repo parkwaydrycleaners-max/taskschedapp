@@ -1202,12 +1202,17 @@ function projectDOW(avgs, lastDate, horizon) {
 /* Helper: find closest YoY match index */
 function findYOYIndex(trainDates, targetDate, maxDiffDays) {
   maxDiffDays = maxDiffDays || 10;
+  const targetDow = targetDate.getDay();
   const yAgo = new Date(targetDate); yAgo.setFullYear(yAgo.getFullYear() - 1);
+
+  // Find closest date from ~1 year ago that matches the same DOW
   let best = -1, bestDiff = Infinity;
   for (let i = trainDates.length - 1; i >= 0; i--) {
-    const diff = Math.abs(trainDates[i] - yAgo);
+    if (trainDates[i].getDay() !== targetDow) continue; // DOW must match
+    var diff = Math.abs(trainDates[i] - yAgo);
     if (diff < bestDiff) { bestDiff = diff; best = i; }
-    if (bestDiff === 0) break;
+    // If we're moving too far from the 1-year mark, stop searching
+    if (trainDates[i] < yAgo && (yAgo - trainDates[i]) > maxDiffDays * 86400000) break;
   }
   return (best >= 0 && bestDiff < maxDiffDays * 86400000) ? best : -1;
 }
@@ -1502,18 +1507,40 @@ function forecastHoltWinters(trainData, trainDates, horizon, alpha, beta, gamma)
   return fc;
 }
 
-/* 8. Year-over-Year (raw) */
+/* 8. Year-over-Year (multi-year DOW-aligned)
+   Average same-DOW values from ±10 days of the target date across ALL prior years,
+   weighted so more recent years count more (weight = yearsBack^-0.5). */
 function forecastYOY(trainData, trainDates, horizon) {
-  const n = trainData.length;
-  const lastDate = trainDates[n - 1];
-  const fc = [];
-  // Fallback: recent 28-day DOW average
-  const fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
-  for (let h = 1; h <= horizon; h++) {
-    const target = new Date(lastDate); target.setDate(target.getDate() + h);
-    const idx = findYOYIndex(trainDates, target);
-    if (idx >= 0) {
-      fc.push(Math.max(0, trainData[idx]));
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var fc = [];
+  var fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
+  var maxYears = 4;
+
+  for (var h = 1; h <= horizon; h++) {
+    var target = new Date(lastDate); target.setDate(target.getDate() + h);
+    var wSum = 0, wTotal = 0;
+
+    for (var yb = 1; yb <= maxYears; yb++) {
+      var yAgo = new Date(target); yAgo.setFullYear(yAgo.getFullYear() - yb);
+      // Use our DOW-aligned findYOYIndex helper but pass the shifted date
+      var best = -1, bestDiff = Infinity;
+      var targetDow = target.getDay();
+      for (var i = n - 1; i >= 0; i--) {
+        if (trainDates[i].getDay() !== targetDow) continue;
+        var diff = Math.abs(trainDates[i] - yAgo);
+        if (diff < bestDiff) { bestDiff = diff; best = i; }
+        if (trainDates[i] < yAgo && (yAgo - trainDates[i]) > 10 * 86400000) break;
+      }
+      if (best >= 0 && bestDiff < 10 * 86400000) {
+        var weight = 1 / Math.sqrt(yb); // recent years get more weight
+        wSum += trainData[best] * weight;
+        wTotal += weight;
+      }
+    }
+
+    if (wTotal > 0) {
+      fc.push(Math.max(0, wSum / wTotal));
     } else {
       fc.push(Math.max(0, fallbackAvgs[target.getDay()]));
     }
@@ -1521,40 +1548,36 @@ function forecastYOY(trainData, trainDates, horizon) {
   return fc;
 }
 
-/* 9. YoY Trend-Adjusted — last year's value scaled by recent growth ratio */
+/* 9. YoY Trend-Adjusted — multi-year DOW-aligned value scaled by recent growth ratio */
 function forecastYOYTrend(trainData, trainDates, horizon, recentWeeks) {
   recentWeeks = recentWeeks || 6;
-  const n = trainData.length;
-  const lastDate = trainDates[n - 1];
-  const recentDays = recentWeeks * 7;
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var recentDays = recentWeeks * 7;
 
-  // Compute recent average and same-period-last-year average
-  const recentStart = Math.max(0, n - recentDays);
-  let recentSum = 0, recentCnt = 0;
-  let yoySum = 0, yoyCnt = 0;
+  // Compute recent average and same-period-last-year average (DOW-aligned)
+  var recentStart = Math.max(0, n - recentDays);
+  var recentSum = 0, recentCnt = 0;
+  var yoySum = 0, yoyCnt = 0;
 
-  for (let i = recentStart; i < n; i++) {
+  for (var i = recentStart; i < n; i++) {
     recentSum += trainData[i];
     recentCnt++;
-    const yIdx = findYOYIndex(trainDates, trainDates[i]);
+    var yIdx = findYOYIndex(trainDates, trainDates[i]);
     if (yIdx >= 0) {
       yoySum += trainData[yIdx];
       yoyCnt++;
     }
   }
 
-  const growthRatio = (yoyCnt > 0 && yoySum > 0) ? (recentSum / recentCnt) / (yoySum / yoyCnt) : 1;
-  const fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
+  var growthRatio = (yoyCnt > 0 && yoySum > 0) ? (recentSum / recentCnt) / (yoySum / yoyCnt) : 1;
+  var fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
 
-  const fc = [];
-  for (let h = 1; h <= horizon; h++) {
-    const target = new Date(lastDate); target.setDate(target.getDate() + h);
-    const idx = findYOYIndex(trainDates, target);
-    if (idx >= 0) {
-      fc.push(Math.max(0, trainData[idx] * growthRatio));
-    } else {
-      fc.push(Math.max(0, fallbackAvgs[target.getDay()] * growthRatio));
-    }
+  // Use multi-year DOW-aligned base values (same as forecastYOY)
+  var baseFC = forecastYOY(trainData, trainDates, horizon);
+  var fc = [];
+  for (var h = 0; h < horizon; h++) {
+    fc.push(Math.max(0, baseFC[h] * growthRatio));
   }
   return fc;
 }
@@ -1749,23 +1772,23 @@ function getISOWeek(d) {
   return Math.ceil(((tmp - yearStart) / 86400000 + 1) / 7);
 }
 
-/* 16. ISO Week × DOW
-   For each forecast date, find all training dates that share the same
-   ISO week number AND same day-of-week. Average their values.
-   Falls back to broader ±2 week band, then to overall DOW average. */
+/* 16. ISO Week × DOW (recency-weighted)
+   For each forecast date, collect same-DOW values from ±1 ISO week across all years.
+   Weight more recent years more heavily (weight = 1/sqrt(yearsAgo)). */
 function forecastISOWeekDOW(trainData, trainDates, horizon) {
   var n = trainData.length;
   var lastDate = trainDates[n - 1];
+  var lastYear = lastDate.getFullYear();
   var overallDow = buildDOWAvg(trainData, trainDates);
 
-  // Pre-build lookup: key = week*10+dow → array of values
+  // Pre-build lookup: key = week*10+dow → array of {value, year}
   var lookup = {};
   for (var i = 0; i < n; i++) {
     var wk = getISOWeek(trainDates[i]);
     var dw = trainDates[i].getDay();
     var key = wk * 10 + dw;
     if (!lookup[key]) lookup[key] = [];
-    lookup[key].push(trainData[i]);
+    lookup[key].push({ value: trainData[i], year: trainDates[i].getFullYear() });
   }
 
   var fc = [];
@@ -1773,29 +1796,32 @@ function forecastISOWeekDOW(trainData, trainDates, horizon) {
     var d = new Date(lastDate); d.setDate(d.getDate() + h);
     var dow = d.getDay();
     var targetWk = getISOWeek(d);
+    var targetYear = d.getFullYear();
 
-    // Exact week match
-    var exactKey = targetWk * 10 + dow;
-    if (lookup[exactKey] && lookup[exactKey].length >= 2) {
-      var vals = lookup[exactKey];
-      fc.push(Math.max(0, vals.reduce(function(a, b) { return a + b; }, 0) / vals.length));
-      continue;
-    }
-
-    // Broaden: ±1 week band
-    var band = [];
+    // Collect from ±1 week band (gives ~12 data points with 4 years)
+    var wSum = 0, wTotal = 0;
     for (var w = targetWk - 1; w <= targetWk + 1; w++) {
       var adjW = w < 1 ? w + 52 : w > 52 ? w - 52 : w;
       var bk = adjW * 10 + dow;
-      if (lookup[bk]) band = band.concat(lookup[bk]);
-    }
-    if (band.length >= 2) {
-      fc.push(Math.max(0, band.reduce(function(a, b) { return a + b; }, 0) / band.length));
-      continue;
+      if (!lookup[bk]) continue;
+      for (var p = 0; p < lookup[bk].length; p++) {
+        var entry = lookup[bk][p];
+        // Skip data from the same year if it might be in the test set
+        var yearsAgo = targetYear - entry.year;
+        if (yearsAgo <= 0) yearsAgo = 1; // same year data gets weight 1
+        var weight = 1 / Math.sqrt(yearsAgo);
+        // Give exact week a bonus over ±1 neighbors
+        if (adjW === targetWk) weight *= 1.5;
+        wSum += entry.value * weight;
+        wTotal += weight;
+      }
     }
 
-    // Fallback: overall DOW average
-    fc.push(Math.max(0, overallDow[dow]));
+    if (wTotal > 0) {
+      fc.push(Math.max(0, wSum / wTotal));
+    } else {
+      fc.push(Math.max(0, overallDow[dow]));
+    }
   }
   return fc;
 }
