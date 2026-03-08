@@ -1202,17 +1202,12 @@ function projectDOW(avgs, lastDate, horizon) {
 /* Helper: find closest YoY match index */
 function findYOYIndex(trainDates, targetDate, maxDiffDays) {
   maxDiffDays = maxDiffDays || 10;
-  const targetDow = targetDate.getDay();
   const yAgo = new Date(targetDate); yAgo.setFullYear(yAgo.getFullYear() - 1);
-
-  // Find closest date from ~1 year ago that matches the same DOW
   let best = -1, bestDiff = Infinity;
   for (let i = trainDates.length - 1; i >= 0; i--) {
-    if (trainDates[i].getDay() !== targetDow) continue; // DOW must match
-    var diff = Math.abs(trainDates[i] - yAgo);
+    const diff = Math.abs(trainDates[i] - yAgo);
     if (diff < bestDiff) { bestDiff = diff; best = i; }
-    // If we're moving too far from the 1-year mark, stop searching
-    if (trainDates[i] < yAgo && (yAgo - trainDates[i]) > maxDiffDays * 86400000) break;
+    if (bestDiff === 0) break;
   }
   return (best >= 0 && bestDiff < maxDiffDays * 86400000) ? best : -1;
 }
@@ -1507,40 +1502,17 @@ function forecastHoltWinters(trainData, trainDates, horizon, alpha, beta, gamma)
   return fc;
 }
 
-/* 8. Year-over-Year (multi-year DOW-aligned)
-   Average same-DOW values from ±10 days of the target date across ALL prior years,
-   weighted so more recent years count more (weight = yearsBack^-0.5). */
+/* 8. Year-over-Year (raw) */
 function forecastYOY(trainData, trainDates, horizon) {
-  var n = trainData.length;
-  var lastDate = trainDates[n - 1];
-  var fc = [];
-  var fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
-  var maxYears = 4;
-
-  for (var h = 1; h <= horizon; h++) {
-    var target = new Date(lastDate); target.setDate(target.getDate() + h);
-    var wSum = 0, wTotal = 0;
-
-    for (var yb = 1; yb <= maxYears; yb++) {
-      var yAgo = new Date(target); yAgo.setFullYear(yAgo.getFullYear() - yb);
-      // Use our DOW-aligned findYOYIndex helper but pass the shifted date
-      var best = -1, bestDiff = Infinity;
-      var targetDow = target.getDay();
-      for (var i = n - 1; i >= 0; i--) {
-        if (trainDates[i].getDay() !== targetDow) continue;
-        var diff = Math.abs(trainDates[i] - yAgo);
-        if (diff < bestDiff) { bestDiff = diff; best = i; }
-        if (trainDates[i] < yAgo && (yAgo - trainDates[i]) > 10 * 86400000) break;
-      }
-      if (best >= 0 && bestDiff < 10 * 86400000) {
-        var weight = 1 / Math.sqrt(yb); // recent years get more weight
-        wSum += trainData[best] * weight;
-        wTotal += weight;
-      }
-    }
-
-    if (wTotal > 0) {
-      fc.push(Math.max(0, wSum / wTotal));
+  const n = trainData.length;
+  const lastDate = trainDates[n - 1];
+  const fc = [];
+  const fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
+  for (let h = 1; h <= horizon; h++) {
+    const target = new Date(lastDate); target.setDate(target.getDate() + h);
+    const idx = findYOYIndex(trainDates, target);
+    if (idx >= 0) {
+      fc.push(Math.max(0, trainData[idx]));
     } else {
       fc.push(Math.max(0, fallbackAvgs[target.getDay()]));
     }
@@ -1548,36 +1520,39 @@ function forecastYOY(trainData, trainDates, horizon) {
   return fc;
 }
 
-/* 9. YoY Trend-Adjusted — multi-year DOW-aligned value scaled by recent growth ratio */
+/* 9. YoY Trend-Adjusted — last year's value scaled by recent growth ratio */
 function forecastYOYTrend(trainData, trainDates, horizon, recentWeeks) {
   recentWeeks = recentWeeks || 6;
-  var n = trainData.length;
-  var lastDate = trainDates[n - 1];
-  var recentDays = recentWeeks * 7;
+  const n = trainData.length;
+  const lastDate = trainDates[n - 1];
+  const recentDays = recentWeeks * 7;
 
-  // Compute recent average and same-period-last-year average (DOW-aligned)
-  var recentStart = Math.max(0, n - recentDays);
-  var recentSum = 0, recentCnt = 0;
-  var yoySum = 0, yoyCnt = 0;
+  const recentStart = Math.max(0, n - recentDays);
+  let recentSum = 0, recentCnt = 0;
+  let yoySum = 0, yoyCnt = 0;
 
-  for (var i = recentStart; i < n; i++) {
+  for (let i = recentStart; i < n; i++) {
     recentSum += trainData[i];
     recentCnt++;
-    var yIdx = findYOYIndex(trainDates, trainDates[i]);
+    const yIdx = findYOYIndex(trainDates, trainDates[i]);
     if (yIdx >= 0) {
       yoySum += trainData[yIdx];
       yoyCnt++;
     }
   }
 
-  var growthRatio = (yoyCnt > 0 && yoySum > 0) ? (recentSum / recentCnt) / (yoySum / yoyCnt) : 1;
-  var fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
+  const growthRatio = (yoyCnt > 0 && yoySum > 0) ? (recentSum / recentCnt) / (yoySum / yoyCnt) : 1;
+  const fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
 
-  // Use multi-year DOW-aligned base values (same as forecastYOY)
-  var baseFC = forecastYOY(trainData, trainDates, horizon);
-  var fc = [];
-  for (var h = 0; h < horizon; h++) {
-    fc.push(Math.max(0, baseFC[h] * growthRatio));
+  const fc = [];
+  for (let h = 1; h <= horizon; h++) {
+    const target = new Date(lastDate); target.setDate(target.getDate() + h);
+    const idx = findYOYIndex(trainDates, target);
+    if (idx >= 0) {
+      fc.push(Math.max(0, trainData[idx] * growthRatio));
+    } else {
+      fc.push(Math.max(0, fallbackAvgs[target.getDay()] * growthRatio));
+    }
   }
   return fc;
 }
@@ -2163,6 +2138,21 @@ function autoOptimize() {
   for (const k of enabledKeys) invW[k] = Math.round((invW[k] / totalInv) * 100) || 1;
   startingPoints.push({...invW});
 
+  // Start 5: inverse WAPE (what we actually optimize)
+  var wapeW = {};
+  var wapeTotalInv = 0;
+  for (var wk = 0; wk < enabledKeys.length; wk++) {
+    var wKey = enabledKeys[wk];
+    var wape = calculateWAPE(testData, forecasts[wKey], testDates);
+    var wInv = wape > 0.01 ? 1 / (wape * wape) : 10000;
+    wapeW[wKey] = wInv;
+    wapeTotalInv += wInv;
+  }
+  for (var wk2 = 0; wk2 < enabledKeys.length; wk2++) {
+    wapeW[enabledKeys[wk2]] = Math.round((wapeW[enabledKeys[wk2]] / wapeTotalInv) * 100) || 1;
+  }
+  startingPoints.push({...wapeW});
+
   // Start 2: equal weights
   const eqW = {};
   const eqVal = Math.round(100 / enabledKeys.length);
@@ -2218,6 +2208,69 @@ function autoOptimize() {
     if (finalMape < globalBestMape) {
       globalBestMape = finalMape;
       globalBestWeights = {...weights};
+    }
+  }
+
+  // --- Backward elimination: drop any method that hurts the ensemble ---
+  var pruned = true;
+  while (pruned) {
+    pruned = false;
+    var currentWape = getEnsembleMAPE(globalBestWeights);
+    for (var pk = 0; pk < enabledKeys.length; pk++) {
+      var pKey = enabledKeys[pk];
+      if (globalBestWeights[pKey] <= 0) continue;
+      var savedW = globalBestWeights[pKey];
+      globalBestWeights[pKey] = 0;
+      var testWape = getEnsembleMAPE(globalBestWeights);
+      if (testWape < currentWape - 0.001) {
+        // Removing this method improved the ensemble — keep it removed
+        currentWape = testWape;
+        pruned = true;
+      } else {
+        globalBestWeights[pKey] = savedW; // restore
+      }
+    }
+  }
+
+  // --- Safety net: if ensemble is worse than best individual method, fall back ---
+  var wapes = {};
+  for (var si = 0; si < enabledKeys.length; si++) {
+    wapes[enabledKeys[si]] = calculateWAPE(testData, forecasts[enabledKeys[si]], testDates);
+  }
+  var bestIndividualKey = enabledKeys.reduce(function(b, k) { return wapes[k] < wapes[b] ? k : b; }, enabledKeys[0]);
+  var bestIndividualWape = wapes[bestIndividualKey];
+  var ensembleWape = getEnsembleMAPE(globalBestWeights);
+
+  if (ensembleWape > bestIndividualWape) {
+    // Ensemble is worse than best individual — use inverse-WAPE weighting of top 5
+    var sortedByWape = enabledKeys.slice().sort(function(a,b) { return wapes[a] - wapes[b]; });
+    var topN = sortedByWape.slice(0, Math.min(5, sortedByWape.length));
+    for (var fk = 0; fk < enabledKeys.length; fk++) globalBestWeights[enabledKeys[fk]] = 0;
+    for (var tk = 0; tk < topN.length; tk++) {
+      globalBestWeights[topN[tk]] = Math.round(100 * (1 / wapes[topN[tk]]));
+    }
+    // Re-run quick coordinate descent on top-N only
+    var topSteps = [2, 1];
+    for (var ts = 0; ts < topSteps.length; ts++) {
+      var tStep = topSteps[ts];
+      var tBest = getEnsembleMAPE(globalBestWeights);
+      for (var tIter = 0; tIter < 100; tIter++) {
+        var tImproved = false;
+        for (var ti = 0; ti < topN.length; ti++) {
+          var tK = topN[ti];
+          globalBestWeights[tK] += tStep;
+          var tNew = getEnsembleMAPE(globalBestWeights);
+          if (tNew < tBest - 0.0001) { tBest = tNew; tImproved = true; continue; }
+          globalBestWeights[tK] -= tStep;
+          if (globalBestWeights[tK] >= tStep) {
+            globalBestWeights[tK] -= tStep;
+            tNew = getEnsembleMAPE(globalBestWeights);
+            if (tNew < tBest - 0.0001) { tBest = tNew; tImproved = true; continue; }
+            globalBestWeights[tK] += tStep;
+          }
+        }
+        if (!tImproved) break;
+      }
     }
   }
 
