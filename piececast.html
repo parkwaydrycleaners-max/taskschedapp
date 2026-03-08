@@ -550,7 +550,16 @@ const S = {
     sma28:     { name: '28-Day Moving Avg',     enabled: false, weight: 0, params: {} },
     expSmooth: { name: 'Exp Smooth + DOW',     enabled: true, weight: 5, params: { alpha: 0.3 } },
     isoWeekDow:{ name: 'ISO Week × DOW',     enabled: true, weight: 15, params: {} },
-    weekVolSplit:{ name: 'Weekly Vol Split',  enabled: true, weight: 15, params: { yearsBack: 3 } }
+    weekVolSplit:{ name: 'Weekly Vol Split',  enabled: true, weight: 15, params: { yearsBack: 3 } },
+    weekProfile: { name: 'YoY Week Profile',  enabled: true, weight: 15, params: {} },
+    monthDow:    { name: 'Month × DOW',       enabled: true, weight: 10, params: {} },
+    monthDowR:   { name: 'Month × DOW Recency',enabled: true, weight: 10, params: {} },
+    biweekly:    { name: 'Biweekly Pattern',   enabled: true, weight: 10, params: {} },
+    annualDowR:  { name: 'Annual DOW Recency', enabled: true, weight: 10, params: {} },
+    q75:         { name: 'DOW 75th Pctile',    enabled: true, weight: 10, params: {} },
+    q25:         { name: 'DOW 25th Pctile',    enabled: true, weight: 5, params: {} },
+    last2:       { name: 'Last 2 DOW Avg',     enabled: true, weight: 10, params: {} },
+    regime:      { name: 'Regime Adaptive',    enabled: true, weight: 5, params: {} }
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
@@ -568,7 +577,7 @@ const S = {
   fcChart: null
 };
 const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1','#ea580c','#0d9488','#be123c','#4f46e5','#84cc16','#ca8a04','#0891b2','#9333ea'];
+const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1','#ea580c','#0d9488','#be123c','#4f46e5','#84cc16','#ca8a04','#0891b2','#9333ea','#e11d48','#65a30d','#0284c7','#c026d3','#d97706','#2563eb','#16a34a','#db2777','#475569','#b91c1c','#7e22ce'];
 
 /* ==================================================================
    DARK MODE
@@ -1890,6 +1899,248 @@ function forecastWeekVolSplit(trainData, trainDates, horizon, yearsBack) {
   return fc;
 }
 
+/* 18. YoY Week Profile — uses last year's week shape scaled to recent volume */
+function forecastWeekProfile(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var overallDow = buildDOWAvg(trainData, trainDates);
+
+  // Get recent 4-week daily average
+  var rec4wk = [];
+  for (var ri = Math.max(0, n - 24); ri < n; ri++) rec4wk.push(trainData[ri]);
+  var rec4avg = rec4wk.length > 0 ? rec4wk.reduce(function(a,b){return a+b;},0) / rec4wk.length : 1;
+
+  // Get year-ago 4-week daily average
+  var yago4wk = [];
+  for (var yi = 0; yi < n; yi++) {
+    var age = Math.round((lastDate - trainDates[yi]) / 86400000);
+    if (age >= 337 && age <= 393) yago4wk.push(trainData[yi]);
+  }
+  var yago4avg = yago4wk.length > 0 ? yago4wk.reduce(function(a,b){return a+b;},0) / yago4wk.length : 1;
+
+  var scale = (yago4avg > 0) ? rec4avg / yago4avg : 1;
+  scale = 1 + (scale - 1) * 0.7; // dampen
+
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var idx = findYOYIndex(trainDates, d);
+    if (idx >= 0) {
+      fc.push(Math.max(0, trainData[idx] * scale));
+    } else {
+      fc.push(Math.max(0, overallDow[d.getDay()]));
+    }
+  }
+  return fc;
+}
+
+/* 19. Month × DOW — average by month and day-of-week combination */
+function forecastMonthDOW(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var lookup = {};   // key = month*10+dow
+  var dowLookup = {};
+  for (var i = 0; i < n; i++) {
+    var mo = trainDates[i].getMonth();
+    var dw = trainDates[i].getDay();
+    var k = mo * 10 + dw;
+    if (!lookup[k]) lookup[k] = [];
+    lookup[k].push(trainData[i]);
+    if (!dowLookup[dw]) dowLookup[dw] = [];
+    dowLookup[dw].push(trainData[i]);
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var key = d.getMonth() * 10 + d.getDay();
+    if (lookup[key] && lookup[key].length >= 3) {
+      var s = lookup[key].reduce(function(a,b){return a+b;},0);
+      fc.push(Math.max(0, s / lookup[key].length));
+    } else {
+      var dv = dowLookup[d.getDay()];
+      fc.push(dv ? Math.max(0, dv.reduce(function(a,b){return a+b;},0)/dv.length) : 0);
+    }
+  }
+  return fc;
+}
+
+/* 20. Month × DOW Recency — month+DOW weighted by recency */
+function forecastMonthDOWRecency(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var mo = d.getMonth(), dow = d.getDay();
+    var wSum = 0, wTotal = 0;
+    for (var i = 0; i < n; i++) {
+      if (trainDates[i].getMonth() === mo && trainDates[i].getDay() === dow) {
+        var ya = Math.max(0.5, (lastDate - trainDates[i]) / (365.25 * 86400000));
+        var w = 1.0 / ya;
+        wSum += trainData[i] * w;
+        wTotal += w;
+      }
+    }
+    if (wTotal > 0) {
+      fc.push(Math.max(0, wSum / wTotal));
+    } else {
+      var dowAvgs = buildDOWAvg(trainData, trainDates);
+      fc.push(Math.max(0, dowAvgs[dow]));
+    }
+  }
+  return fc;
+}
+
+/* 21. Biweekly Pattern — separate first/second half of month per DOW */
+function forecastBiweekly(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var lookup = {}; // key = month*20 + half*10 + dow
+  var dowLookup = {};
+  for (var i = 0; i < n; i++) {
+    var mo = trainDates[i].getMonth();
+    var half = trainDates[i].getDate() <= 15 ? 0 : 1;
+    var dw = trainDates[i].getDay();
+    var k = mo * 20 + half * 10 + dw;
+    if (!lookup[k]) lookup[k] = [];
+    lookup[k].push(trainData[i]);
+    if (!dowLookup[dw]) dowLookup[dw] = [];
+    dowLookup[dw].push(trainData[i]);
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var key = d.getMonth() * 20 + (d.getDate() <= 15 ? 0 : 1) * 10 + d.getDay();
+    if (lookup[key] && lookup[key].length >= 2) {
+      var s = lookup[key].reduce(function(a,b){return a+b;},0);
+      fc.push(Math.max(0, s / lookup[key].length));
+    } else {
+      var dv = dowLookup[d.getDay()];
+      fc.push(dv ? Math.max(0, dv.reduce(function(a,b){return a+b;},0)/dv.length) : 0);
+    }
+  }
+  return fc;
+}
+
+/* 22. Annual DOW Recency — seasonal DOW weighted by recency (sqrt decay) */
+function forecastAnnualDOWRecency(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var overallDow = buildDOWAvg(trainData, trainDates);
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var dow = d.getDay();
+    var targetDOY = getDayOfYear(d);
+    var wSum = 0, wTotal = 0;
+    for (var i = 0; i < n; i++) {
+      if (trainDates[i].getDay() !== dow) continue;
+      var doy = getDayOfYear(trainDates[i]);
+      var doyDiff = Math.abs(doy - targetDOY);
+      if (doyDiff > 183) doyDiff = 366 - doyDiff;
+      if (doyDiff <= 21) {
+        var ya = Math.max(0.5, (lastDate - trainDates[i]) / (365.25 * 86400000));
+        var w = 1.0 / Math.sqrt(ya);
+        wSum += trainData[i] * w;
+        wTotal += w;
+      }
+    }
+    fc.push(wTotal > 0 ? Math.max(0, wSum / wTotal) : Math.max(0, overallDow[dow]));
+  }
+  return fc;
+}
+
+/* 23. DOW 75th Percentile — aggressive/high estimate per DOW */
+function forecastQ75(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var dowVals = [[],[],[],[],[],[],[]];
+  for (var i = 0; i < n; i++) dowVals[trainDates[i].getDay()].push(trainData[i]);
+  var q = [];
+  for (var dw = 0; dw < 7; dw++) {
+    var s = dowVals[dw].slice().sort(function(a,b){return a-b;});
+    q[dw] = s.length > 0 ? s[Math.min(Math.floor(s.length * 0.75), s.length - 1)] : 0;
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    fc.push(Math.max(0, q[d.getDay()]));
+  }
+  return fc;
+}
+
+/* 24. DOW 25th Percentile — conservative/low estimate per DOW */
+function forecastQ25(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var dowVals = [[],[],[],[],[],[],[]];
+  for (var i = 0; i < n; i++) dowVals[trainDates[i].getDay()].push(trainData[i]);
+  var q = [];
+  for (var dw = 0; dw < 7; dw++) {
+    var s = dowVals[dw].slice().sort(function(a,b){return a-b;});
+    q[dw] = s.length > 0 ? s[Math.floor(s.length * 0.25)] : 0;
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    fc.push(Math.max(0, q[d.getDay()]));
+  }
+  return fc;
+}
+
+/* 25. Last 2 Same-DOW Average — uses only the two most recent same-DOW values */
+function forecastLast2(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var dowRecent = [[],[],[],[],[],[],[]];
+  for (var i = n - 1; i >= 0; i--) {
+    var dw = trainDates[i].getDay();
+    if (dowRecent[dw].length < 2) dowRecent[dw].push(trainData[i]);
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var vals = dowRecent[d.getDay()];
+    fc.push(vals.length > 0 ? Math.max(0, vals.reduce(function(a,b){return a+b;},0)/vals.length) : 0);
+  }
+  return fc;
+}
+
+/* 26. Regime Adaptive — detects up/down trends and adjusts seasonal vs recent blend */
+function forecastRegime(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+
+  // 4-week vs 12-week average for regime detection
+  var rec4 = [], rec12 = [];
+  for (var i = 0; i < n; i++) {
+    var age = Math.round((lastDate - trainDates[i]) / 86400000);
+    if (age <= 28) rec4.push(trainData[i]);
+    if (age <= 84) rec12.push(trainData[i]);
+  }
+  var avg4 = rec4.length > 0 ? rec4.reduce(function(a,b){return a+b;},0)/rec4.length : 0;
+  var avg12 = rec12.length > 0 ? rec12.reduce(function(a,b){return a+b;},0)/rec12.length : 0;
+  var regimeRatio = avg12 > 0 ? avg4 / avg12 : 1;
+
+  // Build seasonal and recent forecasts
+  var overallDow = buildDOWAvg(trainData, trainDates);
+  var recentCutoff = Math.max(0, n - 42); // 6 weeks
+  var recentAvgs = buildDOWAvg(trainData.slice(recentCutoff), trainDates.slice(recentCutoff));
+
+  var recentW = (Math.abs(regimeRatio - 1) > 0.1) ? 0.7 : 0.5;
+
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var dow = d.getDay();
+    var seasonal = collectSeasonalDOW(trainData, trainDates, d, 21);
+    var sameDow = seasonal[dow];
+    var seaAvg = sameDow.length > 0 ? sameDow.reduce(function(s,p){return s+p.value;},0)/sameDow.length : overallDow[dow];
+    fc.push(Math.max(0, recentW * recentAvgs[dow] + (1 - recentW) * seaAvg));
+  }
+  return fc;
+}
+
 function runMethod(key, trainData, trainDates, horizon) {
   const m = S.methods[key];
   switch (key) {
@@ -1910,6 +2161,15 @@ function runMethod(key, trainData, trainDates, horizon) {
     case 'expSmooth': return forecastExpSmoothDOW(trainData, trainDates, horizon, m.params.alpha);
     case 'isoWeekDow': return forecastISOWeekDOW(trainData, trainDates, horizon);
     case 'weekVolSplit': return forecastWeekVolSplit(trainData, trainDates, horizon, m.params.yearsBack);
+    case 'weekProfile': return forecastWeekProfile(trainData, trainDates, horizon);
+    case 'monthDow': return forecastMonthDOW(trainData, trainDates, horizon);
+    case 'monthDowR': return forecastMonthDOWRecency(trainData, trainDates, horizon);
+    case 'biweekly': return forecastBiweekly(trainData, trainDates, horizon);
+    case 'annualDowR': return forecastAnnualDOWRecency(trainData, trainDates, horizon);
+    case 'q75': return forecastQ75(trainData, trainDates, horizon);
+    case 'q25': return forecastQ25(trainData, trainDates, horizon);
+    case 'last2': return forecastLast2(trainData, trainDates, horizon);
+    case 'regime': return forecastRegime(trainData, trainDates, horizon);
     default: return new Array(horizon).fill(0);
   }
 }
