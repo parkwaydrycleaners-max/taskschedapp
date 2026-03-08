@@ -427,8 +427,90 @@ document.getElementById('parseFcBtn').addEventListener('click',function(){
 
 /* ================================================================
    PARSE EMPLOYEE HOURS
+   Supports two formats:
+   1) Fixed-width POS Time & Attendance report (auto-detected via
+      "Total Hrs" / "Total Mins" header columns and ==== separators).
+      Multiple clock-in/out punches per employee per day are summed,
+      then all employees are aggregated per date.
+   2) Simple tab / comma-separated with Date and Hours columns.
    ================================================================ */
-function parseHours(text){
+
+/* --- Fixed-width POS attendance parser --- */
+function parsePOSHours(text){
+  var lines=text.split('\n');
+
+  /* Locate the header row that contains column titles */
+  var headerIdx=-1,headerLine='';
+  for(var i=0;i<lines.length;i++){
+    if(lines[i].indexOf('Total Hrs')>=0&&lines[i].indexOf('Date')>=0){
+      headerIdx=i;headerLine=lines[i];break;
+    }
+  }
+  if(headerIdx<0)return null;
+
+  /* Derive column start positions from header text */
+  var dateCol  =headerLine.indexOf('Date');
+  var hrsCol   =headerLine.indexOf('Total Hrs');
+  var minsCol  =headerLine.indexOf('Total Mins');
+  if(dateCol<0||hrsCol<0||minsCol<0)return null;
+
+  /* Date field ends where the next column (Time In) starts, or at hrsCol */
+  var timeInCol=headerLine.indexOf('Time In');
+  var dateEndCol=timeInCol>dateCol?timeInCol:hrsCol;
+
+  /* Track per-employee and per-date data */
+  var dateAgg={};      /* key → { date, hours } — all employees summed */
+  var empPunches={};   /* empName → { dateKey → totalDecimalHrs } */
+
+  for(i=headerIdx+1;i<lines.length;i++){
+    var line=lines[i];
+    /* Skip separators, blanks, repeated headers */
+    if(line.trim().length===0||/^[\s=]+$/.test(line))continue;
+    if(line.indexOf('Total Hrs')>=0&&line.indexOf('Date')>=0)continue;
+    if(line.length<minsCol)continue;
+
+    var rawDate=line.substring(dateCol,dateEndCol).trim().split(/\s/)[0];
+    var rawHrs =line.substring(hrsCol,minsCol).trim();
+    var rawMins=line.substring(minsCol,minsCol+20).trim().split(/\s/)[0];
+
+    var d=parseDate(rawDate);
+    if(!d)continue;
+
+    var hrs =parseInt(rawHrs,10)||0;
+    var mins=parseInt(rawMins,10)||0;
+    var dec =hrs+mins/60;
+
+    /* Extract employee name for per-employee tracking */
+    var empSlice=line.substring(0,dateCol).trim();
+    var empParts=empSlice.split(/\s{2,}/);
+    var empName=empParts.length>=3?empParts[2]+' '+empParts[1]:empParts[empParts.length-1]||'Unknown';
+
+    var key=fmtD(d);
+    if(!dateAgg[key])dateAgg[key]={date:d,hours:0};
+    dateAgg[key].hours+=dec;
+
+    if(!empPunches[empName])empPunches[empName]={};
+    if(!empPunches[empName][key])empPunches[empName][key]=0;
+    empPunches[empName][key]+=dec;
+  }
+
+  /* Convert to sorted arrays matching expected return format */
+  var keys=Object.keys(dateAgg).sort();
+  if(keys.length<1)return null;
+
+  var dates=[],hours=[],finalMap={};
+  keys.forEach(function(k){
+    dates.push(dateAgg[k].date);
+    var h=Math.round(dateAgg[k].hours*100)/100;
+    hours.push(h);
+    finalMap[k]=h;
+  });
+
+  return{dates:dates,hours:hours,dateMap:finalMap,employees:empPunches};
+}
+
+/* --- Simple tab / CSV parser (original fallback) --- */
+function parseSimpleHours(text){
   var lines=text.trim().split('\n').filter(function(l){return l.trim().length>0&&!l.trim().startsWith('#');});
   if(lines.length<2)return null;
   var delim='\t';
@@ -438,7 +520,7 @@ function parseHours(text){
   headers.forEach(function(h,idx){
     var hl=h.toLowerCase();
     if(dateIdx<0&&(hl.includes('date')))dateIdx=idx;
-    if(hoursIdx<0&&(hl.includes('hour')||hl.includes('hrs')||hl.includes('time')))hoursIdx=idx;
+    if(hoursIdx<0&&(hl.includes('hour')||hl.includes('hrs')||hl.includes('total')))hoursIdx=idx;
   });
   if(dateIdx<0)return null;
   if(hoursIdx<0){
@@ -455,7 +537,13 @@ function parseHours(text){
     var h=parseNum(cells[hoursIdx]);
     if(d&&!isNaN(h)){dates.push(d);hours.push(h);dateMap[fmtD(d)]=h;}
   }
+  if(dates.length<1)return null;
   return{dates:dates,hours:hours,dateMap:dateMap};
+}
+
+/* --- Main dispatcher: try POS format first, then simple CSV/TSV --- */
+function parseHours(text){
+  return parsePOSHours(text)||parseSimpleHours(text);
 }
 
 document.getElementById('parseHrBtn').addEventListener('click',function(){
