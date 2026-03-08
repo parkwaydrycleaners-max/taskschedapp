@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StaffCast — Dry Cleaning Staff Scheduler</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#f4f1ec;--bg2:#fff;--bg3:#faf8f5;--bg4:#f0ece5;
+--tx:#1c1917;--tx2:#57534e;--tx3:#a8a29e;
+--bd:#e7e5e4;--bd2:#d6d3d1;
+--ac:#b45309;--ac2:#d97706;--ac3:rgba(180,83,9,.08);
+--sc:#0f766e;--sc2:#14b8a6;--sc3:rgba(15,118,110,.08);
+--err:#dc2626;--err2:rgba(220,38,38,.08);
+--warn:#ca8a04;--warn2:rgba(202,138,4,.08);
+--ok:#16a34a;--ok2:rgba(22,163,74,.08);
+--blue:#2563eb;--blue2:rgba(37,99,235,.08);
+--sh:0 1px 3px rgba(0,0,0,.06);--sh2:0 4px 16px rgba(0,0,0,.08);
+--r:10px;--rs:6px;
+}
+html.dark{
+--bg:#0c0a09;--bg2:#1c1917;--bg3:#292524;--bg4:#292524;
+--tx:#fafaf9;--tx2:#a8a29e;--tx3:#78716c;
+--bd:#3a3633;--bd2:#44403c;
+--ac:#f59e0b;--ac2:#fbbf24;--ac3:rgba(245,158,11,.1);
+--sc:#2dd4bf;--sc2:#5eead4;--sc3:rgba(45,212,191,.1);
+--err:#f87171;--err2:rgba(248,113,113,.1);
+--warn:#facc15;--warn2:rgba(250,204,21,.1);
+--ok:#4ade80;--ok2:rgba(74,222,128,.1);
+--blue:#60a5fa;--blue2:rgba(96,165,250,.1);
+--sh:0 1px 3px rgba(0,0,0,.3);--sh2:0 4px 16px rgba(0,0,0,.4);
+}
+html{font-family:'DM Sans',system-ui,sans-serif;font-size:16px;background:var(--bg);color:var(--tx)}
+body{min-height:100vh;overflow-x:hidden}
+.mono{font-family:'IBM Plex Mono',monospace}
+input,select,textarea,button{font-family:inherit;font-size:16px}
+
+.hdr{background:var(--bg2);border-bottom:1px solid var(--bd);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50}
+.logo{font-size:1.25rem;font-weight:700;letter-spacing:-.03em;color:var(--ac)}
+.logo span{color:var(--sc)}
+.sub{font-size:.72rem;color:var(--tx3);margin-left:4px}
+
+.tabs{display:flex;gap:2px;background:var(--bg2);border-bottom:1px solid var(--bd);padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tbtn{padding:11px 16px;font-size:.8rem;font-weight:500;color:var(--tx3);border:none;background:none;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:.2s}
+.tbtn:hover{color:var(--tx)}
+.tbtn.on{color:var(--ac);border-bottom-color:var(--ac);font-weight:600}
+.tpanel{display:none;padding:16px;max-width:1100px;margin:0 auto}
+.tpanel.on{display:block}
+
+.card{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:18px;margin-bottom:14px;box-shadow:var(--sh)}
+.ctitle{font-size:.92rem;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.ctitle i{font-size:.95rem;color:var(--ac)}
+
+.info{background:var(--ac3);border:1px solid var(--ac);border-radius:var(--rs);padding:11px 14px;font-size:.8rem;color:var(--tx2);margin-bottom:14px;line-height:1.6}
+.info strong{color:var(--tx)}
+
+textarea.paste{width:100%;min-height:160px;padding:12px;border:1px dashed var(--bd);border-radius:var(--rs);background:var(--bg3);color:var(--tx);font-family:'IBM Plex Mono',monospace;font-size:.8rem;resize:vertical}
+textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
+
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--rs);font-weight:500;font-size:.83rem;border:1px solid transparent;cursor:pointer;transition:.15s}
+.btn-p{background:var(--ac);color:#fff;border-color:var(--ac)}.btn-p:hover{opacity:.9}
+.btn-s{background:var(--bg4);color:var(--tx);border-color:var(--bd)}.btn-s:hover{background:var(--bg3)}
+.btn-t{background:var(--sc);color:#fff;border-color:var(--sc)}.btn-t:hover{opacity:.9}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:5px 12px;font-size:.76rem}
+
+.field{margin-bottom:14px}
+.flbl{display:block;font-size:.72rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3);margin-bottom:5px}
+.flbl2{font-size:.72rem;color:var(--tx3);margin-top:4px;line-height:1.4}
+.finput{width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:var(--rs);background:var(--bg2);color:var(--tx);font-size:16px}
+.finput:focus{outline:none;border-color:var(--ac)}
+.finput-sm{max-width:120px}
+.finput-xs{max-width:80px}
+
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start}
+.row>*{flex:1;min-width:0}
+
+.chk-row{display:flex;align-items:flex-start;gap:8px;margin:10px 0;font-size:.82rem}
+.chk-row input[type=checkbox]{margin-top:3px;accent-color:var(--ac);width:16px;height:16px;flex-shrink:0}
+.chk-row .chk-label{font-weight:600}
+.chk-row .chk-desc{font-size:.75rem;color:var(--tx3);margin-top:2px;line-height:1.4}
+
+.dow-grid{display:flex;flex-wrap:wrap;gap:8px}
+.dow-item{display:flex;align-items:center;gap:4px;font-size:.82rem}
+.dow-item label{min-width:32px;font-weight:500}
+.dow-item input{width:58px;padding:5px 6px;border:1px solid var(--bd);border-radius:4px;background:var(--bg2);color:var(--tx);font-family:'IBM Plex Mono',monospace;font-size:16px;text-align:center}
+
+.twrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--bd);border-radius:var(--rs)}
+.dtbl{width:100%;border-collapse:collapse;font-size:.78rem}
+.dtbl th{background:var(--bg4);color:var(--tx2);font-weight:600;padding:8px 10px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:2}
+.dtbl td{padding:6px 10px;border-bottom:1px solid var(--bd);white-space:nowrap}
+.dtbl tr:hover td{background:var(--ac3)}
+.dtbl .n{text-align:right;font-family:'IBM Plex Mono',monospace}
+
+.weather-tbl th{font-size:.68rem;text-transform:uppercase;letter-spacing:.03em}
+.weather-tbl td{font-size:.76rem}
+
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:600}
+.badge-ok{background:var(--ok2);color:var(--ok)}
+.badge-err{background:var(--err2);color:var(--err)}
+.badge-info{background:var(--blue2);color:var(--blue)}
+.badge-warn{background:var(--warn2);color:var(--warn)}
+
+.chart-box{position:relative;width:100%;max-height:360px;margin-top:12px}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal-box{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:24px;max-width:400px;width:100%;box-shadow:var(--sh2)}
+.modal-box h3{font-size:1rem;font-weight:600;margin-bottom:10px}
+.modal-box p{font-size:.85rem;color:var(--tx2);margin-bottom:16px}
+.modal-acts{display:flex;justify-content:flex-end;gap:8px}
+
+.sched-row{display:grid;grid-template-columns:100px 1fr 80px 80px 90px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd);font-size:.82rem}
+.sched-row.hdr-row{font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;color:var(--tx3);border-bottom:2px solid var(--bd)}
+.sched-bar{height:22px;border-radius:3px;position:relative;min-width:4px}
+.sched-bar-inner{height:100%;border-radius:3px;transition:width .3s}
+.sched-val{font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:600}
+
+.sep{height:1px;background:var(--bd);margin:16px 0}
+
+.actual-impact td{font-size:.76rem}
+.actual-impact .cond-icon{font-size:.85rem}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.anim{animation:fadeUp .3s ease-out}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:640px){
+.tbtn{padding:9px 10px;font-size:.76rem}
+.sched-row{grid-template-columns:80px 1fr 60px 60px 70px;font-size:.76rem}
+.card{padding:14px}
+.sub{display:none}
+.row{flex-direction:column}
+}
+
+.export-area{width:100%;min-height:280px;padding:12px;border:1px solid var(--bd);border-radius:var(--rs);background:var(--bg3);color:var(--tx);font-family:'IBM Plex Mono',monospace;font-size:.74rem;resize:vertical;white-space:pre;overflow:auto}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+<div class="logo">Staff<span>Cast</span></div>
+<span class="sub">Employee Scheduling Tool</span>
+<div style="flex:1"></div>
+<span id="statusBadge" class="badge badge-info" style="display:none"></span>
+</header>
+
+<nav class="tabs" role="tablist">
+<button class="tbtn on" data-t="import"><i class="fa-solid fa-file-import"></i> Import</button>
+<button class="tbtn" data-t="staff"><i class="fa-solid fa-users-gear"></i> Staff Rules</button>
+<button class="tbtn" data-t="labor"><i class="fa-solid fa-chart-bar"></i> Labor</button>
+<button class="tbtn" data-t="weather"><i class="fa-solid fa-cloud-sun-rain"></i> Weather</button>
+<button class="tbtn" data-t="schedule"><i class="fa-solid fa-calendar-check"></i> Schedule</button>
+<button class="tbtn" data-t="export"><i class="fa-solid fa-file-export"></i> Export</button>
+</nav>
+
+<!-- =========== IMPORT =========== -->
+<section id="tab-import" class="tpanel on">
+<div class="card anim">
+<div class="ctitle"><i class="fa-solid fa-chart-line"></i> PieceCast Forecast Data</div>
+<div class="info">Paste the <strong>export output from PieceCast</strong>. The tab-separated format with <code>#</code> metadata headers is auto-parsed. This provides daily forecasted piece counts per category.</div>
+<textarea id="fcPaste" class="paste" placeholder="# PIECECAST FORECAST EXPORT&#10;# Generated: 2026-03-08&#10;Date&#9;DOW&#9;Dry Cleaning (pcs)&#9;Laundry (pcs)&#9;Total Pieces&#10;2026-03-09&#9;Mon&#9;45&#9;30&#9;75"></textarea>
+<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+<button class="btn btn-p" id="parseFcBtn"><i class="fa-solid fa-bolt"></i> Parse Forecast</button>
+<button class="btn btn-s" id="sampleFcBtn">Load Sample</button>
+</div>
+<div id="fcStatus" style="font-size:.8rem;color:var(--tx3);margin-top:8px"></div>
+</div>
+
+<div class="card anim">
+<div class="ctitle"><i class="fa-solid fa-clock"></i> Employee Hours Report</div>
+<div class="info">Paste your <strong>employee time &amp; attendance</strong> data. Tab or comma separated. Needs at minimum a <strong>Date</strong> column and a <strong>Hours</strong> column. Used to compute actual pieces/hour productivity and validate scheduling.</div>
+<textarea id="hrPaste" class="paste" placeholder="Date&#9;Total Hours&#10;1/6/2025&#9;38.5&#10;1/7/2025&#9;42.0&#10;1/8/2025&#9;35.0"></textarea>
+<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+<button class="btn btn-p" id="parseHrBtn"><i class="fa-solid fa-bolt"></i> Parse Hours</button>
+<button class="btn btn-s" id="sampleHrBtn">Load Sample</button>
+</div>
+<div id="hrStatus" style="font-size:.8rem;color:var(--tx3);margin-top:8px"></div>
+</div>
+
+<div id="previewCard" class="card" style="display:none">
+<div class="ctitle"><i class="fa-solid fa-table"></i> Import Summary <span id="importBadge" class="badge badge-ok" style="margin-left:auto"></span></div>
+<div id="importSummary" style="font-size:.82rem;color:var(--tx2)"></div>
+</div>
+</section>
+
+<!-- =========== STAFF RULES =========== -->
+<section id="tab-staff" class="tpanel">
+<div class="card anim">
+<div class="ctitle"><i class="fa-solid fa-users-gear"></i> Staff Scheduling Rules</div>
+<div class="field"><label class="flbl">Max Hours Per Employee Per Day</label><input type="number" class="finput finput-sm" id="maxHrEmpDay" value="10" min="1" max="24" step="0.5"><p class="flbl2">Maximum shift length for a single employee.</p></div>
+<div class="field"><label class="flbl">Max Hours Per Employee Per Week</label><input type="number" class="finput finput-sm" id="maxHrEmpWeek" value="40" min="1" max="168" step="1"><p class="flbl2">Weekly overtime threshold. Scheduling will try to stay below this.</p></div>
+<div class="sep"></div>
+<div class="field"><label class="flbl">Max Total Staff Hours Per Day</label><input type="number" class="finput finput-sm" id="maxStaffDay" value="120" min="1" max="999" step="0.5"><p class="flbl2">Upper cap on combined staff hours for any single day.</p></div>
+<div class="field"><label class="flbl">Max Total Staff Hours Per Week</label><input type="number" class="finput finput-sm" id="maxStaffWeek" value="600" min="1" max="9999" step="1"><p class="flbl2">Weekly cap on total labor hours across all employees.</p></div>
+<div class="sep"></div>
+<div class="field"><label class="flbl">Minimum Staff Hours Per Day</label><input type="number" class="finput finput-sm" id="minStaffDay" value="11.5" min="0" max="999" step="0.5"><p class="flbl2">Minimum daily coverage regardless of volume. Set to 0 for no minimum.</p></div>
+</div>
+</section>
+
+<!-- =========== LABOR & PRODUCTIVITY =========== -->
+<section id="tab-labor" class="tpanel">
+<div class="card anim">
+<div class="ctitle"><i class="fa-solid fa-chart-bar"></i> Labor &amp; Productivity</div>
+<div class="field"><label class="flbl">Pieces Per Labor Hour (Primary Driver)</label><input type="number" class="finput finput-sm" id="pcsPerHr" value="8.5" min="0.1" max="999" step="0.1"><p class="flbl2">How many pieces 1 employee processes per hour. Used to calculate staffing from forecasted pieces.</p></div>
+<div class="field"><label class="flbl">Min Hours for Productivity Calc</label><input type="number" class="finput finput-sm" id="minHrProd" value="11" min="0" max="999" step="0.5"><p class="flbl2">Days with fewer total staff hours than this are excluded from pieces-per-hour calculations. Prevents partial days (holidays, closures) from skewing your productivity metrics. Set to 0 to include all days.</p></div>
+<div class="sep"></div>
+<div class="field"><label class="flbl">Average Hourly Wage ($)</label><input type="number" class="finput finput-sm" id="avgWage" value="18" min="1" max="999" step="0.25"><p class="flbl2">Used to calculate labor cost and cost-of-sales percentage.</p></div>
+<div class="field"><label class="flbl">Target Labor Cost % of Sales</label><input type="number" class="finput finput-sm" id="targetLaborPct" value="25" min="1" max="100" step="1"><p class="flbl2">If labor cost exceeds this percentage, hours may be capped.</p></div>
+<div class="chk-row"><input type="checkbox" id="capIfOver" checked><div><div class="chk-label">Cap hours if labor cost exceeds target %</div><div class="chk-desc">If enabled, recommended hours will be reduced when labor cost would exceed the target % of forecasted sales.</div></div></div>
+<div class="sep"></div>
+<div class="field"><label class="flbl">Sales Per Labor Hour ($ Fallback)</label><input type="number" class="finput finput-sm" id="salesPerHr" value="38" min="1" max="9999" step="1"><p class="flbl2">Used as fallback when piece data is unavailable.</p></div>
+<div class="sep"></div>
+<div class="field"><label class="flbl">Per-Day Staffing Adjustment %</label>
+<p class="flbl2" style="margin-bottom:8px">Adjust recommended hours per day of the week. 100% = no change. Set Monday higher if it needs more staff due to drop-offs, sorting, etc.</p>
+<div class="dow-grid" id="dowAdjGrid"></div>
+</div>
+</div>
+
+<div id="actualProdCard" class="card" style="display:none">
+<div class="ctitle"><i class="fa-solid fa-chart-simple"></i> Actual Pieces/Hour from Data</div>
+<div id="actualProdContent"></div>
+</div>
+</section>
+
+<!-- =========== WEATHER =========== -->
+<section id="tab-weather" class="tpanel">
+<div class="card anim">
+<div class="ctitle"><i class="fa-solid fa-cloud-sun-rain"></i> Weather Adjustments</div>
+<div class="row" style="margin-bottom:14px">
+<div class="field" style="max-width:200px"><label class="flbl">Zip Code</label><input type="text" class="finput" id="zipInput" placeholder="e.g. 90210" maxlength="5" pattern="[0-9]{5}"></div>
+<div style="align-self:flex-end;padding-bottom:14px"><button class="btn btn-t" id="fetchWeatherBtn"><i class="fa-solid fa-cloud-arrow-down"></i> Fetch Forecast</button></div>
+</div>
+<div id="weatherStatus" style="font-size:.8rem;color:var(--tx3);margin-bottom:12px"></div>
+<div id="weatherForecastCard" style="display:none"></div>
+<div class="sep"></div>
+<div class="field">
+<label class="flbl">Business Hours (For Rain Timing)</label>
+<div class="row" style="max-width:280px">
+<div><label class="flbl" style="font-size:.68rem">Open</label><input type="number" class="finput finput-xs" id="bizOpen" value="9" min="0" max="23"></div>
+<div style="align-self:center;padding-top:12px;flex:0">to</div>
+<div><label class="flbl" style="font-size:.68rem">Close</label><input type="number" class="finput finput-xs" id="bizClose" value="19" min="1" max="24"></div>
+</div>
+<p class="flbl2">Only rain during these hours affects forecast.</p>
+</div>
+<div class="sep"></div>
+<div class="field"><label class="flbl">Rain Adjustment % (Reduce Pcs by Severity)</label>
+<div class="row" style="max-width:500px">
+<div><label class="flbl" style="font-size:.68rem"><i class="fa-solid fa-cloud-rain" style="color:var(--blue)"></i> Light (2-5mm)</label><input type="number" class="finput finput-xs" id="rainLight" value="2" min="0" max="100"></div>
+<div><label class="flbl" style="font-size:.68rem"><i class="fa-solid fa-cloud-showers-heavy" style="color:var(--ac)"></i> Moderate (5-15mm)</label><input type="number" class="finput finput-xs" id="rainMod" value="5" min="0" max="100"></div>
+<div><label class="flbl" style="font-size:.68rem"><i class="fa-solid fa-cloud-showers-water" style="color:var(--err)"></i> Heavy (15mm+)</label><input type="number" class="finput finput-xs" id="rainHeavy" value="30" min="0" max="100"></div>
+</div>
+</div>
+<div class="sep"></div>
+<div class="field"><label class="flbl">Extreme Heat Threshold (&deg;F)</label><input type="number" class="finput finput-xs" id="heatThresh" value="91" min="60" max="130" step="1"></div>
+<div class="field"><label class="flbl">Heat Adjustment % (Reduce Sales By)</label><input type="number" class="finput finput-xs" id="heatAdj" value="14" min="0" max="100" step="1"></div>
+<div class="sep"></div>
+<div class="chk-row"><input type="checkbox" id="rainRedist" checked><div><div class="chk-label"><i class="fa-solid fa-cloud-rain" style="color:var(--blue)"></i> &rarr; Rain Demand Redistribution</div><div class="chk-desc">When ON: demand lost to moderate/heavy rain shifts to the next business day (~60%) and Saturday (~40%). Reflects the pattern where customers skip rainy days and come the next day or Saturday instead.</div></div></div>
+<div class="chk-row"><input type="checkbox" id="heatRedist" checked><div><div class="chk-label"><i class="fa-solid fa-temperature-high" style="color:var(--err)"></i> &rarr; Heat Demand Redistribution</div><div class="chk-desc">When ON: demand lost to extreme heat shifts to the next cooler day (~70%) and Saturday (~30%). Customers tend to come the next day when temperature drops, even slightly.</div></div></div>
+</div>
+
+<div id="weatherImpactCard" class="card" style="display:none">
+<div class="ctitle"><i class="fa-solid fa-chart-column"></i> Actual Weather Impact from Data</div>
+<div id="weatherImpactContent"></div>
+</div>
+</section>
+
+<!-- =========== SCHEDULE =========== -->
+<section id="tab-schedule" class="tpanel">
+<div id="noSchedMsg" class="card"><p style="text-align:center;color:var(--tx3);padding:30px 0;font-size:.9rem">Import forecast data and configure settings, then generate the schedule.</p></div>
+<div id="schedContent" style="display:none">
+<div class="card anim">
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+<button class="btn btn-p" id="genSchedBtn"><i class="fa-solid fa-calculator"></i> Generate Schedule</button>
+<button class="btn btn-s" id="regenSchedBtn" style="display:none"><i class="fa-solid fa-arrows-rotate"></i> Recalculate</button>
+<span id="schedStatus" style="font-size:.8rem;color:var(--tx3)"></span>
+</div>
+<div id="schedSummary" style="display:none">
+<div class="ctitle"><i class="fa-solid fa-calendar-check"></i> Daily Staffing Schedule <span id="schedBadge" class="badge badge-ok" style="margin-left:auto"></span></div>
+<div id="schedTable"></div>
+</div>
+</div>
+<div class="card" id="schedChartCard" style="display:none">
+<div class="ctitle"><i class="fa-solid fa-chart-area"></i> Staffing Visualization</div>
+<div class="chart-box"><canvas id="schedChart"></canvas></div>
+</div>
+<div class="card" id="weekSummCard" style="display:none">
+<div class="ctitle"><i class="fa-solid fa-table-columns"></i> Weekly Summary</div>
+<div id="weekSummContent"></div>
+</div>
+</div>
+</section>
+
+<!-- =========== EXPORT =========== -->
+<section id="tab-export" class="tpanel">
+<div id="noExpMsg" class="card"><p style="text-align:center;color:var(--tx3);padding:30px 0;font-size:.9rem">Generate a schedule first to export.</p></div>
+<div id="expContent" style="display:none">
+<div class="card anim">
+<div class="ctitle"><i class="fa-solid fa-file-export"></i> Export Schedule</div>
+<div class="info">Copy-paste this into your payroll or scheduling system. Lines starting with <code>#</code> are metadata.</div>
+<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+<button class="btn btn-p" id="copyExpBtn"><i class="fa-solid fa-clipboard"></i> Copy to Clipboard</button>
+<span id="copyExpOk" style="font-size:.8rem;color:var(--ok);display:none"><i class="fa-solid fa-check"></i> Copied!</span>
+</div>
+<pre class="export-area" id="exportArea"></pre>
+</div>
+</div>
+</section>
+
+<script>
+/* ================================================================
+   STATE
+   ================================================================ */
+var ST={
+  fc:{dates:[],dow:[],columns:{},meta:{}},
+  hr:{dates:[],hours:[],dateMap:{}},
+  weather:{loaded:false,daily:[]},
+  sched:null,
+  schedChart:null
+};
+var DOW_N=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+var DOW_ADJ=[100,133,100,100,100,100,133];
+
+/* ================================================================
+   DARK MODE
+   ================================================================ */
+if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.classList.add('dark');
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(e){e.matches?document.documentElement.classList.add('dark'):document.documentElement.classList.remove('dark');});
+
+/* ================================================================
+   UTILITIES
+   ================================================================ */
+function escH(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function parseNum(s){if(s==null||s==='')return NaN;s=String(s).trim().replace(/[$,]/g,'');if(s===''||s==='-')return NaN;return parseFloat(s);}
+function parseDate(s){if(!s)return null;s=s.trim();var iso=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);if(iso)return new Date(+iso[1],iso[2]-1,+iso[3]);var us=s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);if(us){var y=+us[3];if(y<100)y+=2000;return new Date(y,us[1]-1,+us[2]);}var o=new Date(s);return(!isNaN(o.getTime())&&o.getFullYear()>1900&&o.getFullYear()<2100)?o:null;}
+function fmtD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function fmtDS(d){return(d.getMonth()+1)+'/'+d.getDate();}
+function showMsg(msg,type){
+  var ex=document.querySelector('.modal-overlay');if(ex)ex.remove();
+  var o=document.createElement('div');o.className='modal-overlay';
+  var c=type==='error'?'var(--err)':type==='success'?'var(--ok)':'var(--ac)';
+  o.innerHTML='<div class="modal-box"><h3 style="color:'+c+'">'+(type==='error'?'Error':type==='success'?'Success':'Info')+'</h3><p>'+msg+'</p><div class="modal-acts"><button class="btn btn-p" onclick="this.closest(\'.modal-overlay\').remove()">OK</button></div></div>';
+  document.body.appendChild(o);
+  o.addEventListener('click',function(e){if(e.target===o)o.remove();});
+}
+
+/* ================================================================
+   TAB SWITCHING
+   ================================================================ */
+document.querySelectorAll('.tbtn').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.tbtn').forEach(function(x){x.classList.remove('on');});
+    document.querySelectorAll('.tpanel').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    document.getElementById('tab-'+b.dataset.t).classList.add('on');
+  });
+});
+
+/* ================================================================
+   PARSE PIECECAST FORECAST
+   ================================================================ */
+function parseForecast(text){
+  var lines=text.trim().split('\n');
+  var meta={},dataLines=[];
+  lines.forEach(function(l){
+    l=l.trim();
+    if(l.startsWith('#')){
+      var m=l.replace(/^#+\s*/,'');
+      var ci=m.indexOf(':');
+      if(ci>0)meta[m.slice(0,ci).trim()]=m.slice(ci+1).trim();
+    }else if(l.length>0)dataLines.push(l);
+  });
+  if(dataLines.length<2)return null;
+
+  var delim='\t';
+  if(dataLines[0].indexOf('\t')<0&&dataLines[0].indexOf(',')>0)delim=',';
+  var headers=dataLines[0].split(delim).map(function(h){return h.trim();});
+  var rows=[];
+  for(var i=1;i<dataLines.length;i++){
+    var cells=dataLines[i].split(delim).map(function(c){return c.trim();});
+    if(cells.length>=2)rows.push(cells);
+  }
+
+  var dateIdx=-1,dowIdx=-1;
+  headers.forEach(function(h,idx){
+    var hl=h.toLowerCase();
+    if(hl==='date')dateIdx=idx;
+    if(hl==='dow')dowIdx=idx;
+  });
+  if(dateIdx<0)return null;
+
+  var dates=[],dow=[],columns={};
+  var numCols=[];
+  headers.forEach(function(h,idx){
+    if(idx===dateIdx||idx===dowIdx)return;
+    numCols.push({idx:idx,name:h});
+    columns[h]=[];
+  });
+
+  rows.forEach(function(r){
+    var d=parseDate(r[dateIdx]);
+    if(!d)return;
+    dates.push(d);
+    dow.push(dowIdx>=0?r[dowIdx]:DOW_N[d.getDay()]);
+    numCols.forEach(function(c){
+      var v=parseNum(r[c.idx]);
+      columns[c.name].push(isNaN(v)?0:v);
+    });
+  });
+
+  return{dates:dates,dow:dow,columns:columns,meta:meta};
+}
+
+document.getElementById('parseFcBtn').addEventListener('click',function(){
+  var text=document.getElementById('fcPaste').value.trim();
+  if(!text){showMsg('Please paste PieceCast export data first.','error');return;}
+  var parsed=parseForecast(text);
+  if(!parsed||parsed.dates.length<1){showMsg('Could not parse forecast. Need at least a Date column and 1+ data columns.','error');return;}
+  ST.fc=parsed;
+  document.getElementById('fcStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days, '+Object.keys(parsed.columns).length+' columns</span>';
+  checkImportReady();
+});
+
+/* ================================================================
+   PARSE EMPLOYEE HOURS
+   ================================================================ */
+function parseHours(text){
+  var lines=text.trim().split('\n').filter(function(l){return l.trim().length>0&&!l.trim().startsWith('#');});
+  if(lines.length<2)return null;
+  var delim='\t';
+  if(lines[0].indexOf('\t')<0&&lines[0].indexOf(',')>0)delim=',';
+  var headers=lines[0].split(delim).map(function(h){return h.trim();});
+  var dateIdx=-1,hoursIdx=-1;
+  headers.forEach(function(h,idx){
+    var hl=h.toLowerCase();
+    if(dateIdx<0&&(hl.includes('date')))dateIdx=idx;
+    if(hoursIdx<0&&(hl.includes('hour')||hl.includes('hrs')||hl.includes('time')))hoursIdx=idx;
+  });
+  if(dateIdx<0)return null;
+  if(hoursIdx<0){
+    headers.forEach(function(h,idx){
+      if(idx!==dateIdx&&hoursIdx<0){var v=parseNum(lines[1].split(delim)[idx]);if(!isNaN(v))hoursIdx=idx;}
+    });
+  }
+  if(hoursIdx<0)return null;
+
+  var dates=[],hours=[],dateMap={};
+  for(var i=1;i<lines.length;i++){
+    var cells=lines[i].split(delim).map(function(c){return c.trim();});
+    var d=parseDate(cells[dateIdx]);
+    var h=parseNum(cells[hoursIdx]);
+    if(d&&!isNaN(h)){dates.push(d);hours.push(h);dateMap[fmtD(d)]=h;}
+  }
+  return{dates:dates,hours:hours,dateMap:dateMap};
+}
+
+document.getElementById('parseHrBtn').addEventListener('click',function(){
+  var text=document.getElementById('hrPaste').value.trim();
+  if(!text){showMsg('Please paste employee hours data first.','error');return;}
+  var parsed=parseHours(text);
+  if(!parsed||parsed.dates.length<1){showMsg('Could not parse hours. Need a Date column and an Hours column.','error');return;}
+  ST.hr=parsed;
+  document.getElementById('hrStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days of hours data</span>';
+  checkImportReady();
+  computeActualProductivity();
+});
+
+function checkImportReady(){
+  var pc=document.getElementById('previewCard');
+  if(ST.fc.dates.length>0){
+    pc.style.display='';
+    var totalCol=findTotalPiecesCol();
+    var sumPcs=0;
+    if(totalCol){ST.fc.columns[totalCol].forEach(function(v){sumPcs+=v;});}
+    var html='<strong>Forecast:</strong> '+ST.fc.dates.length+' days ('+fmtD(ST.fc.dates[0])+' to '+fmtD(ST.fc.dates[ST.fc.dates.length-1])+')<br>';
+    html+='<strong>Categories:</strong> '+Object.keys(ST.fc.columns).join(', ')+'<br>';
+    if(sumPcs>0)html+='<strong>Total Forecasted Pieces:</strong> '+Math.round(sumPcs).toLocaleString();
+    if(ST.hr.dates.length>0)html+='<br><strong>Hours Data:</strong> '+ST.hr.dates.length+' days matched';
+    document.getElementById('importSummary').innerHTML=html;
+    document.getElementById('importBadge').textContent='Ready';
+    document.getElementById('noSchedMsg').style.display='none';
+    document.getElementById('schedContent').style.display='';
+    document.getElementById('statusBadge').textContent='Forecast loaded';
+    document.getElementById('statusBadge').style.display='';
+  }
+}
+
+function findTotalPiecesCol(){
+  var cols=Object.keys(ST.fc.columns);
+  var tp=cols.find(function(c){return c.toLowerCase().includes('total')&&c.toLowerCase().includes('piece');});
+  if(tp)return tp;
+  tp=cols.find(function(c){return c.toLowerCase().includes('total pcs')||c.toLowerCase().includes('total pieces');});
+  if(tp)return tp;
+  tp=cols.find(function(c){return c.toLowerCase().includes('piece')||c.toLowerCase().includes('pcs');});
+  return tp||cols[0];
+}
+
+function findTotalRevenueCol(){
+  var cols=Object.keys(ST.fc.columns);
+  return cols.find(function(c){var cl=c.toLowerCase();return(cl.includes('total')&&(cl.includes('rev')||cl.includes('$')))||(cl.includes('revenue'));});
+}
+
+/* ================================================================
+   DOW ADJUSTMENT GRID
+   ================================================================ */
+function initDowAdj(){
+  var grid=document.getElementById('dowAdjGrid');
+  grid.innerHTML='';
+  DOW_N.forEach(function(name,idx){
+    var item=document.createElement('div');item.className='dow-item';
+    item.innerHTML='<label>'+name+'</label><input type="number" class="dow-adj-inp" data-dow="'+idx+'" value="'+DOW_ADJ[idx]+'" min="50" max="300" step="1"><span style="font-size:.78rem;color:var(--tx3)">%</span>';
+    grid.appendChild(item);
+  });
+  grid.querySelectorAll('.dow-adj-inp').forEach(function(inp){
+    inp.addEventListener('change',function(){DOW_ADJ[parseInt(this.dataset.dow)]=parseInt(this.value)||100;});
+  });
+}
+initDowAdj();
+
+/* ================================================================
+   ACTUAL PRODUCTIVITY FROM DATA
+   ================================================================ */
+function computeActualProductivity(){
+  if(ST.hr.dates.length<7||ST.fc.dates.length<1)return;
+  var card=document.getElementById('actualProdCard');
+  var content=document.getElementById('actualProdContent');
+
+  var totalCol=findTotalPiecesCol();
+  if(!totalCol){card.style.display='none';return;}
+
+  var minHr=parseFloat(document.getElementById('minHrProd').value)||0;
+  var dowData={};DOW_N.forEach(function(n){dowData[n]={pieces:0,hours:0,count:0};});
+
+  var matched=0,excluded=0,totalPcsAll=0,totalHrsAll=0;
+  ST.hr.dates.forEach(function(d,i){
+    var key=fmtD(d);
+    var hrs=ST.hr.hours[i];
+    var fcIdx=ST.fc.dates.findIndex(function(fd){return fmtD(fd)===key;});
+    var pcs=0;
+    if(fcIdx>=0)pcs=ST.fc.columns[totalCol][fcIdx]||0;
+    if(hrs<minHr){excluded++;return;}
+    var dow=DOW_N[d.getDay()];
+    dowData[dow].pieces+=pcs;
+    dowData[dow].hours+=hrs;
+    dowData[dow].count++;
+    totalPcsAll+=pcs;
+    totalHrsAll+=hrs;
+    matched++;
+  });
+
+  if(matched<3){card.style.display='none';return;}
+  card.style.display='';
+
+  var overallPPH=totalHrsAll>0?(totalPcsAll/totalHrsAll):0;
+  var html='<div style="font-size:.85rem;margin-bottom:10px">Overall average: <strong class="mono" style="color:var(--ac);font-size:1rem">'+overallPPH.toFixed(1)+'</strong> pcs/hr <span style="color:var(--tx3)">('+matched+' days matched'+(excluded>0?', '+excluded+' excluded':'')+')';
+  html+='</span></div>';
+  html+='<div class="twrap"><table class="dtbl"><thead><tr><th>Day</th><th class="n">Pieces</th><th class="n">Hours</th><th class="n">Pcs/Hr</th></tr></thead><tbody>';
+  ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(function(d){
+    var dd=dowData[d];
+    var pph=dd.hours>0?(dd.pieces/dd.hours):0;
+    var pphColor=pph>overallPPH*1.05?'var(--ok)':pph<overallPPH*0.95?'var(--err)':'var(--tx)';
+    html+='<tr><td style="font-weight:600">'+d+'</td><td class="n">'+Math.round(dd.pieces).toLocaleString()+'</td><td class="n">'+dd.hours.toFixed(1)+'</td><td class="n" style="color:'+pphColor+';font-weight:600">'+pph.toFixed(1)+'</td></tr>';
+  });
+  html+='</tbody></table></div>';
+  content.innerHTML=html;
+}
+
+/* ================================================================
+   WEATHER (Open-Meteo free API — no key needed)
+   ================================================================ */
+function fetchWeather(){
+  var zip=document.getElementById('zipInput').value.trim();
+  if(!/^\d{5}$/.test(zip)){showMsg('Please enter a valid 5-digit US zip code.','error');return;}
+  var ws=document.getElementById('weatherStatus');
+  ws.innerHTML='<span class="spinner"></span> Fetching weather for '+zip+'...';
+
+  var geoUrl='https://geocoding-api.open-meteo.com/v1/search?name='+zip+'&count=1&language=en&format=json&country=US';
+  fetch(geoUrl).then(function(r){return r.json();}).then(function(geo){
+    if(!geo.results||geo.results.length===0){
+      ws.innerHTML='<span style="color:var(--err)">Could not find location for zip '+zip+'. Trying zip-to-coords lookup...</span>';
+      return fetchWeatherByZip(zip);
+    }
+    var loc=geo.results[0];
+    return fetchWeatherData(loc.latitude,loc.longitude,loc.name||zip);
+  }).catch(function(err){
+    ws.innerHTML='<span style="color:var(--err)">Geocoding failed: '+escH(String(err))+'. Trying alternate method...</span>';
+    return fetchWeatherByZip(zip);
+  });
+}
+
+function fetchWeatherByZip(zip){
+  var ws=document.getElementById('weatherStatus');
+  var url='https://api.zippopotam.us/us/'+zip;
+  return fetch(url).then(function(r){return r.json();}).then(function(data){
+    if(!data.places||data.places.length===0)throw new Error('Zip not found');
+    var lat=parseFloat(data.places[0].latitude);
+    var lon=parseFloat(data.places[0].longitude);
+    var name=data.places[0]['place name']||zip;
+    return fetchWeatherData(lat,lon,name);
+  }).catch(function(err){ws.innerHTML='<span style="color:var(--err)">Could not resolve zip code: '+escH(String(err))+'</span>';});
+}
+
+function fetchWeatherData(lat,lon,locName){
+  var ws=document.getElementById('weatherStatus');
+  var fcDates=ST.fc.dates;
+  var startDate=fcDates.length>0?fmtD(fcDates[0]):fmtD(new Date());
+  var endD=fcDates.length>0?fmtD(fcDates[fcDates.length-1]):fmtD(new Date(Date.now()+14*864e5));
+
+  var url='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_hours,weathercode&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=auto&start_date='+startDate+'&end_date='+endD;
+
+  return fetch(url).then(function(r){return r.json();}).then(function(w){
+    if(!w.daily||!w.daily.time){throw new Error('No weather data returned');}
+    var daily=[];
+    w.daily.time.forEach(function(t,i){
+      daily.push({
+        date:t,
+        tempMax:w.daily.temperature_2m_max[i],
+        tempMin:w.daily.temperature_2m_min[i],
+        precip:w.daily.precipitation_sum[i],
+        precipHrs:w.daily.precipitation_hours[i],
+        code:w.daily.weathercode[i]
+      });
+    });
+    ST.weather={loaded:true,daily:daily,location:locName};
+    ws.innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Weather loaded for '+escH(locName)+' ('+daily.length+' days)</span>';
+    renderWeatherForecast();
+  }).catch(function(err){ws.innerHTML='<span style="color:var(--err)">Weather fetch failed: '+escH(String(err))+'</span>';});
+}
+
+function renderWeatherForecast(){
+  var card=document.getElementById('weatherForecastCard');
+  if(!ST.weather.loaded){card.style.display='none';return;}
+  card.style.display='';
+  var html='<div class="twrap" style="max-height:300px;overflow-y:auto"><table class="dtbl weather-tbl"><thead><tr><th>Date</th><th>DOW</th><th>Condition</th><th class="n">High &deg;F</th><th class="n">Low &deg;F</th><th class="n">Precip (in)</th><th class="n">Rain Hrs</th><th class="n">Pcs Adj</th></tr></thead><tbody>';
+
+  ST.weather.daily.forEach(function(d){
+    var dt=new Date(d.date+'T12:00:00');
+    var dow=DOW_N[dt.getDay()];
+    var icon=getWeatherIcon(d.code,d.precip,d.tempMax);
+    var adj=calcWeatherAdj(d);
+    var adjColor=adj<-10?'var(--err)':adj<-2?'var(--warn)':adj>2?'var(--ok)':'var(--tx2)';
+    var adjStr=adj>0?'+'+adj.toFixed(1)+'%':adj.toFixed(1)+'%';
+    html+='<tr><td>'+escH(d.date)+'</td><td>'+dow+'</td><td>'+icon+'</td><td class="n">'+Math.round(d.tempMax)+'</td><td class="n">'+Math.round(d.tempMin)+'</td><td class="n">'+d.precip.toFixed(2)+'</td><td class="n">'+d.precipHrs.toFixed(1)+'</td><td class="n" style="color:'+adjColor+';font-weight:600">'+adjStr+'</td></tr>';
+  });
+  html+='</tbody></table></div>';
+  card.innerHTML=html;
+}
+
+function getWeatherIcon(code,precip,tempMax){
+  var heatThresh=parseFloat(document.getElementById('heatThresh').value)||91;
+  if(precip>0.6)return'<i class="fa-solid fa-cloud-showers-water" style="color:var(--err)"></i> Heavy Rain';
+  if(precip>0.2)return'<i class="fa-solid fa-cloud-showers-heavy" style="color:var(--ac)"></i> Moderate Rain';
+  if(precip>0.08)return'<i class="fa-solid fa-cloud-rain" style="color:var(--blue)"></i> Light Rain';
+  if(tempMax>=heatThresh)return'<i class="fa-solid fa-temperature-high" style="color:var(--err)"></i> Extreme Heat';
+  if(code<=1)return'<i class="fa-solid fa-sun" style="color:var(--warn)"></i> Clear';
+  if(code<=3)return'<i class="fa-solid fa-cloud-sun" style="color:var(--tx3)"></i> Partly Cloudy';
+  return'<i class="fa-solid fa-cloud" style="color:var(--tx3)"></i> Cloudy';
+}
+
+function calcWeatherAdj(wd){
+  var adj=0;
+  var precipMM=wd.precip*25.4;
+  var lightAdj=parseFloat(document.getElementById('rainLight').value)||0;
+  var modAdj=parseFloat(document.getElementById('rainMod').value)||0;
+  var heavyAdj=parseFloat(document.getElementById('rainHeavy').value)||0;
+  var heatThresh=parseFloat(document.getElementById('heatThresh').value)||91;
+  var heatAdjPct=parseFloat(document.getElementById('heatAdj').value)||0;
+  var bizOpen=parseInt(document.getElementById('bizOpen').value)||9;
+  var bizClose=parseInt(document.getElementById('bizClose').value)||19;
+  var bizHrs=bizClose-bizOpen;
+
+  if(bizHrs>0&&wd.precipHrs>0){
+    var rainOverlap=Math.min(wd.precipHrs,bizHrs)/bizHrs;
+    if(precipMM>=15)adj-=heavyAdj*rainOverlap;
+    else if(precipMM>=5)adj-=modAdj*rainOverlap;
+    else if(precipMM>=2)adj-=lightAdj*rainOverlap;
+  }
+  if(wd.tempMax>=heatThresh)adj-=heatAdjPct;
+  return adj;
+}
+
+document.getElementById('fetchWeatherBtn').addEventListener('click',fetchWeather);
+
+/* ================================================================
+   SCHEDULING ENGINE
+   ================================================================ */
+function generateSchedule(){
+  if(ST.fc.dates.length<1){showMsg('Import forecast data first.','error');return;}
+
+  var totalCol=findTotalPiecesCol();
+  var revCol=findTotalRevenueCol();
+  var pcsPerHr=parseFloat(document.getElementById('pcsPerHr').value)||8.5;
+  var avgWage=parseFloat(document.getElementById('avgWage').value)||18;
+  var targetPct=parseFloat(document.getElementById('targetLaborPct').value)||25;
+  var capEnabled=document.getElementById('capIfOver').checked;
+  var salesPerHr=parseFloat(document.getElementById('salesPerHr').value)||38;
+  var maxHrDay=parseFloat(document.getElementById('maxStaffDay').value)||120;
+  var minHrDay=parseFloat(document.getElementById('minStaffDay').value)||0;
+  var maxHrEmpDay=parseFloat(document.getElementById('maxHrEmpDay').value)||10;
+  var rainRedist=document.getElementById('rainRedist').checked;
+  var heatRedist=document.getElementById('heatRedist').checked;
+
+  var days=[];
+  var redistributed=new Array(ST.fc.dates.length).fill(0);
+
+  ST.fc.dates.forEach(function(d,i){
+    var pcs=totalCol?ST.fc.columns[totalCol][i]:0;
+    var rev=revCol?ST.fc.columns[revCol][i]:0;
+    var dow=d.getDay();
+    var dowName=DOW_N[dow];
+
+    var weatherAdj=0;
+    var weatherInfo='';
+    if(ST.weather.loaded){
+      var key=fmtD(d);
+      var wd=ST.weather.daily.find(function(w){return w.date===key;});
+      if(wd){
+        weatherAdj=calcWeatherAdj(wd);
+        weatherInfo=getWeatherIcon(wd.code,wd.precip,wd.tempMax);
+
+        if(weatherAdj<-2){
+          var lostPcs=pcs*Math.abs(weatherAdj)/100;
+          var precipMM=wd.precip*25.4;
+          var isRain=precipMM>=5;
+          var isHeat=wd.tempMax>=(parseFloat(document.getElementById('heatThresh').value)||91);
+
+          if(isRain&&rainRedist){
+            for(var nxt=i+1;nxt<ST.fc.dates.length&&nxt<=i+3;nxt++){
+              if(ST.fc.dates[nxt].getDay()!==0){redistributed[nxt]+=lostPcs*0.6;break;}
+            }
+            var satIdx=findNextDOW(i,6);
+            if(satIdx>=0)redistributed[satIdx]+=lostPcs*0.4;
+          }
+          if(isHeat&&heatRedist){
+            for(var nxt2=i+1;nxt2<ST.fc.dates.length&&nxt2<=i+3;nxt2++){
+              var nxtWd=ST.weather.daily.find(function(w){return w.date===fmtD(ST.fc.dates[nxt2]);});
+              var nxtHot=nxtWd&&nxtWd.tempMax>=(parseFloat(document.getElementById('heatThresh').value)||91);
+              if(!nxtHot&&ST.fc.dates[nxt2].getDay()!==0){redistributed[nxt2]+=lostPcs*0.7;break;}
+            }
+            var satIdx2=findNextDOW(i,6);
+            if(satIdx2>=0)redistributed[satIdx2]+=lostPcs*0.3;
+          }
+        }
+      }
+    }
+
+    days.push({date:d,dow:dow,dowName:dowName,basePcs:pcs,baseRev:rev,weatherAdj:weatherAdj,weatherInfo:weatherInfo,redistIn:0});
+  });
+
+  days.forEach(function(day,i){day.redistIn=redistributed[i];});
+
+  days.forEach(function(day){
+    var pcs=day.basePcs;
+    pcs=pcs*(1+day.weatherAdj/100)+day.redistIn;
+    pcs=Math.max(0,pcs);
+    day.adjustedPcs=pcs;
+
+    var rawHrs=pcs/pcsPerHr;
+    var dowMult=DOW_ADJ[day.dow]/100;
+    rawHrs*=dowMult;
+
+    if(capEnabled&&day.baseRev>0){
+      var maxLaborCost=day.baseRev*(targetPct/100);
+      var maxHrsFromCost=maxLaborCost/avgWage;
+      rawHrs=Math.min(rawHrs,maxHrsFromCost);
+    }
+
+    rawHrs=Math.max(rawHrs,minHrDay);
+    rawHrs=Math.min(rawHrs,maxHrDay);
+
+    day.recHours=Math.round(rawHrs*10)/10;
+    day.recStaff=Math.ceil(day.recHours/maxHrEmpDay);
+    day.laborCost=day.recHours*avgWage;
+    day.estPPH=day.recHours>0?day.adjustedPcs/day.recHours:0;
+
+    var actualHrs=ST.hr.dateMap[fmtD(day.date)];
+    day.actualHrs=actualHrs!==undefined?actualHrs:null;
+  });
+
+  ST.sched=days;
+  renderSchedule();
+  renderScheduleChart();
+  renderWeeklySummary();
+
+  document.getElementById('schedStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Generated for '+days.length+' days</span>';
+  document.getElementById('regenSchedBtn').style.display='';
+
+  document.getElementById('noExpMsg').style.display='none';
+  document.getElementById('expContent').style.display='';
+  generateExport();
+}
+
+function findNextDOW(fromIdx,targetDow){
+  for(var j=fromIdx+1;j<ST.fc.dates.length;j++){
+    if(ST.fc.dates[j].getDay()===targetDow)return j;
+  }
+  return-1;
+}
+
+/* ================================================================
+   RENDER SCHEDULE
+   ================================================================ */
+function renderSchedule(){
+  if(!ST.sched)return;
+  var container=document.getElementById('schedTable');
+  var maxHrs=Math.max.apply(null,ST.sched.map(function(d){return d.recHours;}));
+  if(maxHrs<1)maxHrs=1;
+
+  var html='<div class="twrap" style="max-height:500px;overflow-y:auto"><table class="dtbl"><thead><tr><th>Date</th><th>Day</th><th>Weather</th><th class="n">Pcs (adj)</th><th class="n">Rec Hours</th><th class="n">Staff</th><th class="n">Pcs/Hr</th><th class="n">Labor $</th>';
+  if(ST.hr.dates.length>0)html+='<th class="n">Actual Hrs</th><th class="n">Diff</th>';
+  html+='<th style="min-width:100px">Load</th></tr></thead><tbody>';
+
+  ST.sched.forEach(function(day){
+    var barPct=Math.round((day.recHours/maxHrs)*100);
+    var barColor=day.recHours>parseFloat(document.getElementById('maxStaffDay').value)*0.9?'var(--err)':day.recHours>parseFloat(document.getElementById('maxStaffDay').value)*0.7?'var(--warn)':'var(--sc)';
+    var pphColor=day.estPPH>10?'var(--ok)':day.estPPH<6?'var(--err)':'var(--tx)';
+
+    html+='<tr><td style="font-weight:500">'+fmtD(day.date)+'</td>';
+    html+='<td>'+day.dowName+'</td>';
+    html+='<td style="font-size:.75rem">'+(day.weatherInfo||'—')+'</td>';
+    html+='<td class="n">'+Math.round(day.adjustedPcs)+'</td>';
+    html+='<td class="n" style="font-weight:700;color:var(--ac)">'+day.recHours.toFixed(1)+'</td>';
+    html+='<td class="n" style="font-weight:600">'+day.recStaff+'</td>';
+    html+='<td class="n" style="color:'+pphColor+'">'+day.estPPH.toFixed(1)+'</td>';
+    html+='<td class="n">$'+Math.round(day.laborCost)+'</td>';
+    if(ST.hr.dates.length>0){
+      if(day.actualHrs!==null){
+        var diff=day.recHours-day.actualHrs;
+        var diffColor=Math.abs(diff)>5?'var(--err)':Math.abs(diff)>2?'var(--warn)':'var(--ok)';
+        html+='<td class="n">'+day.actualHrs.toFixed(1)+'</td>';
+        html+='<td class="n" style="color:'+diffColor+';font-weight:600">'+(diff>0?'+':'')+diff.toFixed(1)+'</td>';
+      }else{
+        html+='<td class="n" style="color:var(--tx3)">—</td><td></td>';
+      }
+    }
+    html+='<td><div style="background:var(--bg4);border-radius:3px;height:16px;width:100%;position:relative"><div style="height:100%;width:'+barPct+'%;background:'+barColor+';border-radius:3px"></div></div></td>';
+    html+='</tr>';
+  });
+
+  html+='</tbody></table></div>';
+  container.innerHTML=html;
+  document.getElementById('schedSummary').style.display='';
+
+  var totalHrs=ST.sched.reduce(function(s,d){return s+d.recHours;},0);
+  var totalLabor=ST.sched.reduce(function(s,d){return s+d.laborCost;},0);
+  var avgDaily=totalHrs/ST.sched.length;
+  document.getElementById('schedBadge').textContent=ST.sched.length+' days \u00B7 '+Math.round(totalHrs)+' total hrs \u00B7 $'+Math.round(totalLabor).toLocaleString()+' labor';
+}
+
+/* ================================================================
+   SCHEDULE CHART
+   ================================================================ */
+function renderScheduleChart(){
+  if(!ST.sched||ST.sched.length<1)return;
+  var ctx=document.getElementById('schedChart');
+  if(ST.schedChart)ST.schedChart.destroy();
+
+  var isDark=document.documentElement.classList.contains('dark');
+  var gridC=isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.06)';
+  var textC=isDark?'#a8a29e':'#78716c';
+
+  var labels=ST.sched.map(function(d){return fmtDS(d.date)+' '+d.dowName;});
+  var recData=ST.sched.map(function(d){return d.recHours;});
+  var actData=ST.hr.dates.length>0?ST.sched.map(function(d){return d.actualHrs;}):null;
+  var pcsData=ST.sched.map(function(d){return Math.round(d.adjustedPcs);});
+
+  var datasets=[
+    {label:'Recommended Hrs',data:recData,borderColor:isDark?'#f59e0b':'#b45309',backgroundColor:isDark?'rgba(245,158,11,.15)':'rgba(180,83,9,.1)',borderWidth:2.5,pointRadius:2,tension:.2,fill:true,yAxisID:'y'}
+  ];
+  if(actData){
+    datasets.push({label:'Actual Hrs',data:actData,borderColor:isDark?'#a8a29e':'#78716c',backgroundColor:'transparent',borderWidth:1.5,borderDash:[5,3],pointRadius:1,tension:.2,yAxisID:'y'});
+  }
+  datasets.push({label:'Adjusted Pcs',data:pcsData,borderColor:isDark?'#2dd4bf':'#0f766e',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:.2,yAxisID:'y1'});
+
+  ST.schedChart=new Chart(ctx,{
+    type:'line',data:{labels:labels,datasets:datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{intersect:false,mode:'index'},
+      plugins:{legend:{labels:{color:textC,font:{family:'DM Sans',size:11}}}},
+      scales:{
+        x:{grid:{color:gridC},ticks:{color:textC,font:{size:9},maxRotation:45}},
+        y:{position:'left',grid:{color:gridC},ticks:{color:textC,font:{family:'IBM Plex Mono',size:10}},title:{display:true,text:'Hours',color:textC},beginAtZero:true},
+        y1:{position:'right',grid:{display:false},ticks:{color:textC,font:{family:'IBM Plex Mono',size:10}},title:{display:true,text:'Pieces',color:textC},beginAtZero:true}
+      }
+    }
+  });
+  document.getElementById('schedChartCard').style.display='';
+}
+
+/* ================================================================
+   WEEKLY SUMMARY
+   ================================================================ */
+function renderWeeklySummary(){
+  if(!ST.sched)return;
+  var weeks={};
+  ST.sched.forEach(function(day){
+    var d=day.date;
+    var weekStart=new Date(d);weekStart.setDate(d.getDate()-d.getDay());
+    var key=fmtD(weekStart);
+    if(!weeks[key])weeks[key]={start:weekStart,days:0,hours:0,labor:0,pcs:0,staff:[]};
+    var w=weeks[key];
+    w.days++;w.hours+=day.recHours;w.labor+=day.laborCost;w.pcs+=day.adjustedPcs;w.staff.push(day.recStaff);
+  });
+
+  var maxWeekHrs=parseFloat(document.getElementById('maxStaffWeek').value)||600;
+  var html='<div class="twrap"><table class="dtbl"><thead><tr><th>Week Of</th><th class="n">Days</th><th class="n">Total Hrs</th><th class="n">Avg Hrs/Day</th><th class="n">Max Staff</th><th class="n">Total Pcs</th><th class="n">Labor $</th><th class="n">Status</th></tr></thead><tbody>';
+
+  Object.keys(weeks).sort().forEach(function(key){
+    var w=weeks[key];
+    var avgD=w.hours/w.days;
+    var maxS=Math.max.apply(null,w.staff);
+    var over=w.hours>maxWeekHrs;
+    html+='<tr'+(over?' style="color:var(--err)"':'')+'>';
+    html+='<td style="font-weight:500">'+fmtD(w.start)+'</td>';
+    html+='<td class="n">'+w.days+'</td>';
+    html+='<td class="n" style="font-weight:600">'+w.hours.toFixed(1)+'</td>';
+    html+='<td class="n">'+avgD.toFixed(1)+'</td>';
+    html+='<td class="n">'+maxS+'</td>';
+    html+='<td class="n">'+Math.round(w.pcs).toLocaleString()+'</td>';
+    html+='<td class="n">$'+Math.round(w.labor).toLocaleString()+'</td>';
+    html+='<td>'+(over?'<span class="badge badge-err">Over Cap</span>':'<span class="badge badge-ok">OK</span>')+'</td>';
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+
+  document.getElementById('weekSummContent').innerHTML=html;
+  document.getElementById('weekSummCard').style.display='';
+}
+
+/* ================================================================
+   EXPORT
+   ================================================================ */
+function generateExport(){
+  if(!ST.sched)return;
+  var lines=[];
+  lines.push('# STAFFCAST SCHEDULE EXPORT');
+  lines.push('# Generated: '+fmtD(new Date()));
+  lines.push('# Period: '+fmtD(ST.sched[0].date)+' to '+fmtD(ST.sched[ST.sched.length-1].date));
+  lines.push('# Pieces/Labor Hour: '+(parseFloat(document.getElementById('pcsPerHr').value)||8.5));
+  lines.push('# Avg Wage: $'+(parseFloat(document.getElementById('avgWage').value)||18));
+  if(ST.weather.loaded)lines.push('# Weather: '+ST.weather.location+' ('+ST.weather.daily.length+' days)');
+  lines.push('#');
+  lines.push('Date\tDOW\tAdj Pieces\tRec Hours\tStaff Needed\tPcs/Hr\tLabor Cost\tWeather Adj %');
+
+  ST.sched.forEach(function(day){
+    lines.push(fmtD(day.date)+'\t'+day.dowName+'\t'+Math.round(day.adjustedPcs)+'\t'+day.recHours.toFixed(1)+'\t'+day.recStaff+'\t'+day.estPPH.toFixed(1)+'\t$'+Math.round(day.laborCost)+'\t'+(day.weatherAdj>0?'+':'')+day.weatherAdj.toFixed(1)+'%');
+  });
+
+  var totalHrs=ST.sched.reduce(function(s,d){return s+d.recHours;},0);
+  var totalLabor=ST.sched.reduce(function(s,d){return s+d.laborCost;},0);
+  lines.push('#');
+  lines.push('# TOTALS: '+Math.round(totalHrs)+' hours, $'+Math.round(totalLabor)+' labor');
+
+  document.getElementById('exportArea').textContent=lines.join('\n');
+}
+
+document.getElementById('copyExpBtn').addEventListener('click',function(){
+  var text=document.getElementById('exportArea').textContent;
+  if(!text)return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){
+      var el=document.getElementById('copyExpOk');el.style.display='inline';
+      setTimeout(function(){el.style.display='none';},2000);
+    });
+  }
+});
+
+/* ================================================================
+   SCHEDULE BUTTON
+   ================================================================ */
+document.getElementById('genSchedBtn').addEventListener('click',generateSchedule);
+document.getElementById('regenSchedBtn').addEventListener('click',generateSchedule);
+
+/* ================================================================
+   SAMPLE DATA GENERATORS
+   ================================================================ */
+document.getElementById('sampleFcBtn').addEventListener('click',function(){
+  var lines=['# PIECECAST FORECAST EXPORT','# Generated: 2026-03-08','# Forecast Period: 2026-03-09 to 2026-03-22','# Backtest Window: 30 days','# Ensemble WMAPE: 8.2% | MAPE: 9.1%','# Closed Days: Sun (forecast=0)','# Methods: Weighted DOW (35%), Trend + DOW (25%), Annual Seasonal (20%), Momentum (20%)','#'];
+  lines.push('Date\tDOW\tDry Cleaning (pcs)\tLaundry (pcs)\tAlterations (pcs)\tTotal Pieces\tTotal Revenue ($)');
+  var base=new Date(2026,2,9);
+  var dowPcs=[0,78,82,71,74,88,52];
+  var dowRev=[0,590,620,540,560,670,395];
+  for(var i=0;i<14;i++){
+    var d=new Date(base);d.setDate(d.getDate()+i);
+    var dow=d.getDay();
+    var noise=0.9+Math.random()*0.2;
+    var tp=Math.round(dowPcs[dow]*noise);
+    var dc=Math.round(tp*0.47);
+    var la=Math.round(tp*0.33);
+    var alt=tp-dc-la;
+    var rev=(dowRev[dow]*noise).toFixed(2);
+    lines.push(fmtD(d)+'\t'+DOW_N[dow]+'\t'+dc+'\t'+la+'\t'+alt+'\t'+tp+'\t'+rev);
+  }
+  document.getElementById('fcPaste').value=lines.join('\n');
+});
+
+document.getElementById('sampleHrBtn').addEventListener('click',function(){
+  var lines=['Date\tTotal Hours'];
+  var base=new Date(2025,0,6);
+  var dowHrs=[0,38,36,34,35,40,28];
+  for(var w=0;w<52;w++){
+    for(var d=0;d<7;d++){
+      var dt=new Date(base);dt.setDate(dt.getDate()+w*7+d);
+      if(d===0)continue;
+      var hrs=dowHrs[d]*(0.88+Math.random()*0.24);
+      lines.push(fmtD(dt)+'\t'+hrs.toFixed(1));
+    }
+  }
+  document.getElementById('hrPaste').value=lines.join('\n');
+});
+</script>
+</body>
+</html>
