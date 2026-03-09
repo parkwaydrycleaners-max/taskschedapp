@@ -88,6 +88,11 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 .dow-item{display:flex;align-items:center;gap:4px;font-size:.82rem}
 .dow-item label{min-width:32px;font-weight:500}
 .dow-item input{width:58px;padding:5px 6px;border:1px solid var(--bd);border-radius:4px;background:var(--bg2);color:var(--tx);font-family:'IBM Plex Mono',monospace;font-size:16px;text-align:center}
+.sched-mode-toggle{display:flex;gap:0;border:1px solid var(--bd);border-radius:6px;overflow:hidden;width:fit-content;margin:6px 0}
+.smt-btn{padding:8px 16px;border:none;background:var(--bg2);color:var(--tx3);cursor:pointer;font-size:.82rem;font-weight:500;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:5px}
+.smt-btn:not(:last-child){border-right:1px solid var(--bd)}
+.smt-btn:hover{background:var(--bg4);color:var(--tx)}
+.smt-btn.smt-active{background:var(--ac);color:#fff}
 
 .twrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--bd);border-radius:var(--rs)}
 .dtbl{width:100%;border-collapse:collapse;font-size:.78rem}
@@ -216,14 +221,29 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 <section id="tab-labor" class="tpanel">
 <div class="card anim">
 <div class="ctitle"><i class="fa-solid fa-chart-bar"></i> Labor &amp; Productivity</div>
-<div class="field"><label class="flbl">Pieces Per Labor Hour (Primary Driver)</label><input type="number" class="finput finput-sm" id="pcsPerHr" value="8.5" min="0.1" max="999" step="0.1"><p class="flbl2">How many pieces 1 employee processes per hour. Used to calculate staffing from forecasted pieces.</p></div>
+
+<div class="field"><label class="flbl">Scheduling Driver</label>
+<div class="sched-mode-toggle" id="schedModeToggle">
+<button class="smt-btn smt-active" data-mode="pieces"><i class="fa-solid fa-shirt"></i> Pieces</button>
+<button class="smt-btn" data-mode="revenue"><i class="fa-solid fa-dollar-sign"></i> Revenue</button>
+<button class="smt-btn" data-mode="both"><i class="fa-solid fa-scale-balanced"></i> Both</button>
+</div>
+<p class="flbl2" id="schedModeDesc"><strong>Pieces mode:</strong> Hours are driven by forecasted pieces &divide; pieces-per-labor-hour. Revenue is only used as a cap if enabled below.</p>
+</div>
+
+<div class="sep"></div>
+<div id="pcsDriverFields">
+<div class="field"><label class="flbl">Pieces Per Labor Hour</label><input type="number" class="finput finput-sm" id="pcsPerHr" value="8.5" min="0.1" max="999" step="0.1"><p class="flbl2">How many pieces 1 employee processes per hour. Used to calculate staffing from forecasted pieces.</p></div>
+</div>
+<div id="revDriverFields" style="display:none">
+<div class="field"><label class="flbl">Sales Per Labor Hour ($)</label><input type="number" class="finput finput-sm" id="salesPerHr" value="38" min="1" max="9999" step="1"><p class="flbl2">Target revenue per labor hour. Hours = forecasted revenue &divide; this value.</p></div>
+</div>
+
 <div class="field"><label class="flbl">Min Hours for Productivity Calc</label><input type="number" class="finput finput-sm" id="minHrProd" value="11" min="0" max="999" step="0.5"><p class="flbl2">Days with fewer total staff hours than this are excluded from pieces-per-hour calculations. Prevents partial days (holidays, closures) from skewing your productivity metrics. Set to 0 to include all days.</p></div>
 <div class="sep"></div>
 <div class="field"><label class="flbl">Average Hourly Wage ($)</label><input type="number" class="finput finput-sm" id="avgWage" value="18" min="1" max="999" step="0.25"><p class="flbl2">Used to calculate labor cost and cost-of-sales percentage.</p></div>
 <div class="field"><label class="flbl">Target Labor Cost % of Sales</label><input type="number" class="finput finput-sm" id="targetLaborPct" value="25" min="1" max="100" step="1"><p class="flbl2">If labor cost exceeds this percentage, hours may be capped.</p></div>
 <div class="chk-row"><input type="checkbox" id="capIfOver" checked><div><div class="chk-label">Cap hours if labor cost exceeds target %</div><div class="chk-desc">If enabled, recommended hours will be reduced when labor cost would exceed the target % of forecasted sales.</div></div></div>
-<div class="sep"></div>
-<div class="field"><label class="flbl">Sales Per Labor Hour ($ Fallback)</label><input type="number" class="finput finput-sm" id="salesPerHr" value="38" min="1" max="9999" step="1"><p class="flbl2">Used as fallback when piece data is unavailable.</p></div>
 <div class="sep"></div>
 <div class="field"><label class="flbl">Per-Day Staffing Adjustment %</label>
 <p class="flbl2" style="margin-bottom:8px">Adjust recommended hours per day of the week. 100% = no change. Set Monday higher if it needs more staff due to drop-offs, sorting, etc.</p>
@@ -735,6 +755,28 @@ function initDowAdj(){
 initDowAdj();
 
 /* ================================================================
+   SCHEDULING MODE TOGGLE (pieces / revenue / both)
+   ================================================================ */
+var SCHED_MODE='pieces';
+var SCHED_MODE_DESCS={
+  pieces:'<strong>Pieces mode:</strong> Hours = forecasted pieces &divide; pieces-per-labor-hour. Revenue is only used as a cap if enabled.',
+  revenue:'<strong>Revenue mode:</strong> Hours = forecasted revenue &divide; sales-per-labor-hour. Pieces are shown for reference but don\u2019t drive hours.',
+  both:'<strong>Both mode:</strong> Calculates hours from both pieces and revenue, then takes the <em>higher</em> value. Ensures adequate staffing for whichever workload is dominant.'
+};
+
+document.getElementById('schedModeToggle').addEventListener('click',function(e){
+  var btn=e.target.closest('.smt-btn');
+  if(!btn)return;
+  var mode=btn.dataset.mode;
+  SCHED_MODE=mode;
+  this.querySelectorAll('.smt-btn').forEach(function(b){b.classList.remove('smt-active');});
+  btn.classList.add('smt-active');
+  document.getElementById('schedModeDesc').innerHTML=SCHED_MODE_DESCS[mode];
+  document.getElementById('pcsDriverFields').style.display=(mode==='revenue')?'none':'';
+  document.getElementById('revDriverFields').style.display=(mode==='pieces')?'none':'';
+});
+
+/* ================================================================
    ACTUAL PRODUCTIVITY FROM DATA
    Prefers actual POS sales data (ST.sales) when available.
    Falls back to forecast columns (ST.fc) if no sales data.
@@ -1002,8 +1044,30 @@ function generateSchedule(){
     pcs=Math.max(0,pcs);
     day.adjustedPcs=pcs;
 
-    var rawHrs=pcs/pcsPerHr;
+    /* Apply weather adjustment to revenue proportionally */
+    var rev=day.baseRev;
+    rev=rev*(1+day.weatherAdj/100);
+    rev=Math.max(0,rev);
+    day.adjustedRev=rev;
+
     var dowMult=DOW_ADJ[day.dow]/100;
+    var rawHrs=0;
+    day.schedDriver='';
+
+    if(SCHED_MODE==='pieces'){
+      rawHrs=pcs/pcsPerHr;
+      day.schedDriver='pcs';
+    }else if(SCHED_MODE==='revenue'){
+      rawHrs=rev/salesPerHr;
+      day.schedDriver='rev';
+    }else{
+      /* Both: take the higher of pieces-based and revenue-based */
+      var pcsHrs=pcs/pcsPerHr;
+      var revHrs=rev/salesPerHr;
+      if(pcsHrs>=revHrs){rawHrs=pcsHrs;day.schedDriver='pcs';}
+      else{rawHrs=revHrs;day.schedDriver='rev';}
+    }
+
     rawHrs*=dowMult;
 
     day.capReason='';
@@ -1023,6 +1087,7 @@ function generateSchedule(){
     day.recStaff=Math.ceil(day.recHours/maxHrEmpDay);
     day.laborCost=day.recHours*avgWage;
     day.estPPH=day.recHours>0?day.adjustedPcs/day.recHours:0;
+    day.estSPH=day.recHours>0?day.adjustedRev/day.recHours:0;
 
     var dayKey=fmtD(day.date);
     var actualHrs=ST.hr.dateMap[dayKey];
@@ -1039,7 +1104,8 @@ function generateSchedule(){
   renderScheduleChart();
   renderWeeklySummary();
 
-  document.getElementById('schedStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Generated for '+days.length+' days</span>';
+  var modeIcons={pieces:'<i class="fa-solid fa-shirt"></i> Pieces',revenue:'<i class="fa-solid fa-dollar-sign"></i> Revenue',both:'<i class="fa-solid fa-scale-balanced"></i> Both'};
+  document.getElementById('schedStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Generated for '+days.length+' days</span> <span style="color:var(--tx3);font-size:.75rem">('+modeIcons[SCHED_MODE]+' mode)</span>';
   document.getElementById('regenSchedBtn').style.display='';
 
   document.getElementById('noExpMsg').style.display='none';
@@ -1065,8 +1131,16 @@ function renderSchedule(){
 
   var hasHr=ST.hr.dates.length>0;
   var hasSales=ST.sales.dates.length>0;
+  var showRev=SCHED_MODE!=='pieces';
+  var showBothDriver=SCHED_MODE==='both';
 
-  var html='<div class="twrap" style="max-height:500px;overflow-y:auto"><table class="dtbl"><thead><tr><th>Date</th><th>Day</th><th>Weather</th><th class="n">Pcs (adj)</th><th class="n">Rec Hours</th><th class="n">Staff</th><th class="n">Est Pcs/Hr</th><th class="n">Labor $</th>';
+  var html='<div class="twrap" style="max-height:500px;overflow-y:auto"><table class="dtbl"><thead><tr><th>Date</th><th>Day</th><th>Weather</th><th class="n">Pcs (adj)</th>';
+  if(showRev)html+='<th class="n">Rev (adj)</th>';
+  html+='<th class="n">Rec Hours</th><th class="n">Staff</th>';
+  if(showBothDriver)html+='<th>Driver</th>';
+  html+='<th class="n">Est Pcs/Hr</th>';
+  if(showRev)html+='<th class="n">Est $/Hr</th>';
+  html+='<th class="n">Labor $</th>';
   if(hasHr)html+='<th class="n">Actual Hrs</th><th class="n">Diff</th>';
   if(hasSales)html+='<th class="n">Actual Pcs</th>';
   if(hasHr&&hasSales)html+='<th class="n">Actual Pcs/Hr</th>';
@@ -1081,9 +1155,18 @@ function renderSchedule(){
     html+='<td>'+day.dowName+'</td>';
     html+='<td style="font-size:.75rem">'+(day.weatherInfo||'—')+'</td>';
     html+='<td class="n">'+Math.round(day.adjustedPcs)+'</td>';
+    if(showRev)html+='<td class="n">$'+Math.round(day.adjustedRev||0).toLocaleString()+'</td>';
     html+='<td class="n" style="font-weight:700;color:var(--ac)">'+day.recHours.toFixed(1)+(day.capReason?' <span title="'+day.capReason.replace(/"/g,'&quot;')+'" style="cursor:help;color:var(--warn);font-size:.7rem">\u26A0</span>':'')+'</td>';
     html+='<td class="n" style="font-weight:600">'+day.recStaff+'</td>';
+    if(showBothDriver){
+      var drvIcon=day.schedDriver==='pcs'?'<i class="fa-solid fa-shirt" style="color:var(--ac)" title="Pieces drove this day"></i>':'<i class="fa-solid fa-dollar-sign" style="color:var(--sc)" title="Revenue drove this day"></i>';
+      html+='<td class="n">'+drvIcon+'</td>';
+    }
     html+='<td class="n" style="color:'+pphColor+'">'+day.estPPH.toFixed(1)+'</td>';
+    if(showRev){
+      var sphColor=(day.estSPH||0)>45?'var(--ok)':(day.estSPH||0)<25?'var(--err)':'var(--tx)';
+      html+='<td class="n" style="color:'+sphColor+'">$'+(day.estSPH||0).toFixed(0)+'</td>';
+    }
     html+='<td class="n">$'+Math.round(day.laborCost)+'</td>';
     if(hasHr){
       if(day.actualHrs!==null){
@@ -1208,24 +1291,40 @@ function generateExport(){
   var hasHr=ST.hr.dates.length>0;
   var hasSales=ST.sales.dates.length>0;
   var lines=[];
+  var modeLabel={pieces:'Pieces',revenue:'Revenue',both:'Both (Pieces+Revenue)'}[SCHED_MODE];
   lines.push('# STAFFCAST SCHEDULE EXPORT');
   lines.push('# Generated: '+fmtD(new Date()));
+  lines.push('# Scheduling Mode: '+modeLabel);
   lines.push('# Period: '+fmtD(ST.sched[0].date)+' to '+fmtD(ST.sched[ST.sched.length-1].date));
-  lines.push('# Pieces/Labor Hour: '+(parseFloat(document.getElementById('pcsPerHr').value)||8.5));
+  if(SCHED_MODE!=='revenue')lines.push('# Pieces/Labor Hour: '+(parseFloat(document.getElementById('pcsPerHr').value)||8.5));
+  if(SCHED_MODE!=='pieces')lines.push('# Sales/Labor Hour: $'+(parseFloat(document.getElementById('salesPerHr').value)||38));
   lines.push('# Avg Wage: $'+(parseFloat(document.getElementById('avgWage').value)||18));
   if(ST.weather.loaded)lines.push('# Weather: '+ST.weather.location+' ('+ST.weather.daily.length+' days)');
   if(hasSales)lines.push('# Actual Sales Data: '+ST.sales.dates.length+' days');
   if(hasHr)lines.push('# Employee Hours Data: '+ST.hr.dates.length+' days');
   lines.push('#');
 
-  var header='Date\tDOW\tAdj Pieces\tRec Hours\tStaff Needed\tEst Pcs/Hr\tLabor Cost\tWeather Adj %';
+  var showRev=SCHED_MODE!=='pieces';
+  var header='Date\tDOW\tAdj Pieces';
+  if(showRev)header+='\tAdj Revenue';
+  header+='\tRec Hours\tStaff Needed';
+  if(SCHED_MODE==='both')header+='\tDriver';
+  header+='\tEst Pcs/Hr';
+  if(showRev)header+='\tEst $/Hr';
+  header+='\tLabor Cost\tWeather Adj %';
   if(hasHr)header+='\tActual Hrs';
   if(hasSales)header+='\tActual Pcs\tActual Rev';
   if(hasHr&&hasSales)header+='\tActual Pcs/Hr';
   lines.push(header);
 
   ST.sched.forEach(function(day){
-    var row=fmtD(day.date)+'\t'+day.dowName+'\t'+Math.round(day.adjustedPcs)+'\t'+day.recHours.toFixed(1)+'\t'+day.recStaff+'\t'+day.estPPH.toFixed(1)+'\t$'+Math.round(day.laborCost)+'\t'+(day.weatherAdj>0?'+':'')+day.weatherAdj.toFixed(1)+'%';
+    var row=fmtD(day.date)+'\t'+day.dowName+'\t'+Math.round(day.adjustedPcs);
+    if(showRev)row+='\t$'+Math.round(day.adjustedRev||0);
+    row+='\t'+day.recHours.toFixed(1)+'\t'+day.recStaff;
+    if(SCHED_MODE==='both')row+='\t'+(day.schedDriver==='pcs'?'Pieces':'Revenue');
+    row+='\t'+day.estPPH.toFixed(1);
+    if(showRev)row+='\t$'+(day.estSPH||0).toFixed(0);
+    row+='\t$'+Math.round(day.laborCost)+'\t'+(day.weatherAdj>0?'+':'')+day.weatherAdj.toFixed(1)+'%';
     if(hasHr)row+='\t'+(day.actualHrs!==null?day.actualHrs.toFixed(1):'');
     if(hasSales){
       row+='\t'+(day.actualPcs!==null?Math.round(day.actualPcs):'');
