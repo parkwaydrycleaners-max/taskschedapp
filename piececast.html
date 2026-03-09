@@ -2435,14 +2435,36 @@ function autoOptimize() {
   for (const k of top3) top3W[k] = Math.round(100 / top3.length);
   startingPoints.push(top3W);
 
+  // Start 6: top-5 inverse-WAPE
+  var wSorted = [...enabledKeys].sort(function(a,b){ return (wapeW[a]||999)-(wapeW[b]||999); });
+  var top5iW = {};
+  for (var k5 of enabledKeys) top5iW[k5] = 0;
+  var top5 = wSorted.slice(0, Math.min(5, wSorted.length));
+  for (var k5b of top5) top5iW[k5b] = wapeW[k5b] || 1;
+  startingPoints.push(top5iW);
+
+  // Start 7: top-7 inverse-WAPE
+  var top7iW = {};
+  for (var k7 of enabledKeys) top7iW[k7] = 0;
+  var top7 = wSorted.slice(0, Math.min(7, wSorted.length));
+  for (var k7b of top7) top7iW[k7b] = wapeW[k7b] || 1;
+  startingPoints.push(top7iW);
+
+  // Start 8: best method heavy + top-5 sprinkle
+  var heavyW = {};
+  for (var kh of enabledKeys) heavyW[kh] = 0;
+  heavyW[wSorted[0]] = 60;
+  for (var kh2 = 1; kh2 < Math.min(5, wSorted.length); kh2++) heavyW[wSorted[kh2]] = 10;
+  startingPoints.push(heavyW);
+
   let globalBestMape = 999;
   let globalBestWeights = startingPoints[0];
 
   for (const start of startingPoints) {
     const weights = {...start};
 
-    // Multi-resolution coordinate descent: coarse (step=5) then fine (step=1)
-    const stepSizes = [5, 2, 1];
+    // Multi-resolution coordinate descent with finer final step
+    const stepSizes = [5, 2, 1, 0.5];
     for (const step of stepSizes) {
       let bestMape = getEnsembleMAPE(weights);
       for (let iter = 0; iter < 200; iter++) {
@@ -2539,14 +2561,29 @@ function autoOptimize() {
   // --- Adaptive bias correction: search for best settings ---
   var biasConfigs = [
     { weeks: 0, dampen: 0 },    // no correction
+    { weeks: 2, dampen: 0.2 },
+    { weeks: 2, dampen: 0.5 },
     { weeks: 3, dampen: 0.2 },
+    { weeks: 3, dampen: 0.3 },
+    { weeks: 3, dampen: 0.5 },
+    { weeks: 3, dampen: 0.7 },
+    { weeks: 4, dampen: 0.2 },
     { weeks: 4, dampen: 0.3 },
-    { weeks: 6, dampen: 0.3 },
-    { weeks: 8, dampen: 0.3 },  // current default
-    { weeks: 8, dampen: 0.4 },
-    { weeks: 12, dampen: 0.3 },
     { weeks: 4, dampen: 0.5 },
-    { weeks: 6, dampen: 0.5 }
+    { weeks: 4, dampen: 0.7 },
+    { weeks: 6, dampen: 0.2 },
+    { weeks: 6, dampen: 0.3 },
+    { weeks: 6, dampen: 0.5 },
+    { weeks: 6, dampen: 0.7 },
+    { weeks: 8, dampen: 0.2 },
+    { weeks: 8, dampen: 0.3 },  // previous default
+    { weeks: 8, dampen: 0.4 },
+    { weeks: 8, dampen: 0.5 },
+    { weeks: 8, dampen: 0.7 },
+    { weeks: 10, dampen: 0.3 },
+    { weeks: 10, dampen: 0.5 },
+    { weeks: 12, dampen: 0.3 },
+    { weeks: 12, dampen: 0.5 }
   ];
   var bestBiasWape = 999;
   var bestBiasConfig = DEFAULT_BIAS;
@@ -2560,9 +2597,9 @@ function autoOptimize() {
   S.biasConfig = bestBiasConfig;
 
   // Re-optimize weights with the best bias config
-  if (bestBiasConfig.weeks !== 8 || bestBiasConfig.dampen !== 0.3) {
-    // Quick re-optimization with new bias settings
-    var reSteps = [2, 1];
+  if (bestBiasConfig.weeks > 0 || bestBiasWape < globalBestMape) {
+    // Thorough re-optimization with new bias settings
+    var reSteps = [3, 1, 0.5];
     for (var rs = 0; rs < reSteps.length; rs++) {
       var rStep = reSteps[rs];
       var rBest = getEnsembleMAPE(globalBestWeights);
@@ -2592,6 +2629,29 @@ function autoOptimize() {
         if (!rImproved) break;
       }
     }
+
+    // Second backward elimination pass after bias re-optimization
+    var pruned2 = true;
+    while (pruned2) {
+      pruned2 = false;
+      var cw2 = getEnsembleMAPE(globalBestWeights);
+      for (var pk2 = 0; pk2 < enabledKeys.length; pk2++) {
+        var pKey2 = enabledKeys[pk2];
+        if (globalBestWeights[pKey2] <= 0) continue;
+        var saved2 = globalBestWeights[pKey2];
+        globalBestWeights[pKey2] = 0;
+        var tw2 = getEnsembleMAPE(globalBestWeights);
+        if (tw2 < cw2 - 0.001) { cw2 = tw2; pruned2 = true; }
+        else globalBestWeights[pKey2] = saved2;
+      }
+    }
+  }
+
+  // Final check: is optimized ensemble still better than best individual?
+  var finalEnsWape = getEnsembleMAPE(globalBestWeights);
+  if (finalEnsWape > bestIndividualWape) {
+    for (var fk2 = 0; fk2 < enabledKeys.length; fk2++) globalBestWeights[enabledKeys[fk2]] = 0;
+    globalBestWeights[bestIndividualKey] = 100;
   }
 
   // Apply best weights
