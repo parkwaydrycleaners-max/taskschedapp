@@ -567,6 +567,7 @@ const S = {
   outlierFloor: null,      // min pieces per day (null = auto-calculate, 0 = disabled)
   outliers: [],           // array of { index, date, dow, value, cap, dowMean, type:'high'|'low' }
   biasConfig: { weeks: 8, dampen: 0.3 },
+  dowWeights: {},        // per-DOW method weights: { dow: { methodKey: weight } }
   backtestWindow: 14,
   backtestWindows: [14, 21, 30, 60, 90],
   backtestSplitDate: null, // Date object or null for date-based split
@@ -2256,8 +2257,13 @@ function runBacktest(windowSize) {
     };
   }
 
-  // Ensemble (uses the already-aligned per-method forecasts)
-  var ensemble = computeEnsemble(results, windowSize);
+  // Ensemble: use per-DOW weights if available, otherwise flat weights
+  var ensemble;
+  if (S.dowWeights && Object.keys(S.dowWeights).length > 0) {
+    ensemble = computeEnsemblePerDOW(results, windowSize, testDates);
+  } else {
+    ensemble = computeEnsemble(results, windowSize);
+  }
   // Apply bias correction based on recent DOW performance
   ensemble = applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, testDates);
   results.__ensemble = {
@@ -2282,6 +2288,28 @@ function computeEnsemble(methodResults, horizon) {
     let wSum = 0, weighted = 0;
     enabledKeys.forEach(k => {
       var w = S.methods[k].weight;
+      var fc = methodResults[k].forecast[i] || 0;
+      weighted += w * fc;
+      wSum += w;
+    });
+    ensemble[i] = wSum > 0 ? weighted / wSum : 0;
+  }
+  return ensemble;
+}
+
+/* Per-DOW ensemble: uses different method weights for each day-of-week.
+   This captures the fact that different methods excel on different DOWs. */
+function computeEnsemblePerDOW(methodResults, horizon, testDates) {
+  var enabledKeys = Object.keys(S.methods).filter(function(k) { return S.methods[k].enabled && methodResults[k]; });
+  if (enabledKeys.length === 0) return new Array(horizon).fill(0);
+
+  var ensemble = new Array(horizon).fill(0);
+  for (var i = 0; i < horizon; i++) {
+    var dow = testDates && testDates[i] ? testDates[i].getDay() : -1;
+    var dowW = (dow >= 0 && S.dowWeights && S.dowWeights[dow]) ? S.dowWeights[dow] : null;
+    var wSum = 0, weighted = 0;
+    enabledKeys.forEach(function(k) {
+      var w = dowW ? (dowW[k] || 0) : S.methods[k].weight;
       var fc = methodResults[k].forecast[i] || 0;
       weighted += w * fc;
       wSum += w;
@@ -2654,10 +2682,172 @@ function autoOptimize() {
     globalBestWeights[bestIndividualKey] = 100;
   }
 
-  // Apply best weights
+  // Apply best global weights
   for (const k of enabledKeys) S.methods[k].weight = Math.max(0, Math.round(globalBestWeights[k]));
   for (const k of Object.keys(S.methods)) {
     if (!S.methods[k].enabled) S.methods[k].weight = 0;
+  }
+
+  // ── Per-DOW weight optimization ──────────────────────────────────────
+  // Use internal cross-validation: split training into intTrain + validation,
+  // generate forecasts, measure per-DOW accuracy, optimize per-DOW weights.
+  var valSize = Math.max(42, Math.min(120, Math.floor(trainData.length * 0.08)));
+  var intTrainData = trainData.slice(0, trainData.length - valSize);
+  var intTrainDates = trainDates.slice(0, trainDates.length - valSize);
+  var valData = trainData.slice(trainData.length - valSize);
+  var valDates = trainDates.slice(trainDates.length - valSize);
+
+  if (intTrainData.length > 100 && valData.length >= 30) {
+    var intLastDate = intTrainDates[intTrainDates.length - 1];
+    var intHorizon = Math.round((valDates[valDates.length - 1] - intLastDate) / 86400000);
+    if (intHorizon > 0 && intHorizon < 60) {
+      // Generate internal forecasts for each method
+      var valForecasts = {};
+      for (var vk = 0; vk < enabledKeys.length; vk++) {
+        var vKey = enabledKeys[vk];
+        try {
+          var vFullFc = runMethod(vKey, intTrainData, intTrainDates, intHorizon);
+          vFullFc = applyClosedDays(vFullFc, intLastDate, intHorizon);
+          valForecasts[vKey] = alignForecastToTestDates(vFullFc, intLastDate, valDates);
+        } catch(e) { /* skip */ }
+      }
+
+      // Group validation data by DOW
+      var dowIndices = {};
+      for (var vi = 0; vi < valData.length; vi++) {
+        var vDow = valDates[vi].getDay();
+        if (!dowIndices[vDow]) dowIndices[vDow] = [];
+        dowIndices[vDow].push(vi);
+      }
+
+      // For each DOW, compute per-method WAPE and optimize weights
+      S.dowWeights = {};
+      var activeMethodKeys = enabledKeys.filter(function(k) { return valForecasts[k]; });
+
+      for (var dw = 0; dw < 7; dw++) {
+        if (!dowIndices[dw] || dowIndices[dw].length < 4) continue;
+        var dIdx = dowIndices[dw];
+        var dActual = dIdx.map(function(j) { return valData[j]; });
+        var dSum = dActual.reduce(function(a, b) { return a + b; }, 0);
+        if (dSum === 0) continue;
+
+        // Per-method WAPE for this DOW
+        var dowMethodWape = {};
+        for (var mk = 0; mk < activeMethodKeys.length; mk++) {
+          var mKey = activeMethodKeys[mk];
+          var dPred = dIdx.map(function(j) { return valForecasts[mKey][j] || 0; });
+          var dErr = 0;
+          for (var di = 0; di < dActual.length; di++) dErr += Math.abs(dActual[di] - dPred[di]);
+          dowMethodWape[mKey] = dErr / dSum * 100;
+        }
+
+        // Start from global weights, then adjust based on per-DOW performance
+        var dowW = {};
+        for (var dk = 0; dk < activeMethodKeys.length; dk++) {
+          var dKey = activeMethodKeys[dk];
+          var globalW = globalBestWeights[dKey] || 0;
+          var mWape = dowMethodWape[dKey];
+          if (mWape === undefined) { dowW[dKey] = globalW; continue; }
+
+          // Methods good for this DOW get boosted, bad ones get reduced
+          var dowInvW = mWape > 0.1 ? 1 / mWape : 100;
+          // Blend: 50% global weight + 50% per-DOW inverse-WAPE
+          dowW[dKey] = globalW * 0.5 + dowInvW * 50;
+        }
+
+        // Coordinate descent for per-DOW weights
+        var getDOWWape = function(w) {
+          var wt = 0;
+          for (var wk2 = 0; wk2 < activeMethodKeys.length; wk2++) wt += (w[activeMethodKeys[wk2]] || 0);
+          if (wt === 0) return 999;
+          var err = 0;
+          for (var pi = 0; pi < dIdx.length; pi++) {
+            var pred = 0;
+            for (var pk3 = 0; pk3 < activeMethodKeys.length; pk3++) {
+              var pk3Key = activeMethodKeys[pk3];
+              pred += (w[pk3Key] || 0) * (valForecasts[pk3Key][dIdx[pi]] || 0);
+            }
+            pred /= wt;
+            err += Math.abs(dActual[pi] - pred);
+          }
+          return err / dSum * 100;
+        };
+
+        // Quick optimization for this DOW
+        var dowSteps = [5, 2, 1];
+        for (var ds = 0; ds < dowSteps.length; ds++) {
+          var dStep = dowSteps[ds];
+          var dBest = getDOWWape(dowW);
+          for (var dIter = 0; dIter < 50; dIter++) {
+            var dImproved = false;
+            for (var dk2 = 0; dk2 < activeMethodKeys.length; dk2++) {
+              var dk2Key = activeMethodKeys[dk2];
+              var dCur = getDOWWape(dowW);
+              dowW[dk2Key] = Math.max(0, (dowW[dk2Key] || 0) + dStep);
+              var dUp = getDOWWape(dowW);
+              dowW[dk2Key] = Math.max(0, dowW[dk2Key] - 2 * dStep);
+              var dDn = getDOWWape(dowW);
+              if (dUp < dCur && dUp <= dDn) {
+                dowW[dk2Key] = Math.max(0, dowW[dk2Key] + 2 * dStep);
+                dImproved = true;
+              } else if (dDn < dCur) {
+                dImproved = true;
+              } else {
+                dowW[dk2Key] = Math.max(0, dowW[dk2Key] + dStep);
+              }
+            }
+            if (!dImproved) break;
+          }
+        }
+
+        // Backward elimination for this DOW
+        for (var dElim = 0; dElim < 3; dElim++) {
+          var dePruned = false;
+          var deCur = getDOWWape(dowW);
+          for (var de2 = 0; de2 < activeMethodKeys.length; de2++) {
+            var deKey = activeMethodKeys[de2];
+            if ((dowW[deKey] || 0) <= 0) continue;
+            var deSaved = dowW[deKey];
+            dowW[deKey] = 0;
+            if (getDOWWape(dowW) < deCur - 0.001) {
+              deCur = getDOWWape(dowW);
+              dePruned = true;
+            } else {
+              dowW[deKey] = deSaved;
+            }
+          }
+          if (!dePruned) break;
+        }
+
+        S.dowWeights[dw] = dowW;
+      }
+
+      // Safeguard: verify per-DOW improves over global on actual test set
+      if (Object.keys(S.dowWeights).length > 0) {
+        var globalTestEns = new Array(testData.length).fill(0);
+        var perDowTestEns = new Array(testData.length).fill(0);
+        for (var sg = 0; sg < testData.length; sg++) {
+          var sgDow = testDates[sg].getDay();
+          var sgDowW = S.dowWeights[sgDow] || null;
+          var sgGSum = 0, sgGW = 0, sgPSum = 0, sgPW = 0;
+          for (var sgk = 0; sgk < enabledKeys.length; sgk++) {
+            var sgKey = enabledKeys[sgk];
+            var sgFc = (forecasts[sgKey] && forecasts[sgKey][sg]) || 0;
+            var sgGlobal = globalBestWeights[sgKey] || 0;
+            sgGW += sgGlobal * sgFc; sgGSum += sgGlobal;
+            var sgPerDow = sgDowW ? (sgDowW[sgKey] || 0) : sgGlobal;
+            sgPW += sgPerDow * sgFc; sgPSum += sgPerDow;
+          }
+          globalTestEns[sg] = sgGSum > 0 ? sgGW / sgGSum : 0;
+          perDowTestEns[sg] = sgPSum > 0 ? sgPW / sgPSum : 0;
+        }
+        var globalSafeguardWape = calculateWAPE(testData, globalTestEns, testDates);
+        var perDowSafeguardWape = calculateWAPE(testData, perDowTestEns, testDates);
+        if (perDowSafeguardWape >= globalSafeguardWape - 0.1) {
+          S.dowWeights = {}; // Per-DOW didn't improve, revert to global
+        }
+      }
+    }
   }
 }
 
@@ -2869,6 +3059,9 @@ function generateExport(scope) {
     lines.push('# Closed Days: ' + S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') + ' (forecast=0)');
   }
   lines.push('# Methods: ' + methodStr);
+  if (S.dowWeights && Object.keys(S.dowWeights).length > 0) {
+    lines.push('# Per-DOW Weights: Active (' + Object.keys(S.dowWeights).length + ' DOWs optimized)');
+  }
   lines.push('#');
 
   if (scope === 'all') {
@@ -2938,11 +3131,21 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon) {
   for (const k of enabledKeys) {
     allForecasts[k] = runMethod(k, seriesData, seriesDates, horizon);
   }
+  // Build forecast dates (for per-DOW weights and bias correction)
+  var fcDates = [];
+  for (var h = 1; h <= horizon; h++) {
+    var fd = new Date(lastDate); fd.setDate(fd.getDate() + h);
+    fcDates.push(fd);
+  }
+  // Use per-DOW weights if available, otherwise flat weights
+  var usePerDOW = S.dowWeights && Object.keys(S.dowWeights).length > 0;
   var ensemble = new Array(horizon).fill(0);
   for (let i = 0; i < horizon; i++) {
+    var dow = fcDates[i].getDay();
+    var dowW = (usePerDOW && S.dowWeights[dow]) ? S.dowWeights[dow] : null;
     var wSum = 0, weighted = 0;
     enabledKeys.forEach(k => {
-      var w = S.methods[k].weight;
+      var w = dowW ? (dowW[k] || 0) : S.methods[k].weight;
       var fc = allForecasts[k][i];
       weighted += w * fc;
       wSum += w;
@@ -2950,12 +3153,7 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon) {
     ensemble[i] = wSum > 0 ? weighted / wSum : 0;
   }
 
-  // Apply bias correction: build forecast dates, then correct
-  var fcDates = [];
-  for (var h = 1; h <= horizon; h++) {
-    var fd = new Date(lastDate); fd.setDate(fd.getDate() + h);
-    fcDates.push(fd);
-  }
+  // Apply bias correction
   ensemble = applyBiasCorrection(ensemble, seriesData, seriesDates, lastDate, fcDates);
 
   return applyClosedDays(ensemble, lastDate, horizon);
@@ -3174,6 +3372,7 @@ function renderMethodGrid() {
     cb.addEventListener('change', function() {
       const k = this.dataset.methodToggle;
       S.methods[k].enabled = this.checked;
+      S.dowWeights = {};
       const card = this.closest('.method-card');
       card.classList.toggle('active', this.checked);
       const slider = card.querySelector('.weight-slider');
@@ -3186,6 +3385,7 @@ function renderMethodGrid() {
       const k = this.dataset.methodWeight;
       S.methods[k].weight = parseInt(this.value);
       this.nextElementSibling.textContent = this.value;
+      S.dowWeights = {};
     });
   });
 
@@ -3250,7 +3450,8 @@ function renderMAPETable(bt) {
     const e = bt.results.__ensemble;
     const wapeClass = e.wape < 15 ? 'good' : e.wape < 25 ? 'ok' : 'bad';
     var totalWt = sortedKeys.reduce(function(s,k){ return s + (S.methods[k].weight || 0); }, 0);
-    bodyHTML += '<tr class="ensemble"><td><strong>Weighted Ensemble</strong></td>' +
+    var ensLabel = (S.dowWeights && Object.keys(S.dowWeights).length > 0) ? 'Weighted Ensemble <span style="font-size:.65rem;color:var(--accent);font-weight:400">(per-DOW)</span>' : 'Weighted Ensemble';
+    bodyHTML += '<tr class="ensemble"><td><strong>' + ensLabel + '</strong></td>' +
       '<td class="num" style="text-align:right">' + totalWt + '</td>' +
       '<td class="num" style="text-align:right"><span class="method-mape ' + wapeClass + '">' + e.wape.toFixed(1) + '%</span></td>' +
       '<td class="num" style="text-align:right;opacity:.6">' + e.mape.toFixed(1) + '%</td>' +
