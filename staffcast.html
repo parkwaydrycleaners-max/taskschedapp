@@ -64,6 +64,7 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--rs);font-weight:500;font-size:.83rem;border:1px solid transparent;cursor:pointer;transition:.15s}
 .btn-p{background:var(--ac);color:#fff;border-color:var(--ac)}.btn-p:hover{opacity:.9}
 .btn-s{background:var(--bg4);color:var(--tx);border-color:var(--bd)}.btn-s:hover{background:var(--bg3)}
+.btn-clr{background:transparent;color:var(--tx3);border-color:var(--bd);font-size:.78rem;padding:7px 12px}.btn-clr:hover{background:var(--err2);color:var(--err);border-color:var(--err)}
 .btn-t{background:var(--sc);color:#fff;border-color:var(--sc)}.btn-t:hover{opacity:.9}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .btn-sm{padding:5px 12px;font-size:.76rem}
@@ -172,6 +173,7 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
 <button class="btn btn-p" id="parseFcBtn"><i class="fa-solid fa-bolt"></i> Parse Forecast</button>
 <button class="btn btn-s" id="sampleFcBtn">Load Sample</button>
+<button class="btn btn-clr" id="clearFcBtn" style="display:none"><i class="fa-solid fa-xmark"></i> Clear</button>
 </div>
 <div id="fcStatus" style="font-size:.8rem;color:var(--tx3);margin-top:8px"></div>
 </div>
@@ -180,10 +182,16 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 <div class="ctitle"><i class="fa-solid fa-clock"></i> Employee Hours Report</div>
 <div class="info">Paste your <strong>employee time &amp; attendance</strong> report. Supports both the fixed-width POS format (with ID, Emp Last, Emp First, Date, Time In/Out, Total Hrs, Total Mins columns and <code>====</code> separators) and simple tab/CSV with Date &amp; Hours columns. Multiple punches per employee per day are summed. All employees are aggregated per date.</div>
 <textarea id="hrPaste" class="paste" placeholder="Date&#9;Total Hours&#10;1/6/2025&#9;38.5&#10;1/7/2025&#9;42.0&#10;1/8/2025&#9;35.0"></textarea>
-<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:flex-end">
 <button class="btn btn-p" id="parseHrBtn"><i class="fa-solid fa-bolt"></i> Parse Hours</button>
 <button class="btn btn-s" id="sampleHrBtn">Load Sample</button>
+<button class="btn btn-clr" id="clearHrBtn" style="display:none"><i class="fa-solid fa-xmark"></i> Clear</button>
+<div class="field" style="margin:0;max-width:160px">
+<label class="flbl" style="font-size:.7rem">Min Hours Threshold</label>
+<input type="number" class="finput finput-xs" id="hrThreshold" value="0" min="0" max="999" step="0.5" style="max-width:80px">
 </div>
+</div>
+<p class="flbl2" style="margin-top:6px">Days with <strong>0 hours</strong> (no employees) are always excluded. Set a threshold above 0 to also drop days below that total (e.g. <em>8</em> to skip partial/half days).</p>
 <div id="hrStatus" style="font-size:.8rem;color:var(--tx3);margin-top:8px"></div>
 </div>
 
@@ -193,6 +201,7 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 <textarea id="salesPaste" class="paste" placeholder="Sales Report By Category&#10;  2022/01 ~ 2026/03&#10;                                      2026.03.07&#10;Drop           Dry Pcs   Dry Amt   Laund Pcs   Laund Amt   Alter Pcs&#10;2022/01/04       287    1488.66        31       88.49        54"></textarea>
 <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
 <button class="btn btn-p" id="parseSalesBtn"><i class="fa-solid fa-bolt"></i> Parse Sales</button>
+<button class="btn btn-clr" id="clearSalesBtn" style="display:none"><i class="fa-solid fa-xmark"></i> Clear</button>
 </div>
 <div id="salesStatus" style="font-size:.8rem;color:var(--tx3);margin-top:8px"></div>
 </div>
@@ -480,7 +489,17 @@ document.getElementById('parseFcBtn').addEventListener('click',function(){
   if(!parsed||parsed.dates.length<1){showMsg('Could not parse forecast. Need at least a Date column and 1+ data columns.','error');return;}
   ST.fc=parsed;
   document.getElementById('fcStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days, '+Object.keys(parsed.columns).length+' columns</span>';
+  document.getElementById('clearFcBtn').style.display='';
   checkImportReady();
+});
+
+document.getElementById('clearFcBtn').addEventListener('click',function(){
+  ST.fc={dates:[],dow:[],columns:{},meta:{}};
+  document.getElementById('fcPaste').value='';
+  document.getElementById('fcStatus').innerHTML='';
+  this.style.display='none';
+  document.getElementById('previewCard').style.display='none';
+  document.getElementById('actualProdCard').style.display='none';
 });
 
 /* ================================================================
@@ -558,12 +577,13 @@ function parsePOSHours(text){
 
   var dates=[],hours=[],finalMap={};
   keys.forEach(function(k){
-    dates.push(dateAgg[k].date);
     var h=Math.round(dateAgg[k].hours*100)/100;
+    if(h<=0)return; /* skip days with zero hours — no actual employee work */
+    dates.push(dateAgg[k].date);
     hours.push(h);
     finalMap[k]=h;
   });
-
+  if(dates.length<1)return null;
   return{dates:dates,hours:hours,dateMap:finalMap,employees:empPunches};
 }
 
@@ -593,7 +613,7 @@ function parseSimpleHours(text){
     var cells=lines[i].split(delim).map(function(c){return c.trim();});
     var d=parseDate(cells[dateIdx]);
     var h=parseNum(cells[hoursIdx]);
-    if(d&&!isNaN(h)){dates.push(d);hours.push(h);dateMap[fmtD(d)]=h;}
+    if(d&&!isNaN(h)&&h>0){dates.push(d);hours.push(h);dateMap[fmtD(d)]=h;}
   }
   if(dates.length<1)return null;
   return{dates:dates,hours:hours,dateMap:dateMap};
@@ -604,16 +624,80 @@ function parseHours(text){
   return parsePOSHours(text)||parseSimpleHours(text);
 }
 
+/* Apply min-hours threshold filter to parsed data */
+function applyHrThreshold(raw,threshold){
+  if(!raw||raw.dates.length<1)return raw;
+  if(!threshold||threshold<=0)return raw;
+  var dates=[],hours=[],dateMap={};
+  var employees=raw.employees?{}:undefined;
+  raw.dates.forEach(function(d,i){
+    var h=raw.hours[i];
+    if(h<threshold)return; /* below threshold — skip */
+    var key=fmtD(d);
+    dates.push(d);hours.push(h);dateMap[key]=h;
+    if(raw.employees){
+      Object.keys(raw.employees).forEach(function(emp){
+        if(raw.employees[emp][key]){
+          if(!employees[emp])employees[emp]={};
+          employees[emp][key]=raw.employees[emp][key];
+        }
+      });
+    }
+  });
+  var result={dates:dates,hours:hours,dateMap:dateMap};
+  if(employees)result.employees=employees;
+  return result;
+}
+
+function updateHrStatus(filtered,raw){
+  var skipped=raw.dates.length-filtered.dates.length;
+  var empCount=raw.employees?Object.keys(raw.employees).length:0;
+  var msg=filtered.dates.length+' days of hours data';
+  if(empCount>0)msg+=' ('+empCount+' employees)';
+  if(skipped>0)msg+=' · <span style="color:var(--warn)">'+skipped+' day'+(skipped>1?'s':'')+' excluded by threshold</span>';
+  document.getElementById('hrStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> '+msg+'</span>';
+}
+
+/* Store raw parsed data so threshold changes don't require re-pasting */
+var ST_hrRaw=null;
+
 document.getElementById('parseHrBtn').addEventListener('click',function(){
   var text=document.getElementById('hrPaste').value.trim();
   if(!text){showMsg('Please paste employee hours data first.','error');return;}
   var parsed=parseHours(text);
   if(!parsed||parsed.dates.length<1){showMsg('Could not parse hours. Need a Date column and an Hours column.','error');return;}
-  ST.hr=parsed;
-  document.getElementById('hrStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days of hours data'+(parsed.employees?' ('+Object.keys(parsed.employees).length+' employees)':'')+'</span>';
+  ST_hrRaw=parsed;
+  var threshold=parseFloat(document.getElementById('hrThreshold').value)||0;
+  var filtered=applyHrThreshold(parsed,threshold);
+  ST.hr=filtered;
+  updateHrStatus(filtered,parsed);
+  document.getElementById('clearHrBtn').style.display='';
   checkImportReady();
   computeActualProductivity();
 });
+
+document.getElementById('clearHrBtn').addEventListener('click',function(){
+  ST_hrRaw=null;
+  ST.hr={dates:[],hours:[],dateMap:{}};
+  document.getElementById('hrPaste').value='';
+  document.getElementById('hrStatus').innerHTML='';
+  this.style.display='none';
+  document.getElementById('actualProdCard').style.display='none';
+  checkImportReady();
+});
+
+/* Re-filter when threshold changes without requiring re-paste */
+function onHrThresholdChange(){
+  if(!ST_hrRaw||ST_hrRaw.dates.length<1)return;
+  var threshold=parseFloat(document.getElementById('hrThreshold').value)||0;
+  var filtered=applyHrThreshold(ST_hrRaw,threshold);
+  ST.hr=filtered;
+  updateHrStatus(filtered,ST_hrRaw);
+  checkImportReady();
+  computeActualProductivity();
+}
+document.getElementById('hrThreshold').addEventListener('change',onHrThresholdChange);
+document.getElementById('hrThreshold').addEventListener('input',onHrThresholdChange);
 
 /* ================================================================
    PARSE SALES REPORT BY CATEGORY
@@ -706,8 +790,18 @@ document.getElementById('parseSalesBtn').addEventListener('click',function(){
   var sumPcs=parsed.totalPcs.reduce(function(a,b){return a+b;},0);
   var sumRev=parsed.totalRev.reduce(function(a,b){return a+b;},0);
   document.getElementById('salesStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days · '+Math.round(sumPcs).toLocaleString()+' total pcs · $'+Math.round(sumRev).toLocaleString()+' revenue</span>';
+  document.getElementById('clearSalesBtn').style.display='';
   checkImportReady();
   computeActualProductivity();
+});
+
+document.getElementById('clearSalesBtn').addEventListener('click',function(){
+  ST.sales={dates:[],pcsMap:{},revMap:{},totalPcs:[],totalRev:[]};
+  document.getElementById('salesPaste').value='';
+  document.getElementById('salesStatus').innerHTML='';
+  this.style.display='none';
+  document.getElementById('actualProdCard').style.display='none';
+  checkImportReady();
 });
 
 function checkImportReady(){
