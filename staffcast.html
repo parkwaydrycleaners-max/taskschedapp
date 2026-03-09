@@ -261,10 +261,24 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 <section id="tab-weather" class="tpanel">
 <div class="card anim">
 <div class="ctitle"><i class="fa-solid fa-cloud-sun-rain"></i> Weather Adjustments</div>
-<div class="row" style="margin-bottom:14px">
+<div class="row" style="margin-bottom:14px;flex-wrap:wrap;gap:10px">
 <div class="field" style="max-width:200px"><label class="flbl">Zip Code</label><input type="text" class="finput" id="zipInput" placeholder="e.g. 90210" maxlength="5" pattern="[0-9]{5}"></div>
+<div class="field" style="max-width:260px"><label class="flbl">API Server</label>
+<select class="finput" id="weatherServerSelect" style="padding-right:28px;appearance:auto">
+<option value="auto">🔄 Auto-Detect</option>
+<option value="forecast">📡 Forecast (api.open-meteo.com)</option>
+<option value="archive">📚 Archive (archive-api.open-meteo.com)</option>
+<option value="custom">🔧 Custom URL…</option>
+</select>
+</div>
 <div style="align-self:flex-end;padding-bottom:14px"><button class="btn btn-t" id="fetchWeatherBtn"><i class="fa-solid fa-cloud-arrow-down"></i> Fetch Forecast</button></div>
 </div>
+<div id="customWeatherUrlRow" class="field" style="display:none;max-width:500px;margin-bottom:12px">
+<label class="flbl">Custom API Base URL</label>
+<input type="text" class="finput" id="customWeatherUrl" placeholder="https://your-api.example.com/v1/forecast">
+<p class="flbl2">Must support Open-Meteo-compatible parameters (latitude, longitude, daily, etc.)</p>
+</div>
+<div id="weatherServerInfo" style="font-size:.75rem;color:var(--tx3);margin-bottom:8px;font-style:italic"></div>
 <div id="weatherStatus" style="font-size:.8rem;color:var(--tx3);margin-bottom:12px"></div>
 <div id="weatherForecastCard" style="display:none"></div>
 <div class="sep"></div>
@@ -889,16 +903,61 @@ function fetchWeatherByZip(zip){
   }).catch(function(err){ws.innerHTML='<span style="color:var(--err)">Could not resolve zip code: '+escH(String(err))+'</span>';});
 }
 
+function resolveWeatherUrl(lat,lon,startDate,endDate){
+  var mode=document.getElementById('weatherServerSelect').value;
+  var params='latitude='+lat+'&longitude='+lon+'&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_hours,weathercode&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=auto&start_date='+startDate+'&end_date='+endDate;
+
+  if(mode==='custom'){
+    var base=document.getElementById('customWeatherUrl').value.trim();
+    if(!base){throw new Error('Enter a custom API URL first');}
+    var sep=base.indexOf('?')>=0?'&':'?';
+    return{url:base+sep+params,label:'Custom'};
+  }
+
+  var today=new Date();
+  var todayStr=fmtD(today);
+  var futureLimit=fmtD(new Date(today.getTime()+16*864e5));
+
+  if(mode==='forecast'){
+    return{url:'https://api.open-meteo.com/v1/forecast?'+params,label:'Forecast'};
+  }
+  if(mode==='archive'){
+    return{url:'https://archive-api.open-meteo.com/v1/archive?'+params,label:'Archive'};
+  }
+
+  /* AUTO mode: pick based on date range */
+  var allPast=endDate<=todayStr;
+  var allNear=startDate>=todayStr&&endDate<=futureLimit;
+
+  if(allPast){
+    return{url:'https://archive-api.open-meteo.com/v1/archive?'+params,label:'Archive (auto — historical dates)'};
+  }
+  if(allNear){
+    return{url:'https://api.open-meteo.com/v1/forecast?'+params,label:'Forecast (auto — near-future dates)'};
+  }
+
+  /* Mixed range: try forecast first, fall back to archive */
+  return{url:'https://api.open-meteo.com/v1/forecast?'+params,label:'Forecast (auto)',
+    fallbackUrl:'https://archive-api.open-meteo.com/v1/archive?'+params,fallbackLabel:'Archive (auto — fallback)'};
+}
+
 function fetchWeatherData(lat,lon,locName){
   var ws=document.getElementById('weatherStatus');
   var fcDates=ST.fc.dates;
   var startDate=fcDates.length>0?fmtD(fcDates[0]):fmtD(new Date());
   var endD=fcDates.length>0?fmtD(fcDates[fcDates.length-1]):fmtD(new Date(Date.now()+14*864e5));
 
-  var url='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_hours,weathercode&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=auto&start_date='+startDate+'&end_date='+endD;
+  var resolved;
+  try{resolved=resolveWeatherUrl(lat,lon,startDate,endD);}
+  catch(e){ws.innerHTML='<span style="color:var(--err)">'+escH(e.message)+'</span>';return Promise.resolve();}
 
-  return fetch(url).then(function(r){return r.json();}).then(function(w){
-    if(!w.daily||!w.daily.time){throw new Error('No weather data returned');}
+  ws.innerHTML='<span class="spinner"></span> Fetching via '+escH(resolved.label)+' for '+escH(locName)+'…';
+
+  function processWeatherResponse(w,label){
+    if(!w.daily||!w.daily.time){
+      if(w.reason)throw new Error(w.reason);
+      throw new Error('No weather data returned ('+label+')');
+    }
     var daily=[];
     w.daily.time.forEach(function(t,i){
       daily.push({
@@ -911,9 +970,34 @@ function fetchWeatherData(lat,lon,locName){
       });
     });
     ST.weather={loaded:true,daily:daily,location:locName};
-    ws.innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Weather loaded for '+escH(locName)+' ('+daily.length+' days)</span>';
+    ws.innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Weather loaded via '+escH(label)+' for '+escH(locName)+' ('+daily.length+' days)</span>';
     renderWeatherForecast();
-  }).catch(function(err){ws.innerHTML='<span style="color:var(--err)">Weather fetch failed: '+escH(String(err))+'</span>';});
+  }
+
+  return fetch(resolved.url).then(function(r){return r.json();}).then(function(w){
+    if(w.daily&&w.daily.time){
+      processWeatherResponse(w,resolved.label);return;
+    }
+    /* Primary failed — try fallback if available */
+    if(resolved.fallbackUrl){
+      ws.innerHTML='<span class="spinner"></span> Primary failed, trying '+escH(resolved.fallbackLabel)+'…';
+      return fetch(resolved.fallbackUrl).then(function(r2){return r2.json();}).then(function(w2){
+        processWeatherResponse(w2,resolved.fallbackLabel);
+      });
+    }
+    throw new Error(w.reason||'No weather data returned');
+  }).catch(function(err){
+    /* If auto mode primary fails with network/HTTP error, try fallback */
+    if(resolved.fallbackUrl){
+      ws.innerHTML='<span class="spinner"></span> Primary failed ('+escH(String(err))+'), trying '+escH(resolved.fallbackLabel)+'…';
+      return fetch(resolved.fallbackUrl).then(function(r2){return r2.json();}).then(function(w2){
+        processWeatherResponse(w2,resolved.fallbackLabel);
+      }).catch(function(err2){
+        ws.innerHTML='<span style="color:var(--err)">Both servers failed. Forecast: '+escH(String(err))+' · Archive: '+escH(String(err2))+'</span>';
+      });
+    }
+    ws.innerHTML='<span style="color:var(--err)">Weather fetch failed ('+escH(resolved.label)+'): '+escH(String(err))+'</span>';
+  });
 }
 
 function renderWeatherForecast(){
@@ -969,6 +1053,26 @@ function calcWeatherAdj(wd){
 }
 
 document.getElementById('fetchWeatherBtn').addEventListener('click',fetchWeather);
+
+/* Weather server selector logic */
+(function(){
+  var sel=document.getElementById('weatherServerSelect');
+  var customRow=document.getElementById('customWeatherUrlRow');
+  var info=document.getElementById('weatherServerInfo');
+  var infoTexts={
+    auto:'Auto mode: Uses Forecast API for dates within 16 days, Archive API for historical dates.',
+    forecast:'Direct forecast endpoint — works for dates up to ~16 days from today.',
+    archive:'Archive/historical endpoint — works for past dates up to yesterday.',
+    custom:'Enter any Open-Meteo-compatible API URL below.'
+  };
+  function updateServerUI(){
+    var v=sel.value;
+    customRow.style.display=v==='custom'?'':'none';
+    info.textContent=infoTexts[v]||'';
+  }
+  sel.addEventListener('change',updateServerUI);
+  updateServerUI();
+})();
 
 /* ================================================================
    SCHEDULING ENGINE
