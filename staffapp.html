@@ -3635,8 +3635,20 @@
         }
 
         // Airtable API helper
-        async function airtableRequest(method, endpoint, body = null) {
+        // Rate limiter: enforces minimum gap between Airtable API calls
+        let lastRequestTime = 0;
+        const MIN_REQUEST_GAP = 350; // ms between requests (max ~3/sec, well under Airtable's 5/sec limit)
+
+        async function airtableRequest(method, endpoint, body = null, retryCount = 0) {
             if (!airtableConfig) return null;
+
+            // Enforce minimum gap between requests
+            const now = Date.now();
+            const timeSinceLast = now - lastRequestTime;
+            if (timeSinceLast < MIN_REQUEST_GAP) {
+                await new Promise(r => setTimeout(r, MIN_REQUEST_GAP - timeSinceLast));
+            }
+            lastRequestTime = Date.now();
 
             const url = `https://api.airtable.com/v0/${airtableConfig.baseId}/${encodeURIComponent(airtableConfig.tableName)}${endpoint}`;
 
@@ -3652,11 +3664,33 @@
                 options.body = JSON.stringify(body);
             }
 
-            const response = await fetch(url, options);
+            let response;
+            try {
+                response = await fetch(url, options);
+            } catch (networkErr) {
+                console.log(`Airtable ${method} network error:`, networkErr.message);
+                throw new Error('Network error - check your internet connection');
+            }
+
+            // Handle rate limiting (429) with retry
+            if (response.status === 429) {
+                if (retryCount < 3) {
+                    const waitTime = Math.pow(2, retryCount + 1) * 1000; // 2s, 4s, 8s
+                    console.log(`Rate limited (429). Retrying in ${waitTime/1000}s... (attempt ${retryCount + 1}/3)`);
+                    await new Promise(r => setTimeout(r, waitTime));
+                    return airtableRequest(method, endpoint, body, retryCount + 1);
+                }
+                throw new Error('Rate limited by Airtable. Please wait a moment and try again.');
+            }
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error?.message || 'Airtable API error');
+                let errorMsg = `Airtable ${method} error (${response.status})`;
+                try {
+                    const error = await response.json();
+                    errorMsg = error.error?.message || errorMsg;
+                } catch (e) { /* ignore parse error */ }
+                console.log(errorMsg, endpoint);
+                throw new Error(errorMsg);
             }
 
             return response.json();
@@ -3664,135 +3698,58 @@
 
         let masterRecordId = null;
         let dailyRecordId = null;
+        let isSyncing = false;
+        let recordsInitialized = false;
 
-        // Find or create the master record (stores task definitions)
-        async function findOrCreateMasterRecord() {
-            const result = await airtableRequest('GET', `?filterByFormula={RecordID}="${MASTER_RECORD_ID}"`);
+        // ONE-TIME setup: Find or create both records in a single query
+        async function initRecords() {
+            if (recordsInitialized && masterRecordId && dailyRecordId) return true;
 
-            if (result.records && result.records.length > 0) {
-                masterRecordId = result.records[0].id;
-                return result.records[0];
+            const todayRecordId = getRecordId();
+
+            // Single query to find both master AND today's record
+            const result = await airtableRequest('GET',
+                `?filterByFormula=OR({RecordID}="${MASTER_RECORD_ID}",{RecordID}="${todayRecordId}")`
+            );
+
+            let masterRecord = null;
+            let dailyRecord = null;
+
+            if (result.records) {
+                for (const rec of result.records) {
+                    if (rec.fields.RecordID === MASTER_RECORD_ID) {
+                        masterRecord = rec;
+                        masterRecordId = rec.id;
+                    } else if (rec.fields.RecordID === todayRecordId) {
+                        // If duplicates, pick most recent
+                        if (!dailyRecord || (rec.fields.LastModified || 0) > (dailyRecord.fields.LastModified || 0)) {
+                            dailyRecord = rec;
+                            dailyRecordId = rec.id;
+                            airtableRecordId = rec.id;
+                        }
+                    }
+                }
             }
 
-            // Create new master record
-            const newRecord = await airtableRequest('POST', '', {
-                records: [{
+            // Create any missing records in one batch
+            const toCreate = [];
+            if (!masterRecord) {
+                toCreate.push({
                     fields: {
                         RecordID: MASTER_RECORD_ID,
-                        Data: JSON.stringify({
-                            tasks: checklistData
-                        }),
-                        LastModified: Date.now()
-                    }
-                }]
-            });
-
-            masterRecordId = newRecord.records[0].id;
-            return newRecord.records[0];
-        }
-
-        // Flag to prevent race condition when creating daily record
-        let isCreatingDailyRecord = false;
-        let duplicateWarningShown = {}; // Track which dates we've warned about
-
-        // Find or create the daily record (stores completion status for today)
-        async function findOrCreateDailyRecord() {
-            const todayRecordId = getRecordId();
-            const result = await airtableRequest('GET', `?filterByFormula={RecordID}="${todayRecordId}"`);
-
-            if (result.records && result.records.length > 0) {
-                // If multiple duplicates exist, use the one with most recent data
-                let bestRecord = result.records[0];
-                if (result.records.length > 1) {
-                    // Only warn once per date per session
-                    if (!duplicateWarningShown[todayRecordId]) {
-                        console.log(`Found ${result.records.length} duplicate records for ${todayRecordId}, using most recent. Consider deleting duplicates in Airtable.`);
-                        duplicateWarningShown[todayRecordId] = true;
-                    }
-                    bestRecord = result.records.reduce((a, b) =>
-                        (a.fields.LastModified || 0) > (b.fields.LastModified || 0) ? a : b
-                    );
-                }
-                dailyRecordId = bestRecord.id;
-                airtableRecordId = bestRecord.id;
-                return bestRecord;
-            }
-
-            // Prevent race condition - if already creating, wait and retry
-            if (isCreatingDailyRecord) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                return await findOrCreateDailyRecord();
-            }
-
-            isCreatingDailyRecord = true;
-
-            try {
-                // Double-check before creating (another request might have created it)
-                const recheck = await airtableRequest('GET', `?filterByFormula={RecordID}="${todayRecordId}"`);
-                if (recheck.records && recheck.records.length > 0) {
-                    dailyRecordId = recheck.records[0].id;
-                    airtableRecordId = recheck.records[0].id;
-                    return recheck.records[0];
-                }
-
-                // Create new daily record
-                const newRecord = await airtableRequest('POST', '', {
-                    records: [{
-                        fields: {
-                            RecordID: todayRecordId,
-                            Data: JSON.stringify({
-                                completed: {},
-                                completedSubtasks: {},
-                                todayOnlyTasks: null,
-                                date: new Date().toDateString()
-                            }),
-                            LastModified: Date.now()
-                        }
-                    }]
-                });
-
-                dailyRecordId = newRecord.records[0].id;
-                airtableRecordId = newRecord.records[0].id;
-                return newRecord.records[0];
-            } finally {
-                isCreatingDailyRecord = false;
-            }
-        }
-
-        // Legacy support - find or create record (now handles both)
-        async function findOrCreateRecord() {
-            await findOrCreateMasterRecord();
-            return await findOrCreateDailyRecord();
-        }
-
-        // Push local data to Airtable
-        async function pushToAirtable() {
-            if (!airtableConfig) return;
-
-            const updates = [];
-
-            // Update master record with task definitions
-            if (masterRecordId) {
-                updates.push({
-                    id: masterRecordId,
-                    fields: {
-                        Data: JSON.stringify({
-                            tasks: checklistData
-                        }),
+                        Data: JSON.stringify({ tasks: checklistData }),
                         LastModified: Date.now()
                     }
                 });
             }
-
-            // Update daily record with completion status and today-only tasks
-            if (dailyRecordId) {
-                updates.push({
-                    id: dailyRecordId,
+            if (!dailyRecord) {
+                toCreate.push({
                     fields: {
+                        RecordID: todayRecordId,
                         Data: JSON.stringify({
-                            completed: state.completed,
-                            completedSubtasks: state.completedSubtasks,
-                            todayOnlyTasks: state.todayOnlyTasks,
+                            completed: {},
+                            completedSubtasks: {},
+                            todayOnlyTasks: null,
                             date: new Date().toDateString()
                         }),
                         LastModified: Date.now()
@@ -3800,84 +3757,148 @@
                 });
             }
 
-            if (updates.length > 0) {
-                await airtableRequest('PATCH', '', { records: updates });
+            if (toCreate.length > 0) {
+                const created = await airtableRequest('POST', '', { records: toCreate });
+                for (const rec of created.records) {
+                    if (rec.fields.RecordID === MASTER_RECORD_ID) {
+                        masterRecord = rec;
+                        masterRecordId = rec.id;
+                    } else {
+                        dailyRecord = rec;
+                        dailyRecordId = rec.id;
+                        airtableRecordId = rec.id;
+                    }
+                }
             }
 
+            recordsInitialized = true;
+            return { masterRecord, dailyRecord };
+        }
+
+        // Fetch a single record directly by its Airtable row ID (fast, no search)
+        async function fetchRecord(rowId) {
+            return await airtableRequest('GET', `/${rowId}`);
+        }
+
+        // Push local data to Airtable (1 API call)
+        async function pushToAirtable() {
+            if (!airtableConfig) return;
+            if (!masterRecordId || !dailyRecordId) {
+                await initRecords();
+            }
+            if (!masterRecordId || !dailyRecordId) {
+                console.log('Push skipped: record IDs unavailable');
+                return;
+            }
+
+            await airtableRequest('PATCH', '', {
+                records: [
+                    {
+                        id: masterRecordId,
+                        fields: {
+                            Data: JSON.stringify({ tasks: checklistData }),
+                            LastModified: Date.now()
+                        }
+                    },
+                    {
+                        id: dailyRecordId,
+                        fields: {
+                            Data: JSON.stringify({
+                                completed: state.completed,
+                                completedSubtasks: state.completedSubtasks,
+                                todayOnlyTasks: state.todayOnlyTasks,
+                                date: new Date().toDateString()
+                            }),
+                            LastModified: Date.now()
+                        }
+                    }
+                ]
+            });
             lastSyncTime = Date.now();
+        }
+
+        function applyMasterData(masterRecord) {
+            if (masterRecord.fields.Data) {
+                const masterData = JSON.parse(masterRecord.fields.Data);
+                if (masterData.tasks) {
+                    checklistData = masterData.tasks;
+
+                    // Migrate old structures if needed
+                    if (checklistData.sorting && !checklistData.sorting.tasks) {
+                        const oldTasks = [
+                            ...(checklistData.sorting.intake || []),
+                            ...(checklistData.sorting.category || []),
+                            ...(checklistData.sorting.quality || [])
+                        ];
+                        checklistData.sorting = { tasks: oldTasks };
+                    }
+                    if (checklistData.opening && !checklistData.opening.tasks) {
+                        const oldTasks = [
+                            ...(checklistData.opening.setup || []),
+                            ...(checklistData.opening.equipment || []),
+                            ...(checklistData.opening.customer || [])
+                        ];
+                        checklistData.opening = { tasks: oldTasks };
+                    }
+                    if (checklistData.closing && !checklistData.closing.tasks) {
+                        const oldTasks = [
+                            ...(checklistData.closing.end || []),
+                            ...(checklistData.closing.equipment || []),
+                            ...(checklistData.closing.security || [])
+                        ];
+                        checklistData.closing = { tasks: oldTasks };
+                    }
+                }
+            }
+        }
+
+        function applyDailyData(dailyRecord) {
+            if (dailyRecord.fields.Data) {
+                const dailyData = JSON.parse(dailyRecord.fields.Data);
+                state.completed = dailyData.completed || {};
+                state.completedSubtasks = dailyData.completedSubtasks || {};
+                state.todayOnlyTasks = dailyData.todayOnlyTasks || null;
+            }
         }
 
         // Pull data from Airtable
         async function pullFromAirtable() {
             if (!airtableConfig) return false;
+            if (isSyncing) return false;
+            isSyncing = true;
 
             try {
                 updateSyncStatus('syncing', 'Syncing...');
 
-                // Get master record (task definitions)
-                const masterRecord = await findOrCreateMasterRecord();
-
-                // Get daily record (today's completions)
-                const dailyRecord = await findOrCreateDailyRecord();
-
-                const today = new Date().toDateString();
-
-                // Load task definitions from master
-                if (masterRecord.fields.Data) {
-                    const masterData = JSON.parse(masterRecord.fields.Data);
-                    if (masterData.tasks) {
-                        checklistData = masterData.tasks;
-
-                        // Migrate old sorting structure if needed
-                        if (checklistData.sorting && !checklistData.sorting.tasks) {
-                            const oldTasks = [
-                                ...(checklistData.sorting.intake || []),
-                                ...(checklistData.sorting.category || []),
-                                ...(checklistData.sorting.quality || [])
-                            ];
-                            checklistData.sorting = { tasks: oldTasks };
-                        }
-
-                        // Migrate old opening structure if needed
-                        if (checklistData.opening && !checklistData.opening.tasks) {
-                            const oldOpeningTasks = [
-                                ...(checklistData.opening.setup || []),
-                                ...(checklistData.opening.equipment || []),
-                                ...(checklistData.opening.customer || [])
-                            ];
-                            checklistData.opening = { tasks: oldOpeningTasks };
-                        }
-
-                        // Migrate old closing structure if needed
-                        if (checklistData.closing && !checklistData.closing.tasks) {
-                            const oldClosingTasks = [
-                                ...(checklistData.closing.end || []),
-                                ...(checklistData.closing.equipment || []),
-                                ...(checklistData.closing.security || [])
-                            ];
-                            checklistData.closing = { tasks: oldClosingTasks };
-                        }
+                if (!recordsInitialized) {
+                    // First pull: find/create records (1-2 API calls)
+                    const records = await initRecords();
+                    if (records.masterRecord) applyMasterData(records.masterRecord);
+                    if (records.dailyRecord) applyDailyData(records.dailyRecord);
+                } else {
+                    // Subsequent pulls: fetch directly by row ID (2 API calls, no search)
+                    if (masterRecordId) {
+                        const master = await fetchRecord(masterRecordId);
+                        applyMasterData(master);
+                    }
+                    if (dailyRecordId) {
+                        const daily = await fetchRecord(dailyRecordId);
+                        applyDailyData(daily);
                     }
                 }
 
-                // Load today's completion status and today-only tasks from daily record
-                if (dailyRecord.fields.Data) {
-                    const dailyData = JSON.parse(dailyRecord.fields.Data);
-                    state.completed = dailyData.completed || {};
-                    state.completedSubtasks = dailyData.completedSubtasks || {};
-                    state.todayOnlyTasks = dailyData.todayOnlyTasks || null;
-                }
-
-                state.lastDate = today;
+                state.lastDate = new Date().toDateString();
                 saveState();
                 renderChecklists();
 
                 lastSyncTime = Date.now();
                 updateSyncStatus('connected', 'Synced just now');
+                isSyncing = false;
                 return true;
             } catch (e) {
                 console.log('Pull error:', e.message);
                 updateSyncStatus('error', 'Sync failed');
+                isSyncing = false;
                 return false;
             }
         }
@@ -3887,22 +3908,22 @@
             if (!airtableConfig) return;
 
             try {
-                updateSyncStatus('syncing', 'Syncing...');
-
-                await pullFromAirtable();
+                const pullSuccess = await pullFromAirtable();
 
                 if (forcePush) {
                     await pushToAirtable();
                 }
 
-                updateSyncStatus('connected', 'Synced just now');
+                if (!pullSuccess) {
+                    updateSyncStatus('error', 'Sync failed');
+                }
             } catch (e) {
                 console.log('Sync error:', e.message);
                 updateSyncStatus('error', 'Sync failed');
             }
         }
 
-        // Debounced push after local changes
+        // Debounced push after local changes (1 API call, batched)
         let pushTimeout = null;
         function schedulePush() {
             if (!airtableConfig) return;
@@ -3917,26 +3938,28 @@
                     console.log('Push error:', e.message);
                     updateSyncStatus('error', 'Sync failed');
                 }
-            }, 1000); // Wait 1 second after last change
+            }, 3000); // Wait 3 seconds to batch rapid checkbox clicks
         }
 
-        // Override saveState to trigger sync
+        // Override saveState to trigger sync (but not during pull)
         const originalSaveState = saveState;
         saveState = function() {
             originalSaveState();
-            schedulePush();
+            if (!isSyncing) {
+                schedulePush();
+            }
         };
 
         // Start periodic sync
         function startAutoSync() {
             if (syncInterval) clearInterval(syncInterval);
 
-            // Sync every 30 seconds (only when viewing today)
+            // Sync every 90 seconds (only when viewing today)
             syncInterval = setInterval(() => {
                 if (airtableConfig && isToday()) {
                     pullFromAirtable();
                 }
-            }, 30000);
+            }, 90000);
         }
 
         // Settings modal
@@ -3985,7 +4008,7 @@
             airtableConfig = tempConfig;
 
             try {
-                await findOrCreateRecord();
+                await initRecords();
 
                 // Success - save config
                 saveAirtableConfig();
@@ -4094,7 +4117,7 @@
                     };
 
                     try {
-                        await findOrCreateRecord();
+                        await initRecords();
                         saveAirtableConfig();
                         startAutoSync();
                         await syncWithAirtable(true);
@@ -4505,22 +4528,29 @@
                 console.log('Day changed from', lastKnownDate, 'to', currentDate);
                 lastKnownDate = currentDate;
 
+                // Push yesterday's final state before resetting
+                if (airtableConfig && dailyRecordId) {
+                    pushToAirtable().catch(e => console.log('Failed to push yesterday data:', e.message));
+                }
+
                 // Reset to today
                 selectedDate = new Date();
-                loadState(); // This auto-resets completed tasks for new day
+                loadState();
                 updateDateDisplay();
                 renderChecklists();
                 document.body.classList.remove('viewing-past');
 
-                // Re-sync with Airtable for the new day
-                if (airtableConfig) {
-                    // Clear cached daily record so it finds/creates today's record
-                    dailyRecordId = null;
-                    pullFromAirtable();
-                }
-
-                // Clear historical data cache
+                // Clear caches for new day
                 historicalCompletedData = {};
+                dailyRecordId = null;
+                recordsInitialized = false;
+
+                // Re-sync with Airtable for the new day (1 API call)
+                if (airtableConfig) {
+                    syncWithAirtable().then(() => {
+                        console.log('New day sync complete');
+                    });
+                }
 
                 showToast('📅 New day! Checklist has been reset.', 'success');
             }
