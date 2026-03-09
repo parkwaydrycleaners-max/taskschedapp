@@ -347,7 +347,20 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',func
    ================================================================ */
 function escH(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 function parseNum(s){if(s==null||s==='')return NaN;s=String(s).trim().replace(/[$,]/g,'');if(s===''||s==='-')return NaN;return parseFloat(s);}
-function parseDate(s){if(!s)return null;s=s.trim();var iso=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);if(iso)return new Date(+iso[1],iso[2]-1,+iso[3]);var us=s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);if(us){var y=+us[3];if(y<100)y+=2000;return new Date(y,us[1]-1,+us[2]);}var o=new Date(s);return(!isNaN(o.getTime())&&o.getFullYear()>1900&&o.getFullYear()<2100)?o:null;}
+function parseDate(s){
+  if(!s)return null;
+  s=s.trim();
+  /* YYYY-MM-DD or YYYY/MM/DD (ISO-ish) */
+  var iso=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if(iso)return new Date(+iso[1],iso[2]-1,+iso[3]);
+  /* M/D/YYYY or M-D-YY (US) */
+  var us=s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+  if(us){var y=+us[3];if(y<100)y+=2000;return new Date(y,us[1]-1,+us[2]);}
+  /* Fallback: decompose any ISO-ish string to avoid timezone shift */
+  var fb=s.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if(fb)return new Date(+fb[1],fb[2]-1,+fb[3]);
+  return null;
+}
 function fmtD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function fmtDS(d){return(d.getMonth()+1)+'/'+d.getDate();}
 function showMsg(msg,type){
@@ -868,7 +881,7 @@ function renderWeatherForecast(){
   var html='<div class="twrap" style="max-height:300px;overflow-y:auto"><table class="dtbl weather-tbl"><thead><tr><th>Date</th><th>DOW</th><th>Condition</th><th class="n">High &deg;F</th><th class="n">Low &deg;F</th><th class="n">Precip (in)</th><th class="n">Rain Hrs</th><th class="n">Pcs Adj</th></tr></thead><tbody>';
 
   ST.weather.daily.forEach(function(d){
-    var dt=new Date(d.date+'T12:00:00');
+    var dt=parseDate(d.date);
     var dow=DOW_N[dt.getDay()];
     var icon=getWeatherIcon(d.code,d.precip,d.tempMax);
     var adj=calcWeatherAdj(d);
@@ -993,14 +1006,18 @@ function generateSchedule(){
     var dowMult=DOW_ADJ[day.dow]/100;
     rawHrs*=dowMult;
 
+    day.capReason='';
     if(capEnabled&&day.baseRev>0){
       var maxLaborCost=day.baseRev*(targetPct/100);
       var maxHrsFromCost=maxLaborCost/avgWage;
-      rawHrs=Math.min(rawHrs,maxHrsFromCost);
+      if(rawHrs>maxHrsFromCost){
+        day.capReason='Cap: $'+Math.round(day.baseRev)+' rev \u00D7 '+targetPct+'% / $'+avgWage+' = '+maxHrsFromCost.toFixed(1)+'h max';
+        rawHrs=maxHrsFromCost;
+      }
     }
 
-    rawHrs=Math.max(rawHrs,minHrDay);
-    rawHrs=Math.min(rawHrs,maxHrDay);
+    if(rawHrs<minHrDay){day.capReason=day.capReason||(rawHrs.toFixed(1)+'h \u2192 floor '+minHrDay+'h');rawHrs=minHrDay;}
+    if(rawHrs>maxHrDay){day.capReason='Ceiling: '+maxHrDay+'h max/day';rawHrs=maxHrDay;}
 
     day.recHours=Math.round(rawHrs*10)/10;
     day.recStaff=Math.ceil(day.recHours/maxHrEmpDay);
@@ -1064,7 +1081,7 @@ function renderSchedule(){
     html+='<td>'+day.dowName+'</td>';
     html+='<td style="font-size:.75rem">'+(day.weatherInfo||'—')+'</td>';
     html+='<td class="n">'+Math.round(day.adjustedPcs)+'</td>';
-    html+='<td class="n" style="font-weight:700;color:var(--ac)">'+day.recHours.toFixed(1)+'</td>';
+    html+='<td class="n" style="font-weight:700;color:var(--ac)">'+day.recHours.toFixed(1)+(day.capReason?' <span title="'+day.capReason.replace(/"/g,'&quot;')+'" style="cursor:help;color:var(--warn);font-size:.7rem">\u26A0</span>':'')+'</td>';
     html+='<td class="n" style="font-weight:600">'+day.recStaff+'</td>';
     html+='<td class="n" style="color:'+pphColor+'">'+day.estPPH.toFixed(1)+'</td>';
     html+='<td class="n">$'+Math.round(day.laborCost)+'</td>';
