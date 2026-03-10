@@ -823,8 +823,11 @@ function parsePOSReport(text) {
     rows.push([...left, ...middle, ...right]);
   }
 
-  // Always drop the last row (partial day — report run mid-day)
-  if (rows.length > 0) rows.pop();
+  // Only drop last row if it looks like a summary/totals row (no date in first cell).
+  // leftRows already filters for date-formatted rows, so combined rows should all be valid data.
+  if (rows.length > 0 && rows[rows.length - 1].length > 0 && !/^\d{4}\//.test(rows[rows.length - 1][0])) {
+    rows.pop();
+  }
 
   // Build auto-mapping
   const mappings = {
@@ -2840,7 +2843,7 @@ function autoOptimize(options) {
   var dowActiveKeys = enabledKeys.filter(function(k) { return forecasts[k]; });
 
   for (var dw = 0; dw < 7; dw++) {
-    if (!dowTestIndices[dw] || dowTestIndices[dw].length < 2) continue;
+    if (!dowTestIndices[dw] || dowTestIndices[dw].length < 3) continue;
     var dIdx = dowTestIndices[dw];
     var dActual = dIdx.map(function(j) { return testData[j]; });
     var dSum = dActual.reduce(function(a, b) { return a + b; }, 0);
@@ -2963,7 +2966,7 @@ function autoOptimize(options) {
     sgGlobalEns = applyBiasCorrection(sgGlobalEns, trainData, trainDates, lastTrainDate, testDates);
     var sgGlobalWape = calculateWAPE(testData, sgGlobalEns, testDates);
     var sgPerDowWape = calculateWAPE(testData, sgPerDowEns, testDates);
-    if (sgPerDowWape >= sgGlobalWape - 0.3) {
+    if (sgPerDowWape >= sgGlobalWape - 1.0) {
       S.dowWeights = {}; // Per-DOW didn't improve enough, revert
     }
   }
