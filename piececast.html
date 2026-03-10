@@ -740,7 +740,11 @@ function isReportHeaderLine(line) {
   if (/^\d{4}\/\d{2}\s*~/.test(line)) return true;
   if (/^\d{4}\.\d{2}\.\d{2}$/.test(line)) return true;
   if (line.includes('Drop') && line.includes('Dry')) return true;
-  if (line.includes('Press Pcs') || (line.includes('Total Pcs') && line.includes('Press Amt'))) return true;
+  if (line.includes('Alter Pcs') || line.includes('Alter Amt')) return true;
+  if (line.includes('Press Pcs') || line.includes('Press Amt')) return true;
+  if (line.includes('Total Pcs') || line.includes('Total Amt')) return true;
+  if (line.includes('DC Amt')) return true;
+  if (line.includes('Laund Amt') && line.includes('Alter')) return true;
   return false;
 }
 
@@ -760,20 +764,24 @@ function parsePOSReport(text) {
   }
   if (current.length > 0) sections.push(current);
 
-  // Classify sections and extract data rows
+  // Classify sections into left / middle / right and extract data rows
   const leftRows = [];
+  const middleRows = [];
   const rightRows = [];
 
   for (const section of sections) {
-    // Find the column header line to classify
-    const colHeader = section.find(l => {
+    // Determine section type from column header line
+    // Left page:   "Drop   Dry Pcs   Dry Amt   Laund Pcs"
+    // Middle page: "Laund Amt   Alter Pcs   Alter Amt   Press Pcs"
+    // Right page:  "Press Amt   DC Amt   Total Pcs   Total Amt"
+    let sectionType = null;
+    for (const l of section) {
       const t = l.trim();
-      return (t.includes('Drop') && t.includes('Dry')) ||
-             (t.includes('Press Pcs') && t.includes('Total'));
-    });
-    if (!colHeader) continue;
-
-    const isLeft = colHeader.includes('Drop');
+      if (t.includes('Drop') && t.includes('Dry')) { sectionType = 'left'; break; }
+      if (t.includes('Alter Pcs') || t.includes('Alter Amt')) { sectionType = 'middle'; break; }
+      if (t.includes('Total Pcs') || t.includes('DC Amt')) { sectionType = 'right'; break; }
+    }
+    if (!sectionType) continue;
 
     // Extract numeric data rows (skip header/meta lines)
     for (const line of section) {
@@ -783,24 +791,30 @@ function parsePOSReport(text) {
       const cells = trimmed.split(/\s{2,}/).filter(c => c.length > 0);
       if (cells.length < 2) continue;
 
-      // Left rows start with a date (YYYY/MM/DD); right rows start with a number
-      if (isLeft) {
+      // Left rows start with a date (YYYY/MM/DD); middle & right rows start with a number
+      if (sectionType === 'left') {
         if (/^\d{4}\//.test(cells[0])) leftRows.push(cells);
+      } else if (sectionType === 'middle') {
+        if (/^-?[\d.]/.test(cells[0])) middleRows.push(cells);
       } else {
         if (/^-?[\d.]/.test(cells[0])) rightRows.push(cells);
       }
     }
   }
 
-  // Combine left + right rows (must be same count)
+  // Combine left + middle + right rows
+  // Left:   [Date, Dry Pcs, Dry Amt, Laund Pcs]           → indices 0-3
+  // Middle: [Laund Amt, Alter Pcs, Alter Amt, Press Pcs]   → indices 4-7
+  // Right:  [Press Amt, DC Amt, Total Pcs, Total Amt]      → indices 8-11
   const headers = ['Date', 'Dry Pcs', 'Dry Amt', 'Laund Pcs', 'Laund Amt',
     'Alter Pcs', 'Alter Amt', 'Press Pcs', 'Press Amt', 'DC Amt', 'Total Pcs', 'Total Amt'];
 
   const rows = [];
   for (let i = 0; i < leftRows.length; i++) {
     const left = leftRows[i];
+    const middle = i < middleRows.length ? middleRows[i] : [];
     const right = i < rightRows.length ? rightRows[i] : [];
-    rows.push([...left, ...right]);
+    rows.push([...left, ...middle, ...right]);
   }
 
   // Always drop the last row (partial day — report run mid-day)
@@ -2916,6 +2930,20 @@ function buildOptimizeAndBacktestSteps() {
   var catNames = Object.keys(S.series.categories);
   var steps = [];
   var allSummaries = [];
+  S.catOptimized = {}; // Reset per-category optimizations
+
+  // Capture baseline enabled state once (before any optimization mutates it)
+  var baselineEnabled = {};
+  Object.keys(S.methods).forEach(function(k) { baselineEnabled[k] = S.methods[k].enabled; });
+
+  // Helper: restore methods to clean state before each optimization
+  function resetMethods() {
+    Object.keys(S.methods).forEach(function(k) {
+      S.methods[k].enabled = baselineEnabled[k];
+      S.methods[k].weight = 5;
+    });
+    S.dowWeights = {};
+  }
 
   // One step per category
   for (var i = 0; i < catNames.length; i++) {
@@ -2923,15 +2951,28 @@ function buildOptimizeAndBacktestSteps() {
       steps.push({ label: 'Optimizing ' + cn + '\u2026', fn: function() {
         if (!S.dataLoaded) return;
         var origActive = S.activeSeries;
-        // Reset weights for this category
-        Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 5; });
-        S.dowWeights = {};
+
+        // Check if this category has enough non-zero data in the test window
+        var catData = S.series.categories[cn] ? S.series.categories[cn].pieces : null;
+        var n = catData ? catData.length : 0;
+        var win = S.backtestWindow;
+        var testSlice = catData ? catData.slice(Math.max(0, n - win)) : [];
+        var nonZeroCount = testSlice.filter(function(v) { return v > 0; }).length;
+
+        if (!catData || nonZeroCount < 3) {
+          S.catOptimized[cn] = { weights: {}, dowWeights: {}, wape: -1 };
+          allSummaries.push({ name: cn, wape: -1 });
+          return;
+        }
+
+        resetMethods();
         S.activeSeries = 'pieces:' + cn;
         autoOptimize();
         var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
         var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
         var bt = runBacktest(S.backtestWindow);
         var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : -1;
+        if (wape > 500) wape = -1;
         S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: wape };
         allSummaries.push({ name: cn, wape: wape });
         S.activeSeries = origActive;
@@ -2942,8 +2983,7 @@ function buildOptimizeAndBacktestSteps() {
   // Total Pieces step
   steps.push({ label: 'Optimizing Total Pieces\u2026', fn: function() {
     if (!S.dataLoaded) return;
-    Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 5; });
-    S.dowWeights = {};
+    resetMethods();
     S.activeSeries = '__total_pieces';
     autoOptimize();
     var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
@@ -2974,12 +3014,14 @@ function renderCatWmapeSummary(summaries) {
   for (var i = 0; i < summaries.length; i++) {
     var s = summaries[i];
     var isTotal = s.name === 'Total Pieces';
-    var wapeStr = s.wape >= 0 ? s.wape.toFixed(1) + '%' : 'N/A';
-    var cls = s.wape < 0 ? '' : s.wape <= 15 ? 'good' : s.wape <= 25 ? 'ok' : 'poor';
+    var isNA = s.wape < 0;
+    var wapeStr = isNA ? 'N/A' : s.wape.toFixed(1) + '%';
+    var cls = isNA ? '' : s.wape <= 15 ? 'good' : s.wape <= 25 ? 'ok' : 'poor';
+    var subtitle = isNA ? '<span style="font-size:.6rem;color:var(--text-muted)">insufficient data</span>' : '<span style="font-size:.65rem;color:var(--text-muted)">WMAPE</span>';
     html += '<div class="cat-wmape-pill' + (isTotal ? ' total-pill' : '') + '">' +
       '<span class="cat-name">' + escHtml(s.name) + '</span>' +
       '<span class="cat-wape ' + cls + '">' + wapeStr + '</span>' +
-      '<span style="font-size:.65rem;color:var(--text-muted)">WMAPE</span>' +
+      subtitle +
     '</div>';
   }
   container.innerHTML = html;
@@ -3466,9 +3508,8 @@ function populateSeriesDropdowns() {
   const options = ['<option value="__total_pieces">Total Pieces</option>'];
   if (hasRevenue) options.push('<option value="__total_revenue">Total Revenue ($)</option>');
   catNames.forEach(n => {
-    if (cats[n].pieces.some(v => v > 0)) {
-      options.push('<option value="pieces:' + escHtml(n) + '">' + escHtml(n) + ' (pcs)</option>');
-    }
+    // Always include piece-count categories (even if mostly zeros)
+    options.push('<option value="pieces:' + escHtml(n) + '">' + escHtml(n) + ' (pcs)</option>');
     if (cats[n].revenue.some(v => v > 0)) {
       options.push('<option value="revenue:' + escHtml(n) + '">' + escHtml(n) + ' ($)</option>');
     }
