@@ -912,6 +912,7 @@ function initClosedDays(){
       /* Also visually dim the corresponding adj input */
       var adjInp=document.querySelector('.dow-adj-inp[data-dow="'+idx+'"]');
       if(adjInp)adjInp.parentElement.style.opacity=this.checked?'0.4':'1';
+      if(ST.sched)generateSchedule();
     });
   });
 }
@@ -926,11 +927,31 @@ function initDowAdj(){
     grid.appendChild(item);
   });
   grid.querySelectorAll('.dow-adj-inp').forEach(function(inp){
-    inp.addEventListener('change',function(){DOW_ADJ[parseInt(this.dataset.dow)]=parseInt(this.value)||100;});
+    inp.addEventListener('change',function(){
+      DOW_ADJ[parseInt(this.dataset.dow)]=parseInt(this.value)||100;
+      if(ST.sched)generateSchedule();
+    });
   });
 }
 initClosedDays();
 initDowAdj();
+
+/* Auto-regenerate schedule when any Labor & Productivity setting changes */
+['pcsPerHr','avgWage','targetLaborPct','salesPerHr','maxStaffDay','minStaffDay','maxHrEmpDay','maxStaffWeek'].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el)el.addEventListener('change',function(){if(ST.sched)generateSchedule();});
+});
+document.getElementById('capIfOver').addEventListener('change',function(){if(ST.sched)generateSchedule();});
+
+/* Auto-regenerate when weather adjustment settings change */
+['rainLight','rainMod','rainHeavy','heatThresh','heatAdj','bizOpen','bizClose'].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el)el.addEventListener('change',function(){if(ST.sched)generateSchedule();});
+});
+['rainRedist','heatRedist'].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el)el.addEventListener('change',function(){if(ST.sched)generateSchedule();});
+});
 
 /* ================================================================
    SCHEDULING MODE TOGGLE (pieces / revenue / both)
@@ -952,6 +973,7 @@ document.getElementById('schedModeToggle').addEventListener('click',function(e){
   document.getElementById('schedModeDesc').innerHTML=SCHED_MODE_DESCS[mode];
   document.getElementById('pcsDriverFields').style.display=(mode==='revenue')?'none':'';
   document.getElementById('revDriverFields').style.display=(mode==='pieces')?'none':'';
+  if(ST.sched)generateSchedule();
 });
 
 /* ================================================================
