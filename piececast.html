@@ -4154,6 +4154,8 @@ document.getElementById('loadDataBtn').addEventListener('click', () => {
 document.getElementById('seriesSelect').addEventListener('change', function() {
   S.activeSeries = this.value;
   document.getElementById('forecastSeriesSelect').value = this.value;
+  applyWeightsForSeries(this.value);
+  renderMethodGrid();
   if (S.dataLoaded) {
     runWithLoading('Updating', [
       { label: 'Running backtest\u2026', fn: function() { doBacktest(); }}
@@ -4213,7 +4215,49 @@ document.getElementById('copyExportBtn').addEventListener('click', () => {
   }
 });
 
+/* Map current active series to its per-category optimized weight set */
+function getCatOptForSeries(seriesVal) {
+  if (!S.catOptimized) return null;
+  if (seriesVal === '__total_pieces') return S.catOptimized.__total || null;
+  if (seriesVal === '__total_revenue') return S.catOptimized.__total || null;
+  var m = (seriesVal || '').match(/^(?:pieces|revenue):(.+)$/);
+  return m ? (S.catOptimized[m[1]] || null) : null;
+}
+
+/* Apply per-category weights to S.methods / S.dowWeights / S.biasConfig for display + backtest */
+function applyWeightsForSeries(seriesVal) {
+  if (!S.catOptimized) return;
+  var catOpt = getCatOptForSeries(seriesVal);
+  if (catOpt && catOpt.weights && Object.keys(catOpt.weights).length > 0) {
+    Object.keys(S.methods).forEach(function(k) {
+      S.methods[k].weight = catOpt.weights[k] || 0;
+    });
+    S.dowWeights = catOpt.dowWeights || {};
+    if (catOpt.biasConfig) S.biasConfig = catOpt.biasConfig;
+  } else if (S.catOptimized.__total && S.catOptimized.__total.weights) {
+    var tOpt = S.catOptimized.__total;
+    Object.keys(S.methods).forEach(function(k) {
+      S.methods[k].weight = tOpt.weights[k] || 0;
+    });
+    S.dowWeights = tOpt.dowWeights || {};
+    if (tOpt.biasConfig) S.biasConfig = tOpt.biasConfig;
+  }
+}
+
+/* Human-readable label for current weight set */
+function getActiveWeightLabel() {
+  if (!S.catOptimized) return '';
+  var sv = S.activeSeries || '';
+  if (sv === '__total_pieces' || sv === '__total_revenue') return 'Total Pieces';
+  var m = sv.match(/^(?:pieces|revenue):(.+)$/);
+  if (m && S.catOptimized[m[1]]) return m[1];
+  return 'Total Pieces';
+}
+
 function doBacktest() {
+  // Apply per-category optimized weights before running backtest
+  applyWeightsForSeries(S.activeSeries);
+
   const bt = runBacktest(S.backtestWindow);
   if (!bt) {
     showNotification('Not enough data for a ' + S.backtestWindow + '-day backtest. Need at least ' + (S.backtestWindow + 14) + ' days.', 'error');
@@ -4224,13 +4268,15 @@ function doBacktest() {
   renderMAPETable(bt);
   renderBacktestChart(bt);
   document.getElementById('btChartCard').style.display = '';
-  renderMethodGrid(); // Update MAPE badges
+  renderMethodGrid(); // Update MAPE badges + shows per-cat weights
 
   // Enable forecast tab
   document.getElementById('noDataForecast').style.display = 'none';
   document.getElementById('forecastContent').style.display = '';
 
-  document.getElementById('backtestStatus').textContent = '\u2705 Backtest complete (' + S.backtestWindow + ' days)';
+  // Show which weight set is active
+  var wLabel = getActiveWeightLabel();
+  document.getElementById('backtestStatus').textContent = '\u2705 Backtest complete (' + S.backtestWindow + ' days) \u00B7 ' + wLabel + ' weights';
 }
 
 function doForecast() {
@@ -4286,6 +4332,7 @@ document.getElementById('exportScope').addEventListener('change', function() {
 document.getElementById('forecastSeriesSelect').addEventListener('change', function() {
   S.activeSeries = this.value;
   document.getElementById('seriesSelect').value = this.value;
+  applyWeightsForSeries(this.value);
 });
 
 document.getElementById('exportBacktestBtn').addEventListener('click', function() {
