@@ -263,6 +263,20 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 html.dark .loading-steps li.done::after{border-color:#fff}
 html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50%{box-shadow:0 0 0 6px rgba(34,211,238,0)}}
 
+/* Per-category WMAPE pills */
+.cat-wmape-pill{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:10px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--bg-surface-alt);min-width:100px;flex:1;
+}
+.cat-wmape-pill .cat-name{font-size:.72rem;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em}
+.cat-wmape-pill .cat-wape{font-size:1.2rem;font-weight:700;font-family:'JetBrains Mono',monospace}
+.cat-wmape-pill .cat-wape.good{color:var(--success)}
+.cat-wmape-pill .cat-wape.ok{color:var(--secondary)}
+.cat-wmape-pill .cat-wape.poor{color:var(--error)}
+.cat-wmape-pill.total-pill{border-color:var(--accent);background:var(--accent-bg)}
+.cat-wmape-pill.total-pill .cat-name{color:var(--accent);font-weight:600}
+
 /* Animate in */
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .animate-in{animation:fadeUp .35s ease-out}
@@ -437,6 +451,12 @@ html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50
         <button class="btn btn-secondary" id="exportBacktestBtn">&#x1F4CB; Copy Backtest Debug Data</button>
         <span id="exportBtStatus" style="font-size:.78rem;color:var(--text-muted);margin-left:8px"></span>
       </div>
+    </div>
+
+    <!-- Per-Category WMAPE Summary -->
+    <div class="card" id="catWmapeCard" style="display:none">
+      <div class="card-title"><span class="icon">&#x1F4CA;</span> Per-Category Accuracy</div>
+      <div id="catWmapeSummary" style="display:flex;flex-wrap:wrap;gap:10px"></div>
     </div>
 
     <!-- Backtest Chart -->
@@ -622,6 +642,7 @@ const S = {
   outliers: [],           // array of { index, date, dow, value, cap, dowMean, type:'high'|'low' }
   biasConfig: { weeks: 8, dampen: 0.3 },
   dowWeights: {},        // per-DOW method weights: { dow: { methodKey: weight } }
+  catOptimized: {},      // per-category optimization: { catName: { weights:{}, dowWeights:{}, wape:number } }
   backtestWindow: 14,
   backtestWindows: [14, 21, 30, 60, 90],
   backtestSplitDate: null, // Date object or null for date-based split
@@ -1077,7 +1098,7 @@ function capOutliers_dataOnly() {
 function capOutliers() {
   var count = S.outliers.length;
   if (count === 0) return;
-  runWithLoading('Fixing Outliers', [
+  var preSteps = [
     { label: 'Capping ' + count + ' outlier' + (count > 1 ? 's' : '') + '\u2026', fn: function() {
       capOutliers_dataOnly();
     }},
@@ -1085,14 +1106,9 @@ function capOutliers() {
       detectOutliers();
       renderOutlierCard();
       renderDataPreview();
-    }},
-    { label: 'Optimizing weights\u2026', fn: function() {
-      if (S.dataLoaded) { autoOptimize(); renderMethodGrid(); }
-    }},
-    { label: 'Running backtest\u2026', fn: function() {
-      if (S.dataLoaded) doBacktest();
     }}
-  ]);
+  ];
+  runWithLoading('Fixing Outliers', preSteps.concat(buildOptimizeAndBacktestSteps()));
 }
 
 function updateOutlierSettingsSummary() {
@@ -2890,6 +2906,86 @@ function autoOptimize() {
 }
 
 /* ==================================================================
+   PER-CATEGORY OPTIMIZATION
+   ================================================================== */
+/**
+ * Build loading steps for per-category optimization + backtest.
+ * Returns array of { label, fn } for use with runWithLoading.
+ */
+function buildOptimizeAndBacktestSteps() {
+  var catNames = Object.keys(S.series.categories);
+  var steps = [];
+  var allSummaries = [];
+
+  // One step per category
+  for (var i = 0; i < catNames.length; i++) {
+    (function(cn) {
+      steps.push({ label: 'Optimizing ' + cn + '\u2026', fn: function() {
+        if (!S.dataLoaded) return;
+        var origActive = S.activeSeries;
+        // Reset weights for this category
+        Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 5; });
+        S.dowWeights = {};
+        S.activeSeries = 'pieces:' + cn;
+        autoOptimize();
+        var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
+        var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+        var bt = runBacktest(S.backtestWindow);
+        var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : -1;
+        S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: wape };
+        allSummaries.push({ name: cn, wape: wape });
+        S.activeSeries = origActive;
+      }});
+    })(catNames[i]);
+  }
+
+  // Total Pieces step
+  steps.push({ label: 'Optimizing Total Pieces\u2026', fn: function() {
+    if (!S.dataLoaded) return;
+    Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 5; });
+    S.dowWeights = {};
+    S.activeSeries = '__total_pieces';
+    autoOptimize();
+    var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
+    var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+    var bt = runBacktest(S.backtestWindow);
+    var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : -1;
+    S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: wape };
+    allSummaries.push({ name: 'Total Pieces', wape: wape });
+    // Keep total pieces weights as the display weights
+    renderMethodGrid();
+  }});
+
+  // Final backtest + summary step
+  steps.push({ label: 'Running backtest\u2026', fn: function() {
+    if (S.dataLoaded) doBacktest();
+    renderCatWmapeSummary(allSummaries);
+  }});
+
+  return steps;
+}
+
+function renderCatWmapeSummary(summaries) {
+  var card = document.getElementById('catWmapeCard');
+  var container = document.getElementById('catWmapeSummary');
+  if (!summaries || summaries.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  var html = '';
+  for (var i = 0; i < summaries.length; i++) {
+    var s = summaries[i];
+    var isTotal = s.name === 'Total Pieces';
+    var wapeStr = s.wape >= 0 ? s.wape.toFixed(1) + '%' : 'N/A';
+    var cls = s.wape < 0 ? '' : s.wape <= 15 ? 'good' : s.wape <= 25 ? 'ok' : 'poor';
+    html += '<div class="cat-wmape-pill' + (isTotal ? ' total-pill' : '') + '">' +
+      '<span class="cat-name">' + escHtml(s.name) + '</span>' +
+      '<span class="cat-wape ' + cls + '">' + wapeStr + '</span>' +
+      '<span style="font-size:.65rem;color:var(--text-muted)">WMAPE</span>' +
+    '</div>';
+  }
+  container.innerHTML = html;
+}
+
+/* ==================================================================
    CHARTING
    ================================================================== */
 function getChartColors() {
@@ -3108,19 +3204,21 @@ function generateExport(scope) {
   var hasCachedFc = fr && fr.categories && fr.total && fr.horizon === horizon;
 
   if (scope === 'all') {
-    // All categories with pieces + revenue + totals
+    // All categories with pieces + revenue + totals (per-category optimized)
     var allForecasts = {};
     for (var ai = 0; ai < catNames.length; ai++) {
       var cn = catNames[ai];
-      allForecasts['pcs_' + cn] = hasCachedFc && fr.categories[cn] ? fr.categories[cn] : computeAllMethodEnsemble(S.series.categories[cn].pieces, dates, horizon);
+      var catOpt = S.catOptimized[cn] || null;
+      allForecasts['pcs_' + cn] = hasCachedFc && fr.categories[cn] ? fr.categories[cn] : computeAllMethodEnsemble(S.series.categories[cn].pieces, dates, horizon, catOpt);
       var rData = S.series.categories[cn].revenue;
       if (rData.some(function(v) { return v > 0; })) {
-        allForecasts['rev_' + cn] = computeAllMethodEnsemble(rData, dates, horizon);
+        allForecasts['rev_' + cn] = computeAllMethodEnsemble(rData, dates, horizon, catOpt);
       }
     }
-    allForecasts['Total Pieces'] = hasCachedFc ? fr.total : computeAllMethodEnsemble(S.series.totalPieces, dates, horizon);
+    var totalOpt = S.catOptimized.__total || null;
+    allForecasts['Total Pieces'] = hasCachedFc ? fr.total : computeAllMethodEnsemble(S.series.totalPieces, dates, horizon, totalOpt);
     if (S.series.totalRevenue.some(function(v) { return v > 0; })) {
-      allForecasts['Total Revenue'] = computeAllMethodEnsemble(S.series.totalRevenue, dates, horizon);
+      allForecasts['Total Revenue'] = computeAllMethodEnsemble(S.series.totalRevenue, dates, horizon, totalOpt);
     }
 
     var colNames = [];
@@ -3144,16 +3242,16 @@ function generateExport(scope) {
       lines.push(formatDateISO(d) + '\t' + DOW_NAMES[d.getDay()] + '\t' + vals.join('\t'));
     }
   } else {
-    // Pieces-only breakdown: all piece categories + total (no revenue)
+    // Pieces-only breakdown: ALL piece categories + total (per-category optimized, no revenue)
     var pieceFc = {};
     for (var pi = 0; pi < catNames.length; pi++) {
       var pcn = catNames[pi];
       var pData = S.series.categories[pcn].pieces;
-      if (pData && pData.some(function(v) { return v > 0; })) {
-        pieceFc[pcn] = hasCachedFc && fr.categories[pcn] ? fr.categories[pcn] : computeAllMethodEnsemble(pData, dates, horizon);
-      }
+      var pcOpt = S.catOptimized[pcn] || null;
+      pieceFc[pcn] = hasCachedFc && fr.categories[pcn] ? fr.categories[pcn] : (pData ? computeAllMethodEnsemble(pData, dates, horizon, pcOpt) : new Array(horizon).fill(0));
     }
-    var totalFcEx = hasCachedFc ? fr.total : computeAllMethodEnsemble(S.series.totalPieces, dates, horizon);
+    var tOpt = S.catOptimized.__total || null;
+    var totalFcEx = hasCachedFc ? fr.total : computeAllMethodEnsemble(S.series.totalPieces, dates, horizon, tOpt);
     var pcNames = Object.keys(pieceFc);
 
     var headerCols = pcNames.map(function(n) { return n + ' (pcs)'; });
@@ -3174,40 +3272,58 @@ function generateExport(scope) {
   return lines.join('\n');
 }
 
-function computeAllMethodEnsemble(seriesData, seriesDates, horizon) {
-  const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled);
-  const totalW = enabledKeys.reduce((s,k) => s + S.methods[k].weight, 0);
+/**
+ * Compute ensemble forecast for a series.
+ * @param {number[]} seriesData - Historical data array
+ * @param {Date[]} seriesDates - Historical date array
+ * @param {number} horizon - Forecast horizon in days
+ * @param {object} [catOpt] - Optional per-category weight overrides { weights:{k:w}, dowWeights:{dow:{k:w}} }
+ */
+function computeAllMethodEnsemble(seriesData, seriesDates, horizon, catOpt) {
+  // Determine which weights/dowWeights to use
+  var useWeights = catOpt ? catOpt.weights : null;
+  var useDowWeights = catOpt ? catOpt.dowWeights : S.dowWeights;
+
+  var enabledKeys = Object.keys(S.methods).filter(function(k) { return S.methods[k].enabled; });
+  // If using catOpt, also include methods that have weight > 0 in catOpt even if globally disabled
+  if (useWeights) {
+    enabledKeys = Object.keys(S.methods).filter(function(k) {
+      return S.methods[k].enabled || (useWeights[k] && useWeights[k] > 0);
+    });
+  }
+  var totalW = enabledKeys.reduce(function(s, k) {
+    return s + (useWeights ? (useWeights[k] || 0) : S.methods[k].weight);
+  }, 0);
   if (totalW === 0 || enabledKeys.length === 0) return new Array(horizon).fill(0);
 
-  const lastDate = seriesDates[seriesDates.length - 1];
-  // Pre-compute all method forecasts
-  const allForecasts = {};
-  for (const k of enabledKeys) {
-    allForecasts[k] = runMethod(k, seriesData, seriesDates, horizon);
+  var lastDate = seriesDates[seriesDates.length - 1];
+  var allForecasts = {};
+  for (var mi = 0; mi < enabledKeys.length; mi++) {
+    allForecasts[enabledKeys[mi]] = runMethod(enabledKeys[mi], seriesData, seriesDates, horizon);
   }
-  // Build forecast dates (for per-DOW weights and bias correction)
+
   var fcDates = [];
   for (var h = 1; h <= horizon; h++) {
     var fd = new Date(lastDate); fd.setDate(fd.getDate() + h);
     fcDates.push(fd);
   }
-  // Use per-DOW weights if available, otherwise flat weights
-  var usePerDOW = S.dowWeights && Object.keys(S.dowWeights).length > 0;
+
+  var usePerDOW = useDowWeights && Object.keys(useDowWeights).length > 0;
   var ensemble = new Array(horizon).fill(0);
-  for (let i = 0; i < horizon; i++) {
+  for (var i = 0; i < horizon; i++) {
     var dow = fcDates[i].getDay();
-    var dowW = (usePerDOW && S.dowWeights[dow]) ? S.dowWeights[dow] : null;
+    var dowW = (usePerDOW && useDowWeights[dow]) ? useDowWeights[dow] : null;
     var wSum = 0, weighted = 0;
-    enabledKeys.forEach(k => {
-      var w = dowW ? (dowW[k] || 0) : S.methods[k].weight;
-      var fc = allForecasts[k][i];
+    for (var ei = 0; ei < enabledKeys.length; ei++) {
+      var ek = enabledKeys[ei];
+      var w = dowW ? (dowW[ek] || 0) : (useWeights ? (useWeights[ek] || 0) : S.methods[ek].weight);
+      var fc = allForecasts[ek][i] || 0;
       weighted += w * fc;
       wSum += w;
-    });
+    }
     ensemble[i] = wSum > 0 ? weighted / wSum : 0;
   }
 
-  // Apply bias correction only for global weights; per-DOW handles DOW calibration
   if (!usePerDOW) {
     ensemble = applyBiasCorrection(ensemble, seriesData, seriesDates, lastDate, fcDates);
   }
@@ -3747,13 +3863,10 @@ function onDataLoaded_ui() {
 
 /* Full data-loaded pipeline with loading overlay. Used by Load Data button. */
 function onDataLoaded() {
-  runWithLoading('Loading Data', [
-    { label: 'Detecting outliers\u2026', fn: function() { onDataLoaded_ui(); }},
-    { label: 'Optimizing weights\u2026', fn: function() {
-      if (S.dataLoaded) { autoOptimize(); renderMethodGrid(); }
-    }},
-    { label: 'Running backtest\u2026', fn: function() { doBacktest(); }}
-  ]);
+  var preSteps = [
+    { label: 'Detecting outliers\u2026', fn: function() { onDataLoaded_ui(); }}
+  ];
+  runWithLoading('Loading Data', preSteps.concat(buildOptimizeAndBacktestSteps()));
 }
 
 document.getElementById('parseBtn').addEventListener('click', function() {
@@ -3772,43 +3885,27 @@ document.getElementById('parseBtn').addEventListener('click', function() {
     return;
   }
 
-  // POS report — heavy pipeline, use loading overlay
-  var parseFailed = false;
-  runWithLoading('Loading POS Data', [
-    { label: 'Parsing report pages\u2026', fn: function() {
-      var result = parsePOSReport(text);
-      if (!result || result.rows.length < 28) {
-        parseFailed = 'Could not parse the POS report. Found ' + (result ? result.rows.length : 0) + ' data rows (need at least 28).';
-        return;
-      }
-      S.raw = { headers: result.headers, rows: result.rows };
-      S.mappings = result.mappings;
-      document.getElementById('mappingCard').style.display = 'none';
-    }},
-    { label: 'Processing data\u2026', fn: function() {
-      if (parseFailed) return;
-      if (!processData()) { parseFailed = 'Failed to process the POS data. Please check the format.'; }
-    }},
-    { label: 'Detecting outliers\u2026', fn: function() {
-      if (parseFailed) return;
-      onDataLoaded_ui();
-    }},
-    { label: 'Optimizing weights\u2026', fn: function() {
-      if (parseFailed) return;
-      if (S.dataLoaded) { autoOptimize(); renderMethodGrid(); }
-    }},
-    { label: 'Running backtest\u2026', fn: function() {
-      if (parseFailed) return;
-      doBacktest();
-    }}
-  ], function() {
-    if (parseFailed) {
-      showNotification(parseFailed, 'error');
-    } else {
-      showNotification('Auto-detected <strong>Sales Report By Category</strong> format.<br>' +
-        S.series.dates.length + ' days loaded across ' +
-        Object.keys(S.series.categories).length + ' categories (last day excluded).', 'success');
-    }
+  // POS report — parse synchronously first (fast), then run heavy pipeline
+  var result = parsePOSReport(text);
+  if (!result || result.rows.length < 28) {
+    showNotification('Could not parse the POS report. Found ' + (result ? result.rows.length : 0) + ' data rows (need at least 28).', 'error');
+    return;
+  }
+  S.raw = { headers: result.headers, rows: result.rows };
+  S.mappings = result.mappings;
+  document.getElementById('mappingCard').style.display = 'none';
+  if (!processData()) {
+    showNotification('Failed to process the POS data. Please check the format.', 'error');
+    return;
+  }
+
+  var preSteps = [
+    { label: 'Detecting outliers\u2026', fn: function() { onDataLoaded_ui(); }}
+  ];
+  runWithLoading('Loading POS Data', preSteps.concat(buildOptimizeAndBacktestSteps()), function() {
+    showNotification('Auto-detected <strong>Sales Report By Category</strong> format.<br>' +
+      S.series.dates.length + ' days loaded across ' +
+      Object.keys(S.series.categories).length + ' categories (last day excluded).', 'success');
   });
 });
 
@@ -3863,7 +3960,7 @@ document.getElementById('seriesSelect').addEventListener('change', function() {
 document.getElementById('capOutliersBtn').addEventListener('click', function() {
   if (S.outliers.length === 0) { showNotification('No outliers to fix.', 'info'); return; }
   var count = S.outliers.length;
-  runWithLoading('Fixing Outliers', [
+  var preSteps = [
     { label: 'Capping ' + count + ' outlier' + (count > 1 ? 's' : '') + '\u2026', fn: function() {
       capOutliers_dataOnly();
     }},
@@ -3871,14 +3968,9 @@ document.getElementById('capOutliersBtn').addEventListener('click', function() {
       detectOutliers();
       renderOutlierCard();
       renderDataPreview();
-    }},
-    { label: 'Optimizing weights\u2026', fn: function() {
-      if (S.dataLoaded) { autoOptimize(); renderMethodGrid(); }
-    }},
-    { label: 'Running backtest\u2026', fn: function() {
-      if (S.dataLoaded) doBacktest();
     }}
-  ], function() {
+  ];
+  runWithLoading('Fixing Outliers', preSteps.concat(buildOptimizeAndBacktestSteps()), function() {
     showNotification('Fixed ' + count + ' outlier' + (count > 1 ? 's' : '') + '. High values capped, low values raised.', 'success');
   });
 });
@@ -3890,16 +3982,8 @@ document.getElementById('runBacktestBtn').addEventListener('click', function() {
 });
 
 document.getElementById('autoOptBtn').addEventListener('click', function() {
-  runWithLoading('Auto-Optimizing', [
-    { label: 'Optimizing ensemble weights\u2026', fn: function() {
-      autoOptimize();
-      renderMethodGrid();
-    }},
-    { label: 'Running backtest\u2026', fn: function() {
-      doBacktest();
-    }}
-  ], function() {
-    document.getElementById('backtestStatus').textContent = '\u2705 Weights optimized';
+  runWithLoading('Auto-Optimizing', buildOptimizeAndBacktestSteps(), function() {
+    document.getElementById('backtestStatus').textContent = '\u2705 All categories optimized';
   });
 });
 
@@ -3955,17 +4039,17 @@ function doForecast() {
 
   var dates = S.series.dates;
 
-  // Compute forecasts for all piece-count categories + total
+  // Compute forecasts for ALL piece-count categories + total using per-category weights
   var catNames = Object.keys(S.series.categories);
   var pieceCategories = {};
   for (var ci = 0; ci < catNames.length; ci++) {
     var cn = catNames[ci];
     var catPieces = S.series.categories[cn].pieces;
-    if (catPieces && catPieces.some(function(v) { return v > 0; })) {
-      pieceCategories[cn] = computeAllMethodEnsemble(catPieces, dates, horizon);
-    }
+    var catOpt = S.catOptimized[cn] || null;
+    pieceCategories[cn] = catPieces ? computeAllMethodEnsemble(catPieces, dates, horizon, catOpt) : new Array(horizon).fill(0);
   }
-  var totalFc = computeAllMethodEnsemble(S.series.totalPieces, dates, horizon);
+  var totalOpt = S.catOptimized.__total || null;
+  var totalFc = computeAllMethodEnsemble(S.series.totalPieces, dates, horizon, totalOpt);
 
   S.forecastResults = {
     categories: pieceCategories,
@@ -4209,7 +4293,7 @@ document.getElementById('rescanOutliersBtn').addEventListener('click', function(
 document.getElementById('settingsCapOutliersBtn').addEventListener('click', function() {
   if (S.outliers.length === 0) { showNotification('No outliers to fix.', 'info'); return; }
   var count = S.outliers.length;
-  runWithLoading('Fixing Outliers', [
+  var preSteps = [
     { label: 'Capping ' + count + ' outlier' + (count > 1 ? 's' : '') + '\u2026', fn: function() {
       capOutliers_dataOnly();
     }},
@@ -4217,14 +4301,9 @@ document.getElementById('settingsCapOutliersBtn').addEventListener('click', func
       detectOutliers();
       renderOutlierCard();
       renderDataPreview();
-    }},
-    { label: 'Optimizing weights\u2026', fn: function() {
-      if (S.dataLoaded) { autoOptimize(); renderMethodGrid(); }
-    }},
-    { label: 'Running backtest\u2026', fn: function() {
-      if (S.dataLoaded) doBacktest();
     }}
-  ], function() {
+  ];
+  runWithLoading('Fixing Outliers', preSteps.concat(buildOptimizeAndBacktestSteps()), function() {
     updateOutlierSettingsSummary();
     showNotification('Fixed ' + count + ' outlier' + (count > 1 ? 's' : '') + '. Data updated.', 'success');
   });
