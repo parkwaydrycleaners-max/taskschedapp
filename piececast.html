@@ -455,7 +455,13 @@ html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50
 
     <!-- Per-Category WMAPE Summary -->
     <div class="card" id="catWmapeCard" style="display:none">
-      <div class="card-title"><span class="icon">&#x1F4CA;</span> Per-Category Accuracy</div>
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span><span class="icon">&#x1F4CA;</span> Per-Category Accuracy</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="refineRunCount" style="font-size:.7rem;color:var(--text-muted);font-weight:400"></span>
+          <button id="refineBtn" class="btn btn-sm" style="font-size:.7rem;padding:4px 10px" title="Run an additional shuffled optimization pass to try to improve WMAPE">&#x1F504; Refine</button>
+        </div>
+      </div>
       <div id="catWmapeSummary" style="display:flex;flex-wrap:wrap;gap:10px"></div>
     </div>
 
@@ -2975,6 +2981,7 @@ function buildOptimizeAndBacktestSteps() {
   var steps = [];
   var allSummaries = [];
   S.catOptimized = {}; // Reset per-category optimizations
+  S.refineRunCount = 0; // Reset refine counter for fresh optimization
 
   // Capture baseline enabled state once (before any optimization mutates it)
   var baselineEnabled = {};
@@ -2989,17 +2996,13 @@ function buildOptimizeAndBacktestSteps() {
     S.dowWeights = {};
   }
 
-  // Multi-run optimization: run optimizer N times per category, keeping best WMAPE
-  var NUM_RUNS = 10;
-
-  // One step per category — each internally runs NUM_RUNS optimization passes
+  // Single-run optimization per category (use Refine button for additional runs)
   for (var i = 0; i < catNames.length; i++) {
     (function(cn) {
-      steps.push({ label: 'Optimizing ' + cn + ' (' + NUM_RUNS + ' runs)\u2026', fn: function() {
+      steps.push({ label: 'Optimizing ' + cn + '\u2026', fn: function() {
         if (!S.dataLoaded) return;
         var origActive = S.activeSeries;
 
-        // Check if this category has enough non-zero data in the test window
         var catData = S.series.categories[cn] ? S.series.categories[cn].pieces : null;
         var n = catData ? catData.length : 0;
         var win = S.backtestWindow;
@@ -3012,70 +3015,39 @@ function buildOptimizeAndBacktestSteps() {
           return;
         }
 
-        var bestWape = 999;
-        var bestWeights = null;
-        var bestDowWeights = null;
-        var bestBias = null;
-
-        for (var run = 0; run < NUM_RUNS; run++) {
-          resetMethods();
-          S.activeSeries = 'pieces:' + cn;
-          autoOptimize({ shuffle: run > 0 });
-          var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
-          var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
-          var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
-          var bt = runBacktest(S.backtestWindow);
-          var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
-          if (wape < bestWape) {
-            bestWape = wape;
-            bestWeights = wts;
-            bestDowWeights = dw;
-            bestBias = bc;
-          }
-        }
-
-        if (bestWape > 500) bestWape = -1;
-        S.catOptimized[cn] = { weights: bestWeights || {}, dowWeights: bestDowWeights || {}, wape: bestWape, biasConfig: bestBias };
-        allSummaries.push({ name: cn, wape: bestWape });
+        resetMethods();
+        S.activeSeries = 'pieces:' + cn;
+        autoOptimize();
+        var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
+        var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+        var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+        var bt = runBacktest(S.backtestWindow);
+        var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
+        if (wape > 500) wape = -1;
+        S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc };
+        allSummaries.push({ name: cn, wape: wape });
         S.activeSeries = origActive;
       }});
     })(catNames[i]);
   }
 
-  // Total Pieces step — also multi-run
-  steps.push({ label: 'Optimizing Total Pieces (' + NUM_RUNS + ' runs)\u2026', fn: function() {
+  // Total Pieces step
+  steps.push({ label: 'Optimizing Total Pieces\u2026', fn: function() {
     if (!S.dataLoaded) return;
-    var bestWape = 999;
-    var bestWeights = null;
-    var bestDowWeights = null;
-    var bestBias = null;
-
-    for (var run = 0; run < NUM_RUNS; run++) {
-      resetMethods();
-      S.activeSeries = '__total_pieces';
-      autoOptimize({ shuffle: run > 0 });
-      var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
-      var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
-      var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
-      var bt = runBacktest(S.backtestWindow);
-      var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
-      if (wape < bestWape) {
-        bestWape = wape;
-        bestWeights = wts;
-        bestDowWeights = dw;
-        bestBias = bc;
-      }
-    }
-
-    if (bestWape > 500) bestWape = -1;
-    S.catOptimized.__total = { weights: bestWeights || {}, dowWeights: bestDowWeights || {}, wape: bestWape, biasConfig: bestBias };
-    allSummaries.push({ name: 'Total Pieces', wape: bestWape });
-    // Apply best weights as the display weights
-    if (bestWeights) {
-      Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = bestWeights[k] || 0; });
-    }
-    S.dowWeights = bestDowWeights || {};
-    S.biasConfig = bestBias || DEFAULT_BIAS;
+    resetMethods();
+    S.activeSeries = '__total_pieces';
+    autoOptimize();
+    var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
+    var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+    var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+    var bt = runBacktest(S.backtestWindow);
+    var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
+    if (wape > 500) wape = -1;
+    S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc };
+    allSummaries.push({ name: 'Total Pieces', wape: wape });
+    Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = wts[k] || 0; });
+    S.dowWeights = dw;
+    S.biasConfig = bc;
     renderMethodGrid();
   }});
 
@@ -3108,7 +3080,114 @@ function renderCatWmapeSummary(summaries) {
     '</div>';
   }
   container.innerHTML = html;
+  // Update refine run counter
+  S.refineRunCount = (S.refineRunCount || 0);
+  var countEl = document.getElementById('refineRunCount');
+  if (countEl) countEl.textContent = S.refineRunCount > 0 ? (S.refineRunCount + ' extra ' + (S.refineRunCount === 1 ? 'run' : 'runs')) : '';
 }
+
+/* Refine: run one additional shuffled optimization pass per category, keep if better */
+function refineOptimization() {
+  if (!S.dataLoaded || !S.catOptimized) return;
+
+  var baselineEnabled = {};
+  Object.keys(S.methods).forEach(function(k) { baselineEnabled[k] = S.methods[k].enabled; });
+  function resetMethods() {
+    Object.keys(S.methods).forEach(function(k) {
+      S.methods[k].enabled = baselineEnabled[k];
+      S.methods[k].weight = 5;
+    });
+    S.dowWeights = {};
+  }
+
+  var catNames = Object.keys(S.series.categories);
+  var steps = [];
+  var improved = [];
+
+  // One refinement step per category
+  for (var i = 0; i < catNames.length; i++) {
+    (function(cn) {
+      steps.push({ label: 'Refining ' + cn + '\u2026', fn: function() {
+        var existing = S.catOptimized[cn];
+        if (!existing || existing.wape < 0) return;
+
+        var catData = S.series.categories[cn] ? S.series.categories[cn].pieces : null;
+        if (!catData) return;
+        var origActive = S.activeSeries;
+
+        resetMethods();
+        S.activeSeries = 'pieces:' + cn;
+        autoOptimize({ shuffle: true });
+        var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
+        var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+        var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+        var bt = runBacktest(S.backtestWindow);
+        var newWape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
+
+        if (newWape < existing.wape && newWape <= 500) {
+          S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc };
+          improved.push(cn + ': ' + existing.wape.toFixed(1) + '% \u2192 ' + newWape.toFixed(1) + '%');
+        }
+        S.activeSeries = origActive;
+      }});
+    })(catNames[i]);
+  }
+
+  // Total Pieces refinement
+  steps.push({ label: 'Refining Total Pieces\u2026', fn: function() {
+    var existing = S.catOptimized.__total;
+    if (!existing || existing.wape < 0) return;
+
+    resetMethods();
+    S.activeSeries = '__total_pieces';
+    autoOptimize({ shuffle: true });
+    var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
+    var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+    var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+    var bt = runBacktest(S.backtestWindow);
+    var newWape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
+
+    if (newWape < existing.wape && newWape <= 500) {
+      S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc };
+      improved.push('Total: ' + existing.wape.toFixed(1) + '% \u2192 ' + newWape.toFixed(1) + '%');
+      // Update display weights
+      Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = wts[k] || 0; });
+      S.dowWeights = dw;
+      S.biasConfig = bc;
+      renderMethodGrid();
+    }
+  }});
+
+  // Final: update summary and notify
+  steps.push({ label: 'Updating results\u2026', fn: function() {
+    // Rebuild summaries from catOptimized
+    var summaries = [];
+    catNames.forEach(function(cn) {
+      var opt = S.catOptimized[cn];
+      summaries.push({ name: cn, wape: opt ? opt.wape : -1 });
+    });
+    var totalOpt = S.catOptimized.__total;
+    summaries.push({ name: 'Total Pieces', wape: totalOpt ? totalOpt.wape : -1 });
+    S.refineRunCount = (S.refineRunCount || 0) + 1;
+    renderCatWmapeSummary(summaries);
+    if (S.dataLoaded) doBacktest();
+    if (improved.length > 0) {
+      showNotification('Improved: ' + improved.join(', '), 'success');
+    } else {
+      showNotification('No improvement found this run. Try again or results may already be near-optimal.', 'info');
+    }
+  }});
+
+  runWithLoading('Refining optimization\u2026', steps);
+}
+
+document.getElementById('refineBtn').addEventListener('click', function() {
+  if (!S.dataLoaded || !S.catOptimized) {
+    showNotification('Run optimization first before refining.', 'error');
+    return;
+  }
+  refineOptimization();
+});
 
 /* ==================================================================
    CHARTING
