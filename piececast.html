@@ -218,6 +218,51 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* Full-screen loading overlay */
+.loading-overlay{
+  position:fixed;inset:0;z-index:9999;
+  background:rgba(0,0,0,.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .2s ease;
+}
+.loading-overlay.active{opacity:1;pointer-events:auto}
+.loading-card{
+  background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;
+  padding:32px 36px;min-width:280px;max-width:360px;box-shadow:0 16px 48px rgba(0,0,0,.18);
+  text-align:center;transform:scale(.95);transition:transform .25s cubic-bezier(.34,1.56,.64,1);
+}
+.loading-overlay.active .loading-card{transform:scale(1)}
+.loading-orb{
+  width:48px;height:48px;margin:0 auto 18px;border-radius:50%;
+  border:3px solid var(--border-light);border-top-color:var(--accent);border-right-color:var(--accent-light);
+  animation:spin .8s linear infinite;
+}
+.loading-title{font-size:1rem;font-weight:600;color:var(--text-primary);margin-bottom:16px}
+.loading-steps{text-align:left;list-style:none;padding:0;margin:0}
+.loading-steps li{
+  font-size:.82rem;color:var(--text-muted);padding:5px 0 5px 26px;position:relative;
+  transition:color .3s;font-family:'JetBrains Mono',monospace;
+}
+.loading-steps li::before{
+  content:'';position:absolute;left:2px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;border-radius:50%;border:2px solid var(--border);
+  background:var(--bg-surface);transition:all .3s;
+}
+.loading-steps li.done{color:var(--success)}
+.loading-steps li.done::before{border-color:var(--success);background:var(--success)}
+.loading-steps li.done::after{
+  content:'';position:absolute;left:6px;top:50%;transform:translateY(-60%) rotate(40deg);
+  width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;
+}
+.loading-steps li.active{color:var(--accent);font-weight:500}
+.loading-steps li.active::before{
+  border-color:var(--accent);
+  animation:stepPulse 1s ease-in-out infinite;
+}
+@keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(12,124,138,.3)}50%{box-shadow:0 0 0 6px rgba(12,124,138,0)}}
+html.dark .loading-steps li.done::after{border-color:#fff}
+html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50%{box-shadow:0 0 0 6px rgba(34,211,238,0)}}
+
 /* Animate in */
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .animate-in{animation:fadeUp .35s ease-out}
@@ -263,6 +308,15 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 </style>
 </head>
 <body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-card">
+    <div class="loading-orb"></div>
+    <div class="loading-title" id="loadingTitle">Processing…</div>
+    <ul class="loading-steps" id="loadingSteps"></ul>
+  </div>
+</div>
 
 <!-- HEADER -->
 <header class="app-header">
@@ -411,7 +465,7 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         <label style="font-size:.85rem;font-weight:500">Horizon (days):</label>
         <input type="number" id="horizonInput" class="param-input" style="width:70px" value="14" min="1" max="180">
-        <label style="font-size:.85rem;font-weight:500">Forecast for:</label>
+        <label style="font-size:.85rem;font-weight:500">Chart series:</label>
         <select id="forecastSeriesSelect" class="select-styled" style="font-size:.82rem"></select>
         <button class="btn btn-primary" id="genForecastBtn">Generate Forecast</button>
       </div>
@@ -419,7 +473,7 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 
     <!-- Forecast Results -->
     <div class="card" id="fcResultCard" style="display:none">
-      <div class="card-title"><span class="icon">&#x1F4C3;</span> Forecast Results <span id="fcBadge" class="badge badge-success" style="margin-left:auto"></span></div>
+      <div class="card-title"><span class="icon">&#x1F4C3;</span> Forecast by Category <span id="fcBadge" class="badge badge-success" style="margin-left:auto"></span></div>
       <div class="table-wrap" style="max-height:400px;overflow-y:auto">
         <table class="forecast-table" id="fcTable"><thead></thead><tbody></tbody></table>
       </div>
@@ -455,8 +509,8 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
         <label style="font-size:.85rem;font-weight:500">Export scope:</label>
         <select id="exportScope" class="select-styled" style="font-size:.82rem">
-          <option value="selected">Current Series Only</option>
-          <option value="all" selected>All Categories + Totals</option>
+          <option value="selected">All Piece Counts + Total</option>
+          <option value="all" selected>All Categories + Revenue + Totals</option>
         </select>
         <button class="btn btn-primary" id="copyExportBtn">&#x1F4CB; Copy to Clipboard</button>
         <span id="copyStatus" style="font-size:.8rem;color:var(--success);display:none">Copied!</span>
@@ -559,13 +613,7 @@ const S = {
     q75:         { name: 'DOW 75th Pctile',    enabled: true, weight: 10, params: {} },
     q25:         { name: 'DOW 25th Pctile',    enabled: true, weight: 5, params: {} },
     last2:       { name: 'Last 2 DOW Avg',     enabled: true, weight: 10, params: {} },
-    regime:      { name: 'Regime Adaptive',    enabled: true, weight: 5, params: {} },
-    prevWeek:    { name: 'Previous Week DOW',  enabled: true, weight: 10, params: {} },
-    last3DOW:    { name: 'Last 3 DOW Avg',     enabled: true, weight: 10, params: {} },
-    recentMed:   { name: 'Recent Median DOW',  enabled: true, weight: 10, params: {} },
-    dowTrend:    { name: 'DOW Linear Trend',   enabled: true, weight: 10, params: {} },
-    ewmaFast:    { name: 'Fast EWMA DOW',      enabled: true, weight: 10, params: {} },
-    hybridRecent:{ name: 'Hybrid Recent DOW',  enabled: true, weight: 10, params: {} }
+    regime:      { name: 'Regime Adaptive',    enabled: true, weight: 5, params: {} }
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
@@ -852,36 +900,23 @@ function processData() {
 /* ==================================================================
    OUTLIER DETECTION & CAPPING
    ================================================================== */
-function autoCalculateOutlierCap() {
+/* Compute both outlier cap and floor in one pass (shared sorted array) */
+function autoCalculateOutlierBounds() {
   var pieces = S.series.totalPieces;
   var dates = S.series.dates;
-  if (pieces.length < 28) return 999;
-  // Filter out closed days for a clean calculation
+  if (pieces.length < 28) return { cap: 999, floor: 0 };
   var openVals = [];
   for (var i = 0; i < pieces.length; i++) {
     if (!isClosedDay(dates[i]) && pieces[i] > 0) openVals.push(pieces[i]);
   }
-  if (openVals.length < 10) return 999;
+  if (openVals.length < 10) return { cap: 999, floor: 0 };
   openVals.sort(function(a,b){return a-b;});
-  // Use 99th percentile, rounded up to nearest 25
   var p99 = openVals[Math.floor(openVals.length * 0.99)];
-  return Math.ceil(p99 / 25) * 25;
-}
-
-function autoCalculateOutlierFloor() {
-  var pieces = S.series.totalPieces;
-  var dates = S.series.dates;
-  if (pieces.length < 28) return 0;
-  // Filter to only open days with non-zero values
-  var openVals = [];
-  for (var i = 0; i < pieces.length; i++) {
-    if (!isClosedDay(dates[i]) && pieces[i] > 0) openVals.push(pieces[i]);
-  }
-  if (openVals.length < 10) return 0;
-  openVals.sort(function(a,b){return a-b;});
-  // Use 1st percentile, rounded down to nearest 5
   var p1 = openVals[Math.floor(openVals.length * 0.01)];
-  return Math.max(0, Math.floor(p1 / 5) * 5);
+  return {
+    cap: Math.ceil(p99 / 25) * 25,
+    floor: Math.max(0, Math.floor(p1 / 5) * 5)
+  };
 }
 
 function detectOutliers() {
@@ -890,11 +925,10 @@ function detectOutliers() {
   if (dates.length < 28) { S.outliers = []; return; }
 
   // Auto-calculate cap and floor if not yet set (null = never calculated)
-  if (!S.outlierCap || S.outlierCap <= 0) {
-    S.outlierCap = autoCalculateOutlierCap();
-  }
-  if (S.outlierFloor === null) {
-    S.outlierFloor = autoCalculateOutlierFloor();
+  if ((!S.outlierCap || S.outlierCap <= 0) || S.outlierFloor === null) {
+    var bounds = autoCalculateOutlierBounds();
+    if (!S.outlierCap || S.outlierCap <= 0) S.outlierCap = bounds.cap;
+    if (S.outlierFloor === null) S.outlierFloor = bounds.floor;
   }
 
   var cap = S.outlierCap;
@@ -994,65 +1028,71 @@ function renderOutlierCard() {
   tbody.innerHTML = bodyHTML;
 }
 
-function capOutliers() {
+/* Data-only outlier capping — no re-detect or backtest (for stepped loading) */
+function capOutliers_dataOnly() {
   if (S.outliers.length === 0) return;
 
-  // Fix each outlier in all affected series
   S.outliers.forEach(function(o) {
     var i = o.index;
     var original = S.series.totalPieces[i];
-    var target = o.cap; // For high: the cap; for low: the DOW mean
+    var target = o.cap;
 
     if (o.type === 'high' && original > target) {
-      // Scale DOWN to the cap
       var ratio = original > 0 ? target / original : 0;
       S.series.totalPieces[i] = target;
       for (var catName in S.series.categories) {
         if (S.series.categories.hasOwnProperty(catName)) {
-          var cat = S.series.categories[catName];
-          cat.pieces[i] = Math.round(cat.pieces[i] * ratio * 100) / 100;
+          S.series.categories[catName].pieces[i] = Math.round(S.series.categories[catName].pieces[i] * ratio * 100) / 100;
         }
       }
     } else if (o.type === 'low' && original < target) {
-      // Scale UP to the DOW mean
       var ratio2 = original > 0 ? target / original : 0;
       S.series.totalPieces[i] = target;
       for (var catName2 in S.series.categories) {
         if (S.series.categories.hasOwnProperty(catName2)) {
-          var cat2 = S.series.categories[catName2];
           if (original > 0) {
-            cat2.pieces[i] = Math.round(cat2.pieces[i] * ratio2 * 100) / 100;
+            S.series.categories[catName2].pieces[i] = Math.round(S.series.categories[catName2].pieces[i] * ratio2 * 100) / 100;
           }
         }
       }
     }
   });
 
-  // Recalculate totals
-  var n = S.series.dates.length;
-  S.series.totalPieces = new Array(n).fill(0);
-  S.series.totalRevenue = new Array(n).fill(0);
-  for (var catName in S.series.categories) {
-    if (S.series.categories.hasOwnProperty(catName)) {
-      var cat = S.series.categories[catName];
-      for (var i = 0; i < n; i++) {
-        S.series.totalPieces[i] += cat.pieces[i];
-        S.series.totalRevenue[i] += cat.revenue[i];
+  // Recalculate totals only for affected indices
+  var affectedSet = new Set(S.outliers.map(function(o) { return o.index; }));
+  affectedSet.forEach(function(ai) {
+    var pSum = 0, rSum = 0;
+    for (var cn in S.series.categories) {
+      if (S.series.categories.hasOwnProperty(cn)) {
+        pSum += S.series.categories[cn].pieces[ai];
+        rSum += S.series.categories[cn].revenue[ai];
       }
     }
-  }
+    S.series.totalPieces[ai] = pSum;
+    S.series.totalRevenue[ai] = rSum;
+  });
+}
 
-  // Re-detect (should find zero outliers now)
-  detectOutliers();
-  renderOutlierCard();
-  renderDataPreview();
-
-  // Re-run backtest
-  if (S.dataLoaded) {
-    autoOptimize();
-    renderMethodGrid();
-    doBacktest();
-  }
+/* Full cap outliers with re-detect and backtest (used by settings button) */
+function capOutliers() {
+  var count = S.outliers.length;
+  if (count === 0) return;
+  runWithLoading('Fixing Outliers', [
+    { label: 'Capping ' + count + ' outlier' + (count > 1 ? 's' : '') + '\u2026', fn: function() {
+      capOutliers_dataOnly();
+    }},
+    { label: 'Re-detecting outliers\u2026', fn: function() {
+      detectOutliers();
+      renderOutlierCard();
+      renderDataPreview();
+    }},
+    { label: 'Optimizing weights\u2026', fn: function() {
+      if (S.dataLoaded) { autoOptimize(); renderMethodGrid(); }
+    }},
+    { label: 'Running backtest\u2026', fn: function() {
+      if (S.dataLoaded) doBacktest();
+    }}
+  ]);
 }
 
 function updateOutlierSettingsSummary() {
@@ -1141,16 +1181,23 @@ function renderClosedDaysUI() {
       } else {
         S.closedDays.push(idx);
       }
+      _rebuildClosedDaysSet();
       renderClosedDaysUI();
-      // Re-run backtest if data is loaded
-      if (S.dataLoaded) doBacktest();
+      if (S.dataLoaded) {
+        runWithLoading('Updating', [
+          { label: 'Running backtest\u2026', fn: function() { doBacktest(); }}
+        ]);
+      }
     });
     grid.appendChild(btn);
   });
 }
 
+/* O(1) closed-day lookup using cached Set */
+var _closedDaysSet = new Set();
+function _rebuildClosedDaysSet() { _closedDaysSet = new Set(S.closedDays); }
 function isClosedDay(date) {
-  return S.closedDays.includes(date.getDay());
+  return _closedDaysSet.has(date.getDay());
 }
 
 /* Zero out forecast values on closed days */
@@ -2148,139 +2195,6 @@ function forecastRegime(trainData, trainDates, horizon) {
   return fc;
 }
 
-/* 27. Previous Week Same-DOW — just last week's same-DOW value (most reactive) */
-function forecastPrevWeek(trainData, trainDates, horizon) {
-  var n = trainData.length;
-  var lastDate = trainDates[n - 1];
-  var lastDOW = {};
-  for (var i = n - 1; i >= 0; i--) {
-    var dw = trainDates[i].getDay();
-    if (!(dw in lastDOW)) lastDOW[dw] = trainData[i];
-    if (Object.keys(lastDOW).length >= 7) break;
-  }
-  var fc = [];
-  for (var h = 1; h <= horizon; h++) {
-    var d = new Date(lastDate); d.setDate(d.getDate() + h);
-    fc.push(Math.max(0, lastDOW[d.getDay()] || 0));
-  }
-  return fc;
-}
-
-/* 28. Last 3 Same-DOW — average of last 3 same-DOW values */
-function forecastLast3(trainData, trainDates, horizon) {
-  var n = trainData.length;
-  var lastDate = trainDates[n - 1];
-  var dowRecent = [[],[],[],[],[],[],[]];
-  for (var i = n - 1; i >= 0; i--) {
-    var dw = trainDates[i].getDay();
-    if (dowRecent[dw].length < 3) dowRecent[dw].push(trainData[i]);
-  }
-  var fc = [];
-  for (var h = 1; h <= horizon; h++) {
-    var d = new Date(lastDate); d.setDate(d.getDate() + h);
-    var vals = dowRecent[d.getDay()];
-    fc.push(vals.length > 0 ? Math.max(0, vals.reduce(function(a,b){return a+b;},0)/vals.length) : 0);
-  }
-  return fc;
-}
-
-/* 29. Recent Median DOW — median of last 6 same-DOW values (robust to outliers) */
-function forecastRecentMedian(trainData, trainDates, horizon) {
-  var n = trainData.length;
-  var lastDate = trainDates[n - 1];
-  var dowRecent = [[],[],[],[],[],[],[]];
-  for (var i = n - 1; i >= 0; i--) {
-    var dw = trainDates[i].getDay();
-    if (dowRecent[dw].length < 6) dowRecent[dw].push(trainData[i]);
-  }
-  var fc = [];
-  for (var h = 1; h <= horizon; h++) {
-    var d = new Date(lastDate); d.setDate(d.getDate() + h);
-    var vals = dowRecent[d.getDay()].slice().sort(function(a,b){return a-b;});
-    if (vals.length === 0) { fc.push(0); continue; }
-    var mid = Math.floor(vals.length / 2);
-    fc.push(Math.max(0, vals.length % 2 === 1 ? vals[mid] : (vals[mid-1]+vals[mid])/2));
-  }
-  return fc;
-}
-
-/* 30. DOW Linear Trend — extrapolates linear trend from last 5 same-DOW values */
-function forecastDOWTrend(trainData, trainDates, horizon) {
-  var n = trainData.length;
-  var lastDate = trainDates[n - 1];
-  var dowRecent = [[],[],[],[],[],[],[]];
-  for (var i = n - 1; i >= 0; i--) {
-    var dw = trainDates[i].getDay();
-    if (dowRecent[dw].length < 5) dowRecent[dw].push(trainData[i]);
-  }
-  var fc = [];
-  for (var h = 1; h <= horizon; h++) {
-    var d = new Date(lastDate); d.setDate(d.getDate() + h);
-    var vals = dowRecent[d.getDay()].slice().reverse(); // oldest to newest
-    if (vals.length < 2) { fc.push(vals.length > 0 ? Math.max(0, vals[0]) : 0); continue; }
-    var m = vals.length;
-    var sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-    for (var j = 0; j < m; j++) {
-      sumX += j; sumY += vals[j]; sumXY += j * vals[j]; sumX2 += j * j;
-    }
-    var denom = m * sumX2 - sumX * sumX;
-    var slope = denom !== 0 ? (m * sumXY - sumX * sumY) / denom : 0;
-    var intercept = (sumY - slope * sumX) / m;
-    var predicted = intercept + slope * m;
-    // Dampen extreme extrapolations
-    var avg = sumY / m;
-    if (Math.abs(predicted - avg) > avg * 0.5) {
-      predicted = avg + (predicted - avg) * 0.5;
-    }
-    fc.push(Math.max(0, predicted));
-  }
-  return fc;
-}
-
-/* 31. Fast EWMA DOW — exponentially weighted average with fast decay on same-DOW values */
-function forecastEWMAFast(trainData, trainDates, horizon) {
-  var n = trainData.length;
-  var lastDate = trainDates[n - 1];
-  var dowVals = [[],[],[],[],[],[],[]];
-  for (var i = 0; i < n; i++) {
-    dowVals[trainDates[i].getDay()].push(trainData[i]);
-  }
-  var dowEwma = [0,0,0,0,0,0,0];
-  var alpha = 0.4;
-  for (var dw = 0; dw < 7; dw++) {
-    var vals = dowVals[dw];
-    if (vals.length === 0) continue;
-    var ewma = vals[0];
-    for (var j = 1; j < vals.length; j++) {
-      ewma = alpha * vals[j] + (1 - alpha) * ewma;
-    }
-    dowEwma[dw] = ewma;
-  }
-  var fc = [];
-  for (var h = 1; h <= horizon; h++) {
-    var d = new Date(lastDate); d.setDate(d.getDate() + h);
-    fc.push(Math.max(0, dowEwma[d.getDay()]));
-  }
-  return fc;
-}
-
-/* 32. Hybrid Recent — blend of 2-week and 8-week DOW averages */
-function forecastHybridRecent(trainData, trainDates, horizon) {
-  var n = trainData.length;
-  var lastDate = trainDates[n - 1];
-  var cutoff2 = Math.max(0, n - 14);
-  var cutoff8 = Math.max(0, n - 56);
-  var avg2 = buildDOWAvg(trainData.slice(cutoff2), trainDates.slice(cutoff2));
-  var avg8 = buildDOWAvg(trainData.slice(cutoff8), trainDates.slice(cutoff8));
-  var fc = [];
-  for (var h = 1; h <= horizon; h++) {
-    var d = new Date(lastDate); d.setDate(d.getDate() + h);
-    var dow = d.getDay();
-    fc.push(Math.max(0, avg2[dow] * 0.6 + avg8[dow] * 0.4));
-  }
-  return fc;
-}
-
 function runMethod(key, trainData, trainDates, horizon) {
   const m = S.methods[key];
   switch (key) {
@@ -2310,12 +2224,6 @@ function runMethod(key, trainData, trainDates, horizon) {
     case 'q25': return forecastQ25(trainData, trainDates, horizon);
     case 'last2': return forecastLast2(trainData, trainDates, horizon);
     case 'regime': return forecastRegime(trainData, trainDates, horizon);
-    case 'prevWeek': return forecastPrevWeek(trainData, trainDates, horizon);
-    case 'last3DOW': return forecastLast3(trainData, trainDates, horizon);
-    case 'recentMed': return forecastRecentMedian(trainData, trainDates, horizon);
-    case 'dowTrend': return forecastDOWTrend(trainData, trainDates, horizon);
-    case 'ewmaFast': return forecastEWMAFast(trainData, trainDates, horizon);
-    case 'hybridRecent': return forecastHybridRecent(trainData, trainDates, horizon);
     default: return new Array(horizon).fill(0);
   }
 }
@@ -2640,10 +2548,10 @@ function autoOptimize() {
     const weights = {...start};
 
     // Multi-resolution coordinate descent with finer final step
-    const stepSizes = [5, 2, 1, 0.5, 0.25];
+    const stepSizes = [5, 2, 1, 0.5];
     for (const step of stepSizes) {
       let bestMape = getEnsembleMAPE(weights);
-      for (let iter = 0; iter < 250; iter++) {
+      for (let iter = 0; iter < 200; iter++) {
         let improved = false;
         for (const k of enabledKeys) {
           // Try +step
@@ -2737,30 +2645,22 @@ function autoOptimize() {
   // --- Adaptive bias correction: search for best settings ---
   var biasConfigs = [
     { weeks: 0, dampen: 0 },    // no correction
-    { weeks: 1, dampen: 0.1 },
-    { weeks: 1, dampen: 0.3 },
-    { weeks: 1, dampen: 0.5 },
-    { weeks: 2, dampen: 0.1 },
     { weeks: 2, dampen: 0.2 },
-    { weeks: 2, dampen: 0.3 },
     { weeks: 2, dampen: 0.5 },
-    { weeks: 3, dampen: 0.1 },
     { weeks: 3, dampen: 0.2 },
     { weeks: 3, dampen: 0.3 },
     { weeks: 3, dampen: 0.5 },
     { weeks: 3, dampen: 0.7 },
-    { weeks: 4, dampen: 0.1 },
     { weeks: 4, dampen: 0.2 },
     { weeks: 4, dampen: 0.3 },
     { weeks: 4, dampen: 0.5 },
     { weeks: 4, dampen: 0.7 },
-    { weeks: 6, dampen: 0.1 },
     { weeks: 6, dampen: 0.2 },
     { weeks: 6, dampen: 0.3 },
     { weeks: 6, dampen: 0.5 },
     { weeks: 6, dampen: 0.7 },
     { weeks: 8, dampen: 0.2 },
-    { weeks: 8, dampen: 0.3 },
+    { weeks: 8, dampen: 0.3 },  // previous default
     { weeks: 8, dampen: 0.4 },
     { weeks: 8, dampen: 0.5 },
     { weeks: 8, dampen: 0.7 },
@@ -2882,7 +2782,17 @@ function autoOptimize() {
     var sortedMethods = dowActiveKeys.slice().sort(function(a, b) {
       return (dowMethodErr[a] || 999) - (dowMethodErr[b] || 999);
     });
-    var dowTopN = sortedMethods.slice(0, Math.min(12, sortedMethods.length));
+    var dowTopN = sortedMethods.slice(0, Math.min(8, sortedMethods.length));
+
+    // Initialize: blend global weights with per-DOW inverse-error
+    var dowW = {};
+    for (var dk = 0; dk < dowTopN.length; dk++) {
+      var dKey = dowTopN[dk];
+      var gw = globalBestWeights[dKey] || 0;
+      var mErr2 = dowMethodErr[dKey];
+      var dowInvE = (mErr2 > 0.1) ? (dSum / mErr2) : 100;
+      dowW[dKey] = gw * 0.3 + dowInvE * 10;
+    }
 
     // Evaluation function: total error for this DOW with given weights
     var getDOWErr = function(w) {
@@ -2901,100 +2811,52 @@ function autoOptimize() {
       return err;
     };
 
-    // Multi-start optimization: try different initializations and keep best
-    var dowStartPoints = [];
-
-    // Start 1: blend global weights with per-DOW inverse-error
-    var dowStart1 = {};
-    for (var dk = 0; dk < dowTopN.length; dk++) {
-      var dKey = dowTopN[dk];
-      var gw = globalBestWeights[dKey] || 0;
-      var mErr2 = dowMethodErr[dKey];
-      var dowInvE = (mErr2 > 0.1) ? (dSum / mErr2) : 100;
-      dowStart1[dKey] = gw * 0.3 + dowInvE * 10;
-    }
-    dowStartPoints.push(dowStart1);
-
-    // Start 2: equal weights among top-N
-    var dowStart2 = {};
-    for (var dk1b = 0; dk1b < dowTopN.length; dk1b++) dowStart2[dowTopN[dk1b]] = 10;
-    dowStartPoints.push(dowStart2);
-
-    // Start 3: concentrate on best method for this DOW
-    var dowStart3 = {};
-    for (var dk1c = 0; dk1c < dowTopN.length; dk1c++) dowStart3[dowTopN[dk1c]] = dk1c === 0 ? 80 : 5;
-    dowStartPoints.push(dowStart3);
-
-    // Start 4: pure inverse-error (no global blend)
-    var dowStart4 = {};
-    for (var dk1d = 0; dk1d < dowTopN.length; dk1d++) {
-      var dsKey = dowTopN[dk1d];
-      var dsErr = dowMethodErr[dsKey];
-      dowStart4[dsKey] = (dsErr > 0.1) ? (dSum / dsErr) * 10 : 100;
-    }
-    dowStartPoints.push(dowStart4);
-
-    var bestDowW = null;
-    var bestDowErr = 9999;
-
-    for (var dsp = 0; dsp < dowStartPoints.length; dsp++) {
-      var dowW = {};
-      for (var dcc = 0; dcc < dowTopN.length; dcc++) dowW[dowTopN[dcc]] = dowStartPoints[dsp][dowTopN[dcc]] || 0;
-
-      // Coordinate descent with fine steps
-      var dowSteps = [10, 5, 2, 1, 0.5, 0.2, 0.1];
-      for (var ds = 0; ds < dowSteps.length; ds++) {
-        var dStep = dowSteps[ds];
-        for (var dIter = 0; dIter < 150; dIter++) {
-          var dImproved = false;
-          for (var dk2 = 0; dk2 < dowTopN.length; dk2++) {
-            var dk2Key = dowTopN[dk2];
-            var dCur = getDOWErr(dowW);
-            dowW[dk2Key] = Math.max(0, (dowW[dk2Key] || 0) + dStep);
-            var dUp = getDOWErr(dowW);
-            dowW[dk2Key] = Math.max(0, dowW[dk2Key] - 2 * dStep);
-            var dDn = getDOWErr(dowW);
-            if (dUp < dCur && dUp <= dDn) {
-              dowW[dk2Key] = Math.max(0, dowW[dk2Key] + 2 * dStep);
-              dImproved = true;
-            } else if (dDn < dCur) {
-              dImproved = true;
-            } else {
-              dowW[dk2Key] = Math.max(0, dowW[dk2Key] + dStep);
-            }
-          }
-          if (!dImproved) break;
-        }
-      }
-
-      // Backward elimination for this DOW
-      for (var dElim = 0; dElim < 5; dElim++) {
-        var dePruned = false;
-        var deCur = getDOWErr(dowW);
-        for (var de2 = 0; de2 < dowTopN.length; de2++) {
-          var deKey = dowTopN[de2];
-          if ((dowW[deKey] || 0) <= 0) continue;
-          var deSaved = dowW[deKey];
-          dowW[deKey] = 0;
-          if (getDOWErr(dowW) < deCur - 0.001) {
-            deCur = getDOWErr(dowW);
-            dePruned = true;
+    // Coordinate descent with fine steps
+    var dowSteps = [10, 5, 2, 1, 0.5, 0.2];
+    for (var ds = 0; ds < dowSteps.length; ds++) {
+      var dStep = dowSteps[ds];
+      for (var dIter = 0; dIter < 100; dIter++) {
+        var dImproved = false;
+        for (var dk2 = 0; dk2 < dowTopN.length; dk2++) {
+          var dk2Key = dowTopN[dk2];
+          var dCur = getDOWErr(dowW);
+          dowW[dk2Key] = Math.max(0, (dowW[dk2Key] || 0) + dStep);
+          var dUp = getDOWErr(dowW);
+          dowW[dk2Key] = Math.max(0, dowW[dk2Key] - 2 * dStep);
+          var dDn = getDOWErr(dowW);
+          if (dUp < dCur && dUp <= dDn) {
+            dowW[dk2Key] = Math.max(0, dowW[dk2Key] + 2 * dStep);
+            dImproved = true;
+          } else if (dDn < dCur) {
+            dImproved = true;
           } else {
-            dowW[deKey] = deSaved;
+            dowW[dk2Key] = Math.max(0, dowW[dk2Key] + dStep);
           }
         }
-        if (!dePruned) break;
-      }
-
-      var thisErr = getDOWErr(dowW);
-      if (thisErr < bestDowErr) {
-        bestDowErr = thisErr;
-        bestDowW = {};
-        for (var bdk = 0; bdk < dowTopN.length; bdk++) bestDowW[dowTopN[bdk]] = dowW[dowTopN[bdk]] || 0;
+        if (!dImproved) break;
       }
     }
 
-    S.dowWeights[dw] = bestDowW;
+    // Backward elimination for this DOW
+    for (var dElim = 0; dElim < 5; dElim++) {
+      var dePruned = false;
+      var deCur = getDOWErr(dowW);
+      for (var de2 = 0; de2 < dowTopN.length; de2++) {
+        var deKey = dowTopN[de2];
+        if ((dowW[deKey] || 0) <= 0) continue;
+        var deSaved = dowW[deKey];
+        dowW[deKey] = 0;
+        if (getDOWErr(dowW) < deCur - 0.001) {
+          deCur = getDOWErr(dowW);
+          dePruned = true;
+        } else {
+          dowW[deKey] = deSaved;
+        }
+      }
+      if (!dePruned) break;
+    }
+
+    S.dowWeights[dw] = dowW;
   }
 
   // Safeguard: verify per-DOW actually improves overall WMAPE
@@ -3240,56 +3102,72 @@ function generateExport(scope) {
   }
   lines.push('#');
 
-  if (scope === 'all') {
-    // Run forecast for all categories + totals
-    const trainDates = dates;
-    const catNames = Object.keys(S.series.categories);
-    const allForecasts = {};
+  // Use cached forecast results if available, otherwise compute fresh
+  var fr = S.forecastResults;
+  var catNames = Object.keys(S.series.categories);
+  var hasCachedFc = fr && fr.categories && fr.total && fr.horizon === horizon;
 
-    for (const catName of catNames) {
-      const pData = S.series.categories[catName].pieces;
-      allForecasts['pcs_' + catName] = computeAllMethodEnsemble(pData, trainDates, horizon);
-      const rData = S.series.categories[catName].revenue;
-      if (rData.some(v => v > 0)) {
-        allForecasts['rev_' + catName] = computeAllMethodEnsemble(rData, trainDates, horizon);
+  if (scope === 'all') {
+    // All categories with pieces + revenue + totals
+    var allForecasts = {};
+    for (var ai = 0; ai < catNames.length; ai++) {
+      var cn = catNames[ai];
+      allForecasts['pcs_' + cn] = hasCachedFc && fr.categories[cn] ? fr.categories[cn] : computeAllMethodEnsemble(S.series.categories[cn].pieces, dates, horizon);
+      var rData = S.series.categories[cn].revenue;
+      if (rData.some(function(v) { return v > 0; })) {
+        allForecasts['rev_' + cn] = computeAllMethodEnsemble(rData, dates, horizon);
       }
     }
-    allForecasts['Total Pieces'] = computeAllMethodEnsemble(S.series.totalPieces, trainDates, horizon);
-    if (S.series.totalRevenue.some(v => v > 0)) {
-      allForecasts['Total Revenue'] = computeAllMethodEnsemble(S.series.totalRevenue, trainDates, horizon);
+    allForecasts['Total Pieces'] = hasCachedFc ? fr.total : computeAllMethodEnsemble(S.series.totalPieces, dates, horizon);
+    if (S.series.totalRevenue.some(function(v) { return v > 0; })) {
+      allForecasts['Total Revenue'] = computeAllMethodEnsemble(S.series.totalRevenue, dates, horizon);
     }
 
-    // Header
-    const colNames = [];
-    for (const catName of catNames) {
-      colNames.push(catName + ' (pcs)');
-      if (allForecasts['rev_' + catName]) colNames.push(catName + ' ($)');
+    var colNames = [];
+    for (var ci = 0; ci < catNames.length; ci++) {
+      colNames.push(catNames[ci] + ' (pcs)');
+      if (allForecasts['rev_' + catNames[ci]]) colNames.push(catNames[ci] + ' ($)');
     }
     colNames.push('Total Pieces');
     if (allForecasts['Total Revenue']) colNames.push('Total Revenue ($)');
-
     lines.push('Date\tDOW\t' + colNames.join('\t'));
 
-    for (let h = 0; h < horizon; h++) {
-      const d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
-      const vals = [];
-      for (const catName of catNames) {
-        vals.push(Math.round(allForecasts['pcs_' + catName][h]));
-        if (allForecasts['rev_' + catName]) vals.push(allForecasts['rev_' + catName][h].toFixed(2));
+    for (var h = 0; h < horizon; h++) {
+      var d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
+      var vals = [];
+      for (var vi = 0; vi < catNames.length; vi++) {
+        vals.push(Math.round(allForecasts['pcs_' + catNames[vi]][h]));
+        if (allForecasts['rev_' + catNames[vi]]) vals.push(allForecasts['rev_' + catNames[vi]][h].toFixed(2));
       }
       vals.push(Math.round(allForecasts['Total Pieces'][h]));
       if (allForecasts['Total Revenue']) vals.push(allForecasts['Total Revenue'][h].toFixed(2));
       lines.push(formatDateISO(d) + '\t' + DOW_NAMES[d.getDay()] + '\t' + vals.join('\t'));
     }
   } else {
-    // Selected series only
-    const fc = computeAllMethodEnsemble(data, dates, horizon);
-    const label = getSeriesLabel();
-    lines.push('Date\tDOW\t' + label);
-    for (let h = 0; h < horizon; h++) {
-      const d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
-      const v = label.includes('$') ? fc[h].toFixed(2) : String(Math.round(fc[h]));
-      lines.push(formatDateISO(d) + '\t' + DOW_NAMES[d.getDay()] + '\t' + v);
+    // Pieces-only breakdown: all piece categories + total (no revenue)
+    var pieceFc = {};
+    for (var pi = 0; pi < catNames.length; pi++) {
+      var pcn = catNames[pi];
+      var pData = S.series.categories[pcn].pieces;
+      if (pData && pData.some(function(v) { return v > 0; })) {
+        pieceFc[pcn] = hasCachedFc && fr.categories[pcn] ? fr.categories[pcn] : computeAllMethodEnsemble(pData, dates, horizon);
+      }
+    }
+    var totalFcEx = hasCachedFc ? fr.total : computeAllMethodEnsemble(S.series.totalPieces, dates, horizon);
+    var pcNames = Object.keys(pieceFc);
+
+    var headerCols = pcNames.map(function(n) { return n + ' (pcs)'; });
+    headerCols.push('Total Pieces');
+    lines.push('Date\tDOW\t' + headerCols.join('\t'));
+
+    for (var ph = 0; ph < horizon; ph++) {
+      var pd = new Date(lastDate); pd.setDate(pd.getDate() + ph + 1);
+      var pvals = [];
+      for (var pci = 0; pci < pcNames.length; pci++) {
+        pvals.push(Math.round(pieceFc[pcNames[pci]][ph]));
+      }
+      pvals.push(Math.round(totalFcEx[ph]));
+      lines.push(formatDateISO(pd) + '\t' + DOW_NAMES[pd.getDay()] + '\t' + pvals.join('\t'));
     }
   }
 
@@ -3434,12 +3312,13 @@ function renderDataPreview() {
   const cats = S.series.categories;
   const catNames = Object.keys(cats);
 
+  var hasRevenue = S.series.totalRevenue.some(function(v) { return v > 0; });
   let headerHTML = '<tr><th>Date</th><th>DOW</th>';
   catNames.forEach(n => {
     headerHTML += '<th class="num">' + escHtml(n) + '</th>';
   });
   headerHTML += '<th class="num" style="font-weight:700">Total Pcs</th>';
-  if (S.series.totalRevenue.some(v => v > 0)) headerHTML += '<th class="num">Total Rev</th>';
+  if (hasRevenue) headerHTML += '<th class="num">Total Rev</th>';
   headerHTML += '</tr>';
   thead.innerHTML = headerHTML;
 
@@ -3451,7 +3330,7 @@ function renderDataPreview() {
       bodyHTML += '<td class="num">' + cats[n].pieces[i] + '</td>';
     });
     bodyHTML += '<td class="num" style="font-weight:600">' + S.series.totalPieces[i] + '</td>';
-    if (S.series.totalRevenue.some(v => v > 0)) bodyHTML += '<td class="num">$' + S.series.totalRevenue[i].toFixed(2) + '</td>';
+    if (hasRevenue) bodyHTML += '<td class="num">$' + S.series.totalRevenue[i].toFixed(2) + '</td>';
     bodyHTML += '</tr>';
   }
   if (dates.length > showRows) {
@@ -3673,24 +3552,36 @@ function renderMAPETable(bt) {
   document.getElementById('mapeCard').style.display = '';
 }
 
-function renderForecastTable(fc) {
-  const table = document.getElementById('fcTable');
-  const thead = table.querySelector('thead');
-  const tbody = table.querySelector('tbody');
-  const lastDate = S.series.dates[S.series.dates.length - 1];
-  const label = getSeriesLabel();
-  const isRevenue = label.includes('$');
+function renderForecastTable() {
+  var fr = S.forecastResults;
+  if (!fr) return;
+  var table = document.getElementById('fcTable');
+  var thead = table.querySelector('thead');
+  var tbody = table.querySelector('tbody');
+  var lastDate = S.series.dates[S.series.dates.length - 1];
+  var horizon = fr.horizon;
+  var catNames = Object.keys(fr.categories);
 
-  thead.innerHTML = '<tr><th>Date</th><th>Day</th><th class="num">' + escHtml(label) + '</th></tr>';
+  // Build header: Date | Day | Category1 | Category2 | ... | Total
+  var headerHTML = '<tr><th>Date</th><th>Day</th>';
+  for (var hi = 0; hi < catNames.length; hi++) {
+    headerHTML += '<th class="num" style="font-size:.75rem">' + escHtml(catNames[hi]) + '</th>';
+  }
+  headerHTML += '<th class="num" style="font-weight:700;font-size:.8rem">Total Pcs</th></tr>';
+  thead.innerHTML = headerHTML;
 
-  let bodyHTML = '';
-  for (let h = 0; h < fc.length; h++) {
-    const d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
-    const closed = isClosedDay(d);
-    const val = isRevenue ? '$' + fc[h].toFixed(2) : Math.round(fc[h]);
-    const rowStyle = closed ? ' style="opacity:.4;text-decoration:line-through"' : '';
-    const closedTag = closed ? ' <span style="font-size:.7rem;color:var(--error);font-weight:600">CLOSED</span>' : '';
-    bodyHTML += '<tr' + rowStyle + '><td>' + formatDateISO(d) + '</td><td>' + DOW_NAMES[d.getDay()] + closedTag + '</td><td class="num">' + val + '</td></tr>';
+  var bodyHTML = '';
+  for (var h = 0; h < horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
+    var closed = isClosedDay(d);
+    var rowStyle = closed ? ' style="opacity:.4;text-decoration:line-through"' : '';
+    var closedTag = closed ? ' <span style="font-size:.65rem;color:var(--error);font-weight:600">CLOSED</span>' : '';
+    bodyHTML += '<tr' + rowStyle + '><td>' + formatDateISO(d) + '</td><td>' + DOW_NAMES[d.getDay()] + closedTag + '</td>';
+    for (var ci = 0; ci < catNames.length; ci++) {
+      var v = fr.categories[catNames[ci]][h];
+      bodyHTML += '<td class="num">' + Math.round(v) + '</td>';
+    }
+    bodyHTML += '<td class="num" style="font-weight:700">' + Math.round(fr.total[h]) + '</td></tr>';
   }
   tbody.innerHTML = bodyHTML;
   document.getElementById('fcResultCard').style.display = '';
@@ -3720,6 +3611,80 @@ function showNotification(msg, type) {
 }
 
 /* ==================================================================
+   LOADING OVERLAY HELPERS
+   ================================================================== */
+var _loadingStepIdx = -1;
+var _loadingStepEls = [];
+
+function showLoading(title, steps) {
+  var overlay = document.getElementById('loadingOverlay');
+  document.getElementById('loadingTitle').textContent = title || 'Processing\u2026';
+  var list = document.getElementById('loadingSteps');
+  list.innerHTML = '';
+  _loadingStepEls = [];
+  _loadingStepIdx = -1;
+  (steps || []).forEach(function(s) {
+    var li = document.createElement('li');
+    li.textContent = s;
+    list.appendChild(li);
+    _loadingStepEls.push(li);
+  });
+  overlay.classList.add('active');
+  if (_loadingStepEls.length > 0) advanceLoading();
+}
+
+function advanceLoading(label) {
+  if (_loadingStepIdx >= 0 && _loadingStepIdx < _loadingStepEls.length) {
+    _loadingStepEls[_loadingStepIdx].classList.remove('active');
+    _loadingStepEls[_loadingStepIdx].classList.add('done');
+  }
+  _loadingStepIdx++;
+  if (_loadingStepIdx < _loadingStepEls.length) {
+    _loadingStepEls[_loadingStepIdx].classList.add('active');
+    if (label) _loadingStepEls[_loadingStepIdx].textContent = label;
+  }
+}
+
+function hideLoading() {
+  // Mark any remaining steps as done
+  _loadingStepEls.forEach(function(el) {
+    el.classList.remove('active');
+    el.classList.add('done');
+  });
+  // Brief pause to show all-done state, then hide
+  setTimeout(function() {
+    document.getElementById('loadingOverlay').classList.remove('active');
+  }, 300);
+}
+
+/**
+ * Run a sequence of { label, fn } steps with the loading overlay.
+ * Each step runs in its own setTimeout frame so the UI can repaint between steps.
+ */
+function runWithLoading(title, steps, onDone) {
+  var labels = steps.map(function(s) { return s.label; });
+  showLoading(title, labels);
+  var i = 0;
+  function next() {
+    if (i >= steps.length) {
+      hideLoading();
+      if (onDone) onDone();
+      return;
+    }
+    // advance marks prev done + activates current
+    if (i > 0) advanceLoading();
+    var step = steps[i];
+    i++;
+    setTimeout(function() {
+      step.fn();
+      next();
+    }, 20);
+  }
+  // Give the overlay time to render before starting
+  setTimeout(next, 60);
+}
+
+/* ==================================================================
    EVENT HANDLERS
    ================================================================== */
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -3729,8 +3694,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-/* Shared post-load setup */
-function onDataLoaded() {
+/* Fast UI setup only — no heavy computation. Used by stepped loading. */
+function onDataLoaded_ui() {
   renderDataPreview();
   populateSeriesDropdowns();
 
@@ -3741,6 +3706,7 @@ function onDataLoaded() {
   // Auto-detect closed days and show the UI
   var detected = autoDetectClosedDays();
   S.closedDays = detected;
+  _rebuildClosedDaysSet();
   document.getElementById('closedDaysCard').style.display = '';
   var badge = document.getElementById('closedDaysBadge');
   if (detected.length > 0) {
@@ -3764,9 +3730,8 @@ function onDataLoaded() {
   document.getElementById('noDataBacktest').style.display = 'none';
   document.getElementById('backtestContent').style.display = '';
   renderWindowPills();
-  const daySpan = (S.series.dates[S.series.dates.length - 1] - S.series.dates[0]) / 86400000;
-  // Enable/disable YoY-family methods based on data span
-  const hasYear = daySpan >= 365;
+  var daySpan = (S.series.dates[S.series.dates.length - 1] - S.series.dates[0]) / 86400000;
+  var hasYear = daySpan >= 365;
   S.methods.yoy.enabled = hasYear;
   S.methods.yoyTrend.enabled = hasYear;
   S.methods.annualDow.enabled = hasYear;
@@ -3778,49 +3743,73 @@ function onDataLoaded() {
     S.methods.multiYear.weight = 0;
   }
   renderMethodGrid();
-  doBacktest();
-
-  // Auto-optimize weights immediately so the best methods dominate
-  if (S.dataLoaded) {
-    autoOptimize();
-    renderMethodGrid();
-    doBacktest();
-  }
 }
 
-document.getElementById('parseBtn').addEventListener('click', () => {
-  const text = document.getElementById('pasteArea').value.trim();
+/* Full data-loaded pipeline with loading overlay. Used by Load Data button. */
+function onDataLoaded() {
+  runWithLoading('Loading Data', [
+    { label: 'Detecting outliers\u2026', fn: function() { onDataLoaded_ui(); }},
+    { label: 'Optimizing weights\u2026', fn: function() {
+      if (S.dataLoaded) { autoOptimize(); renderMethodGrid(); }
+    }},
+    { label: 'Running backtest\u2026', fn: function() { doBacktest(); }}
+  ]);
+}
+
+document.getElementById('parseBtn').addEventListener('click', function() {
+  var text = document.getElementById('pasteArea').value.trim();
   if (!text) { showNotification('Please paste your POS data first.', 'error'); return; }
 
-  if (isPOSReport(text)) {
-    // Auto-parse the multi-page POS "Sales Report By Category" format
-    const result = parsePOSReport(text);
-    if (!result || result.rows.length < 28) {
-      showNotification('Could not parse the POS report. Found ' + (result ? result.rows.length : 0) + ' data rows (need at least 28).', 'error');
-      return;
-    }
-    S.raw = { headers: result.headers, rows: result.rows };
-    S.mappings = result.mappings;
-    document.getElementById('mappingCard').style.display = 'none';
-
-    if (!processData()) {
-      showNotification('Failed to process the POS data. Please check the format.', 'error');
-      return;
-    }
-    showNotification('Auto-detected <strong>Sales Report By Category</strong> format.<br>' +
-      S.series.dates.length + ' days loaded across ' +
-      Object.keys(S.series.categories).length + ' categories (last day excluded).', 'success');
-    onDataLoaded();
-  } else {
-    // Generic tab/CSV format — show manual column mapping
-    const parsed = parseRawData(text);
+  if (!isPOSReport(text)) {
+    // Generic tab/CSV format — fast, no overlay needed
+    var parsed = parseRawData(text);
     if (!parsed || parsed.rows.length < 2) {
       showNotification('Could not parse the data. Make sure it has at least a header row and 2 data rows.', 'error');
       return;
     }
     S.raw = parsed;
     renderColumnMappings();
+    return;
   }
+
+  // POS report — heavy pipeline, use loading overlay
+  var parseFailed = false;
+  runWithLoading('Loading POS Data', [
+    { label: 'Parsing report pages\u2026', fn: function() {
+      var result = parsePOSReport(text);
+      if (!result || result.rows.length < 28) {
+        parseFailed = 'Could not parse the POS report. Found ' + (result ? result.rows.length : 0) + ' data rows (need at least 28).';
+        return;
+      }
+      S.raw = { headers: result.headers, rows: result.rows };
+      S.mappings = result.mappings;
+      document.getElementById('mappingCard').style.display = 'none';
+    }},
+    { label: 'Processing data\u2026', fn: function() {
+      if (parseFailed) return;
+      if (!processData()) { parseFailed = 'Failed to process the POS data. Please check the format.'; }
+    }},
+    { label: 'Detecting outliers\u2026', fn: function() {
+      if (parseFailed) return;
+      onDataLoaded_ui();
+    }},
+    { label: 'Optimizing weights\u2026', fn: function() {
+      if (parseFailed) return;
+      if (S.dataLoaded) { autoOptimize(); renderMethodGrid(); }
+    }},
+    { label: 'Running backtest\u2026', fn: function() {
+      if (parseFailed) return;
+      doBacktest();
+    }}
+  ], function() {
+    if (parseFailed) {
+      showNotification(parseFailed, 'error');
+    } else {
+      showNotification('Auto-detected <strong>Sales Report By Category</strong> format.<br>' +
+        S.series.dates.length + ' days loaded across ' +
+        Object.keys(S.series.categories).length + ' categories (last day excluded).', 'success');
+    }
+  });
 });
 
 document.getElementById('sampleBtn').addEventListener('click', () => {
@@ -3836,6 +3825,7 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   document.getElementById('previewCard').style.display = 'none';
   document.getElementById('closedDaysCard').style.display = 'none';
   S.closedDays = [];
+  _rebuildClosedDaysSet();
 });
 
 document.getElementById('loadDataBtn').addEventListener('click', () => {
@@ -3863,29 +3853,61 @@ document.getElementById('loadDataBtn').addEventListener('click', () => {
 document.getElementById('seriesSelect').addEventListener('change', function() {
   S.activeSeries = this.value;
   document.getElementById('forecastSeriesSelect').value = this.value;
-  if (S.dataLoaded) doBacktest();
+  if (S.dataLoaded) {
+    runWithLoading('Updating', [
+      { label: 'Running backtest\u2026', fn: function() { doBacktest(); }}
+    ]);
+  }
 });
 
 document.getElementById('capOutliersBtn').addEventListener('click', function() {
   if (S.outliers.length === 0) { showNotification('No outliers to fix.', 'info'); return; }
   var count = S.outliers.length;
-  capOutliers();
-  showNotification('Fixed ' + count + ' outlier' + (count > 1 ? 's' : '') + '. High values capped, low values raised.', 'success');
+  runWithLoading('Fixing Outliers', [
+    { label: 'Capping ' + count + ' outlier' + (count > 1 ? 's' : '') + '\u2026', fn: function() {
+      capOutliers_dataOnly();
+    }},
+    { label: 'Re-detecting outliers\u2026', fn: function() {
+      detectOutliers();
+      renderOutlierCard();
+      renderDataPreview();
+    }},
+    { label: 'Optimizing weights\u2026', fn: function() {
+      if (S.dataLoaded) { autoOptimize(); renderMethodGrid(); }
+    }},
+    { label: 'Running backtest\u2026', fn: function() {
+      if (S.dataLoaded) doBacktest();
+    }}
+  ], function() {
+    showNotification('Fixed ' + count + ' outlier' + (count > 1 ? 's' : '') + '. High values capped, low values raised.', 'success');
+  });
 });
 
-document.getElementById('runBacktestBtn').addEventListener('click', doBacktest);
+document.getElementById('runBacktestBtn').addEventListener('click', function() {
+  runWithLoading('Running Backtest', [
+    { label: 'Computing forecasts (' + S.backtestWindow + ' days)\u2026', fn: function() { doBacktest(); }}
+  ]);
+});
 
-document.getElementById('autoOptBtn').addEventListener('click', () => {
-  document.getElementById('backtestStatus').innerHTML = '<span class="spinner"></span> Optimizing...';
-  setTimeout(() => {
-    autoOptimize();
-    renderMethodGrid();
-    doBacktest();
+document.getElementById('autoOptBtn').addEventListener('click', function() {
+  runWithLoading('Auto-Optimizing', [
+    { label: 'Optimizing ensemble weights\u2026', fn: function() {
+      autoOptimize();
+      renderMethodGrid();
+    }},
+    { label: 'Running backtest\u2026', fn: function() {
+      doBacktest();
+    }}
+  ], function() {
     document.getElementById('backtestStatus').textContent = '\u2705 Weights optimized';
-  }, 50);
+  });
 });
 
-document.getElementById('genForecastBtn').addEventListener('click', doForecast);
+document.getElementById('genForecastBtn').addEventListener('click', function() {
+  runWithLoading('Generating Forecast', [
+    { label: 'Computing ensemble forecast\u2026', fn: function() { doForecast(); }}
+  ]);
+});
 
 // Wire up chart Y-axis and height controls
 setupChartControls('bt', function(){ return S.btChart; }, function(){ return document.getElementById('btChartBox'); });
@@ -3924,26 +3946,41 @@ function doBacktest() {
 }
 
 function doForecast() {
-  const horizon = parseInt(document.getElementById('horizonInput').value) || 14;
+  var horizon = parseInt(document.getElementById('horizonInput').value) || 14;
   S.forecastHorizon = horizon;
 
-  const selVal = document.getElementById('forecastSeriesSelect').value;
+  var selVal = document.getElementById('forecastSeriesSelect').value;
   S.activeSeries = selVal;
   document.getElementById('seriesSelect').value = selVal;
 
-  const data = getActiveSeries();
-  const dates = S.series.dates;
-  const fc = computeAllMethodEnsemble(data, dates, horizon);
+  var dates = S.series.dates;
 
-  S.forecastResults = fc;
-  renderForecastTable(fc);
+  // Compute forecasts for all piece-count categories + total
+  var catNames = Object.keys(S.series.categories);
+  var pieceCategories = {};
+  for (var ci = 0; ci < catNames.length; ci++) {
+    var cn = catNames[ci];
+    var catPieces = S.series.categories[cn].pieces;
+    if (catPieces && catPieces.some(function(v) { return v > 0; })) {
+      pieceCategories[cn] = computeAllMethodEnsemble(catPieces, dates, horizon);
+    }
+  }
+  var totalFc = computeAllMethodEnsemble(S.series.totalPieces, dates, horizon);
 
-  const btKey = String(S.backtestWindow);
-  const btResult = S.backtestResults[btKey];
-  const mape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.wape.toFixed(1) + '% WMAPE' : '';
+  S.forecastResults = {
+    categories: pieceCategories,
+    total: totalFc,
+    horizon: horizon
+  };
+
+  renderForecastTable();
+
+  var btKey = String(S.backtestWindow);
+  var btResult = S.backtestResults[btKey];
+  var mape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.wape.toFixed(1) + '% WMAPE' : '';
   document.getElementById('fcBadge').textContent = horizon + '-day forecast \u00B7 ' + mape;
 
-  renderForecastChart(fc, Math.min(60, data.length));
+  renderForecastChart(totalFc, Math.min(60, S.series.totalPieces.length));
   document.getElementById('fcChartCard').style.display = '';
 
   // Enable export
@@ -4072,9 +4109,14 @@ function renderSettingsClosedDays() {
       } else {
         S.closedDays.push(idx);
       }
+      _rebuildClosedDaysSet();
       renderSettingsClosedDays();
       renderClosedDaysUI();
-      if (S.dataLoaded) doBacktest();
+      if (S.dataLoaded) {
+        runWithLoading('Updating', [
+          { label: 'Running backtest\u2026', fn: function() { doBacktest(); }}
+        ]);
+      }
     });
     grid.appendChild(btn);
   });
@@ -4132,7 +4174,8 @@ document.getElementById('outlierFloorInput').addEventListener('change', function
 // Settings: auto-calculate cap
 document.getElementById('autoCalcCapBtn').addEventListener('click', function() {
   if (!S.dataLoaded) { showNotification('Import data first.', 'error'); return; }
-  S.outlierCap = autoCalculateOutlierCap();
+  var b = autoCalculateOutlierBounds();
+  S.outlierCap = b.cap;
   document.getElementById('outlierCapInput').value = S.outlierCap;
   detectOutliers();
   renderOutlierCard();
@@ -4142,7 +4185,8 @@ document.getElementById('autoCalcCapBtn').addEventListener('click', function() {
 // Settings: auto-calculate floor
 document.getElementById('autoCalcFloorBtn').addEventListener('click', function() {
   if (!S.dataLoaded) { showNotification('Import data first.', 'error'); return; }
-  S.outlierFloor = autoCalculateOutlierFloor();
+  var b = autoCalculateOutlierBounds();
+  S.outlierFloor = b.floor;
   document.getElementById('outlierFloorInput').value = S.outlierFloor;
   detectOutliers();
   renderOutlierCard();
@@ -4165,9 +4209,25 @@ document.getElementById('rescanOutliersBtn').addEventListener('click', function(
 document.getElementById('settingsCapOutliersBtn').addEventListener('click', function() {
   if (S.outliers.length === 0) { showNotification('No outliers to fix.', 'info'); return; }
   var count = S.outliers.length;
-  capOutliers();
-  updateOutlierSettingsSummary();
-  showNotification('Fixed ' + count + ' outlier' + (count > 1 ? 's' : '') + '. High values capped, low values raised. Data updated.', 'success');
+  runWithLoading('Fixing Outliers', [
+    { label: 'Capping ' + count + ' outlier' + (count > 1 ? 's' : '') + '\u2026', fn: function() {
+      capOutliers_dataOnly();
+    }},
+    { label: 'Re-detecting outliers\u2026', fn: function() {
+      detectOutliers();
+      renderOutlierCard();
+      renderDataPreview();
+    }},
+    { label: 'Optimizing weights\u2026', fn: function() {
+      if (S.dataLoaded) { autoOptimize(); renderMethodGrid(); }
+    }},
+    { label: 'Running backtest\u2026', fn: function() {
+      if (S.dataLoaded) doBacktest();
+    }}
+  ], function() {
+    updateOutlierSettingsSummary();
+    showNotification('Fixed ' + count + ' outlier' + (count > 1 ? 's' : '') + '. Data updated.', 'success');
+  });
 });
 
 // Settings: threshold slider
@@ -4184,6 +4244,7 @@ document.getElementById('redetectClosedBtn').addEventListener('click', function(
   }
   var detected = autoDetectClosedDays();
   S.closedDays = detected;
+  _rebuildClosedDaysSet();
   renderSettingsClosedDays();
   renderClosedDaysUI();
 
@@ -4205,7 +4266,11 @@ document.getElementById('redetectClosedBtn').addEventListener('click', function(
     importBadge.style.display = 'none';
   }
 
-  if (S.dataLoaded) doBacktest();
+  if (S.dataLoaded) {
+    runWithLoading('Updating', [
+      { label: 'Running backtest\u2026', fn: function() { doBacktest(); }}
+    ]);
+  }
 });
 
 // Settings: add window
@@ -4247,7 +4312,6 @@ document.getElementById('applyCustomWindowBtn').addEventListener('click', functi
     else { p.classList.remove('active'); }
   });
   if (!found) {
-    // Add a temporary pill for the custom value
     var el = document.getElementById('windowPills');
     var pill = document.createElement('button');
     pill.className = 'window-pill active';
@@ -4255,7 +4319,9 @@ document.getElementById('applyCustomWindowBtn').addEventListener('click', functi
     pill.style.borderStyle = 'dashed';
     el.appendChild(pill);
   }
-  doBacktest();
+  runWithLoading('Running Backtest', [
+    { label: 'Computing forecasts (' + val + ' days)\u2026', fn: function() { doBacktest(); }}
+  ]);
 });
 
 // Backtest: split date apply
@@ -4307,7 +4373,9 @@ document.getElementById('applySplitDateBtn').addEventListener('click', function(
   pill.title = 'Split at ' + formatDateISO(dates[splitIdx]);
   el.appendChild(pill);
 
-  doBacktest();
+  runWithLoading('Running Backtest', [
+    { label: 'Computing forecasts (' + windowSize + ' days)\u2026', fn: function() { doBacktest(); }}
+  ]);
 });
 
 // Initialize settings UI when switching to settings tab
