@@ -2452,7 +2452,18 @@ function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, tes
   return corrected;
 }
 
-function autoOptimize() {
+/* Fisher-Yates shuffle for stochastic optimizer restarts */
+function shuffleArray(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+
+function autoOptimize(options) {
+  options = options || {};
+  var doShuffle = options.shuffle || false;
   const data = getActiveSeries();
   const dates = S.series.dates;
   const n = data.length;
@@ -2571,6 +2582,23 @@ function autoOptimize() {
   for (var kh2 = 1; kh2 < Math.min(5, wSorted.length); kh2++) heavyW[wSorted[kh2]] = 10;
   startingPoints.push(heavyW);
 
+  // Additional random starting points for multi-run diversity
+  if (doShuffle) {
+    // 4 random weight vectors
+    for (var rsp = 0; rsp < 4; rsp++) {
+      var randW = {};
+      for (var rk of enabledKeys) randW[rk] = Math.floor(Math.random() * 50);
+      startingPoints.push(randW);
+    }
+    // Random sparse: 2-3 methods with high weight
+    var rsKeys = shuffleArray(enabledKeys.slice());
+    var rsN = Math.min(2 + Math.floor(Math.random() * 2), rsKeys.length);
+    var rsW = {};
+    for (var rsk of enabledKeys) rsW[rsk] = 0;
+    for (var rsi = 0; rsi < rsN; rsi++) rsW[rsKeys[rsi]] = 30 + Math.floor(Math.random() * 50);
+    startingPoints.push(rsW);
+  }
+
   let globalBestMape = 999;
   let globalBestWeights = startingPoints[0];
 
@@ -2578,12 +2606,13 @@ function autoOptimize() {
     const weights = {...start};
 
     // Multi-resolution coordinate descent with finer final step
-    const stepSizes = [5, 2, 1, 0.5];
+    const stepSizes = [5, 2, 1, 0.5, 0.25];
     for (const step of stepSizes) {
+      var cdKeys = doShuffle ? shuffleArray(enabledKeys.slice()) : enabledKeys;
       let bestMape = getEnsembleMAPE(weights);
       for (let iter = 0; iter < 200; iter++) {
         let improved = false;
-        for (const k of enabledKeys) {
+        for (const k of cdKeys) {
           // Try +step
           weights[k] += step;
           let newMape = getEnsembleMAPE(weights);
@@ -2675,29 +2704,42 @@ function autoOptimize() {
   // --- Adaptive bias correction: search for best settings ---
   var biasConfigs = [
     { weeks: 0, dampen: 0 },    // no correction
+    { weeks: 1, dampen: 0.2 },
+    { weeks: 1, dampen: 0.5 },
+    { weeks: 2, dampen: 0.1 },
     { weeks: 2, dampen: 0.2 },
+    { weeks: 2, dampen: 0.3 },
     { weeks: 2, dampen: 0.5 },
+    { weeks: 3, dampen: 0.1 },
     { weeks: 3, dampen: 0.2 },
     { weeks: 3, dampen: 0.3 },
     { weeks: 3, dampen: 0.5 },
     { weeks: 3, dampen: 0.7 },
+    { weeks: 4, dampen: 0.1 },
     { weeks: 4, dampen: 0.2 },
     { weeks: 4, dampen: 0.3 },
     { weeks: 4, dampen: 0.5 },
     { weeks: 4, dampen: 0.7 },
+    { weeks: 5, dampen: 0.2 },
+    { weeks: 5, dampen: 0.3 },
+    { weeks: 5, dampen: 0.5 },
     { weeks: 6, dampen: 0.2 },
     { weeks: 6, dampen: 0.3 },
     { weeks: 6, dampen: 0.5 },
     { weeks: 6, dampen: 0.7 },
     { weeks: 8, dampen: 0.2 },
-    { weeks: 8, dampen: 0.3 },  // previous default
+    { weeks: 8, dampen: 0.3 },
     { weeks: 8, dampen: 0.4 },
     { weeks: 8, dampen: 0.5 },
     { weeks: 8, dampen: 0.7 },
+    { weeks: 10, dampen: 0.2 },
     { weeks: 10, dampen: 0.3 },
     { weeks: 10, dampen: 0.5 },
     { weeks: 12, dampen: 0.3 },
-    { weeks: 12, dampen: 0.5 }
+    { weeks: 12, dampen: 0.5 },
+    { weeks: 14, dampen: 0.3 },
+    { weeks: 14, dampen: 0.5 },
+    { weeks: 16, dampen: 0.3 }
   ];
   var bestBiasWape = 999;
   var bestBiasConfig = DEFAULT_BIAS;
@@ -2716,11 +2758,12 @@ function autoOptimize() {
     var reSteps = [3, 1, 0.5];
     for (var rs = 0; rs < reSteps.length; rs++) {
       var rStep = reSteps[rs];
+      var reKeys = doShuffle ? shuffleArray(enabledKeys.slice()) : enabledKeys;
       var rBest = getEnsembleMAPE(globalBestWeights);
       for (var rIter = 0; rIter < 100; rIter++) {
         var rImproved = false;
-        for (var ri = 0; ri < enabledKeys.length; ri++) {
-          var rK = enabledKeys[ri];
+        for (var ri = 0; ri < reKeys.length; ri++) {
+          var rK = reKeys[ri];
           if (globalBestWeights[rK] <= 0 && rStep > 0) {
             // Try activating zeroed methods
             globalBestWeights[rK] = rStep;
@@ -2845,10 +2888,11 @@ function autoOptimize() {
     var dowSteps = [10, 5, 2, 1, 0.5, 0.2];
     for (var ds = 0; ds < dowSteps.length; ds++) {
       var dStep = dowSteps[ds];
+      var dowCDKeys = doShuffle ? shuffleArray(dowTopN.slice()) : dowTopN;
       for (var dIter = 0; dIter < 100; dIter++) {
         var dImproved = false;
-        for (var dk2 = 0; dk2 < dowTopN.length; dk2++) {
-          var dk2Key = dowTopN[dk2];
+        for (var dk2 = 0; dk2 < dowCDKeys.length; dk2++) {
+          var dk2Key = dowCDKeys[dk2];
           var dCur = getDOWErr(dowW);
           dowW[dk2Key] = Math.max(0, (dowW[dk2Key] || 0) + dStep);
           var dUp = getDOWErr(dowW);
@@ -2945,10 +2989,13 @@ function buildOptimizeAndBacktestSteps() {
     S.dowWeights = {};
   }
 
-  // One step per category
+  // Multi-run optimization: run optimizer N times per category, keeping best WMAPE
+  var NUM_RUNS = 10;
+
+  // One step per category — each internally runs NUM_RUNS optimization passes
   for (var i = 0; i < catNames.length; i++) {
     (function(cn) {
-      steps.push({ label: 'Optimizing ' + cn + '\u2026', fn: function() {
+      steps.push({ label: 'Optimizing ' + cn + ' (' + NUM_RUNS + ' runs)\u2026', fn: function() {
         if (!S.dataLoaded) return;
         var origActive = S.activeSeries;
 
@@ -2960,39 +3007,75 @@ function buildOptimizeAndBacktestSteps() {
         var nonZeroCount = testSlice.filter(function(v) { return v > 0; }).length;
 
         if (!catData || nonZeroCount < 3) {
-          S.catOptimized[cn] = { weights: {}, dowWeights: {}, wape: -1 };
+          S.catOptimized[cn] = { weights: {}, dowWeights: {}, wape: -1, biasConfig: null };
           allSummaries.push({ name: cn, wape: -1 });
           return;
         }
 
-        resetMethods();
-        S.activeSeries = 'pieces:' + cn;
-        autoOptimize();
-        var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
-        var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
-        var bt = runBacktest(S.backtestWindow);
-        var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : -1;
-        if (wape > 500) wape = -1;
-        S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: wape };
-        allSummaries.push({ name: cn, wape: wape });
+        var bestWape = 999;
+        var bestWeights = null;
+        var bestDowWeights = null;
+        var bestBias = null;
+
+        for (var run = 0; run < NUM_RUNS; run++) {
+          resetMethods();
+          S.activeSeries = 'pieces:' + cn;
+          autoOptimize({ shuffle: run > 0 });
+          var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
+          var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+          var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+          var bt = runBacktest(S.backtestWindow);
+          var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
+          if (wape < bestWape) {
+            bestWape = wape;
+            bestWeights = wts;
+            bestDowWeights = dw;
+            bestBias = bc;
+          }
+        }
+
+        if (bestWape > 500) bestWape = -1;
+        S.catOptimized[cn] = { weights: bestWeights || {}, dowWeights: bestDowWeights || {}, wape: bestWape, biasConfig: bestBias };
+        allSummaries.push({ name: cn, wape: bestWape });
         S.activeSeries = origActive;
       }});
     })(catNames[i]);
   }
 
-  // Total Pieces step
-  steps.push({ label: 'Optimizing Total Pieces\u2026', fn: function() {
+  // Total Pieces step — also multi-run
+  steps.push({ label: 'Optimizing Total Pieces (' + NUM_RUNS + ' runs)\u2026', fn: function() {
     if (!S.dataLoaded) return;
-    resetMethods();
-    S.activeSeries = '__total_pieces';
-    autoOptimize();
-    var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
-    var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
-    var bt = runBacktest(S.backtestWindow);
-    var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : -1;
-    S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: wape };
-    allSummaries.push({ name: 'Total Pieces', wape: wape });
-    // Keep total pieces weights as the display weights
+    var bestWape = 999;
+    var bestWeights = null;
+    var bestDowWeights = null;
+    var bestBias = null;
+
+    for (var run = 0; run < NUM_RUNS; run++) {
+      resetMethods();
+      S.activeSeries = '__total_pieces';
+      autoOptimize({ shuffle: run > 0 });
+      var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
+      var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+      var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+      var bt = runBacktest(S.backtestWindow);
+      var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
+      if (wape < bestWape) {
+        bestWape = wape;
+        bestWeights = wts;
+        bestDowWeights = dw;
+        bestBias = bc;
+      }
+    }
+
+    if (bestWape > 500) bestWape = -1;
+    S.catOptimized.__total = { weights: bestWeights || {}, dowWeights: bestDowWeights || {}, wape: bestWape, biasConfig: bestBias };
+    allSummaries.push({ name: 'Total Pieces', wape: bestWape });
+    // Apply best weights as the display weights
+    if (bestWeights) {
+      Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = bestWeights[k] || 0; });
+    }
+    S.dowWeights = bestDowWeights || {};
+    S.biasConfig = bestBias || DEFAULT_BIAS;
     renderMethodGrid();
   }});
 
@@ -3367,7 +3450,8 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon, catOpt) {
   }
 
   if (!usePerDOW) {
-    ensemble = applyBiasCorrection(ensemble, seriesData, seriesDates, lastDate, fcDates);
+    var biasConf = (catOpt && catOpt.biasConfig) ? catOpt.biasConfig : undefined;
+    ensemble = applyBiasCorrection(ensemble, seriesData, seriesDates, lastDate, fcDates, biasConf);
   }
 
   return applyClosedDays(ensemble, lastDate, horizon);
