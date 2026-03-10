@@ -88,7 +88,11 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 .dow-grid{display:flex;flex-wrap:wrap;gap:8px}
 .dow-item{display:flex;align-items:center;gap:4px;font-size:.82rem}
 .dow-item label{min-width:32px;font-weight:500}
-.dow-item input{width:58px;padding:5px 6px;border:1px solid var(--bd);border-radius:4px;background:var(--bg2);color:var(--tx);font-family:'IBM Plex Mono',monospace;font-size:16px;text-align:center}
+.dow-item input[type="number"]{width:58px;padding:5px 6px;border:1px solid var(--bd);border-radius:4px;background:var(--bg2);color:var(--tx);font-family:'IBM Plex Mono',monospace;font-size:16px;text-align:center}
+.dow-item input[type="checkbox"]{width:18px;height:18px;accent-color:var(--err);cursor:pointer}
+.dow-item.is-closed label{color:var(--tx3);text-decoration:line-through}
+tr.closed-row{opacity:.45;background:var(--bg4)!important}
+tr.closed-row td{color:var(--tx3)!important;font-style:italic}
 .sched-mode-toggle{display:flex;gap:0;border:1px solid var(--bd);border-radius:6px;overflow:hidden;width:fit-content;margin:6px 0}
 .smt-btn{padding:8px 16px;border:none;background:var(--bg2);color:var(--tx3);cursor:pointer;font-size:.82rem;font-weight:500;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:5px}
 .smt-btn:not(:last-child){border-right:1px solid var(--bd)}
@@ -254,6 +258,11 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 <div class="field"><label class="flbl">Target Labor Cost % of Sales</label><input type="number" class="finput finput-sm" id="targetLaborPct" value="25" min="1" max="100" step="1"><p class="flbl2">If labor cost exceeds this percentage, hours may be capped.</p></div>
 <div class="chk-row"><input type="checkbox" id="capIfOver" checked><div><div class="chk-label">Cap hours if labor cost exceeds target %</div><div class="chk-desc">If enabled, recommended hours will be reduced when labor cost would exceed the target % of forecasted sales.</div></div></div>
 <div class="sep"></div>
+<div class="field"><label class="flbl">Closed Days</label>
+<p class="flbl2" style="margin-bottom:8px">Check days the store is closed. Closed days get 0 recommended hours.</p>
+<div class="dow-grid" id="closedDaysGrid"></div>
+</div>
+<div class="sep"></div>
 <div class="field"><label class="flbl">Per-Day Staffing Adjustment %</label>
 <p class="flbl2" style="margin-bottom:8px">Adjust recommended hours per day of the week. 100% = no change. Set Monday higher if it needs more staff due to drop-offs, sorting, etc.</p>
 <div class="dow-grid" id="dowAdjGrid"></div>
@@ -378,6 +387,7 @@ var ST={
 };
 var DOW_N=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 var DOW_ADJ=[100,133,100,100,100,100,133];
+var CLOSED_DAYS=[true,false,false,false,false,false,false]; /* index 0=Sun closed by default */
 
 /* ================================================================
    DARK MODE
@@ -848,11 +858,32 @@ function findTotalRevenueCol(){
 /* ================================================================
    DOW ADJUSTMENT GRID
    ================================================================ */
+function initClosedDays(){
+  var grid=document.getElementById('closedDaysGrid');
+  grid.innerHTML='';
+  DOW_N.forEach(function(name,idx){
+    var item=document.createElement('div');item.className='dow-item'+(CLOSED_DAYS[idx]?' is-closed':'');
+    item.innerHTML='<input type="checkbox" data-dow="'+idx+'"'+(CLOSED_DAYS[idx]?' checked':'')+'><label>'+name+'</label>';
+    grid.appendChild(item);
+  });
+  grid.querySelectorAll('input[type="checkbox"]').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      var idx=parseInt(this.dataset.dow);
+      CLOSED_DAYS[idx]=this.checked;
+      this.parentElement.classList.toggle('is-closed',this.checked);
+      /* Also visually dim the corresponding adj input */
+      var adjInp=document.querySelector('.dow-adj-inp[data-dow="'+idx+'"]');
+      if(adjInp)adjInp.parentElement.style.opacity=this.checked?'0.4':'1';
+    });
+  });
+}
+
 function initDowAdj(){
   var grid=document.getElementById('dowAdjGrid');
   grid.innerHTML='';
   DOW_N.forEach(function(name,idx){
     var item=document.createElement('div');item.className='dow-item';
+    item.style.opacity=CLOSED_DAYS[idx]?'0.4':'1';
     item.innerHTML='<label>'+name+'</label><input type="number" class="dow-adj-inp" data-dow="'+idx+'" value="'+DOW_ADJ[idx]+'" min="50" max="300" step="1"><span style="font-size:.78rem;color:var(--tx3)">%</span>';
     grid.appendChild(item);
   });
@@ -860,6 +891,7 @@ function initDowAdj(){
     inp.addEventListener('change',function(){DOW_ADJ[parseInt(this.dataset.dow)]=parseInt(this.value)||100;});
   });
 }
+initClosedDays();
 initDowAdj();
 
 /* ================================================================
@@ -1213,7 +1245,7 @@ function generateSchedule(){
 
           if(isRain&&rainRedist){
             for(var nxt=i+1;nxt<ST.fc.dates.length&&nxt<=i+3;nxt++){
-              if(ST.fc.dates[nxt].getDay()!==0){redistributed[nxt]+=lostPcs*0.6;break;}
+              if(!CLOSED_DAYS[ST.fc.dates[nxt].getDay()]){redistributed[nxt]+=lostPcs*0.6;break;}
             }
             var satIdx=findNextDOW(i,6);
             if(satIdx>=0)redistributed[satIdx]+=lostPcs*0.4;
@@ -1222,7 +1254,7 @@ function generateSchedule(){
             for(var nxt2=i+1;nxt2<ST.fc.dates.length&&nxt2<=i+3;nxt2++){
               var nxtWd=ST.weather.daily.find(function(w){return w.date===fmtD(ST.fc.dates[nxt2]);});
               var nxtHot=nxtWd&&nxtWd.tempMax>=(parseFloat(document.getElementById('heatThresh').value)||91);
-              if(!nxtHot&&ST.fc.dates[nxt2].getDay()!==0){redistributed[nxt2]+=lostPcs*0.7;break;}
+              if(!nxtHot&&!CLOSED_DAYS[ST.fc.dates[nxt2].getDay()]){redistributed[nxt2]+=lostPcs*0.7;break;}
             }
             var satIdx2=findNextDOW(i,6);
             if(satIdx2>=0)redistributed[satIdx2]+=lostPcs*0.3;
@@ -1248,9 +1280,15 @@ function generateSchedule(){
     rev=Math.max(0,rev);
     day.adjustedRev=rev;
 
+    day.closed=CLOSED_DAYS[day.dow];
     var dowMult=DOW_ADJ[day.dow]/100;
     var rawHrs=0;
     day.schedDriver='';
+
+    if(day.closed){
+      day.capReason='Closed';
+      day.recHours=0;day.recStaff=0;day.laborCost=0;
+    }else{
 
     if(SCHED_MODE==='pieces'){
       rawHrs=pcs/pcsPerHr;
@@ -1284,6 +1322,7 @@ function generateSchedule(){
     day.recHours=Math.round(rawHrs*10)/10;
     day.recStaff=Math.ceil(day.recHours/maxHrEmpDay);
     day.laborCost=day.recHours*avgWage;
+    } /* end !closed */
     day.estPPH=day.recHours>0?day.adjustedPcs/day.recHours:0;
     day.estSPH=day.recHours>0?day.adjustedRev/day.recHours:0;
 
@@ -1349,8 +1388,8 @@ function renderSchedule(){
     var barColor=day.recHours>parseFloat(document.getElementById('maxStaffDay').value)*0.9?'var(--err)':day.recHours>parseFloat(document.getElementById('maxStaffDay').value)*0.7?'var(--warn)':'var(--sc)';
     var pphColor=day.estPPH>10?'var(--ok)':day.estPPH<6?'var(--err)':'var(--tx)';
 
-    html+='<tr><td style="font-weight:500">'+fmtD(day.date)+'</td>';
-    html+='<td>'+day.dowName+'</td>';
+    html+='<tr'+(day.closed?' class="closed-row"':'')+'><td style="font-weight:500">'+fmtD(day.date)+'</td>';
+    html+='<td>'+day.dowName+(day.closed?' <span style="font-size:.65rem;color:var(--err);font-weight:600">CLOSED</span>':'')+'</td>';
     html+='<td style="font-size:.75rem">'+(day.weatherInfo||'—')+'</td>';
     html+='<td class="n">'+Math.round(day.adjustedPcs)+'</td>';
     if(showRev)html+='<td class="n">$'+Math.round(day.adjustedRev||0).toLocaleString()+'</td>';
@@ -1395,9 +1434,11 @@ function renderSchedule(){
   container.innerHTML=html;
   document.getElementById('schedSummary').style.display='';
 
-  var totalHrs=ST.sched.reduce(function(s,d){return s+d.recHours;},0);
-  var totalLabor=ST.sched.reduce(function(s,d){return s+d.laborCost;},0);
-  document.getElementById('schedBadge').textContent=ST.sched.length+' days \u00B7 '+Math.round(totalHrs)+' total hrs \u00B7 $'+Math.round(totalLabor).toLocaleString()+' labor';
+  var openDays=ST.sched.filter(function(d){return !d.closed;});
+  var totalHrs=openDays.reduce(function(s,d){return s+d.recHours;},0);
+  var totalLabor=openDays.reduce(function(s,d){return s+d.laborCost;},0);
+  var closedCount=ST.sched.length-openDays.length;
+  document.getElementById('schedBadge').textContent=openDays.length+' open days'+(closedCount>0?' ('+closedCount+' closed)':'')+' \u00B7 '+Math.round(totalHrs)+' total hrs \u00B7 $'+Math.round(totalLabor).toLocaleString()+' labor';
 }
 
 /* ================================================================
@@ -1451,9 +1492,10 @@ function renderWeeklySummary(){
     var d=day.date;
     var weekStart=new Date(d);weekStart.setDate(d.getDate()-d.getDay());
     var key=fmtD(weekStart);
-    if(!weeks[key])weeks[key]={start:weekStart,days:0,hours:0,labor:0,pcs:0,staff:[]};
+    if(!weeks[key])weeks[key]={start:weekStart,days:0,openDays:0,hours:0,labor:0,pcs:0,staff:[]};
     var w=weeks[key];
-    w.days++;w.hours+=day.recHours;w.labor+=day.laborCost;w.pcs+=day.adjustedPcs;w.staff.push(day.recStaff);
+    w.days++;
+    if(!day.closed){w.openDays++;w.hours+=day.recHours;w.labor+=day.laborCost;w.pcs+=day.adjustedPcs;w.staff.push(day.recStaff);}
   });
 
   var maxWeekHrs=parseFloat(document.getElementById('maxStaffWeek').value)||600;
@@ -1461,8 +1503,8 @@ function renderWeeklySummary(){
 
   Object.keys(weeks).sort().forEach(function(key){
     var w=weeks[key];
-    var avgD=w.hours/w.days;
-    var maxS=Math.max.apply(null,w.staff);
+    var avgD=w.openDays>0?w.hours/w.openDays:0;
+    var maxS=w.staff.length>0?Math.max.apply(null,w.staff):0;
     var over=w.hours>maxWeekHrs;
     html+='<tr'+(over?' style="color:var(--err)"':'')+'>';
     html+='<td style="font-weight:500">'+fmtD(w.start)+'</td>';
@@ -1497,6 +1539,8 @@ function generateExport(){
   if(SCHED_MODE!=='revenue')lines.push('# Pieces/Labor Hour: '+(parseFloat(document.getElementById('pcsPerHr').value)||8.5));
   if(SCHED_MODE!=='pieces')lines.push('# Sales/Labor Hour: $'+(parseFloat(document.getElementById('salesPerHr').value)||38));
   lines.push('# Avg Wage: $'+(parseFloat(document.getElementById('avgWage').value)||18));
+  var closedNames=[];DOW_N.forEach(function(n,i){if(CLOSED_DAYS[i])closedNames.push(n);});
+  if(closedNames.length>0)lines.push('# Closed Days: '+closedNames.join(', '));
   if(ST.weather.loaded)lines.push('# Weather: '+ST.weather.location+' ('+ST.weather.daily.length+' days)');
   if(hasSales)lines.push('# Actual Sales Data: '+ST.sales.dates.length+' days');
   if(hasHr)lines.push('# Employee Hours Data: '+ST.hr.dates.length+' days');
