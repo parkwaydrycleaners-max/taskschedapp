@@ -823,11 +823,8 @@ function parsePOSReport(text) {
     rows.push([...left, ...middle, ...right]);
   }
 
-  // Only drop last row if it looks like a summary/totals row (no date in first cell).
-  // leftRows already filters for date-formatted rows, so combined rows should all be valid data.
-  if (rows.length > 0 && rows[rows.length - 1].length > 0 && !/^\d{4}\//.test(rows[rows.length - 1][0])) {
-    rows.pop();
-  }
+  // Always drop the last row (partial day — report run mid-day)
+  if (rows.length > 0) rows.pop();
 
   // Build auto-mapping
   const mappings = {
@@ -2942,8 +2939,7 @@ function autoOptimize(options) {
     S.dowWeights[dw] = dowW;
   }
 
-  // Safeguard: verify per-DOW actually improves overall WMAPE
-  // Compare: global+bias vs per-DOW (no bias), matching what runBacktest does
+  // Safeguard: per-DOW must improve overall AND not regress any individual DOW badly
   if (Object.keys(S.dowWeights).length > 0) {
     var sgGlobalEns = new Array(testData.length).fill(0);
     var sgPerDowEns = new Array(testData.length).fill(0);
@@ -2962,12 +2958,31 @@ function autoOptimize(options) {
       sgGlobalEns[sg] = sgGS > 0 ? sgGV / sgGS : 0;
       sgPerDowEns[sg] = sgPS > 0 ? sgPV / sgPS : 0;
     }
-    // Apply bias correction to global (per-DOW skips bias in runBacktest)
     sgGlobalEns = applyBiasCorrection(sgGlobalEns, trainData, trainDates, lastTrainDate, testDates);
     var sgGlobalWape = calculateWAPE(testData, sgGlobalEns, testDates);
     var sgPerDowWape = calculateWAPE(testData, sgPerDowEns, testDates);
-    if (sgPerDowWape >= sgGlobalWape - 1.0) {
-      S.dowWeights = {}; // Per-DOW didn't improve enough, revert
+
+    // Check 1: overall must improve
+    if (sgPerDowWape >= sgGlobalWape - 0.3) {
+      S.dowWeights = {};
+    } else {
+      // Check 2: revert individual DOWs that regressed
+      for (var chkD = 0; chkD < 7; chkD++) {
+        if (!S.dowWeights[chkD]) continue;
+        var chkIdx = dowTestIndices[chkD];
+        if (!chkIdx || chkIdx.length < 2) continue;
+        var chkGlobalErr = 0, chkPerDowErr = 0, chkActSum = 0;
+        for (var ci = 0; ci < chkIdx.length; ci++) {
+          var cj = chkIdx[ci];
+          chkGlobalErr += Math.abs(testData[cj] - sgGlobalEns[cj]);
+          chkPerDowErr += Math.abs(testData[cj] - sgPerDowEns[cj]);
+          chkActSum += testData[cj];
+        }
+        // If per-DOW error is worse than global error for this DOW, revert it
+        if (chkActSum > 0 && chkPerDowErr > chkGlobalErr * 1.05) {
+          delete S.dowWeights[chkD];
+        }
+      }
     }
   }
 }
