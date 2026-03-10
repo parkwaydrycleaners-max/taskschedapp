@@ -819,17 +819,55 @@ function checkImportReady(){
   if(ST.fc.dates.length>0){
     pc.style.display='';
     var totalCol=findTotalPiecesCol();
-    var sumPcs=0;
+    var revCol=findTotalRevenueCol();
+    var sumPcs=0,sumRev=0;
     if(totalCol){ST.fc.columns[totalCol].forEach(function(v){sumPcs+=v;});}
-    var html='<strong>Forecast:</strong> '+ST.fc.dates.length+' days ('+fmtD(ST.fc.dates[0])+' to '+fmtD(ST.fc.dates[ST.fc.dates.length-1])+')<br>';
-    html+='<strong>Categories:</strong> '+Object.keys(ST.fc.columns).join(', ')+'<br>';
-    if(sumPcs>0)html+='<strong>Total Forecasted Pieces:</strong> '+Math.round(sumPcs).toLocaleString();
-    if(ST.hr.dates.length>0)html+='<br><strong>Hours Data:</strong> '+ST.hr.dates.length+' days';
-    if(ST.sales.dates.length>0)html+='<br><strong>Actual Sales:</strong> '+ST.sales.dates.length+' days of POS data';
+    if(revCol){ST.fc.columns[revCol].forEach(function(v){sumRev+=v;});}
+
+    /* Build per-category breakdown from column names */
+    var cols=Object.keys(ST.fc.columns);
+    var catPcs=[],catRev=[];
+    cols.forEach(function(name){
+      var nl=name.toLowerCase();
+      /* Skip total columns — they're shown separately */
+      if(nl.includes('total'))return;
+      var sum=0;ST.fc.columns[name].forEach(function(v){sum+=v;});
+      if(sum===0)return;
+      if(nl.includes('pcs')||nl.includes('piece')){
+        var label=name.replace(/\s*\(pcs\)\s*/i,'').replace(/\s*\(pieces\)\s*/i,'').trim();
+        catPcs.push({name:label,sum:Math.round(sum)});
+      }else if(nl.includes('$')||nl.includes('rev')||nl.includes('amt')){
+        var label2=name.replace(/\s*\(\$\)\s*/,'').replace(/\s*\(amt\)\s*/i,'').trim();
+        catRev.push({name:label2,sum:Math.round(sum)});
+      }
+    });
+
+    var html='<strong>Forecast:</strong> '+ST.fc.dates.length+' days ('+fmtD(ST.fc.dates[0])+' &rarr; '+fmtD(ST.fc.dates[ST.fc.dates.length-1])+')<br>';
+
+    if(catPcs.length>0){
+      html+='<strong>Pieces by Category:</strong> ';
+      html+=catPcs.map(function(c){return c.name+' <span class="mono" style="color:var(--ac)">'+c.sum.toLocaleString()+'</span>';}).join(' · ');
+      if(sumPcs>0)html+=' · <strong>Total <span class="mono" style="color:var(--ac)">'+Math.round(sumPcs).toLocaleString()+'</span></strong>';
+      html+='<br>';
+    }else if(sumPcs>0){
+      html+='<strong>Total Forecasted Pieces:</strong> <span class="mono" style="color:var(--ac)">'+Math.round(sumPcs).toLocaleString()+'</span><br>';
+    }
+
+    if(catRev.length>0){
+      html+='<strong>Revenue by Category:</strong> ';
+      html+=catRev.map(function(c){return c.name+' <span class="mono" style="color:var(--sc)">$'+c.sum.toLocaleString()+'</span>';}).join(' · ');
+      if(sumRev>0)html+=' · <strong>Total <span class="mono" style="color:var(--sc)">$'+Math.round(sumRev).toLocaleString()+'</span></strong>';
+      html+='<br>';
+    }else if(sumRev>0){
+      html+='<strong>Total Forecasted Revenue:</strong> <span class="mono" style="color:var(--sc)">$'+Math.round(sumRev).toLocaleString()+'</span><br>';
+    }
+
+    if(ST.hr.dates.length>0)html+='<strong>Hours Data:</strong> '+ST.hr.dates.length+' days<br>';
+    if(ST.sales.dates.length>0)html+='<strong>Actual Sales:</strong> '+ST.sales.dates.length+' days of POS data<br>';
     if(ST.hr.dates.length>0&&ST.sales.dates.length>0){
       var overlap=0;
       ST.hr.dates.forEach(function(d){if(ST.sales.pcsMap[fmtD(d)]!==undefined)overlap++;});
-      html+='<br><strong>Actual PPH Coverage:</strong> '+overlap+' days with both hours &amp; sales data';
+      html+='<strong>Actual PPH Coverage:</strong> '+overlap+' days with both hours &amp; sales data';
     }
     document.getElementById('importSummary').innerHTML=html;
     document.getElementById('importBadge').textContent='Ready';
@@ -1276,7 +1314,18 @@ function generateSchedule(){
       }
     }
 
-    days.push({date:d,dow:dow,dowName:dowName,basePcs:pcs,baseRev:rev,weatherAdj:weatherAdj,weatherInfo:weatherInfo,redistIn:0});
+    /* Store per-category piece counts for this day */
+    var catDetail={};
+    Object.keys(ST.fc.columns).forEach(function(col){
+      var cl=col.toLowerCase();
+      if(cl.includes('total'))return;
+      if(cl.includes('pcs')||cl.includes('piece')){
+        var label=col.replace(/\s*\(pcs\)\s*/i,'').replace(/\s*\(pieces\)\s*/i,'').trim();
+        catDetail[label]=ST.fc.columns[col][i]||0;
+      }
+    });
+
+    days.push({date:d,dow:dow,dowName:dowName,basePcs:pcs,baseRev:rev,weatherAdj:weatherAdj,weatherInfo:weatherInfo,redistIn:0,catDetail:catDetail});
   });
 
   days.forEach(function(day,i){day.redistIn=redistributed[i];});
@@ -1560,8 +1609,17 @@ function generateExport(){
   lines.push('#');
 
   var showRev=SCHED_MODE!=='pieces';
-  var header='Date\tDOW\tAdj Pieces';
-  if(showRev)header+='\tAdj Revenue';
+
+  /* Detect per-category columns from first day's catDetail */
+  var catNames=[];
+  if(ST.sched.length>0&&ST.sched[0].catDetail){
+    catNames=Object.keys(ST.sched[0].catDetail);
+  }
+
+  var header='Date\tDOW';
+  catNames.forEach(function(c){header+='\t'+c+' (pcs)';});
+  header+='\tTotal Pieces (adj)';
+  if(showRev)header+='\tTotal Revenue (adj)';
   header+='\tRec Hours\tStaff Needed';
   if(SCHED_MODE==='both')header+='\tDriver';
   header+='\tEst Pcs/Hr';
@@ -1573,7 +1631,9 @@ function generateExport(){
   lines.push(header);
 
   ST.sched.forEach(function(day){
-    var row=fmtD(day.date)+'\t'+day.dowName+'\t'+Math.round(day.adjustedPcs);
+    var row=fmtD(day.date)+'\t'+day.dowName;
+    catNames.forEach(function(c){row+='\t'+(day.catDetail[c]!==undefined?Math.round(day.catDetail[c]):'');});
+    row+='\t'+Math.round(day.adjustedPcs);
     if(showRev)row+='\t$'+Math.round(day.adjustedRev||0);
     row+='\t'+day.recHours.toFixed(1)+'\t'+day.recStaff;
     if(SCHED_MODE==='both')row+='\t'+(day.schedDriver==='pcs'?'Pieces':'Revenue');
