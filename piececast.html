@@ -559,7 +559,13 @@ const S = {
     q75:         { name: 'DOW 75th Pctile',    enabled: true, weight: 10, params: {} },
     q25:         { name: 'DOW 25th Pctile',    enabled: true, weight: 5, params: {} },
     last2:       { name: 'Last 2 DOW Avg',     enabled: true, weight: 10, params: {} },
-    regime:      { name: 'Regime Adaptive',    enabled: true, weight: 5, params: {} }
+    regime:      { name: 'Regime Adaptive',    enabled: true, weight: 5, params: {} },
+    prevWeek:    { name: 'Previous Week DOW',  enabled: true, weight: 10, params: {} },
+    last3DOW:    { name: 'Last 3 DOW Avg',     enabled: true, weight: 10, params: {} },
+    recentMed:   { name: 'Recent Median DOW',  enabled: true, weight: 10, params: {} },
+    dowTrend:    { name: 'DOW Linear Trend',   enabled: true, weight: 10, params: {} },
+    ewmaFast:    { name: 'Fast EWMA DOW',      enabled: true, weight: 10, params: {} },
+    hybridRecent:{ name: 'Hybrid Recent DOW',  enabled: true, weight: 10, params: {} }
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
@@ -2142,6 +2148,139 @@ function forecastRegime(trainData, trainDates, horizon) {
   return fc;
 }
 
+/* 27. Previous Week Same-DOW — just last week's same-DOW value (most reactive) */
+function forecastPrevWeek(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var lastDOW = {};
+  for (var i = n - 1; i >= 0; i--) {
+    var dw = trainDates[i].getDay();
+    if (!(dw in lastDOW)) lastDOW[dw] = trainData[i];
+    if (Object.keys(lastDOW).length >= 7) break;
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    fc.push(Math.max(0, lastDOW[d.getDay()] || 0));
+  }
+  return fc;
+}
+
+/* 28. Last 3 Same-DOW — average of last 3 same-DOW values */
+function forecastLast3(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var dowRecent = [[],[],[],[],[],[],[]];
+  for (var i = n - 1; i >= 0; i--) {
+    var dw = trainDates[i].getDay();
+    if (dowRecent[dw].length < 3) dowRecent[dw].push(trainData[i]);
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var vals = dowRecent[d.getDay()];
+    fc.push(vals.length > 0 ? Math.max(0, vals.reduce(function(a,b){return a+b;},0)/vals.length) : 0);
+  }
+  return fc;
+}
+
+/* 29. Recent Median DOW — median of last 6 same-DOW values (robust to outliers) */
+function forecastRecentMedian(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var dowRecent = [[],[],[],[],[],[],[]];
+  for (var i = n - 1; i >= 0; i--) {
+    var dw = trainDates[i].getDay();
+    if (dowRecent[dw].length < 6) dowRecent[dw].push(trainData[i]);
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var vals = dowRecent[d.getDay()].slice().sort(function(a,b){return a-b;});
+    if (vals.length === 0) { fc.push(0); continue; }
+    var mid = Math.floor(vals.length / 2);
+    fc.push(Math.max(0, vals.length % 2 === 1 ? vals[mid] : (vals[mid-1]+vals[mid])/2));
+  }
+  return fc;
+}
+
+/* 30. DOW Linear Trend — extrapolates linear trend from last 5 same-DOW values */
+function forecastDOWTrend(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var dowRecent = [[],[],[],[],[],[],[]];
+  for (var i = n - 1; i >= 0; i--) {
+    var dw = trainDates[i].getDay();
+    if (dowRecent[dw].length < 5) dowRecent[dw].push(trainData[i]);
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var vals = dowRecent[d.getDay()].slice().reverse(); // oldest to newest
+    if (vals.length < 2) { fc.push(vals.length > 0 ? Math.max(0, vals[0]) : 0); continue; }
+    var m = vals.length;
+    var sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    for (var j = 0; j < m; j++) {
+      sumX += j; sumY += vals[j]; sumXY += j * vals[j]; sumX2 += j * j;
+    }
+    var denom = m * sumX2 - sumX * sumX;
+    var slope = denom !== 0 ? (m * sumXY - sumX * sumY) / denom : 0;
+    var intercept = (sumY - slope * sumX) / m;
+    var predicted = intercept + slope * m;
+    // Dampen extreme extrapolations
+    var avg = sumY / m;
+    if (Math.abs(predicted - avg) > avg * 0.5) {
+      predicted = avg + (predicted - avg) * 0.5;
+    }
+    fc.push(Math.max(0, predicted));
+  }
+  return fc;
+}
+
+/* 31. Fast EWMA DOW — exponentially weighted average with fast decay on same-DOW values */
+function forecastEWMAFast(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var dowVals = [[],[],[],[],[],[],[]];
+  for (var i = 0; i < n; i++) {
+    dowVals[trainDates[i].getDay()].push(trainData[i]);
+  }
+  var dowEwma = [0,0,0,0,0,0,0];
+  var alpha = 0.4;
+  for (var dw = 0; dw < 7; dw++) {
+    var vals = dowVals[dw];
+    if (vals.length === 0) continue;
+    var ewma = vals[0];
+    for (var j = 1; j < vals.length; j++) {
+      ewma = alpha * vals[j] + (1 - alpha) * ewma;
+    }
+    dowEwma[dw] = ewma;
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    fc.push(Math.max(0, dowEwma[d.getDay()]));
+  }
+  return fc;
+}
+
+/* 32. Hybrid Recent — blend of 2-week and 8-week DOW averages */
+function forecastHybridRecent(trainData, trainDates, horizon) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var cutoff2 = Math.max(0, n - 14);
+  var cutoff8 = Math.max(0, n - 56);
+  var avg2 = buildDOWAvg(trainData.slice(cutoff2), trainDates.slice(cutoff2));
+  var avg8 = buildDOWAvg(trainData.slice(cutoff8), trainDates.slice(cutoff8));
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var dow = d.getDay();
+    fc.push(Math.max(0, avg2[dow] * 0.6 + avg8[dow] * 0.4));
+  }
+  return fc;
+}
+
 function runMethod(key, trainData, trainDates, horizon) {
   const m = S.methods[key];
   switch (key) {
@@ -2171,6 +2310,12 @@ function runMethod(key, trainData, trainDates, horizon) {
     case 'q25': return forecastQ25(trainData, trainDates, horizon);
     case 'last2': return forecastLast2(trainData, trainDates, horizon);
     case 'regime': return forecastRegime(trainData, trainDates, horizon);
+    case 'prevWeek': return forecastPrevWeek(trainData, trainDates, horizon);
+    case 'last3DOW': return forecastLast3(trainData, trainDates, horizon);
+    case 'recentMed': return forecastRecentMedian(trainData, trainDates, horizon);
+    case 'dowTrend': return forecastDOWTrend(trainData, trainDates, horizon);
+    case 'ewmaFast': return forecastEWMAFast(trainData, trainDates, horizon);
+    case 'hybridRecent': return forecastHybridRecent(trainData, trainDates, horizon);
     default: return new Array(horizon).fill(0);
   }
 }
@@ -2495,10 +2640,10 @@ function autoOptimize() {
     const weights = {...start};
 
     // Multi-resolution coordinate descent with finer final step
-    const stepSizes = [5, 2, 1, 0.5];
+    const stepSizes = [5, 2, 1, 0.5, 0.25];
     for (const step of stepSizes) {
       let bestMape = getEnsembleMAPE(weights);
-      for (let iter = 0; iter < 200; iter++) {
+      for (let iter = 0; iter < 250; iter++) {
         let improved = false;
         for (const k of enabledKeys) {
           // Try +step
@@ -2592,22 +2737,30 @@ function autoOptimize() {
   // --- Adaptive bias correction: search for best settings ---
   var biasConfigs = [
     { weeks: 0, dampen: 0 },    // no correction
+    { weeks: 1, dampen: 0.1 },
+    { weeks: 1, dampen: 0.3 },
+    { weeks: 1, dampen: 0.5 },
+    { weeks: 2, dampen: 0.1 },
     { weeks: 2, dampen: 0.2 },
+    { weeks: 2, dampen: 0.3 },
     { weeks: 2, dampen: 0.5 },
+    { weeks: 3, dampen: 0.1 },
     { weeks: 3, dampen: 0.2 },
     { weeks: 3, dampen: 0.3 },
     { weeks: 3, dampen: 0.5 },
     { weeks: 3, dampen: 0.7 },
+    { weeks: 4, dampen: 0.1 },
     { weeks: 4, dampen: 0.2 },
     { weeks: 4, dampen: 0.3 },
     { weeks: 4, dampen: 0.5 },
     { weeks: 4, dampen: 0.7 },
+    { weeks: 6, dampen: 0.1 },
     { weeks: 6, dampen: 0.2 },
     { weeks: 6, dampen: 0.3 },
     { weeks: 6, dampen: 0.5 },
     { weeks: 6, dampen: 0.7 },
     { weeks: 8, dampen: 0.2 },
-    { weeks: 8, dampen: 0.3 },  // previous default
+    { weeks: 8, dampen: 0.3 },
     { weeks: 8, dampen: 0.4 },
     { weeks: 8, dampen: 0.5 },
     { weeks: 8, dampen: 0.7 },
@@ -2729,17 +2882,7 @@ function autoOptimize() {
     var sortedMethods = dowActiveKeys.slice().sort(function(a, b) {
       return (dowMethodErr[a] || 999) - (dowMethodErr[b] || 999);
     });
-    var dowTopN = sortedMethods.slice(0, Math.min(8, sortedMethods.length));
-
-    // Initialize: blend global weights with per-DOW inverse-error
-    var dowW = {};
-    for (var dk = 0; dk < dowTopN.length; dk++) {
-      var dKey = dowTopN[dk];
-      var gw = globalBestWeights[dKey] || 0;
-      var mErr2 = dowMethodErr[dKey];
-      var dowInvE = (mErr2 > 0.1) ? (dSum / mErr2) : 100;
-      dowW[dKey] = gw * 0.3 + dowInvE * 10;
-    }
+    var dowTopN = sortedMethods.slice(0, Math.min(12, sortedMethods.length));
 
     // Evaluation function: total error for this DOW with given weights
     var getDOWErr = function(w) {
@@ -2758,52 +2901,100 @@ function autoOptimize() {
       return err;
     };
 
-    // Coordinate descent with fine steps
-    var dowSteps = [10, 5, 2, 1, 0.5, 0.2];
-    for (var ds = 0; ds < dowSteps.length; ds++) {
-      var dStep = dowSteps[ds];
-      for (var dIter = 0; dIter < 100; dIter++) {
-        var dImproved = false;
-        for (var dk2 = 0; dk2 < dowTopN.length; dk2++) {
-          var dk2Key = dowTopN[dk2];
-          var dCur = getDOWErr(dowW);
-          dowW[dk2Key] = Math.max(0, (dowW[dk2Key] || 0) + dStep);
-          var dUp = getDOWErr(dowW);
-          dowW[dk2Key] = Math.max(0, dowW[dk2Key] - 2 * dStep);
-          var dDn = getDOWErr(dowW);
-          if (dUp < dCur && dUp <= dDn) {
-            dowW[dk2Key] = Math.max(0, dowW[dk2Key] + 2 * dStep);
-            dImproved = true;
-          } else if (dDn < dCur) {
-            dImproved = true;
+    // Multi-start optimization: try different initializations and keep best
+    var dowStartPoints = [];
+
+    // Start 1: blend global weights with per-DOW inverse-error
+    var dowStart1 = {};
+    for (var dk = 0; dk < dowTopN.length; dk++) {
+      var dKey = dowTopN[dk];
+      var gw = globalBestWeights[dKey] || 0;
+      var mErr2 = dowMethodErr[dKey];
+      var dowInvE = (mErr2 > 0.1) ? (dSum / mErr2) : 100;
+      dowStart1[dKey] = gw * 0.3 + dowInvE * 10;
+    }
+    dowStartPoints.push(dowStart1);
+
+    // Start 2: equal weights among top-N
+    var dowStart2 = {};
+    for (var dk1b = 0; dk1b < dowTopN.length; dk1b++) dowStart2[dowTopN[dk1b]] = 10;
+    dowStartPoints.push(dowStart2);
+
+    // Start 3: concentrate on best method for this DOW
+    var dowStart3 = {};
+    for (var dk1c = 0; dk1c < dowTopN.length; dk1c++) dowStart3[dowTopN[dk1c]] = dk1c === 0 ? 80 : 5;
+    dowStartPoints.push(dowStart3);
+
+    // Start 4: pure inverse-error (no global blend)
+    var dowStart4 = {};
+    for (var dk1d = 0; dk1d < dowTopN.length; dk1d++) {
+      var dsKey = dowTopN[dk1d];
+      var dsErr = dowMethodErr[dsKey];
+      dowStart4[dsKey] = (dsErr > 0.1) ? (dSum / dsErr) * 10 : 100;
+    }
+    dowStartPoints.push(dowStart4);
+
+    var bestDowW = null;
+    var bestDowErr = 9999;
+
+    for (var dsp = 0; dsp < dowStartPoints.length; dsp++) {
+      var dowW = {};
+      for (var dcc = 0; dcc < dowTopN.length; dcc++) dowW[dowTopN[dcc]] = dowStartPoints[dsp][dowTopN[dcc]] || 0;
+
+      // Coordinate descent with fine steps
+      var dowSteps = [10, 5, 2, 1, 0.5, 0.2, 0.1];
+      for (var ds = 0; ds < dowSteps.length; ds++) {
+        var dStep = dowSteps[ds];
+        for (var dIter = 0; dIter < 150; dIter++) {
+          var dImproved = false;
+          for (var dk2 = 0; dk2 < dowTopN.length; dk2++) {
+            var dk2Key = dowTopN[dk2];
+            var dCur = getDOWErr(dowW);
+            dowW[dk2Key] = Math.max(0, (dowW[dk2Key] || 0) + dStep);
+            var dUp = getDOWErr(dowW);
+            dowW[dk2Key] = Math.max(0, dowW[dk2Key] - 2 * dStep);
+            var dDn = getDOWErr(dowW);
+            if (dUp < dCur && dUp <= dDn) {
+              dowW[dk2Key] = Math.max(0, dowW[dk2Key] + 2 * dStep);
+              dImproved = true;
+            } else if (dDn < dCur) {
+              dImproved = true;
+            } else {
+              dowW[dk2Key] = Math.max(0, dowW[dk2Key] + dStep);
+            }
+          }
+          if (!dImproved) break;
+        }
+      }
+
+      // Backward elimination for this DOW
+      for (var dElim = 0; dElim < 5; dElim++) {
+        var dePruned = false;
+        var deCur = getDOWErr(dowW);
+        for (var de2 = 0; de2 < dowTopN.length; de2++) {
+          var deKey = dowTopN[de2];
+          if ((dowW[deKey] || 0) <= 0) continue;
+          var deSaved = dowW[deKey];
+          dowW[deKey] = 0;
+          if (getDOWErr(dowW) < deCur - 0.001) {
+            deCur = getDOWErr(dowW);
+            dePruned = true;
           } else {
-            dowW[dk2Key] = Math.max(0, dowW[dk2Key] + dStep);
+            dowW[deKey] = deSaved;
           }
         }
-        if (!dImproved) break;
+        if (!dePruned) break;
+      }
+
+      var thisErr = getDOWErr(dowW);
+      if (thisErr < bestDowErr) {
+        bestDowErr = thisErr;
+        bestDowW = {};
+        for (var bdk = 0; bdk < dowTopN.length; bdk++) bestDowW[dowTopN[bdk]] = dowW[dowTopN[bdk]] || 0;
       }
     }
 
-    // Backward elimination for this DOW
-    for (var dElim = 0; dElim < 5; dElim++) {
-      var dePruned = false;
-      var deCur = getDOWErr(dowW);
-      for (var de2 = 0; de2 < dowTopN.length; de2++) {
-        var deKey = dowTopN[de2];
-        if ((dowW[deKey] || 0) <= 0) continue;
-        var deSaved = dowW[deKey];
-        dowW[deKey] = 0;
-        if (getDOWErr(dowW) < deCur - 0.001) {
-          deCur = getDOWErr(dowW);
-          dePruned = true;
-        } else {
-          dowW[deKey] = deSaved;
-        }
-      }
-      if (!dePruned) break;
-    }
-
-    S.dowWeights[dw] = dowW;
+    S.dowWeights[dw] = bestDowW;
   }
 
   // Safeguard: verify per-DOW actually improves overall WMAPE
