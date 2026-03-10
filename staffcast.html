@@ -321,8 +321,8 @@ tr.closed-row td{color:var(--tx3)!important;font-style:italic}
 <div class="field"><label class="flbl">Extreme Heat Threshold (&deg;F)</label><input type="number" class="finput finput-xs" id="heatThresh" value="91" min="60" max="130" step="1"></div>
 <div class="field"><label class="flbl">Heat Adjustment % (Reduce Sales By)</label><input type="number" class="finput finput-xs" id="heatAdj" value="14" min="0" max="100" step="1"></div>
 <div class="sep"></div>
-<div class="chk-row"><input type="checkbox" id="rainRedist" checked><div><div class="chk-label"><i class="fa-solid fa-cloud-rain" style="color:var(--blue)"></i> &rarr; Rain Demand Redistribution</div><div class="chk-desc">When ON: demand lost to moderate/heavy rain shifts to the next business day (~60%) and Saturday (~40%). Reflects the pattern where customers skip rainy days and come the next day or Saturday instead.</div></div></div>
-<div class="chk-row"><input type="checkbox" id="heatRedist" checked><div><div class="chk-label"><i class="fa-solid fa-temperature-high" style="color:var(--err)"></i> &rarr; Heat Demand Redistribution</div><div class="chk-desc">When ON: demand lost to extreme heat shifts to the next cooler day (~70%) and Saturday (~30%). Customers tend to come the next day when temperature drops, even slightly.</div></div></div>
+<div class="chk-row"><input type="checkbox" id="rainRedist" checked><div><div class="chk-label"><i class="fa-solid fa-cloud-rain" style="color:var(--blue)"></i> &rarr; Rain Demand Redistribution</div><div class="chk-desc">When ON: ~78% of demand lost to moderate/heavy rain is recovered &mdash; 52% shifts to the next open day, 26% to Saturday. The remaining ~22% is permanently lost. When OFF: all rain-lost demand is permanently lost (the rainy day still shows reduced pieces either way).</div></div></div>
+<div class="chk-row"><input type="checkbox" id="heatRedist" checked><div><div class="chk-label"><i class="fa-solid fa-temperature-high" style="color:var(--err)"></i> &rarr; Heat Demand Redistribution</div><div class="chk-desc">When ON: ~68% of demand lost to extreme heat is recovered &mdash; 48% shifts to the next cooler open day, 20% to Saturday. The remaining ~32% is permanently lost. When OFF: all heat-lost demand is permanently lost (the hot day still shows reduced pieces either way). Rain takes priority if a day has both.</div></div></div>
 </div>
 
 <div id="weatherImpactCard" class="card" style="display:none">
@@ -1241,23 +1241,36 @@ function generateSchedule(){
           var lostPcs=pcs*Math.abs(weatherAdj)/100;
           var precipMM=wd.precip*25.4;
           var isRain=precipMM>=5;
-          var isHeat=wd.tempMax>=(parseFloat(document.getElementById('heatThresh').value)||91);
+          var heatThr=parseFloat(document.getElementById('heatThresh').value)||91;
+          var isHeat=wd.tempMax>=heatThr;
+
+          /*
+           * Redistribution: only ONE factor can redistribute per day to
+           * prevent double-counting. Rain takes priority (stronger impact).
+           *
+           * Recovery rates (industry dry cleaning data):
+           *   Rain:  ~78% total recovery (52% next open day + 26% Saturday)
+           *   Heat:  ~68% total recovery (48% next cooler open day + 20% Saturday)
+           * Remaining % represents permanently lost demand.
+           */
+          var didRedist=false;
 
           if(isRain&&rainRedist){
+            didRedist=true;
             for(var nxt=i+1;nxt<ST.fc.dates.length&&nxt<=i+3;nxt++){
-              if(!CLOSED_DAYS[ST.fc.dates[nxt].getDay()]){redistributed[nxt]+=lostPcs*0.6;break;}
+              if(!CLOSED_DAYS[ST.fc.dates[nxt].getDay()]){redistributed[nxt]+=lostPcs*0.52;break;}
             }
             var satIdx=findNextDOW(i,6);
-            if(satIdx>=0)redistributed[satIdx]+=lostPcs*0.4;
+            if(satIdx>=0)redistributed[satIdx]+=lostPcs*0.26;
           }
-          if(isHeat&&heatRedist){
+          if(isHeat&&heatRedist&&!didRedist){
             for(var nxt2=i+1;nxt2<ST.fc.dates.length&&nxt2<=i+3;nxt2++){
               var nxtWd=ST.weather.daily.find(function(w){return w.date===fmtD(ST.fc.dates[nxt2]);});
-              var nxtHot=nxtWd&&nxtWd.tempMax>=(parseFloat(document.getElementById('heatThresh').value)||91);
-              if(!nxtHot&&!CLOSED_DAYS[ST.fc.dates[nxt2].getDay()]){redistributed[nxt2]+=lostPcs*0.7;break;}
+              var nxtHot=nxtWd&&nxtWd.tempMax>=heatThr;
+              if(!nxtHot&&!CLOSED_DAYS[ST.fc.dates[nxt2].getDay()]){redistributed[nxt2]+=lostPcs*0.48;break;}
             }
             var satIdx2=findNextDOW(i,6);
-            if(satIdx2>=0)redistributed[satIdx2]+=lostPcs*0.3;
+            if(satIdx2>=0)redistributed[satIdx2]+=lostPcs*0.20;
           }
         }
       }
@@ -1499,7 +1512,7 @@ function renderWeeklySummary(){
   });
 
   var maxWeekHrs=parseFloat(document.getElementById('maxStaffWeek').value)||600;
-  var html='<div class="twrap"><table class="dtbl"><thead><tr><th>Week Of</th><th class="n">Days</th><th class="n">Total Hrs</th><th class="n">Avg Hrs/Day</th><th class="n">Max Staff</th><th class="n">Total Pcs</th><th class="n">Labor $</th><th class="n">Status</th></tr></thead><tbody>';
+  var html='<div class="twrap"><table class="dtbl"><thead><tr><th>Week Of</th><th class="n">Open Days</th><th class="n">Total Hrs</th><th class="n">Avg Hrs/Day</th><th class="n">Max Staff</th><th class="n">Total Pcs</th><th class="n">Labor $</th><th class="n">Status</th></tr></thead><tbody>';
 
   Object.keys(weeks).sort().forEach(function(key){
     var w=weeks[key];
@@ -1508,7 +1521,7 @@ function renderWeeklySummary(){
     var over=w.hours>maxWeekHrs;
     html+='<tr'+(over?' style="color:var(--err)"':'')+'>';
     html+='<td style="font-weight:500">'+fmtD(w.start)+'</td>';
-    html+='<td class="n">'+w.days+'</td>';
+    html+='<td class="n">'+w.openDays+'</td>';
     html+='<td class="n" style="font-weight:600">'+w.hours.toFixed(1)+'</td>';
     html+='<td class="n">'+avgD.toFixed(1)+'</td>';
     html+='<td class="n">'+maxS+'</td>';
