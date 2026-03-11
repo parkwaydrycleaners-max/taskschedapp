@@ -930,6 +930,16 @@ function processData() {
       revenue: indices.map(i => cat.revenue[i] || 0)
     };
   }
+  // Merge Press into Dry Cleaning (same pricing tier per user's business rules)
+  if (sortedCats['Press'] && sortedCats['Dry Cleaning']) {
+    var nMerge = sortedCats['Dry Cleaning'].pieces.length;
+    for (var mi = 0; mi < nMerge; mi++) {
+      sortedCats['Dry Cleaning'].pieces[mi] += sortedCats['Press'].pieces[mi] || 0;
+      sortedCats['Dry Cleaning'].revenue[mi] += sortedCats['Press'].revenue[mi] || 0;
+    }
+    delete sortedCats['Press'];
+  }
+
   S.series.categories = sortedCats;
 
   // Totals
@@ -2659,6 +2669,24 @@ function autoOptimize(options) {
   for (var kh2 = 1; kh2 < Math.min(5, wSorted.length); kh2++) heavyW[wSorted[kh2]] = 10;
   startingPoints.push(heavyW);
 
+  // Start 9: DOW-methods-only (helps low-volume categories like Alterations)
+  var dowOnlyW = {};
+  for (var kd of enabledKeys) dowOnlyW[kd] = 0;
+  var dowMethods = ['dowAvg','recent','wDow','medDow','trimDow','q75','last2','monthDow','monthDowR'];
+  for (var dmi = 0; dmi < dowMethods.length; dmi++) {
+    if (dowOnlyW.hasOwnProperty(dowMethods[dmi])) dowOnlyW[dowMethods[dmi]] = 15;
+  }
+  startingPoints.push(dowOnlyW);
+
+  // Start 10: median-heavy (stable for noisy/low-volume data)
+  var medHeavyW = {};
+  for (var km of enabledKeys) medHeavyW[km] = 0;
+  if (medHeavyW.hasOwnProperty('medDow')) medHeavyW['medDow'] = 50;
+  if (medHeavyW.hasOwnProperty('dowAvg')) medHeavyW['dowAvg'] = 30;
+  if (medHeavyW.hasOwnProperty('recent')) medHeavyW['recent'] = 20;
+  if (medHeavyW.hasOwnProperty('trimDow')) medHeavyW['trimDow'] = 20;
+  startingPoints.push(medHeavyW);
+
   // Additional random starting points for multi-run diversity
   if (doShuffle) {
     // 4 random weight vectors
@@ -3228,6 +3256,26 @@ function buildOptimizeAndBacktestSteps() {
         var bt = runBacktest(S.backtestWindow);
         var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
         if (wape > 500) wape = -1;
+
+        // Auto-refine: if WMAPE > 25%, run up to 2 extra shuffled passes
+        if (wape > 0 && wape > 25) {
+          for (var refPass = 0; refPass < 2; refPass++) {
+            resetMethods();
+            S.activeSeries = 'pieces:' + cn;
+            autoOptimize({ shuffle: true });
+            var rWts = {}; Object.keys(S.methods).forEach(function(k) { rWts[k] = S.methods[k].weight; });
+            var rDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+            var rBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+            var rHw = JSON.parse(JSON.stringify(S.holidayWeights || {}));
+            var rBt = runBacktest(S.backtestWindow);
+            var rWape = rBt && rBt.results.__ensemble ? rBt.results.__ensemble.wape : 999;
+            if (rWape > 0 && rWape < wape) {
+              wts = rWts; dw = rDw; bc = rBc; hw = rHw; wape = rWape;
+            }
+            if (wape <= 20) break; // Good enough, stop refining
+          }
+        }
+
         S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc, holidayWeights: hw };
         allSummaries.push({ name: cn, wape: wape });
         S.activeSeries = origActive;
@@ -4336,7 +4384,7 @@ document.getElementById('parseBtn').addEventListener('click', function() {
   runWithLoading('Loading POS Data', preSteps.concat(buildOptimizeAndBacktestSteps()), function() {
     showNotification('Auto-detected <strong>Sales Report By Category</strong> format.<br>' +
       S.series.dates.length + ' days loaded across ' +
-      Object.keys(S.series.categories).length + ' categories (last day excluded).', 'success');
+      Object.keys(S.series.categories).length + ' categories (last day excluded, Press merged into Dry Cleaning).', 'success');
   });
 });
 
