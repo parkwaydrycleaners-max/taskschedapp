@@ -2693,11 +2693,34 @@ var PARAM_GRID = {
  * Parameters are tuned independently (one at a time, sequentially).
  */
 function tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate) {
+  // Use time-series cross-validation: hold out last 25% of training data
+  // for validation so we don't overfit tuning to the test set directly.
+  var cvSplit = Math.floor(trainData.length * 0.75);
+  if (cvSplit < 120) return; // need at least ~6 months of CV training
+  var cvTrainData  = trainData.slice(0, cvSplit);
+  var cvTrainDates = trainDates.slice(0, cvSplit);
+  var cvValData    = trainData.slice(cvSplit);
+  var cvValDates   = trainDates.slice(cvSplit);
+  var cvLastTrain  = cvTrainDates[cvTrainDates.length - 1];
+  var cvLastVal    = cvValDates[cvValDates.length - 1];
+  var cvHorizon    = Math.round((cvLastVal - cvLastTrain) / 86400000);
+
   for (var ti = 0; ti < enabledKeys.length; ti++) {
     var k = enabledKeys[ti];
     if (!PARAM_GRID[k]) continue;
     var grid = PARAM_GRID[k];
     var paramNames = Object.keys(grid);
+
+    // Save default params for this method
+    var origParams = JSON.parse(JSON.stringify(S.methods[k].params));
+
+    // Score with default params first (on the CV validation set)
+    var defFc = runMethod(k, cvTrainData, cvTrainDates, cvHorizon);
+    defFc = applyClosedDays(defFc, cvLastTrain, cvHorizon);
+    defFc = alignForecastToTestDates(defFc, cvLastTrain, cvValDates);
+    var defaultWape = calculateWAPE(cvValData, defFc, cvValDates);
+
+    // Tune each parameter independently on the CV split
     for (var pi = 0; pi < paramNames.length; pi++) {
       var pName = paramNames[pi];
       var values = grid[pName];
@@ -2705,13 +2728,25 @@ function tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDate
       var bestVal = S.methods[k].params[pName];
       for (var vi = 0; vi < values.length; vi++) {
         S.methods[k].params[pName] = values[vi];
-        var fc = runMethod(k, trainData, trainDates, calendarHorizon);
-        fc = applyClosedDays(fc, lastTrainDate, calendarHorizon);
-        fc = alignForecastToTestDates(fc, lastTrainDate, testDates);
-        var w = calculateWAPE(testData, fc, testDates);
+        var fc = runMethod(k, cvTrainData, cvTrainDates, cvHorizon);
+        fc = applyClosedDays(fc, cvLastTrain, cvHorizon);
+        fc = alignForecastToTestDates(fc, cvLastTrain, cvValDates);
+        var w = calculateWAPE(cvValData, fc, cvValDates);
         if (w < bestWape) { bestWape = w; bestVal = values[vi]; }
       }
       S.methods[k].params[pName] = bestVal;
+    }
+
+    // Validation guard: score the tuned params on the CV validation set.
+    // Only keep tuned params if they improve by at least 0.5% over default.
+    var tunedFc = runMethod(k, cvTrainData, cvTrainDates, cvHorizon);
+    tunedFc = applyClosedDays(tunedFc, cvLastTrain, cvHorizon);
+    tunedFc = alignForecastToTestDates(tunedFc, cvLastTrain, cvValDates);
+    var tunedWape = calculateWAPE(cvValData, tunedFc, cvValDates);
+
+    if (tunedWape >= defaultWape - 0.5) {
+      // Tuning didn't help enough — revert to defaults
+      S.methods[k].params = origParams;
     }
   }
 }
@@ -2766,14 +2801,17 @@ function autoOptimize(options) {
   const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled);
   if (enabledKeys.length === 0) return;
 
-  // ── Per-category parameter tuning ──────────────────────────────────
-  // Before optimising ensemble weights, find the best parameters for
-  // each method so individual forecasts are as accurate as possible.
-  tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate);
-
   // Get date-aligned forecasts for each method
   // Use rolling window when training data is small relative to test window
   const useRolling = needsRollingWindow(n, win);
+
+  // ── Per-category parameter tuning ──────────────────────────────────
+  // Only tune parameters when we have enough training data.
+  // When rolling window is active, training set is too small and tuning
+  // overfits to a poor data split, making results worse.
+  if (!useRolling && trainData.length >= 500) {
+    tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate);
+  }
   const forecasts = {};
   const mapes = {};
   if (useRolling) {
@@ -4789,6 +4827,9 @@ document.getElementById('exportBacktestBtn').addEventListener('click', function(
 
   // Show tuned method parameters (if different from defaults)
   lines.push('--- TUNED METHOD PARAMETERS ---');
+  if (dbgRolling) {
+    lines.push('(tuning skipped — rolling window active, training data insufficient)');
+  }
   var anyTuned = false;
   Object.keys(S.methods).forEach(function(k) {
     if (!S.methods[k].enabled || !PARAM_GRID[k]) return;
