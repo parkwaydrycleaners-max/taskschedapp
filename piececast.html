@@ -648,6 +648,7 @@ const S = {
   outliers: [],           // array of { index, date, dow, value, cap, dowMean, type:'high'|'low' }
   biasConfig: { weeks: 8, dampen: 0.3 },
   dowWeights: {},        // per-DOW method weights: { dow: { methodKey: weight } }
+  holidayWeights: {},    // holiday-specific method weights: { methodKey: weight }
   catOptimized: {},      // per-category optimization: { catName: { weights:{}, dowWeights:{}, wape:number } }
   backtestWindow: 14,
   backtestWindows: [14, 21, 30, 60, 90],
@@ -823,8 +824,16 @@ function parsePOSReport(text) {
     rows.push([...left, ...middle, ...right]);
   }
 
-  // Always drop the last row (partial day — report run mid-day)
-  if (rows.length > 0) rows.pop();
+  // Always drop ALL rows for the last date (partial day — report run mid-day).
+  // The same date can appear multiple times due to POS report page breaks;
+  // rows.pop() alone only removes the last occurrence while processData's
+  // dedup keeps the first, letting the partial day slip through.
+  if (rows.length > 0) {
+    var lastDateVal = rows[rows.length - 1][0];
+    for (var rd = rows.length - 1; rd >= 0; rd--) {
+      if (rows[rd][0] === lastDateVal) rows.splice(rd, 1);
+    }
+  }
 
   // Build auto-mapping
   const mappings = {
@@ -2352,7 +2361,7 @@ function runBacktest(windowSize) {
   if (usingPerDow) {
     ensemble = computeEnsemblePerDOW(results, windowSize, testDates);
   } else {
-    ensemble = computeEnsemble(results, windowSize);
+    ensemble = computeEnsemble(results, windowSize, testDates);
   }
   // Apply bias correction only for global weights; per-DOW already handles DOW calibration
   if (!usingPerDow) {
@@ -2368,7 +2377,7 @@ function runBacktest(windowSize) {
   return { results, testData, testDates, trainData, trainDates };
 }
 
-function computeEnsemble(methodResults, horizon) {
+function computeEnsemble(methodResults, horizon, testDates) {
   const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled && methodResults[k]);
   if (enabledKeys.length === 0) return new Array(horizon).fill(0);
 
@@ -2377,9 +2386,11 @@ function computeEnsemble(methodResults, horizon) {
 
   const ensemble = new Array(horizon).fill(0);
   for (let i = 0; i < horizon; i++) {
+    // Holiday override: use holiday-specific weights if available
+    var holW = (testDates && testDates[i] && S.holidayWeights && Object.keys(S.holidayWeights).length > 0 && isHolidayAffected(testDates[i])) ? S.holidayWeights : null;
     let wSum = 0, weighted = 0;
     enabledKeys.forEach(k => {
-      var w = S.methods[k].weight;
+      var w = holW ? (holW[k] || 0) : S.methods[k].weight;
       var fc = methodResults[k].forecast[i] || 0;
       weighted += w * fc;
       wSum += w;
@@ -2398,10 +2409,12 @@ function computeEnsemblePerDOW(methodResults, horizon, testDates) {
   var ensemble = new Array(horizon).fill(0);
   for (var i = 0; i < horizon; i++) {
     var dow = testDates && testDates[i] ? testDates[i].getDay() : -1;
-    var dowW = (dow >= 0 && S.dowWeights && S.dowWeights[dow]) ? S.dowWeights[dow] : null;
+    // Holiday override: use holiday-specific weights if available
+    var holW = (testDates && testDates[i] && S.holidayWeights && Object.keys(S.holidayWeights).length > 0 && isHolidayAffected(testDates[i])) ? S.holidayWeights : null;
+    var dowW = holW ? null : ((dow >= 0 && S.dowWeights && S.dowWeights[dow]) ? S.dowWeights[dow] : null);
     var wSum = 0, weighted = 0;
     enabledKeys.forEach(function(k) {
-      var w = dowW ? (dowW[k] || 0) : S.methods[k].weight;
+      var w = holW ? (holW[k] || 0) : (dowW ? (dowW[k] || 0) : S.methods[k].weight);
       var fc = methodResults[k].forecast[i] || 0;
       weighted += w * fc;
       wSum += w;
@@ -2456,6 +2469,64 @@ function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, tes
     }
   }
   return corrected;
+}
+
+/* ==================================================================
+   HOLIDAY DETECTION
+   US holidays that significantly affect dry cleaning volume.
+   Used to apply holiday-specific ensemble weights during backtest/forecast.
+   ================================================================== */
+function getUSHolidayDates(year) {
+  var holidays = [];
+  // Thanksgiving: 4th Thursday of November
+  var nov1 = new Date(year, 10, 1);
+  var firstThuOff = (11 - nov1.getDay()) % 7;
+  if (firstThuOff === 0) firstThuOff = 7;
+  var tgDay = 1 + (firstThuOff - 1) + 21; // 4th Thursday
+  // Simpler: first Thursday + 21
+  var tgDate = new Date(year, 10, 1);
+  tgDate.setDate(tgDate.getDate() + ((4 - tgDate.getDay() + 7) % 7) + 21);
+  holidays.push(new Date(tgDate)); // Thanksgiving
+  holidays.push(new Date(year, 10, tgDate.getDate() + 1)); // Black Friday
+
+  // Christmas period
+  holidays.push(new Date(year, 11, 24)); // Christmas Eve
+  holidays.push(new Date(year, 11, 25)); // Christmas Day
+  holidays.push(new Date(year, 11, 26)); // Day after Christmas
+
+  // New Year's period
+  holidays.push(new Date(year, 11, 31)); // NYE
+  holidays.push(new Date(year + 1, 0, 1)); // New Year's Day
+  holidays.push(new Date(year + 1, 0, 2)); // Jan 2 (post-holiday surge)
+
+  // July 4th
+  holidays.push(new Date(year, 6, 3));
+  holidays.push(new Date(year, 6, 4));
+
+  // Memorial Day: last Monday of May
+  var may31 = new Date(year, 4, 31);
+  holidays.push(new Date(year, 4, 31 - ((may31.getDay() + 6) % 7)));
+
+  // Labor Day: 1st Monday of September
+  var sep1 = new Date(year, 8, 1);
+  holidays.push(new Date(year, 8, 1 + ((8 - sep1.getDay()) % 7)));
+
+  return holidays;
+}
+
+function isHolidayAffected(date, radius) {
+  if (!date) return false;
+  radius = radius || 1;
+  var year = date.getFullYear();
+  var time = date.getTime();
+  var oneDay = 86400000;
+  for (var y = year - 1; y <= year + 1; y++) {
+    var hols = getUSHolidayDates(y);
+    for (var i = 0; i < hols.length; i++) {
+      if (Math.abs(time - hols[i].getTime()) / oneDay <= radius) return true;
+    }
+  }
+  return false;
 }
 
 /* Fisher-Yates shuffle for stochastic optimizer restarts */
@@ -2840,7 +2911,7 @@ function autoOptimize(options) {
   var dowActiveKeys = enabledKeys.filter(function(k) { return forecasts[k]; });
 
   for (var dw = 0; dw < 7; dw++) {
-    if (!dowTestIndices[dw] || dowTestIndices[dw].length < 3) continue;
+    if (!dowTestIndices[dw] || dowTestIndices[dw].length < 2) continue;
     var dIdx = dowTestIndices[dw];
     var dActual = dIdx.map(function(j) { return testData[j]; });
     var dSum = dActual.reduce(function(a, b) { return a + b; }, 0);
@@ -2939,7 +3010,8 @@ function autoOptimize(options) {
     S.dowWeights[dw] = dowW;
   }
 
-  // Safeguard: per-DOW must improve overall AND not regress any individual DOW badly
+  // Safeguard: verify per-DOW actually improves overall WMAPE
+  // Compare: global+bias vs per-DOW (no bias), matching what runBacktest does
   if (Object.keys(S.dowWeights).length > 0) {
     var sgGlobalEns = new Array(testData.length).fill(0);
     var sgPerDowEns = new Array(testData.length).fill(0);
@@ -2958,30 +3030,142 @@ function autoOptimize(options) {
       sgGlobalEns[sg] = sgGS > 0 ? sgGV / sgGS : 0;
       sgPerDowEns[sg] = sgPS > 0 ? sgPV / sgPS : 0;
     }
+    // Apply bias correction to global (per-DOW skips bias in runBacktest)
     sgGlobalEns = applyBiasCorrection(sgGlobalEns, trainData, trainDates, lastTrainDate, testDates);
     var sgGlobalWape = calculateWAPE(testData, sgGlobalEns, testDates);
     var sgPerDowWape = calculateWAPE(testData, sgPerDowEns, testDates);
-
-    // Check 1: overall must improve
     if (sgPerDowWape >= sgGlobalWape - 0.3) {
-      S.dowWeights = {};
-    } else {
-      // Check 2: revert individual DOWs that regressed
-      for (var chkD = 0; chkD < 7; chkD++) {
-        if (!S.dowWeights[chkD]) continue;
-        var chkIdx = dowTestIndices[chkD];
-        if (!chkIdx || chkIdx.length < 2) continue;
-        var chkGlobalErr = 0, chkPerDowErr = 0, chkActSum = 0;
-        for (var ci = 0; ci < chkIdx.length; ci++) {
-          var cj = chkIdx[ci];
-          chkGlobalErr += Math.abs(testData[cj] - sgGlobalEns[cj]);
-          chkPerDowErr += Math.abs(testData[cj] - sgPerDowEns[cj]);
-          chkActSum += testData[cj];
+      S.dowWeights = {}; // Per-DOW didn't improve enough, revert
+    }
+  }
+
+  // ── Holiday weight optimization ──────────────────────────────────────
+  // Holidays (Thanksgiving, Christmas, NYE) have fundamentally different
+  // patterns that DOW-based methods can't capture. YoY methods "remember"
+  // last year's holiday patterns. Optimize a separate weight vector for
+  // holiday-affected days to dramatically improve long-window WMAPE.
+  var holidayTestIndices = [];
+  for (var hti = 0; hti < testData.length; hti++) {
+    if (isHolidayAffected(testDates[hti], 1)) {
+      holidayTestIndices.push(hti);
+    }
+  }
+
+  S.holidayWeights = {};
+  if (holidayTestIndices.length >= 3) {
+    var hActual = holidayTestIndices.map(function(j) { return testData[j]; });
+    var hSum = hActual.reduce(function(a, b) { return a + b; }, 0);
+
+    if (hSum > 0) {
+      // Per-method holiday error
+      var hMethodErr = {};
+      for (var hmk = 0; hmk < enabledKeys.length; hmk++) {
+        var hmKey = enabledKeys[hmk];
+        var hmErr = 0;
+        for (var hmi = 0; hmi < holidayTestIndices.length; hmi++) {
+          hmErr += Math.abs(hActual[hmi] - (forecasts[hmKey][holidayTestIndices[hmi]] || 0));
         }
-        // If per-DOW error is worse than global error for this DOW, revert it
-        if (chkActSum > 0 && chkPerDowErr > chkGlobalErr * 1.05) {
-          delete S.dowWeights[chkD];
+        hMethodErr[hmKey] = hmErr;
+      }
+
+      // Sort by holiday error, take top 10 candidates
+      var hSorted = enabledKeys.slice().sort(function(a, b) {
+        return (hMethodErr[a] || 9999) - (hMethodErr[b] || 9999);
+      });
+      var hTopN = hSorted.slice(0, Math.min(10, hSorted.length));
+
+      // Initialize with inverse-error weights
+      var hW = {};
+      for (var hk = 0; hk < hTopN.length; hk++) {
+        var hKey = hTopN[hk];
+        var hErr2 = hMethodErr[hKey];
+        hW[hKey] = (hErr2 > 0.1) ? (hSum / hErr2) * 10 : 100;
+      }
+
+      // Evaluation: weighted absolute error for holiday days only
+      var getHolidayErr = function(w) {
+        var wt = 0;
+        for (var wk = 0; wk < hTopN.length; wk++) wt += (w[hTopN[wk]] || 0);
+        if (wt === 0) return 9999;
+        var err = 0;
+        for (var pi = 0; pi < holidayTestIndices.length; pi++) {
+          var pred = 0;
+          for (var pk = 0; pk < hTopN.length; pk++) {
+            pred += (w[hTopN[pk]] || 0) * (forecasts[hTopN[pk]][holidayTestIndices[pi]] || 0);
+          }
+          pred /= wt;
+          err += Math.abs(hActual[pi] - pred);
         }
+        return err;
+      };
+
+      // Coordinate descent
+      var hSteps = [10, 5, 2, 1];
+      for (var hs = 0; hs < hSteps.length; hs++) {
+        var hStep = hSteps[hs];
+        var hCDKeys = doShuffle ? shuffleArray(hTopN.slice()) : hTopN;
+        for (var hIter = 0; hIter < 50; hIter++) {
+          var hImproved = false;
+          for (var hk2 = 0; hk2 < hCDKeys.length; hk2++) {
+            var hk2Key = hCDKeys[hk2];
+            var hCur = getHolidayErr(hW);
+            hW[hk2Key] = Math.max(0, (hW[hk2Key] || 0) + hStep);
+            var hUp = getHolidayErr(hW);
+            hW[hk2Key] = Math.max(0, hW[hk2Key] - 2 * hStep);
+            var hDn = getHolidayErr(hW);
+            if (hUp < hCur && hUp <= hDn) {
+              hW[hk2Key] = Math.max(0, hW[hk2Key] + 2 * hStep);
+              hImproved = true;
+            } else if (hDn < hCur) {
+              hImproved = true;
+            } else {
+              hW[hk2Key] = Math.max(0, hW[hk2Key] + hStep);
+            }
+          }
+          if (!hImproved) break;
+        }
+      }
+
+      // Backward elimination
+      for (var hElim = 0; hElim < 3; hElim++) {
+        var hePruned = false;
+        var heCur = getHolidayErr(hW);
+        for (var he2 = 0; he2 < hTopN.length; he2++) {
+          var heKey = hTopN[he2];
+          if ((hW[heKey] || 0) <= 0) continue;
+          var heSaved = hW[heKey];
+          hW[heKey] = 0;
+          if (getHolidayErr(hW) < heCur - 0.001) {
+            heCur = getHolidayErr(hW);
+            hePruned = true;
+          } else {
+            hW[heKey] = heSaved;
+          }
+        }
+        if (!hePruned) break;
+      }
+
+      // Safeguard: only use holiday weights if they actually improve holiday WMAPE
+      // compared to what per-DOW (or global) weights would give for those days
+      var baseHolErr = 0;
+      for (var bhi = 0; bhi < holidayTestIndices.length; bhi++) {
+        var bhIdx = holidayTestIndices[bhi];
+        var bhDow = testDates[bhIdx].getDay();
+        var bhDowW = (S.dowWeights && S.dowWeights[bhDow]) ? S.dowWeights[bhDow] : null;
+        var bhWS = 0, bhWV = 0;
+        for (var bhk = 0; bhk < enabledKeys.length; bhk++) {
+          var bhKey = enabledKeys[bhk];
+          var bhW = bhDowW ? (bhDowW[bhKey] || 0) : (globalBestWeights[bhKey] || 0);
+          var bhFc = (forecasts[bhKey] && forecasts[bhKey][bhIdx]) || 0;
+          bhWV += bhW * bhFc; bhWS += bhW;
+        }
+        var bhPred = bhWS > 0 ? bhWV / bhWS : 0;
+        baseHolErr += Math.abs(hActual[bhi] - bhPred);
+      }
+
+      var holOptErr = getHolidayErr(hW);
+      if (holOptErr < baseHolErr - 0.5) {
+        S.holidayWeights = hW;
       }
     }
   }
@@ -3012,6 +3196,7 @@ function buildOptimizeAndBacktestSteps() {
       S.methods[k].weight = 5;
     });
     S.dowWeights = {};
+    S.holidayWeights = {};
   }
 
   // Single-run optimization per category (use Refine button for additional runs)
@@ -3039,10 +3224,11 @@ function buildOptimizeAndBacktestSteps() {
         var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
         var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
         var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+        var hw = JSON.parse(JSON.stringify(S.holidayWeights || {}));
         var bt = runBacktest(S.backtestWindow);
         var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
         if (wape > 500) wape = -1;
-        S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc };
+        S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc, holidayWeights: hw };
         allSummaries.push({ name: cn, wape: wape });
         S.activeSeries = origActive;
       }});
@@ -3058,14 +3244,16 @@ function buildOptimizeAndBacktestSteps() {
     var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
     var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
     var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+    var hw = JSON.parse(JSON.stringify(S.holidayWeights || {}));
     var bt = runBacktest(S.backtestWindow);
     var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
     if (wape > 500) wape = -1;
-    S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc };
+    S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc, holidayWeights: hw };
     allSummaries.push({ name: 'Total Pieces', wape: wape });
     Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = wts[k] || 0; });
     S.dowWeights = dw;
     S.biasConfig = bc;
+    S.holidayWeights = hw;
     renderMethodGrid();
   }});
 
@@ -3116,6 +3304,7 @@ function refineOptimization() {
       S.methods[k].weight = 5;
     });
     S.dowWeights = {};
+    S.holidayWeights = {};
   }
 
   var catNames = Object.keys(S.series.categories);
@@ -3139,11 +3328,12 @@ function refineOptimization() {
         var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
         var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
         var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+        var hw = JSON.parse(JSON.stringify(S.holidayWeights || {}));
         var bt = runBacktest(S.backtestWindow);
         var newWape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
 
         if (newWape < existing.wape && newWape <= 500) {
-          S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc };
+          S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc, holidayWeights: hw };
           improved.push(cn + ': ' + existing.wape.toFixed(1) + '% \u2192 ' + newWape.toFixed(1) + '%');
         }
         S.activeSeries = origActive;
@@ -3162,16 +3352,18 @@ function refineOptimization() {
     var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
     var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
     var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+    var hw = JSON.parse(JSON.stringify(S.holidayWeights || {}));
     var bt = runBacktest(S.backtestWindow);
     var newWape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
 
     if (newWape < existing.wape && newWape <= 500) {
-      S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc };
+      S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc, holidayWeights: hw };
       improved.push('Total: ' + existing.wape.toFixed(1) + '% \u2192 ' + newWape.toFixed(1) + '%');
       // Update display weights
       Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = wts[k] || 0; });
       S.dowWeights = dw;
       S.biasConfig = bc;
+      S.holidayWeights = hw;
       renderMethodGrid();
     }
   }});
@@ -3418,6 +3610,10 @@ function generateExport(scope) {
   if (S.dowWeights && Object.keys(S.dowWeights).length > 0) {
     lines.push('# Per-DOW Weights: Active (' + Object.keys(S.dowWeights).length + ' DOWs optimized)');
   }
+  if (S.holidayWeights && Object.keys(S.holidayWeights).length > 0) {
+    var holMethodNames = Object.keys(S.holidayWeights).filter(function(k) { return S.holidayWeights[k] > 0; }).map(function(k) { return S.methods[k] ? S.methods[k].name + ':' + S.holidayWeights[k] : k + ':' + S.holidayWeights[k]; });
+    lines.push('# Holiday Weights: ' + holMethodNames.join(', '));
+  }
   lines.push('#');
 
   // Use cached forecast results if available, otherwise compute fresh
@@ -3502,9 +3698,10 @@ function generateExport(scope) {
  * @param {object} [catOpt] - Optional per-category weight overrides { weights:{k:w}, dowWeights:{dow:{k:w}} }
  */
 function computeAllMethodEnsemble(seriesData, seriesDates, horizon, catOpt) {
-  // Determine which weights/dowWeights to use
+  // Determine which weights/dowWeights/holidayWeights to use
   var useWeights = catOpt ? catOpt.weights : null;
   var useDowWeights = catOpt ? catOpt.dowWeights : S.dowWeights;
+  var useHolidayWeights = catOpt ? (catOpt.holidayWeights || {}) : S.holidayWeights;
 
   var enabledKeys = Object.keys(S.methods).filter(function(k) { return S.methods[k].enabled; });
   // If using catOpt, also include methods that have weight > 0 in catOpt even if globally disabled
@@ -3512,6 +3709,15 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon, catOpt) {
     enabledKeys = Object.keys(S.methods).filter(function(k) {
       return S.methods[k].enabled || (useWeights[k] && useWeights[k] > 0);
     });
+  }
+  // Also include methods that have weight > 0 in holiday weights
+  if (useHolidayWeights && Object.keys(useHolidayWeights).length > 0) {
+    var holKeys = Object.keys(useHolidayWeights);
+    for (var hki = 0; hki < holKeys.length; hki++) {
+      if (useHolidayWeights[holKeys[hki]] > 0 && enabledKeys.indexOf(holKeys[hki]) < 0) {
+        enabledKeys.push(holKeys[hki]);
+      }
+    }
   }
   var totalW = enabledKeys.reduce(function(s, k) {
     return s + (useWeights ? (useWeights[k] || 0) : S.methods[k].weight);
@@ -3531,14 +3737,17 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon, catOpt) {
   }
 
   var usePerDOW = useDowWeights && Object.keys(useDowWeights).length > 0;
+  var hasHolW = useHolidayWeights && Object.keys(useHolidayWeights).length > 0;
   var ensemble = new Array(horizon).fill(0);
   for (var i = 0; i < horizon; i++) {
     var dow = fcDates[i].getDay();
-    var dowW = (usePerDOW && useDowWeights[dow]) ? useDowWeights[dow] : null;
+    // Holiday override: use holiday-specific weights if available
+    var holW = (hasHolW && isHolidayAffected(fcDates[i])) ? useHolidayWeights : null;
+    var dowW = holW ? null : ((usePerDOW && useDowWeights[dow]) ? useDowWeights[dow] : null);
     var wSum = 0, weighted = 0;
     for (var ei = 0; ei < enabledKeys.length; ei++) {
       var ek = enabledKeys[ei];
-      var w = dowW ? (dowW[ek] || 0) : (useWeights ? (useWeights[ek] || 0) : S.methods[ek].weight);
+      var w = holW ? (holW[ek] || 0) : (dowW ? (dowW[ek] || 0) : (useWeights ? (useWeights[ek] || 0) : S.methods[ek].weight));
       var fc = allForecasts[ek][i] || 0;
       weighted += w * fc;
       wSum += w;
@@ -4251,6 +4460,7 @@ function applyWeightsForSeries(seriesVal) {
       S.methods[k].weight = catOpt.weights[k] || 0;
     });
     S.dowWeights = catOpt.dowWeights || {};
+    S.holidayWeights = catOpt.holidayWeights || {};
     if (catOpt.biasConfig) S.biasConfig = catOpt.biasConfig;
   } else if (S.catOptimized.__total && S.catOptimized.__total.weights) {
     var tOpt = S.catOptimized.__total;
@@ -4258,6 +4468,7 @@ function applyWeightsForSeries(seriesVal) {
       S.methods[k].weight = tOpt.weights[k] || 0;
     });
     S.dowWeights = tOpt.dowWeights || {};
+    S.holidayWeights = tOpt.holidayWeights || {};
     if (tOpt.biasConfig) S.biasConfig = tOpt.biasConfig;
   }
 }
