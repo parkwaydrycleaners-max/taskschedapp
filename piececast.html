@@ -639,7 +639,9 @@ const S = {
     q75:         { name: 'DOW 75th Pctile',    enabled: true, weight: 10, params: {} },
     q25:         { name: 'DOW 25th Pctile',    enabled: true, weight: 5, params: {} },
     last2:       { name: 'Last 2 DOW Avg',     enabled: true, weight: 10, params: {} },
-    regime:      { name: 'Regime Adaptive',    enabled: true, weight: 5, params: {} }
+    regime:      { name: 'Regime Adaptive',    enabled: true, weight: 5, params: {} },
+    trendSeason: { name: 'Trend-Season DOW',  enabled: true, weight: 10, params: { recentWeeks: 13 } },
+    recentMonth: { name: 'Recent Month×DOW',  enabled: true, weight: 10, params: { yearsBack: 2 } }
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
@@ -659,7 +661,7 @@ const S = {
   fcChart: null
 };
 const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1','#ea580c','#0d9488','#be123c','#4f46e5','#84cc16','#ca8a04','#0891b2','#9333ea','#e11d48','#65a30d','#0284c7','#c026d3','#d97706','#2563eb','#16a34a','#db2777','#475569','#b91c1c','#7e22ce'];
+const CHART_COLORS = ['#0c7c8a','#c27b1a','#7c3aed','#dc2626','#059669','#d946ef','#6366f1','#ea580c','#0d9488','#be123c','#4f46e5','#84cc16','#ca8a04','#0891b2','#9333ea','#e11d48','#65a30d','#0284c7','#c026d3','#d97706','#2563eb','#16a34a','#db2777','#475569','#b91c1c','#7e22ce','#f59e0b','#14b8a6'];
 
 /* ==================================================================
    DARK MODE
@@ -2249,6 +2251,94 @@ function forecastRegime(trainData, trainDates, horizon) {
   return fc;
 }
 
+/* 27. Trend-Season DOW — recent DOW avg × monthly seasonal factor.
+   Captures both the current activity level AND month-specific patterns. */
+function forecastTrendSeasonDOW(trainData, trainDates, horizon, recentWeeks) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var recentCutoff = recentWeeks * 7;
+
+  // Build overall DOW averages from recent N weeks (captures current level)
+  var dowSums = [0,0,0,0,0,0,0], dowCts = [0,0,0,0,0,0,0];
+  for (var i = 0; i < n; i++) {
+    var age = Math.round((lastDate - trainDates[i]) / 86400000);
+    if (age <= recentCutoff) {
+      var dw = trainDates[i].getDay();
+      if (trainData[i] > 2) { // skip closed/near-closed
+        dowSums[dw] += trainData[i];
+        dowCts[dw]++;
+      }
+    }
+  }
+  var recentDowAvg = [];
+  for (var d = 0; d < 7; d++) recentDowAvg[d] = dowCts[d] > 0 ? dowSums[d] / dowCts[d] : 0;
+
+  // Build monthly seasonal factors (ratio of month avg to overall avg)
+  var monthSums = new Array(12).fill(0), monthCts = new Array(12).fill(0);
+  var overallSum = 0, overallCt = 0;
+  for (var j = 0; j < n; j++) {
+    if (trainData[j] <= 2) continue;
+    var mo = trainDates[j].getMonth();
+    monthSums[mo] += trainData[j];
+    monthCts[mo]++;
+    overallSum += trainData[j];
+    overallCt++;
+  }
+  var overallAvg = overallCt > 0 ? overallSum / overallCt : 1;
+  var seasonFactor = [];
+  for (var m = 0; m < 12; m++) {
+    seasonFactor[m] = monthCts[m] >= 5 ? (monthSums[m] / monthCts[m]) / overallAvg : 1.0;
+  }
+
+  // Forecast: recent DOW avg × seasonal factor for target month
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var fd = new Date(lastDate); fd.setDate(fd.getDate() + h);
+    var dow = fd.getDay();
+    var tMo = fd.getMonth();
+    fc.push(Math.max(0, recentDowAvg[dow] * seasonFactor[tMo]));
+  }
+  return fc;
+}
+
+/* 28. Recent Month×DOW — same month+DOW from last N years only.
+   Avoids dilution from older data in growing/changing businesses. */
+function forecastRecentMonthDOW(trainData, trainDates, horizon, yearsBack) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var cutoffMs = yearsBack * 365.25 * 86400000;
+
+  // Build month×DOW lookup using only recent N years
+  var lookup = {};  // key = month*10+dow
+  var dowFallback = {}; // DOW-only fallback
+  for (var i = 0; i < n; i++) {
+    var age = lastDate - trainDates[i];
+    if (age > cutoffMs) continue;
+    if (trainData[i] <= 2) continue;
+    var mo = trainDates[i].getMonth();
+    var dw = trainDates[i].getDay();
+    var k = mo * 10 + dw;
+    if (!lookup[k]) lookup[k] = [];
+    lookup[k].push(trainData[i]);
+    if (!dowFallback[dw]) dowFallback[dw] = [];
+    dowFallback[dw].push(trainData[i]);
+  }
+
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var d = new Date(lastDate); d.setDate(d.getDate() + h);
+    var key = d.getMonth() * 10 + d.getDay();
+    if (lookup[key] && lookup[key].length >= 2) {
+      var s = lookup[key].reduce(function(a,b){return a+b;},0);
+      fc.push(Math.max(0, s / lookup[key].length));
+    } else {
+      var fb = dowFallback[d.getDay()];
+      fc.push(fb && fb.length > 0 ? Math.max(0, fb.reduce(function(a,b){return a+b;},0)/fb.length) : 0);
+    }
+  }
+  return fc;
+}
+
 function runMethod(key, trainData, trainDates, horizon) {
   const m = S.methods[key];
   switch (key) {
@@ -2278,6 +2368,8 @@ function runMethod(key, trainData, trainDates, horizon) {
     case 'q25': return forecastQ25(trainData, trainDates, horizon);
     case 'last2': return forecastLast2(trainData, trainDates, horizon);
     case 'regime': return forecastRegime(trainData, trainDates, horizon);
+    case 'trendSeason': return forecastTrendSeasonDOW(trainData, trainDates, horizon, m.params.recentWeeks);
+    case 'recentMonth': return forecastRecentMonthDOW(trainData, trainDates, horizon, m.params.yearsBack);
     default: return new Array(horizon).fill(0);
   }
 }
@@ -2287,22 +2379,9 @@ function runMethod(key, trainData, trainDates, horizon) {
    ================================================================== */
 function calculateMAPE(actual, forecast, dates) {
   let sum = 0, count = 0;
-  // Compute low-day threshold (same logic as WMAPE)
-  var nzValsM = [];
-  for (var j2 = 0; j2 < actual.length; j2++) {
-    if (dates && isClosedDay(dates[j2])) continue;
-    if (actual[j2] > 0) nzValsM.push(actual[j2]);
-  }
-  var lowThreshM = 0;
-  if (nzValsM.length >= 5) {
-    nzValsM.sort(function(a, b) { return a - b; });
-    lowThreshM = nzValsM[Math.floor(nzValsM.length / 2)] * 0.15;
-  }
   for (let i = 0; i < actual.length; i++) {
-    // Skip closed days
     if (dates && isClosedDay(dates[i])) continue;
-    if (actual[i] === 0) continue;
-    if (actual[i] < lowThreshM) continue; // Skip anomalously low days
+    if (actual[i] <= 2) continue; // Skip closed/near-closed days only
     sum += Math.abs((actual[i] - forecast[i]) / actual[i]);
     count++;
   }
@@ -2311,21 +2390,9 @@ function calculateMAPE(actual, forecast, dates) {
 
 function calculateMAE(actual, forecast, dates) {
   let sum = 0, count = 0;
-  // Compute low-day threshold
-  var nzValsA = [];
-  for (var j3 = 0; j3 < actual.length; j3++) {
-    if (dates && isClosedDay(dates[j3])) continue;
-    if (actual[j3] > 0) nzValsA.push(actual[j3]);
-  }
-  var lowThreshA = 0;
-  if (nzValsA.length >= 5) {
-    nzValsA.sort(function(a, b) { return a - b; });
-    lowThreshA = nzValsA[Math.floor(nzValsA.length / 2)] * 0.15;
-  }
   for (let i = 0; i < actual.length; i++) {
     if (dates && isClosedDay(dates[i])) continue;
-    if (actual[i] === 0) continue;
-    if (actual[i] < lowThreshA) continue; // Skip anomalously low days
+    if (actual[i] <= 2) continue; // Skip closed/near-closed days only
     sum += Math.abs(actual[i] - forecast[i]);
     count++;
   }
@@ -2334,28 +2401,12 @@ function calculateMAE(actual, forecast, dates) {
 
 /* WMAPE: Weighted Mean Absolute Percentage Error = sum(|error|) / sum(actual)
    Better than MAPE for high-variance data — weights errors by volume.
-   Excludes anomalously low days (holidays / closures) — days where actual
-   is below 15% of the median non-zero value are treated as outlier-low
-   and skipped, per the business rule that these days are unreliable. */
+   Days with actual <= 2 are treated as closed/near-closed and skipped. */
 function calculateWAPE(actual, forecast, dates) {
-  // Compute median of non-zero, non-closed values for low-day threshold
-  var nonZeroVals = [];
-  for (var j = 0; j < actual.length; j++) {
-    if (dates && isClosedDay(dates[j])) continue;
-    if (actual[j] > 0) nonZeroVals.push(actual[j]);
-  }
-  var lowThreshold = 0;
-  if (nonZeroVals.length >= 5) {
-    nonZeroVals.sort(function(a, b) { return a - b; });
-    var med = nonZeroVals[Math.floor(nonZeroVals.length / 2)];
-    lowThreshold = med * 0.15; // Skip days below 15% of median
-  }
-
   let errorSum = 0, actualSum = 0;
   for (let i = 0; i < actual.length; i++) {
     if (dates && isClosedDay(dates[i])) continue;
-    if (actual[i] === 0) continue;
-    if (actual[i] < lowThreshold) continue; // Skip anomalously low days
+    if (actual[i] <= 2) continue; // Skip closed/near-closed days only
     errorSum += Math.abs(actual[i] - forecast[i]);
     actualSum += actual[i];
   }
@@ -2650,7 +2701,7 @@ function autoOptimize(options) {
   // Start 9: DOW-methods-only (helps low-volume categories like Alterations)
   var dowOnlyW = {};
   for (var kd of enabledKeys) dowOnlyW[kd] = 0;
-  var dowMethods = ['dowAvg','recent','wDow','medDow','trimDow','q75','last2','monthDow','monthDowR'];
+  var dowMethods = ['dowAvg','recent','wDow','medDow','trimDow','q75','last2','monthDow','monthDowR','trendSeason','recentMonth'];
   for (var dmi = 0; dmi < dowMethods.length; dmi++) {
     if (dowOnlyW.hasOwnProperty(dowMethods[dmi])) dowOnlyW[dowMethods[dmi]] = 15;
   }
@@ -2664,6 +2715,26 @@ function autoOptimize(options) {
   if (medHeavyW.hasOwnProperty('recent')) medHeavyW['recent'] = 20;
   if (medHeavyW.hasOwnProperty('trimDow')) medHeavyW['trimDow'] = 20;
   startingPoints.push(medHeavyW);
+
+  // Start 11: seasonal-focused (captures monthly + trend patterns for seasonal categories)
+  var seaW = {};
+  for (var ks of enabledKeys) seaW[ks] = 0;
+  if (seaW.hasOwnProperty('trendSeason')) seaW['trendSeason'] = 40;
+  if (seaW.hasOwnProperty('monthDow')) seaW['monthDow'] = 25;
+  if (seaW.hasOwnProperty('monthDowR')) seaW['monthDowR'] = 25;
+  if (seaW.hasOwnProperty('recentMonth')) seaW['recentMonth'] = 30;
+  if (seaW.hasOwnProperty('annualDow')) seaW['annualDow'] = 15;
+  startingPoints.push(seaW);
+
+  // Start 12: recent-trend-heavy (businesses with growth/decline trends)
+  var trendW = {};
+  for (var kt of enabledKeys) trendW[kt] = 0;
+  if (trendW.hasOwnProperty('trendSeason')) trendW['trendSeason'] = 35;
+  if (trendW.hasOwnProperty('recentMonth')) trendW['recentMonth'] = 30;
+  if (trendW.hasOwnProperty('recent')) trendW['recent'] = 20;
+  if (trendW.hasOwnProperty('yoyTrend')) trendW['yoyTrend'] = 15;
+  if (trendW.hasOwnProperty('momentum')) trendW['momentum'] = 10;
+  startingPoints.push(trendW);
 
   // Additional random starting points for multi-run diversity
   if (doShuffle) {
@@ -3103,9 +3174,9 @@ function buildOptimizeAndBacktestSteps() {
         var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
         if (wape > 500) wape = -1;
 
-        // Auto-refine: if WMAPE > 25%, run up to 2 extra shuffled passes
-        if (wape > 0 && wape > 25) {
-          for (var refPass = 0; refPass < 2; refPass++) {
+        // Auto-refine: if WMAPE > 20%, run up to 5 extra shuffled passes
+        if (wape > 0 && wape > 20) {
+          for (var refPass = 0; refPass < 5; refPass++) {
             resetMethods();
             S.activeSeries = 'pieces:' + cn;
             autoOptimize({ shuffle: true });
@@ -3140,6 +3211,25 @@ function buildOptimizeAndBacktestSteps() {
     var bt = runBacktest(S.backtestWindow);
     var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
     if (wape > 500) wape = -1;
+
+    // Auto-refine Total Pieces if WMAPE > 15%
+    if (wape > 0 && wape > 15) {
+      for (var tRefPass = 0; tRefPass < 3; tRefPass++) {
+        resetMethods();
+        S.activeSeries = '__total_pieces';
+        autoOptimize({ shuffle: true });
+        var tWts = {}; Object.keys(S.methods).forEach(function(k) { tWts[k] = S.methods[k].weight; });
+        var tDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+        var tBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+        var tBt = runBacktest(S.backtestWindow);
+        var tWape = tBt && tBt.results.__ensemble ? tBt.results.__ensemble.wape : 999;
+        if (tWape > 0 && tWape < wape) {
+          wts = tWts; dw = tDw; bc = tBc; wape = tWape;
+        }
+        if (wape <= 12) break;
+      }
+    }
+
     S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc };
     allSummaries.push({ name: 'Total Pieces', wape: wape });
     Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = wts[k] || 0; });
@@ -3493,7 +3583,7 @@ function generateExport(scope) {
   if (S.closedDays.length > 0) {
     lines.push('# Closed Days: ' + S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') + ' (forecast=0)');
   }
-  lines.push('# Low-Day Exclusion: Active (days < 15% of median excluded from WMAPE)');
+  lines.push('# Low-Day Exclusion: Active (days with actual <= 2 excluded as closed/near-closed)');
   lines.push('# Methods: ' + methodStr);
   if (S.dowWeights && Object.keys(S.dowWeights).length > 0) {
     lines.push('# Per-DOW Weights: Active (' + Object.keys(S.dowWeights).length + ' DOWs optimized)');
