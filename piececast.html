@@ -2853,22 +2853,10 @@ function autoOptimize(options) {
     return calculateWAPE(testData, ens, testDates);
   }
 
-  // Try multiple starting points:
-  // 1) Inverse-MAPE weighted  2) Equal weights  3) Best-method-only
+  // ── Starting points (6 diverse starts) ──────────────────────────────
   const startingPoints = [];
 
-  // Start 1: inverse MAPE (squared for stronger preference)
-  const invW = {};
-  let totalInv = 0;
-  for (const k of enabledKeys) {
-    const inv = mapes[k] > 0.01 ? 1 / (mapes[k] * mapes[k]) : 10000;
-    invW[k] = inv;
-    totalInv += inv;
-  }
-  for (const k of enabledKeys) invW[k] = Math.round((invW[k] / totalInv) * 100) || 1;
-  startingPoints.push({...invW});
-
-  // Start 5: inverse WAPE (what we actually optimize)
+  // Compute per-method WAPE for smart starting points
   var wapeW = {};
   var wapeTotalInv = 0;
   for (var wk = 0; wk < enabledKeys.length; wk++) {
@@ -2881,51 +2869,30 @@ function autoOptimize(options) {
   for (var wk2 = 0; wk2 < enabledKeys.length; wk2++) {
     wapeW[enabledKeys[wk2]] = Math.round((wapeW[enabledKeys[wk2]] / wapeTotalInv) * 100) || 1;
   }
+  var wSorted = [...enabledKeys].sort(function(a,b){ return (wapeW[b]||0)-(wapeW[a]||0); });
+
+  // 1: inverse WAPE weighted (best overall start)
   startingPoints.push({...wapeW});
 
-  // Start 2: equal weights
-  const eqW = {};
-  const eqVal = Math.round(100 / enabledKeys.length);
-  for (const k of enabledKeys) eqW[k] = eqVal;
+  // 2: top-5 methods only
+  var top5W = {};
+  for (var k5 of enabledKeys) top5W[k5] = 0;
+  var top5 = wSorted.slice(0, Math.min(5, wSorted.length));
+  for (var k5b of top5) top5W[k5b] = wapeW[k5b] || 1;
+  startingPoints.push(top5W);
+
+  // 3: equal weights
+  var eqW = {};
+  var eqVal = Math.round(100 / enabledKeys.length);
+  for (var keq of enabledKeys) eqW[keq] = eqVal;
   startingPoints.push(eqW);
 
-  // Start 3: concentrate on best method
-  const bestKey = enabledKeys.reduce((best, k) => mapes[k] < mapes[best] ? k : best, enabledKeys[0]);
-  const concW = {};
-  for (const k of enabledKeys) concW[k] = k === bestKey ? 80 : Math.round(20 / (enabledKeys.length - 1)) || 1;
+  // 4: concentrate on best method
+  var concW = {};
+  for (var kc of enabledKeys) concW[kc] = kc === wSorted[0] ? 80 : Math.round(20 / (enabledKeys.length - 1)) || 1;
   startingPoints.push(concW);
 
-  // Start 4: top-3 methods only
-  const sorted = [...enabledKeys].sort((a,b) => mapes[a] - mapes[b]);
-  const top3W = {};
-  for (const k of enabledKeys) top3W[k] = 0;
-  const top3 = sorted.slice(0, Math.min(3, sorted.length));
-  for (const k of top3) top3W[k] = Math.round(100 / top3.length);
-  startingPoints.push(top3W);
-
-  // Start 6: top-5 inverse-WAPE
-  var wSorted = [...enabledKeys].sort(function(a,b){ return (wapeW[a]||999)-(wapeW[b]||999); });
-  var top5iW = {};
-  for (var k5 of enabledKeys) top5iW[k5] = 0;
-  var top5 = wSorted.slice(0, Math.min(5, wSorted.length));
-  for (var k5b of top5) top5iW[k5b] = wapeW[k5b] || 1;
-  startingPoints.push(top5iW);
-
-  // Start 7: top-7 inverse-WAPE
-  var top7iW = {};
-  for (var k7 of enabledKeys) top7iW[k7] = 0;
-  var top7 = wSorted.slice(0, Math.min(7, wSorted.length));
-  for (var k7b of top7) top7iW[k7b] = wapeW[k7b] || 1;
-  startingPoints.push(top7iW);
-
-  // Start 8: best method heavy + top-5 sprinkle
-  var heavyW = {};
-  for (var kh of enabledKeys) heavyW[kh] = 0;
-  heavyW[wSorted[0]] = 60;
-  for (var kh2 = 1; kh2 < Math.min(5, wSorted.length); kh2++) heavyW[wSorted[kh2]] = 10;
-  startingPoints.push(heavyW);
-
-  // Start 9: DOW-methods-only (helps low-volume categories like Alterations)
+  // 5: DOW-methods-only (helps low-volume categories like Alterations)
   var dowOnlyW = {};
   for (var kd of enabledKeys) dowOnlyW[kd] = 0;
   var dowMethods = ['dowAvg','recent','wDow','medDow','trimDow','q75','last2','monthDow','monthDowR','trendSeason','recentMonth'];
@@ -2934,16 +2901,7 @@ function autoOptimize(options) {
   }
   startingPoints.push(dowOnlyW);
 
-  // Start 10: median-heavy (stable for noisy/low-volume data)
-  var medHeavyW = {};
-  for (var km of enabledKeys) medHeavyW[km] = 0;
-  if (medHeavyW.hasOwnProperty('medDow')) medHeavyW['medDow'] = 50;
-  if (medHeavyW.hasOwnProperty('dowAvg')) medHeavyW['dowAvg'] = 30;
-  if (medHeavyW.hasOwnProperty('recent')) medHeavyW['recent'] = 20;
-  if (medHeavyW.hasOwnProperty('trimDow')) medHeavyW['trimDow'] = 20;
-  startingPoints.push(medHeavyW);
-
-  // Start 11: seasonal-focused (captures monthly + trend patterns for seasonal categories)
+  // 6: seasonal-focused
   var seaW = {};
   for (var ks of enabledKeys) seaW[ks] = 0;
   if (seaW.hasOwnProperty('trendSeason')) seaW['trendSeason'] = 40;
@@ -2953,54 +2911,39 @@ function autoOptimize(options) {
   if (seaW.hasOwnProperty('annualDow')) seaW['annualDow'] = 15;
   startingPoints.push(seaW);
 
-  // Start 12: recent-trend-heavy (businesses with growth/decline trends)
-  var trendW = {};
-  for (var kt of enabledKeys) trendW[kt] = 0;
-  if (trendW.hasOwnProperty('trendSeason')) trendW['trendSeason'] = 35;
-  if (trendW.hasOwnProperty('recentMonth')) trendW['recentMonth'] = 30;
-  if (trendW.hasOwnProperty('recent')) trendW['recent'] = 20;
-  if (trendW.hasOwnProperty('yoyTrend')) trendW['yoyTrend'] = 15;
-  if (trendW.hasOwnProperty('momentum')) trendW['momentum'] = 10;
-  startingPoints.push(trendW);
-
-  // Additional random starting points for multi-run diversity
+  // Extra random starts for shuffle (refine) runs only
   if (doShuffle) {
-    // 4 random weight vectors
-    for (var rsp = 0; rsp < 4; rsp++) {
+    for (var rsp = 0; rsp < 2; rsp++) {
       var randW = {};
       for (var rk of enabledKeys) randW[rk] = Math.floor(Math.random() * 50);
       startingPoints.push(randW);
     }
-    // Random sparse: 2-3 methods with high weight
-    var rsKeys = shuffleArray(enabledKeys.slice());
-    var rsN = Math.min(2 + Math.floor(Math.random() * 2), rsKeys.length);
-    var rsW = {};
-    for (var rsk of enabledKeys) rsW[rsk] = 0;
-    for (var rsi = 0; rsi < rsN; rsi++) rsW[rsKeys[rsi]] = 30 + Math.floor(Math.random() * 50);
-    startingPoints.push(rsW);
   }
 
   let globalBestMape = 999;
   let globalBestWeights = startingPoints[0];
 
-  for (const start of startingPoints) {
+  for (var spi = 0; spi < startingPoints.length; spi++) {
+    var start = startingPoints[spi];
     const weights = {...start};
 
-    // Multi-resolution coordinate descent with finer final step
-    const stepSizes = [5, 2, 1, 0.5, 0.25];
+    // Quick check: if starting score is >2x worse than current best, skip
+    var startScore = getEnsembleMAPE(weights);
+    if (globalBestMape < 900 && startScore > globalBestMape * 2) continue;
+
+    // Multi-resolution coordinate descent (3 step sizes, max 40 iters each)
+    const stepSizes = [5, 2, 1];
     for (const step of stepSizes) {
       var cdKeys = doShuffle ? shuffleArray(enabledKeys.slice()) : enabledKeys;
       let bestMape = getEnsembleMAPE(weights);
-      for (let iter = 0; iter < 200; iter++) {
+      for (let iter = 0; iter < 40; iter++) {
         let improved = false;
         for (const k of cdKeys) {
-          // Try +step
           weights[k] += step;
           let newMape = getEnsembleMAPE(weights);
           if (newMape < bestMape - 0.0001) { bestMape = newMape; improved = true; continue; }
           weights[k] -= step;
 
-          // Try -step
           if (weights[k] >= step) {
             weights[k] -= step;
             newMape = getEnsembleMAPE(weights);
@@ -3062,7 +3005,7 @@ function autoOptimize(options) {
     for (var ts = 0; ts < topSteps.length; ts++) {
       var tStep = topSteps[ts];
       var tBest = getEnsembleMAPE(globalBestWeights);
-      for (var tIter = 0; tIter < 100; tIter++) {
+      for (var tIter = 0; tIter < 30; tIter++) {
         var tImproved = false;
         for (var ti = 0; ti < topN.length; ti++) {
           var tK = topN[ti];
@@ -3085,42 +3028,18 @@ function autoOptimize(options) {
   // --- Adaptive bias correction: search for best settings ---
   var biasConfigs = [
     { weeks: 0, dampen: 0 },    // no correction
-    { weeks: 1, dampen: 0.2 },
-    { weeks: 1, dampen: 0.5 },
-    { weeks: 2, dampen: 0.1 },
     { weeks: 2, dampen: 0.2 },
-    { weeks: 2, dampen: 0.3 },
     { weeks: 2, dampen: 0.5 },
-    { weeks: 3, dampen: 0.1 },
-    { weeks: 3, dampen: 0.2 },
     { weeks: 3, dampen: 0.3 },
-    { weeks: 3, dampen: 0.5 },
-    { weeks: 3, dampen: 0.7 },
-    { weeks: 4, dampen: 0.1 },
     { weeks: 4, dampen: 0.2 },
-    { weeks: 4, dampen: 0.3 },
     { weeks: 4, dampen: 0.5 },
-    { weeks: 4, dampen: 0.7 },
-    { weeks: 5, dampen: 0.2 },
-    { weeks: 5, dampen: 0.3 },
-    { weeks: 5, dampen: 0.5 },
-    { weeks: 6, dampen: 0.2 },
     { weeks: 6, dampen: 0.3 },
     { weeks: 6, dampen: 0.5 },
-    { weeks: 6, dampen: 0.7 },
-    { weeks: 8, dampen: 0.2 },
     { weeks: 8, dampen: 0.3 },
-    { weeks: 8, dampen: 0.4 },
     { weeks: 8, dampen: 0.5 },
-    { weeks: 8, dampen: 0.7 },
-    { weeks: 10, dampen: 0.2 },
     { weeks: 10, dampen: 0.3 },
-    { weeks: 10, dampen: 0.5 },
-    { weeks: 12, dampen: 0.3 },
     { weeks: 12, dampen: 0.5 },
-    { weeks: 14, dampen: 0.3 },
-    { weeks: 14, dampen: 0.5 },
-    { weeks: 16, dampen: 0.3 }
+    { weeks: 14, dampen: 0.5 }
   ];
   var bestBiasWape = 999;
   var bestBiasConfig = DEFAULT_BIAS;
@@ -3133,20 +3052,18 @@ function autoOptimize(options) {
   }
   S.biasConfig = bestBiasConfig;
 
-  // Re-optimize weights with the best bias config
+  // Light re-optimization with the best bias config
   if (bestBiasConfig.weeks > 0 || bestBiasWape < globalBestMape) {
-    // Thorough re-optimization with new bias settings
-    var reSteps = [3, 1, 0.5];
+    var reSteps = [3, 1];
     for (var rs = 0; rs < reSteps.length; rs++) {
       var rStep = reSteps[rs];
       var reKeys = doShuffle ? shuffleArray(enabledKeys.slice()) : enabledKeys;
       var rBest = getEnsembleMAPE(globalBestWeights);
-      for (var rIter = 0; rIter < 100; rIter++) {
+      for (var rIter = 0; rIter < 30; rIter++) {
         var rImproved = false;
         for (var ri = 0; ri < reKeys.length; ri++) {
           var rK = reKeys[ri];
           if (globalBestWeights[rK] <= 0 && rStep > 0) {
-            // Try activating zeroed methods
             globalBestWeights[rK] = rStep;
             var rNew = getEnsembleMAPE(globalBestWeights);
             if (rNew < rBest - 0.0001) { rBest = rNew; rImproved = true; continue; }
@@ -3165,22 +3082,6 @@ function autoOptimize(options) {
           }
         }
         if (!rImproved) break;
-      }
-    }
-
-    // Second backward elimination pass after bias re-optimization
-    var pruned2 = true;
-    while (pruned2) {
-      pruned2 = false;
-      var cw2 = getEnsembleMAPE(globalBestWeights);
-      for (var pk2 = 0; pk2 < enabledKeys.length; pk2++) {
-        var pKey2 = enabledKeys[pk2];
-        if (globalBestWeights[pKey2] <= 0) continue;
-        var saved2 = globalBestWeights[pKey2];
-        globalBestWeights[pKey2] = 0;
-        var tw2 = getEnsembleMAPE(globalBestWeights);
-        if (tw2 < cw2 - 0.001) { cw2 = tw2; pruned2 = true; }
-        else globalBestWeights[pKey2] = saved2;
       }
     }
   }
@@ -3265,12 +3166,12 @@ function autoOptimize(options) {
       return err;
     };
 
-    // Coordinate descent with fine steps
-    var dowSteps = [10, 5, 2, 1, 0.5, 0.2];
+    // Coordinate descent
+    var dowSteps = [10, 5, 2, 1];
     for (var ds = 0; ds < dowSteps.length; ds++) {
       var dStep = dowSteps[ds];
       var dowCDKeys = doShuffle ? shuffleArray(dowTopN.slice()) : dowTopN;
-      for (var dIter = 0; dIter < 100; dIter++) {
+      for (var dIter = 0; dIter < 30; dIter++) {
         var dImproved = false;
         for (var dk2 = 0; dk2 < dowCDKeys.length; dk2++) {
           var dk2Key = dowCDKeys[dk2];
@@ -3403,9 +3304,9 @@ function buildOptimizeAndBacktestSteps() {
         var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
         if (wape > 500) wape = -1;
 
-        // Auto-refine: if WMAPE > 20%, run up to 5 extra shuffled passes
+        // Auto-refine: if WMAPE > 20%, run up to 2 extra shuffled passes
         if (wape > 0 && wape > 20) {
-          for (var refPass = 0; refPass < 5; refPass++) {
+          for (var refPass = 0; refPass < 2; refPass++) {
             resetMethods();
             S.activeSeries = 'pieces:' + cn;
             autoOptimize({ shuffle: true });
@@ -3418,7 +3319,7 @@ function buildOptimizeAndBacktestSteps() {
             if (rWape > 0 && rWape < wape) {
               wts = rWts; dw = rDw; bc = rBc; mp = rMp; wape = rWape;
             }
-            if (wape <= 20) break; // Good enough, stop refining
+            if (wape <= 20) break;
           }
         }
 
@@ -3445,20 +3346,17 @@ function buildOptimizeAndBacktestSteps() {
 
     // Auto-refine Total Pieces if WMAPE > 15%
     if (wape > 0 && wape > 15) {
-      for (var tRefPass = 0; tRefPass < 3; tRefPass++) {
-        resetMethods();
-        S.activeSeries = '__total_pieces';
-        autoOptimize({ shuffle: true });
-        var tWts = {}; Object.keys(S.methods).forEach(function(k) { tWts[k] = S.methods[k].weight; });
-        var tDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
-        var tBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
-        var tMp = captureMethodParams();
-        var tBt = runBacktest(S.backtestWindow);
-        var tWape = tBt && tBt.results.__ensemble ? tBt.results.__ensemble.wape : 999;
-        if (tWape > 0 && tWape < wape) {
-          wts = tWts; dw = tDw; bc = tBc; mp = tMp; wape = tWape;
-        }
-        if (wape <= 12) break;
+      resetMethods();
+      S.activeSeries = '__total_pieces';
+      autoOptimize({ shuffle: true });
+      var tWts = {}; Object.keys(S.methods).forEach(function(k) { tWts[k] = S.methods[k].weight; });
+      var tDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+      var tBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+      var tMp = captureMethodParams();
+      var tBt = runBacktest(S.backtestWindow);
+      var tWape = tBt && tBt.results.__ensemble ? tBt.results.__ensemble.wape : 999;
+      if (tWape > 0 && tWape < wape) {
+        wts = tWts; dw = tDw; bc = tBc; mp = tMp; wape = tWape;
       }
     }
 
