@@ -437,7 +437,13 @@ html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50
 
     <!-- Methods -->
     <div class="card">
-      <div class="card-title"><span class="icon">&#x2699;&#xFE0F;</span> Forecasting Methods &amp; Weights</div>
+      <div class="card-title" style="flex-wrap:wrap;gap:8px 12px;justify-content:space-between">
+        <span style="display:flex;align-items:center;gap:8px"><span class="icon">&#x2699;&#xFE0F;</span> Forecasting Methods &amp; Weights</span>
+        <select id="methodCatSelect" class="select-styled" style="max-width:220px;font-size:.8rem;padding:5px 8px" disabled>
+          <option value="__total_pieces">Total Pieces</option>
+        </select>
+      </div>
+      <div id="methodCatSummary" style="font-size:.78rem;color:var(--text-muted);margin-bottom:10px;display:none"></div>
       <div class="method-grid" id="methodGrid"></div>
     </div>
 
@@ -4101,11 +4107,63 @@ function populateSeriesDropdowns() {
   document.getElementById('seriesSelect').innerHTML = html;
   document.getElementById('seriesSelect').disabled = false;
   document.getElementById('forecastSeriesSelect').innerHTML = html;
+
+  // Method card category dropdown — only pieces categories + total
+  var mcOpts = '<option value="__total_pieces">Total Pieces (combined)</option>';
+  catNames.forEach(function(n) {
+    mcOpts += '<option value="pieces:' + escHtml(n) + '">' + escHtml(n) + '</option>';
+  });
+  var mcSel = document.getElementById('methodCatSelect');
+  mcSel.innerHTML = mcOpts;
+  mcSel.disabled = false;
+  mcSel.value = S.activeSeries;
 }
 
 function renderMethodGrid() {
   const grid = document.getElementById('methodGrid');
   grid.innerHTML = '';
+
+  // Keep method card dropdown in sync with active series
+  var mcSel = document.getElementById('methodCatSelect');
+  if (mcSel && !mcSel.disabled) {
+    var mcOpts = Array.from(mcSel.options).map(function(o) { return o.value; });
+    if (mcOpts.indexOf(S.activeSeries) >= 0) mcSel.value = S.activeSeries;
+    else mcSel.value = '__total_pieces';
+  }
+
+  // Update summary bar
+  var sumEl = document.getElementById('methodCatSummary');
+  if (sumEl) {
+    var catOpt = getCatOptForSeries(S.activeSeries);
+    var enabledCount = Object.values(S.methods).filter(function(m) { return m.enabled && m.weight > 0; }).length;
+    var totalWeight = Object.values(S.methods).reduce(function(s, m) { return s + (m.enabled ? m.weight : 0); }, 0);
+    var parts = [];
+    parts.push('<strong>' + enabledCount + '</strong> active methods');
+    parts.push('total weight <strong>' + totalWeight + '</strong>');
+    if (catOpt && catOpt.wape >= 0) {
+      var cls = catOpt.wape <= 15 ? 'color:#16a34a' : catOpt.wape <= 25 ? 'color:#d97706' : 'color:#dc2626';
+      parts.push('optimized WMAPE <strong style="' + cls + '">' + catOpt.wape.toFixed(1) + '%</strong>');
+    } else if (catOpt && catOpt.wape < 0) {
+      parts.push('<em>insufficient data</em>');
+    } else {
+      parts.push('<em>not yet optimized</em>');
+    }
+    // Show tuned param count for this category
+    if (catOpt && catOpt.methodParams) {
+      var tunedCount = 0;
+      Object.keys(catOpt.methodParams).forEach(function(mk) {
+        if (!DEFAULT_PARAMS[mk] || !PARAM_GRID[mk]) return;
+        var mp = catOpt.methodParams[mk];
+        var dp = DEFAULT_PARAMS[mk];
+        Object.keys(mp).forEach(function(pn) {
+          if (dp[pn] !== undefined && mp[pn] !== dp[pn]) tunedCount++;
+        });
+      });
+      if (tunedCount > 0) parts.push(tunedCount + ' tuned param' + (tunedCount > 1 ? 's' : ''));
+    }
+    sumEl.innerHTML = parts.join(' &middot; ');
+    sumEl.style.display = '';
+  }
 
   for (const [key, m] of Object.entries(S.methods)) {
     const btKey = String(S.backtestWindow);
@@ -4573,7 +4631,29 @@ document.getElementById('loadDataBtn').addEventListener('click', () => {
 document.getElementById('seriesSelect').addEventListener('change', function() {
   S.activeSeries = this.value;
   document.getElementById('forecastSeriesSelect').value = this.value;
+  // Sync the method card dropdown (only if value exists in it)
+  var mcSel = document.getElementById('methodCatSelect');
+  var mcOpts = Array.from(mcSel.options).map(function(o) { return o.value; });
+  if (mcOpts.indexOf(this.value) >= 0) mcSel.value = this.value;
+  else mcSel.value = '__total_pieces';
   applyWeightsForSeries(this.value);
+  renderMethodGrid();
+  if (S.dataLoaded) {
+    runWithLoading('Updating', [
+      { label: 'Running backtest\u2026', fn: function() { doBacktest(); }}
+    ]);
+  }
+});
+
+document.getElementById('methodCatSelect').addEventListener('change', function() {
+  var val = this.value;
+  // Sync the main series selector and forecast selector
+  S.activeSeries = val;
+  var mainSel = document.getElementById('seriesSelect');
+  var mainOpts = Array.from(mainSel.options).map(function(o) { return o.value; });
+  if (mainOpts.indexOf(val) >= 0) mainSel.value = val;
+  document.getElementById('forecastSeriesSelect').value = mainSel.value;
+  applyWeightsForSeries(val);
   renderMethodGrid();
   if (S.dataLoaded) {
     runWithLoading('Updating', [
