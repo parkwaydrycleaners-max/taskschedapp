@@ -4849,6 +4849,77 @@ document.getElementById('exportBacktestBtn').addEventListener('click', function(
   if (!anyTuned) lines.push('(all defaults)');
   lines.push('');
 
+  // Per-category WMAPE summary
+  lines.push('--- PER-CATEGORY WMAPE ---');
+  if (S.catOptimized && Object.keys(S.catOptimized).length > 0) {
+    var catKeys = Object.keys(S.catOptimized).filter(function(k) { return k !== '__total'; });
+    catKeys.sort();
+    for (var ci = 0; ci < catKeys.length; ci++) {
+      var ck = catKeys[ci];
+      var co = S.catOptimized[ck];
+      var cWape = (co && co.wape >= 0) ? co.wape.toFixed(1) + '%' : 'N/A';
+      var cRating = (!co || co.wape < 0) ? '' : co.wape <= 15 ? ' (good)' : co.wape <= 25 ? ' (ok)' : ' (poor)';
+      var cTopWts = '';
+      if (co && co.weights) {
+        var cwArr = Object.keys(co.weights).filter(function(wk) { return co.weights[wk] > 0; })
+          .map(function(wk) { return { k: wk, w: co.weights[wk] }; })
+          .sort(function(a, b) { return b.w - a.w; }).slice(0, 5);
+        if (cwArr.length > 0) {
+          cTopWts = '\tTop: ' + cwArr.map(function(x) { return (S.methods[x.k] ? S.methods[x.k].name : x.k) + '=' + x.w.toFixed(1); }).join(', ');
+        }
+      }
+      lines.push(ck + '\tWMAPE: ' + cWape + cRating + cTopWts);
+    }
+    if (S.catOptimized.__total) {
+      var tw = S.catOptimized.__total.wape;
+      var tWape = (tw >= 0) ? tw.toFixed(1) + '%' : 'N/A';
+      var tRating = (tw < 0) ? '' : tw <= 15 ? ' (good)' : tw <= 25 ? ' (ok)' : ' (poor)';
+      var tTopWts = '';
+      if (S.catOptimized.__total.weights) {
+        var twArr = Object.keys(S.catOptimized.__total.weights).filter(function(wk) { return S.catOptimized.__total.weights[wk] > 0; })
+          .map(function(wk) { return { k: wk, w: S.catOptimized.__total.weights[wk] }; })
+          .sort(function(a, b) { return b.w - a.w; }).slice(0, 5);
+        if (twArr.length > 0) {
+          tTopWts = '\tTop: ' + twArr.map(function(x) { return (S.methods[x.k] ? S.methods[x.k].name : x.k) + '=' + x.w.toFixed(1); }).join(', ');
+        }
+      }
+      lines.push('Total Pieces\tWMAPE: ' + tWape + tRating + tTopWts);
+    }
+    lines.push('');
+
+    // Per-category tuned parameters detail
+    lines.push('--- PER-CATEGORY TUNED PARAMS ---');
+    var allCatKeys = catKeys.concat(S.catOptimized.__total ? ['__total'] : []);
+    for (var cpi = 0; cpi < allCatKeys.length; cpi++) {
+      var cpk = allCatKeys[cpi];
+      var cpOpt = S.catOptimized[cpk];
+      var cpLabel = cpk === '__total' ? 'Total Pieces' : cpk;
+      if (!cpOpt || !cpOpt.methodParams) {
+        lines.push(cpLabel + ': (no params saved)');
+        continue;
+      }
+      var cpDiffs = [];
+      Object.keys(cpOpt.methodParams).forEach(function(mk) {
+        if (!DEFAULT_PARAMS[mk] || !PARAM_GRID[mk]) return;
+        var mp = cpOpt.methodParams[mk];
+        var dp = DEFAULT_PARAMS[mk];
+        Object.keys(mp).forEach(function(pn) {
+          if (dp[pn] !== undefined && mp[pn] !== dp[pn]) {
+            cpDiffs.push(mk + '.' + pn + ': ' + dp[pn] + '→' + mp[pn]);
+          }
+        });
+      });
+      if (cpDiffs.length > 0) {
+        lines.push(cpLabel + ': ' + cpDiffs.join(', '));
+      } else {
+        lines.push(cpLabel + ': (all defaults)');
+      }
+    }
+  } else {
+    lines.push('(no per-category optimization data — run Optimize All first)');
+  }
+  lines.push('');
+
   // Alignment debug info
   lines.push('--- ALIGNMENT DEBUG ---');
   const lastTrainDate = bt.trainDates[bt.trainDates.length - 1];
