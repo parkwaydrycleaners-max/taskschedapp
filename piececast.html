@@ -647,7 +647,9 @@ const S = {
     last2:       { name: 'Last 2 DOW Avg',     enabled: true, weight: 10, params: {} },
     regime:      { name: 'Regime Adaptive',    enabled: true, weight: 5, params: {} },
     trendSeason: { name: 'Trend-Season DOW',  enabled: true, weight: 10, params: { recentWeeks: 13 } },
-    recentMonth: { name: 'Recent Month×DOW',  enabled: true, weight: 10, params: { yearsBack: 2 } }
+    recentMonth: { name: 'Recent Month×DOW',  enabled: true, weight: 10, params: { yearsBack: 2 } },
+    winsDow:     { name: 'Winsorized DOW',    enabled: true, weight: 5, params: { weeks: 20, capPct: 10 } },
+    adapMedian:  { name: 'Adaptive Median',   enabled: true, weight: 5, params: { halfLife: 6 } }
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
@@ -2349,6 +2351,84 @@ function forecastRecentMonthDOW(trainData, trainDates, horizon, yearsBack) {
   return fc;
 }
 
+/* 29. Winsorized DOW — cap extreme values at capPct/100-capPct percentiles before averaging.
+   Reduces impact of outlier days on DOW forecasts, especially useful for volatile series. */
+function forecastWinsorizedDOW(trainData, trainDates, horizon, weeks, capPct) {
+  var n = trainData.length;
+  var start = Math.max(0, n - weeks * 7);
+  var lastDate = trainDates[n - 1];
+  var dowBuckets = {};
+  for (var i = start; i < n; i++) {
+    if (isClosedDay(trainDates[i])) continue;
+    if (trainData[i] <= 2) continue;
+    var dw = trainDates[i].getDay();
+    if (!dowBuckets[dw]) dowBuckets[dw] = [];
+    dowBuckets[dw].push(trainData[i]);
+  }
+  // Winsorize each DOW bucket
+  var dowAvgs = {};
+  for (var d = 0; d < 7; d++) {
+    var vals = dowBuckets[d];
+    if (!vals || vals.length === 0) { dowAvgs[d] = 0; continue; }
+    vals.sort(function(a, b) { return a - b; });
+    var lo = Math.floor(vals.length * capPct / 100);
+    var hi = Math.max(lo + 1, vals.length - lo);
+    var loVal = vals[lo];
+    var hiVal = vals[Math.min(hi, vals.length - 1)];
+    var s = 0;
+    for (var j = 0; j < vals.length; j++) {
+      s += Math.min(hiVal, Math.max(loVal, vals[j]));
+    }
+    dowAvgs[d] = s / vals.length;
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var fd = new Date(lastDate); fd.setDate(fd.getDate() + h);
+    fc.push(Math.max(0, dowAvgs[fd.getDay()] || 0));
+  }
+  return fc;
+}
+
+/* 30. Adaptive Median DOW — recency-weighted median per DOW.
+   Uses exponential decay to weight recent data more, then picks median of top-weighted values.
+   Combines outlier resistance of median with recency adaptation. */
+function forecastAdaptiveMedianDOW(trainData, trainDates, horizon, halfLife) {
+  var n = trainData.length;
+  var lastDate = trainDates[n - 1];
+  var decay = Math.log(2) / (halfLife * 7);
+  var dowEntries = {};
+  for (var i = 0; i < n; i++) {
+    if (isClosedDay(trainDates[i])) continue;
+    if (trainData[i] <= 2) continue;
+    var dw = trainDates[i].getDay();
+    if (!dowEntries[dw]) dowEntries[dw] = [];
+    var age = n - 1 - i;
+    dowEntries[dw].push({ val: trainData[i], w: Math.exp(-decay * age) });
+  }
+  var dowMedians = {};
+  for (var d = 0; d < 7; d++) {
+    var entries = dowEntries[d];
+    if (!entries || entries.length === 0) { dowMedians[d] = 0; continue; }
+    // Sort by value
+    entries.sort(function(a, b) { return a.val - b.val; });
+    // Find weighted median
+    var totalW = entries.reduce(function(s, e) { return s + e.w; }, 0);
+    var halfW = totalW / 2;
+    var cumW = 0;
+    dowMedians[d] = entries[entries.length - 1].val; // fallback
+    for (var j = 0; j < entries.length; j++) {
+      cumW += entries[j].w;
+      if (cumW >= halfW) { dowMedians[d] = entries[j].val; break; }
+    }
+  }
+  var fc = [];
+  for (var h = 1; h <= horizon; h++) {
+    var fd = new Date(lastDate); fd.setDate(fd.getDate() + h);
+    fc.push(Math.max(0, dowMedians[fd.getDay()] || 0));
+  }
+  return fc;
+}
+
 function runMethod(key, trainData, trainDates, horizon) {
   const m = S.methods[key];
   switch (key) {
@@ -2380,6 +2460,8 @@ function runMethod(key, trainData, trainDates, horizon) {
     case 'regime': return forecastRegime(trainData, trainDates, horizon);
     case 'trendSeason': return forecastTrendSeasonDOW(trainData, trainDates, horizon, m.params.recentWeeks);
     case 'recentMonth': return forecastRecentMonthDOW(trainData, trainDates, horizon, m.params.yearsBack);
+    case 'winsDow': return forecastWinsorizedDOW(trainData, trainDates, horizon, m.params.weeks, m.params.capPct);
+    case 'adapMedian': return forecastAdaptiveMedianDOW(trainData, trainDates, horizon, m.params.halfLife);
     default: return new Array(horizon).fill(0);
   }
 }
@@ -2724,13 +2806,14 @@ var DEFAULT_PARAMS = {
   sma7: {}, sma28: {}, expSmooth: { alpha: 0.3 }, isoWeekDow: {},
   weekVolSplit: { yearsBack: 3 }, weekProfile: {}, monthDow: {}, monthDowR: {},
   biweekly: {}, annualDowR: {}, q75: {}, q25: {}, last2: {}, regime: {},
-  trendSeason: { recentWeeks: 13 }, recentMonth: { yearsBack: 2 }
+  trendSeason: { recentWeeks: 13 }, recentMonth: { yearsBack: 2 },
+  winsDow: { weeks: 20, capPct: 10 }, adapMedian: { halfLife: 6 }
 };
 
 /* ── Parameter Grid for Per-Category Tuning ─────────────────────────── */
 var PARAM_GRID = {
-  dowAvg:      { weeks: [6, 10, 16, 24, 36, 52] },
-  recent:      { weeks: [2, 4, 6, 8, 12] },
+  dowAvg:      { weeks: [4, 6, 10, 16, 24, 36, 52] },
+  recent:      { weeks: [2, 3, 4, 6, 8, 12] },
   wDow:        { halfLife: [4, 8, 14, 22, 35] },
   medDow:      { weeks: [8, 14, 20, 30, 52] },
   trendDow:    { weeks: [6, 10, 12, 18, 26] },
@@ -2742,8 +2825,10 @@ var PARAM_GRID = {
   momentum:    { lookback: [2, 3, 5, 8, 13] },
   expSmooth:   { alpha: [0.1, 0.2, 0.3, 0.4, 0.5] },
   weekVolSplit:{ yearsBack: [1, 2, 3, 4] },
-  trendSeason: { recentWeeks: [6, 10, 13, 20, 30] },
-  recentMonth: { yearsBack: [1, 2, 3, 4] }
+  trendSeason: { recentWeeks: [6, 8, 10, 13, 20, 30] },
+  recentMonth: { yearsBack: [1, 2, 3, 4] },
+  winsDow:     { weeks: [8, 14, 20, 30, 52], capPct: [5, 10, 15, 20] },
+  adapMedian:  { halfLife: [3, 4, 6, 10, 16] }
 };
 
 /**
@@ -2842,6 +2927,7 @@ function restoreMethodParams(saved) {
 function autoOptimize(options) {
   options = options || {};
   var doShuffle = options.shuffle || false;
+  var deepSearch = options.deepSearch || false; // finer steps + more bias configs for hard categories
   const data = getActiveSeries();
   const dates = S.series.dates;
   const n = data.length;
@@ -2949,7 +3035,7 @@ function autoOptimize(options) {
   // 5: DOW-methods-only (helps low-volume categories like Alterations)
   var dowOnlyW = {};
   for (var kd of enabledKeys) dowOnlyW[kd] = 0;
-  var dowMethods = ['dowAvg','recent','wDow','medDow','trimDow','q75','last2','monthDow','monthDowR','trendSeason','recentMonth'];
+  var dowMethods = ['dowAvg','recent','wDow','medDow','trimDow','q75','last2','monthDow','monthDowR','trendSeason','recentMonth','winsDow','adapMedian'];
   for (var dmi = 0; dmi < dowMethods.length; dmi++) {
     if (dowOnlyW.hasOwnProperty(dowMethods[dmi])) dowOnlyW[dowMethods[dmi]] = 15;
   }
@@ -2985,8 +3071,8 @@ function autoOptimize(options) {
     var startScore = getEnsembleMAPE(weights);
     if (globalBestMape < 900 && startScore > globalBestMape * 2) continue;
 
-    // Multi-resolution coordinate descent (3 step sizes, max 40 iters each)
-    const stepSizes = [5, 2, 1];
+    // Multi-resolution coordinate descent (3-4 step sizes, max 40 iters each)
+    const stepSizes = deepSearch ? [5, 2, 1, 0.5] : [5, 2, 1];
     for (const step of stepSizes) {
       var cdKeys = doShuffle ? shuffleArray(enabledKeys.slice()) : enabledKeys;
       let bestMape = getEnsembleMAPE(weights);
@@ -3095,6 +3181,17 @@ function autoOptimize(options) {
     { weeks: 12, dampen: 0.5 },
     { weeks: 14, dampen: 0.5 }
   ];
+  // Deep search: add aggressive short-window configs for volatile series
+  if (deepSearch) {
+    biasConfigs.push(
+      { weeks: 1, dampen: 0.1 }, { weeks: 1, dampen: 0.3 }, { weeks: 1, dampen: 0.5 },
+      { weeks: 2, dampen: 0.1 }, { weeks: 2, dampen: 0.7 },
+      { weeks: 3, dampen: 0.1 }, { weeks: 3, dampen: 0.5 }, { weeks: 3, dampen: 0.7 },
+      { weeks: 4, dampen: 0.1 }, { weeks: 4, dampen: 0.7 },
+      { weeks: 6, dampen: 0.1 }, { weeks: 6, dampen: 0.7 },
+      { weeks: 16, dampen: 0.3 }, { weeks: 16, dampen: 0.5 }
+    );
+  }
   var bestBiasWape = 999;
   var bestBiasConfig = DEFAULT_BIAS;
   for (var bi = 0; bi < biasConfigs.length; bi++) {
@@ -3220,8 +3317,8 @@ function autoOptimize(options) {
       return err;
     };
 
-    // Coordinate descent
-    var dowSteps = [10, 5, 2, 1];
+    // Coordinate descent (finer step in deep search mode)
+    var dowSteps = deepSearch ? [10, 5, 2, 1, 0.5] : [10, 5, 2, 1];
     for (var ds = 0; ds < dowSteps.length; ds++) {
       var dStep = dowSteps[ds];
       var dowCDKeys = doShuffle ? shuffleArray(dowTopN.slice()) : dowTopN;
@@ -3358,12 +3455,12 @@ function buildOptimizeAndBacktestSteps() {
         var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
         if (wape > 500) wape = -1;
 
-        // Auto-refine: if WMAPE > 20%, run up to 2 extra shuffled passes
+        // Auto-refine: if WMAPE > 20%, run up to 5 extra shuffled passes with deep search
         if (wape > 0 && wape > 20) {
-          for (var refPass = 0; refPass < 2; refPass++) {
+          for (var refPass = 0; refPass < 5; refPass++) {
             resetMethods();
             S.activeSeries = 'pieces:' + cn;
-            autoOptimize({ shuffle: true });
+            autoOptimize({ shuffle: true, deepSearch: true });
             var rWts = {}; Object.keys(S.methods).forEach(function(k) { rWts[k] = S.methods[k].weight; });
             var rDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
             var rBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
