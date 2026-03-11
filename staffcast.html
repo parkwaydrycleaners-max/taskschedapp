@@ -65,6 +65,9 @@ textarea.paste:focus{outline:none;border-color:var(--ac);border-style:solid}
 .btn-p{background:var(--ac);color:#fff;border-color:var(--ac)}.btn-p:hover{opacity:.9}
 .btn-s{background:var(--bg4);color:var(--tx);border-color:var(--bd)}.btn-s:hover{background:var(--bg3)}
 .btn-clr{background:transparent;color:var(--tx3);border-color:var(--bd);font-size:.78rem;padding:7px 12px}.btn-clr:hover{background:var(--err2);color:var(--err);border-color:var(--err)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px}
+.modal-box{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:20px;width:100%;box-shadow:var(--sh2);max-height:90vh;overflow-y:auto}
+.modal-close{background:none;border:none;font-size:1.3rem;color:var(--tx3);cursor:pointer;float:right;line-height:1;padding:0 2px}.modal-close:hover{color:var(--err)}
 .btn-t{background:var(--sc);color:#fff;border-color:var(--sc)}.btn-t:hover{opacity:.9}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .btn-sm{padding:5px 12px;font-size:.76rem}
@@ -157,7 +160,28 @@ tr.closed-row td{color:var(--tx3)!important;font-style:italic}
 <span class="sub">Employee Scheduling Tool</span>
 <div style="flex:1"></div>
 <span id="statusBadge" class="badge badge-info" style="display:none"></span>
+<button class="btn btn-s" id="settingsBtn" style="font-size:.75rem;padding:5px 10px"><i class="fa-solid fa-sliders"></i> Settings</button>
 </header>
+
+<!-- Settings modal -->
+<div id="settingsModal" class="modal-overlay" style="display:none">
+<div class="modal-box" style="max-width:480px">
+<div class="ctitle" style="margin-bottom:12px"><i class="fa-solid fa-sliders"></i> Save / Load Settings <button class="modal-close" id="settingsClose">&times;</button></div>
+<p style="font-size:.8rem;color:var(--tx2);margin-bottom:12px">All scheduling parameters, weather settings, closed days, and DOW adjustments are captured. Paste data is <em>not</em> included.</p>
+<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+<button class="btn btn-p" id="saveSettingsBtn"><i class="fa-solid fa-floppy-disk"></i> Copy Settings to Clipboard</button>
+<button class="btn btn-s" id="resetSettingsBtn"><i class="fa-solid fa-rotate-left"></i> Reset Defaults</button>
+</div>
+<div id="saveSettingsOk" style="display:none;font-size:.78rem;color:var(--ok);margin-bottom:8px"><i class="fa-solid fa-check"></i> Copied! Paste somewhere safe to save.</div>
+<div class="sep"></div>
+<label class="flbl" style="margin-bottom:4px">Load Settings (paste JSON below)</label>
+<textarea id="loadSettingsArea" class="paste" style="height:100px;font-size:.72rem" placeholder='{"zipCode":"91786","pcsPerHr":8.5,...}'></textarea>
+<div style="display:flex;gap:8px;margin-top:8px">
+<button class="btn btn-p" id="loadSettingsBtn"><i class="fa-solid fa-upload"></i> Apply Settings</button>
+</div>
+<div id="loadSettingsMsg" style="font-size:.78rem;margin-top:6px"></div>
+</div>
+</div>
 
 <nav class="tabs" role="tablist">
 <button class="tbtn on" data-t="import"><i class="fa-solid fa-file-import"></i> Import</button>
@@ -281,6 +305,8 @@ tr.closed-row td{color:var(--tx3)!important;font-style:italic}
 <div class="ctitle"><i class="fa-solid fa-cloud-sun-rain"></i> Weather Adjustments</div>
 <div class="row" style="margin-bottom:14px;flex-wrap:wrap;gap:10px">
 <div class="field" style="max-width:200px"><label class="flbl">Zip Code</label><input type="text" class="finput" id="zipInput" placeholder="e.g. 90210" maxlength="5" pattern="[0-9]{5}"></div>
+<div class="field" style="max-width:160px"><label class="flbl">Start Date</label><input type="date" class="finput" id="wxStartDate"></div>
+<div class="field" style="max-width:160px"><label class="flbl">End Date</label><input type="date" class="finput" id="wxEndDate"></div>
 <div class="field" style="max-width:260px"><label class="flbl">API Server</label>
 <select class="finput" id="weatherServerSelect" style="padding-right:28px;appearance:auto">
 <option value="auto">🔄 Auto-Detect</option>
@@ -318,7 +344,7 @@ tr.closed-row td{color:var(--tx3)!important;font-style:italic}
 </div>
 </div>
 <div class="sep"></div>
-<div class="field"><label class="flbl">Extreme Heat Threshold (&deg;F)</label><input type="number" class="finput finput-xs" id="heatThresh" value="91" min="60" max="130" step="1"></div>
+<div class="field"><label class="flbl">Extreme Heat Threshold (&deg;F)</label><input type="number" class="finput finput-xs" id="heatThresh" value="95" min="60" max="130" step="1"></div>
 <div class="field"><label class="flbl">Heat Adjustment % (Reduce Sales By)</label><input type="number" class="finput finput-xs" id="heatAdj" value="14" min="0" max="100" step="1"></div>
 <div class="sep"></div>
 <div class="chk-row"><input type="checkbox" id="rainRedist" checked><div><div class="chk-label"><i class="fa-solid fa-cloud-rain" style="color:var(--blue)"></i> &rarr; Rain Demand Redistribution</div><div class="chk-desc">When ON: ~78% of demand lost to moderate/heavy rain is recovered &mdash; 52% shifts to the next open day, 26% to Saturday. The remaining ~22% is permanently lost. When OFF: all rain-lost demand is permanently lost (the rainy day still shows reduced pieces either way).</div></div></div>
@@ -1129,9 +1155,12 @@ function resolveWeatherUrl(lat,lon,startDate,endDate){
 
 function fetchWeatherData(lat,lon,locName){
   var ws=document.getElementById('weatherStatus');
+  /* Use manual date inputs; fall back to forecast range then default 2-week window */
+  var manualStart=document.getElementById('wxStartDate').value;
+  var manualEnd=document.getElementById('wxEndDate').value;
   var fcDates=ST.fc.dates;
-  var startDate=fcDates.length>0?fmtD(fcDates[0]):fmtD(new Date());
-  var endD=fcDates.length>0?fmtD(fcDates[fcDates.length-1]):fmtD(new Date(Date.now()+14*864e5));
+  var startDate=manualStart||( fcDates.length>0?fmtD(fcDates[0]):fmtD(new Date()) );
+  var endD=manualEnd||( fcDates.length>0?fmtD(fcDates[fcDates.length-1]):fmtD(new Date(Date.now()+14*864e5)) );
 
   var resolved;
   try{resolved=resolveWeatherUrl(lat,lon,startDate,endD);}
@@ -1206,7 +1235,7 @@ function renderWeatherForecast(){
 }
 
 function getWeatherIcon(code,precip,tempMax){
-  var heatThresh=parseFloat(document.getElementById('heatThresh').value)||91;
+  var heatThresh=parseFloat(document.getElementById('heatThresh').value)||95;
   if(precip>0.6)return'<i class="fa-solid fa-cloud-showers-water" style="color:var(--err)"></i> Heavy Rain';
   if(precip>0.2)return'<i class="fa-solid fa-cloud-showers-heavy" style="color:var(--ac)"></i> Moderate Rain';
   if(precip>0.08)return'<i class="fa-solid fa-cloud-rain" style="color:var(--blue)"></i> Light Rain';
@@ -1222,7 +1251,7 @@ function calcWeatherAdj(wd){
   var lightAdj=parseFloat(document.getElementById('rainLight').value)||0;
   var modAdj=parseFloat(document.getElementById('rainMod').value)||0;
   var heavyAdj=parseFloat(document.getElementById('rainHeavy').value)||0;
-  var heatThresh=parseFloat(document.getElementById('heatThresh').value)||91;
+  var heatThresh=parseFloat(document.getElementById('heatThresh').value)||95;
   var heatAdjPct=parseFloat(document.getElementById('heatAdj').value)||0;
   var bizOpen=parseInt(document.getElementById('bizOpen').value)||9;
   var bizClose=parseInt(document.getElementById('bizClose').value)||19;
@@ -1239,6 +1268,14 @@ function calcWeatherAdj(wd){
 }
 
 document.getElementById('fetchWeatherBtn').addEventListener('click',fetchWeather);
+
+/* Prefill weather date range: today → today + 14 days */
+(function(){
+  var now=new Date();
+  var end=new Date(now.getTime()+14*864e5);
+  document.getElementById('wxStartDate').value=fmtD(now);
+  document.getElementById('wxEndDate').value=fmtD(end);
+})();
 
 /* Weather server selector logic */
 (function(){
@@ -1301,7 +1338,7 @@ function generateSchedule(){
           var lostPcs=pcs*Math.abs(weatherAdj)/100;
           var precipMM=wd.precip*25.4;
           var isRain=precipMM>=5;
-          var heatThr=parseFloat(document.getElementById('heatThresh').value)||91;
+          var heatThr=parseFloat(document.getElementById('heatThresh').value)||95;
           var isHeat=wd.tempMax>=heatThr;
 
           /*
@@ -1693,8 +1730,8 @@ document.getElementById('copyExpBtn').addEventListener('click',function(){
 /* ================================================================
    SCHEDULE BUTTON
    ================================================================ */
-document.getElementById('genSchedBtn').addEventListener('click',generateSchedule);
-document.getElementById('regenSchedBtn').addEventListener('click',generateSchedule);
+document.getElementById('genSchedBtn').addEventListener('click',function(){generateSchedule();});
+document.getElementById('regenSchedBtn').addEventListener('click',function(){generateSchedule();});
 
 /* ================================================================
    SAMPLE DATA GENERATORS
@@ -1733,6 +1770,170 @@ document.getElementById('sampleHrBtn').addEventListener('click',function(){
   }
   document.getElementById('hrPaste').value=lines.join('\n');
 });
+
+/* ================================================================
+   SAVE / LOAD SETTINGS
+   ================================================================ */
+var SETTINGS_COOKIE='staffcast_settings';
+
+/* All setting IDs and their types */
+var SETTING_FIELDS=[
+  /* Staff Rules */
+  {id:'maxHrEmpDay',type:'num'},{id:'maxHrEmpWeek',type:'num'},{id:'maxStaffDay',type:'num'},
+  {id:'maxStaffWeek',type:'num'},{id:'minStaffDay',type:'num'},
+  /* Labor & Productivity */
+  {id:'pcsPerHr',type:'num'},{id:'salesPerHr',type:'num'},{id:'avgWage',type:'num'},
+  {id:'targetLaborPct',type:'num'},{id:'capIfOver',type:'chk'},{id:'minHrProd',type:'num'},
+  /* Weather */
+  {id:'zipInput',type:'str'},{id:'weatherServerSelect',type:'str'},
+  {id:'bizOpen',type:'num'},{id:'bizClose',type:'num'},
+  {id:'rainLight',type:'num'},{id:'rainMod',type:'num'},{id:'rainHeavy',type:'num'},
+  {id:'heatThresh',type:'num'},{id:'heatAdj',type:'num'},
+  {id:'rainRedist',type:'chk'},{id:'heatRedist',type:'chk'},
+  /* Import */
+  {id:'hrThreshold',type:'num'}
+];
+
+function gatherSettings(){
+  var s={};
+  SETTING_FIELDS.forEach(function(f){
+    var el=document.getElementById(f.id);
+    if(!el)return;
+    if(f.type==='chk')s[f.id]=el.checked;
+    else s[f.id]=el.value;
+  });
+  s.schedMode=SCHED_MODE;
+  s.dowAdj=DOW_ADJ.slice();
+  s.closedDays=CLOSED_DAYS.slice();
+  return s;
+}
+
+function applySettings(s){
+  if(!s||typeof s!=='object')return false;
+  SETTING_FIELDS.forEach(function(f){
+    if(s[f.id]===undefined)return;
+    var el=document.getElementById(f.id);
+    if(!el)return;
+    if(f.type==='chk')el.checked=!!s[f.id];
+    else el.value=s[f.id];
+  });
+  if(s.schedMode){
+    SCHED_MODE=s.schedMode;
+    var btns=document.querySelectorAll('#schedModeToggle .smt-btn');
+    btns.forEach(function(b){b.classList.toggle('smt-active',b.dataset.mode===s.schedMode);});
+    document.getElementById('schedModeDesc').innerHTML=SCHED_MODE_DESCS[s.schedMode]||'';
+    document.getElementById('pcsDriverFields').style.display=(s.schedMode==='revenue')?'none':'';
+    document.getElementById('revDriverFields').style.display=(s.schedMode==='pieces')?'none':'';
+  }
+  if(Array.isArray(s.dowAdj)&&s.dowAdj.length===7){
+    for(var i=0;i<7;i++)DOW_ADJ[i]=s.dowAdj[i];
+  }
+  if(Array.isArray(s.closedDays)&&s.closedDays.length===7){
+    for(var j=0;j<7;j++)CLOSED_DAYS[j]=!!s.closedDays[j];
+  }
+  /* Rebuild grids to reflect loaded values */
+  initClosedDays();
+  initDowAdj();
+  /* Update weather server UI */
+  var wsSel=document.getElementById('weatherServerSelect');
+  var custRow=document.getElementById('customWeatherUrlRow');
+  custRow.style.display=wsSel.value==='custom'?'':'none';
+  return true;
+}
+
+/* Try saving to cookie */
+function saveSettingsCookie(s){
+  try{
+    var json=JSON.stringify(s);
+    var d=new Date();d.setTime(d.getTime()+365*24*60*60*1000);
+    document.cookie=SETTINGS_COOKIE+'='+encodeURIComponent(json)+';expires='+d.toUTCString()+';path=/;SameSite=Lax';
+  }catch(e){/* cookie may not be available */}
+}
+
+function loadSettingsCookie(){
+  try{
+    var cookies=document.cookie.split(';');
+    for(var i=0;i<cookies.length;i++){
+      var c=cookies[i].trim();
+      if(c.indexOf(SETTINGS_COOKIE+'=')===0){
+        return JSON.parse(decodeURIComponent(c.substring(SETTINGS_COOKIE.length+1)));
+      }
+    }
+  }catch(e){/* ignore */}
+  return null;
+}
+
+/* Modal open/close */
+document.getElementById('settingsBtn').addEventListener('click',function(){
+  document.getElementById('settingsModal').style.display='flex';
+});
+document.getElementById('settingsClose').addEventListener('click',function(){
+  document.getElementById('settingsModal').style.display='none';
+});
+document.getElementById('settingsModal').addEventListener('click',function(e){
+  if(e.target===this)this.style.display='none';
+});
+
+/* Save button — copies JSON + saves to cookie */
+document.getElementById('saveSettingsBtn').addEventListener('click',function(){
+  var s=gatherSettings();
+  var json=JSON.stringify(s,null,2);
+  saveSettingsCookie(s);
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(json).then(function(){
+      var ok=document.getElementById('saveSettingsOk');ok.style.display='';
+      setTimeout(function(){ok.style.display='none';},3000);
+    });
+  }
+});
+
+/* Load button — applies pasted JSON */
+document.getElementById('loadSettingsBtn').addEventListener('click',function(){
+  var msg=document.getElementById('loadSettingsMsg');
+  var text=document.getElementById('loadSettingsArea').value.trim();
+  if(!text){msg.innerHTML='<span style="color:var(--err)">Paste settings JSON first.</span>';return;}
+  try{
+    var s=JSON.parse(text);
+    if(applySettings(s)){
+      saveSettingsCookie(s);
+      msg.innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Settings applied and saved!</span>';
+      if(ST.sched)generateSchedule();
+    }else{
+      msg.innerHTML='<span style="color:var(--err)">Invalid settings format.</span>';
+    }
+  }catch(e){
+    msg.innerHTML='<span style="color:var(--err)">Invalid JSON: '+escH(e.message)+'</span>';
+  }
+});
+
+/* Reset to defaults */
+document.getElementById('resetSettingsBtn').addEventListener('click',function(){
+  var defaults={
+    maxHrEmpDay:'10',maxHrEmpWeek:'40',maxStaffDay:'120',maxStaffWeek:'600',minStaffDay:'11.5',
+    pcsPerHr:'8.5',salesPerHr:'38',avgWage:'18',targetLaborPct:'25',capIfOver:true,minHrProd:'11',
+    zipInput:'',weatherServerSelect:'auto',bizOpen:'9',bizClose:'19',
+    rainLight:'2',rainMod:'5',rainHeavy:'30',heatThresh:'95',heatAdj:'14',
+    rainRedist:true,heatRedist:true,hrThreshold:'0',
+    schedMode:'pieces',dowAdj:[100,133,100,100,100,100,133],closedDays:[true,false,false,false,false,false,false]
+  };
+  applySettings(defaults);
+  saveSettingsCookie(defaults);
+  document.getElementById('loadSettingsMsg').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Reset to defaults.</span>';
+  if(ST.sched)generateSchedule();
+});
+
+/* Auto-load from cookie on page load */
+(function(){
+  var saved=loadSettingsCookie();
+  if(saved)applySettings(saved);
+})();
+
+/* Auto-save to cookie whenever schedule is generated */
+var _origGenSched=generateSchedule;
+generateSchedule=function(){
+  _origGenSched();
+  saveSettingsCookie(gatherSettings());
+};
 </script>
 </body>
 </html>
