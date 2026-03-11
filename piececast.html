@@ -2655,6 +2655,95 @@ function shuffleArray(arr) {
   return arr;
 }
 
+/* ── Default Method Parameters ──────────────────────────────────────── */
+var DEFAULT_PARAMS = {
+  dowAvg: { weeks: 16 }, recent: { weeks: 4 }, wDow: { halfLife: 8 },
+  medDow: { weeks: 20 }, trendDow: { weeks: 12 }, annualDow: { blendRecent: 0.5 },
+  hw: { alpha: 0.2, beta: 0.05, gamma: 0.3 }, yoy: {}, yoyTrend: { recentWeeks: 6 },
+  multiYear: { windowDays: 14 }, trimDow: { trimPct: 15 }, momentum: { lookback: 3 },
+  sma7: {}, sma28: {}, expSmooth: { alpha: 0.3 }, isoWeekDow: {},
+  weekVolSplit: { yearsBack: 3 }, weekProfile: {}, monthDow: {}, monthDowR: {},
+  biweekly: {}, annualDowR: {}, q75: {}, q25: {}, last2: {}, regime: {},
+  trendSeason: { recentWeeks: 13 }, recentMonth: { yearsBack: 2 }
+};
+
+/* ── Parameter Grid for Per-Category Tuning ─────────────────────────── */
+var PARAM_GRID = {
+  dowAvg:      { weeks: [6, 10, 16, 24, 36, 52] },
+  recent:      { weeks: [2, 4, 6, 8, 12] },
+  wDow:        { halfLife: [4, 8, 14, 22, 35] },
+  medDow:      { weeks: [8, 14, 20, 30, 52] },
+  trendDow:    { weeks: [6, 10, 12, 18, 26] },
+  annualDow:   { blendRecent: [0.2, 0.35, 0.5, 0.65, 0.8] },
+  hw:          { alpha: [0.1, 0.2, 0.3, 0.4], gamma: [0.1, 0.2, 0.3, 0.4] },
+  yoyTrend:    { recentWeeks: [3, 6, 10, 16] },
+  multiYear:   { windowDays: [7, 14, 21, 28, 42] },
+  trimDow:     { trimPct: [5, 10, 15, 20, 25] },
+  momentum:    { lookback: [2, 3, 5, 8, 13] },
+  expSmooth:   { alpha: [0.1, 0.2, 0.3, 0.4, 0.5] },
+  weekVolSplit:{ yearsBack: [1, 2, 3, 4] },
+  trendSeason: { recentWeeks: [6, 10, 13, 20, 30] },
+  recentMonth: { yearsBack: [1, 2, 3, 4] }
+};
+
+/**
+ * Tune method parameters per-category by grid search.
+ * For each method with tunable params, try candidate values and keep
+ * whichever minimises that method's individual WMAPE on the test set.
+ * Parameters are tuned independently (one at a time, sequentially).
+ */
+function tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate) {
+  for (var ti = 0; ti < enabledKeys.length; ti++) {
+    var k = enabledKeys[ti];
+    if (!PARAM_GRID[k]) continue;
+    var grid = PARAM_GRID[k];
+    var paramNames = Object.keys(grid);
+    for (var pi = 0; pi < paramNames.length; pi++) {
+      var pName = paramNames[pi];
+      var values = grid[pName];
+      var bestWape = 999;
+      var bestVal = S.methods[k].params[pName];
+      for (var vi = 0; vi < values.length; vi++) {
+        S.methods[k].params[pName] = values[vi];
+        var fc = runMethod(k, trainData, trainDates, calendarHorizon);
+        fc = applyClosedDays(fc, lastTrainDate, calendarHorizon);
+        fc = alignForecastToTestDates(fc, lastTrainDate, testDates);
+        var w = calculateWAPE(testData, fc, testDates);
+        if (w < bestWape) { bestWape = w; bestVal = values[vi]; }
+      }
+      S.methods[k].params[pName] = bestVal;
+    }
+  }
+}
+
+/** Reset method params to defaults (used during per-category optimization) */
+function resetMethodParams() {
+  Object.keys(S.methods).forEach(function(k) {
+    if (DEFAULT_PARAMS[k]) {
+      S.methods[k].params = JSON.parse(JSON.stringify(DEFAULT_PARAMS[k]));
+    }
+  });
+}
+
+/** Capture current method params as a deep copy */
+function captureMethodParams() {
+  var mp = {};
+  Object.keys(S.methods).forEach(function(k) {
+    mp[k] = JSON.parse(JSON.stringify(S.methods[k].params || {}));
+  });
+  return mp;
+}
+
+/** Restore method params from a saved snapshot */
+function restoreMethodParams(saved) {
+  if (!saved) return;
+  Object.keys(saved).forEach(function(k) {
+    if (S.methods[k]) {
+      S.methods[k].params = JSON.parse(JSON.stringify(saved[k]));
+    }
+  });
+}
+
 function autoOptimize(options) {
   options = options || {};
   var doShuffle = options.shuffle || false;
@@ -2676,6 +2765,11 @@ function autoOptimize(options) {
 
   const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled);
   if (enabledKeys.length === 0) return;
+
+  // ── Per-category parameter tuning ──────────────────────────────────
+  // Before optimising ensemble weights, find the best parameters for
+  // each method so individual forecasts are as accurate as possible.
+  tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate);
 
   // Get date-aligned forecasts for each method
   // Use rolling window when training data is small relative to test window
@@ -3231,6 +3325,7 @@ function buildOptimizeAndBacktestSteps() {
       S.methods[k].enabled = baselineEnabled[k];
       S.methods[k].weight = 5;
     });
+    resetMethodParams(); // Restore default params before each category
     S.dowWeights = {};
   }
 
@@ -3259,6 +3354,7 @@ function buildOptimizeAndBacktestSteps() {
         var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
         var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
         var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+        var mp = captureMethodParams();
         var bt = runBacktest(S.backtestWindow);
         var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
         if (wape > 500) wape = -1;
@@ -3272,16 +3368,17 @@ function buildOptimizeAndBacktestSteps() {
             var rWts = {}; Object.keys(S.methods).forEach(function(k) { rWts[k] = S.methods[k].weight; });
             var rDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
             var rBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+            var rMp = captureMethodParams();
             var rBt = runBacktest(S.backtestWindow);
             var rWape = rBt && rBt.results.__ensemble ? rBt.results.__ensemble.wape : 999;
             if (rWape > 0 && rWape < wape) {
-              wts = rWts; dw = rDw; bc = rBc; wape = rWape;
+              wts = rWts; dw = rDw; bc = rBc; mp = rMp; wape = rWape;
             }
             if (wape <= 20) break; // Good enough, stop refining
           }
         }
 
-        S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc };
+        S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc, methodParams: mp };
         allSummaries.push({ name: cn, wape: wape });
         S.activeSeries = origActive;
       }});
@@ -3297,6 +3394,7 @@ function buildOptimizeAndBacktestSteps() {
     var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
     var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
     var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+    var mp = captureMethodParams();
     var bt = runBacktest(S.backtestWindow);
     var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
     if (wape > 500) wape = -1;
@@ -3310,20 +3408,22 @@ function buildOptimizeAndBacktestSteps() {
         var tWts = {}; Object.keys(S.methods).forEach(function(k) { tWts[k] = S.methods[k].weight; });
         var tDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
         var tBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+        var tMp = captureMethodParams();
         var tBt = runBacktest(S.backtestWindow);
         var tWape = tBt && tBt.results.__ensemble ? tBt.results.__ensemble.wape : 999;
         if (tWape > 0 && tWape < wape) {
-          wts = tWts; dw = tDw; bc = tBc; wape = tWape;
+          wts = tWts; dw = tDw; bc = tBc; mp = tMp; wape = tWape;
         }
         if (wape <= 12) break;
       }
     }
 
-    S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc };
+    S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: wape, biasConfig: bc, methodParams: mp };
     allSummaries.push({ name: 'Total Pieces', wape: wape });
     Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = wts[k] || 0; });
     S.dowWeights = dw;
     S.biasConfig = bc;
+    restoreMethodParams(mp);
     renderMethodGrid();
   }});
 
@@ -3373,6 +3473,7 @@ function refineOptimization() {
       S.methods[k].enabled = baselineEnabled[k];
       S.methods[k].weight = 5;
     });
+    resetMethodParams();
     S.dowWeights = {};
   }
 
@@ -3397,11 +3498,12 @@ function refineOptimization() {
         var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
         var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
         var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+        var mp = captureMethodParams();
         var bt = runBacktest(S.backtestWindow);
         var newWape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
 
         if (newWape < existing.wape && newWape <= 500) {
-          S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc };
+          S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc, methodParams: mp };
           improved.push(cn + ': ' + existing.wape.toFixed(1) + '% \u2192 ' + newWape.toFixed(1) + '%');
         }
         S.activeSeries = origActive;
@@ -3420,16 +3522,18 @@ function refineOptimization() {
     var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
     var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
     var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+    var mp = captureMethodParams();
     var bt = runBacktest(S.backtestWindow);
     var newWape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
 
     if (newWape < existing.wape && newWape <= 500) {
-      S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc };
+      S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc, methodParams: mp };
       improved.push('Total: ' + existing.wape.toFixed(1) + '% \u2192 ' + newWape.toFixed(1) + '%');
       // Update display weights
       Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = wts[k] || 0; });
       S.dowWeights = dw;
       S.biasConfig = bc;
+      restoreMethodParams(mp);
       renderMethodGrid();
     }
   }});
@@ -4511,6 +4615,7 @@ function applyWeightsForSeries(seriesVal) {
     });
     S.dowWeights = catOpt.dowWeights || {};
     if (catOpt.biasConfig) S.biasConfig = catOpt.biasConfig;
+    if (catOpt.methodParams) restoreMethodParams(catOpt.methodParams);
   } else if (S.catOptimized.__total && S.catOptimized.__total.weights) {
     var tOpt = S.catOptimized.__total;
     Object.keys(S.methods).forEach(function(k) {
@@ -4518,6 +4623,7 @@ function applyWeightsForSeries(seriesVal) {
     });
     S.dowWeights = tOpt.dowWeights || {};
     if (tOpt.biasConfig) S.biasConfig = tOpt.biasConfig;
+    if (tOpt.methodParams) restoreMethodParams(tOpt.methodParams);
   }
 }
 
@@ -4679,6 +4785,27 @@ document.getElementById('exportBacktestBtn').addEventListener('click', function(
   if (bt.results.__ensemble) {
     lines.push('Ensemble\tWMAPE: ' + bt.results.__ensemble.wape.toFixed(1) + '%\tMAPE: ' + bt.results.__ensemble.mape.toFixed(1) + '%\tMAE: ' + bt.results.__ensemble.mae.toFixed(1));
   }
+  lines.push('');
+
+  // Show tuned method parameters (if different from defaults)
+  lines.push('--- TUNED METHOD PARAMETERS ---');
+  var anyTuned = false;
+  Object.keys(S.methods).forEach(function(k) {
+    if (!S.methods[k].enabled || !PARAM_GRID[k]) return;
+    var p = S.methods[k].params;
+    var d = DEFAULT_PARAMS[k];
+    var diffs = [];
+    Object.keys(p).forEach(function(pn) {
+      if (d[pn] !== undefined && p[pn] !== d[pn]) {
+        diffs.push(pn + ': ' + d[pn] + ' → ' + p[pn]);
+      }
+    });
+    if (diffs.length > 0) {
+      lines.push(S.methods[k].name + '\t' + diffs.join(', '));
+      anyTuned = true;
+    }
+  });
+  if (!anyTuned) lines.push('(all defaults)');
   lines.push('');
 
   // Alignment debug info
