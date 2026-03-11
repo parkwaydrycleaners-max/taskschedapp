@@ -2070,8 +2070,12 @@ function forecastMonthDOW(trainData, trainDates, horizon) {
     var d = new Date(lastDate); d.setDate(d.getDate() + h);
     var key = d.getMonth() * 10 + d.getDay();
     if (lookup[key] && lookup[key].length >= 3) {
-      var s = lookup[key].reduce(function(a,b){return a+b;},0);
-      fc.push(Math.max(0, s / lookup[key].length));
+      // Trimmed mean: sort and drop lowest 20% to reduce drag from old low-volume periods
+      var vals = lookup[key].slice().sort(function(a, b) { return a - b; });
+      var trimCount = Math.floor(vals.length * 0.2);
+      var trimmed = trimCount > 0 ? vals.slice(trimCount) : vals;
+      var s = trimmed.reduce(function(a, b) { return a + b; }, 0);
+      fc.push(Math.max(0, s / trimmed.length));
     } else {
       var dv = dowLookup[d.getDay()];
       fc.push(dv ? Math.max(0, dv.reduce(function(a,b){return a+b;},0)/dv.length) : 0);
@@ -2650,6 +2654,56 @@ function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, tes
     }
   }
   return corrected;
+}
+
+/* Compute per-DOW floor (10th percentile) from recent data for forecast sanity checking.
+   Prevents the ensemble from producing unreasonably low predictions on open business days. */
+function computeDOWFloors(seriesData, seriesDates, recentMonths) {
+  recentMonths = recentMonths || 6;
+  var n = seriesData.length;
+  if (n < 28) return null;
+
+  var cutoffDate = new Date(seriesDates[n - 1]);
+  cutoffDate.setMonth(cutoffDate.getMonth() - recentMonths);
+
+  var dowBuckets = [[], [], [], [], [], [], []];
+  for (var i = 0; i < n; i++) {
+    if (isClosedDay(seriesDates[i])) continue;
+    if (seriesDates[i] < cutoffDate) continue;
+    if (seriesData[i] <= 2) continue; // Skip near-zero days
+    dowBuckets[seriesDates[i].getDay()].push(seriesData[i]);
+  }
+
+  var floors = [0, 0, 0, 0, 0, 0, 0];
+  for (var d = 0; d < 7; d++) {
+    var vals = dowBuckets[d];
+    if (vals.length < 4) continue;
+    vals.sort(function(a, b) { return a - b; });
+    var idx = Math.floor(vals.length * 0.10);
+    floors[d] = vals[idx];
+  }
+  return floors;
+}
+
+/* Apply per-DOW forecast floor to prevent unreasonably low predictions on open days */
+function applyForecastFloor(ensemble, seriesData, seriesDates, lastDate, horizon) {
+  var floors = computeDOWFloors(seriesData, seriesDates);
+  if (!floors) return ensemble;
+
+  var result = [];
+  for (var h = 0; h < horizon; h++) {
+    var d = new Date(lastDate);
+    d.setDate(d.getDate() + h + 1);
+    var dow = d.getDay();
+    if (isClosedDay(d) || ensemble[h] === 0) {
+      result.push(ensemble[h]);
+    } else if (floors[dow] > 0 && ensemble[h] < floors[dow]) {
+      result.push(floors[dow]);
+    } else {
+      result.push(ensemble[h]);
+    }
+  }
+  return result;
 }
 
 /* Fisher-Yates shuffle for stochastic optimizer restarts */
@@ -3719,6 +3773,17 @@ function generateExport(scope) {
     lines.push('# Closed Days: ' + S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') + ' (forecast=0)');
   }
   lines.push('# Low-Day Exclusion: Active (days with actual <= 2 excluded as closed/near-closed)');
+  lines.push('# Forecast Floor: Per-DOW 10th percentile (recent 6 months) — prevents outlier-low predictions');
+  var totalFloorVals = computeDOWFloors(S.series.totalPieces, S.series.dates);
+  if (totalFloorVals) {
+    var floorStrs = [];
+    ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(function(name, idx) {
+      if (!isClosedDay({ getDay: function() { return idx; } }) && totalFloorVals[idx] > 0) {
+        floorStrs.push(name + '=' + Math.round(totalFloorVals[idx]));
+      }
+    });
+    if (floorStrs.length > 0) lines.push('#   Total Pcs floors: ' + floorStrs.join(', '));
+  }
   lines.push('# Methods: ' + methodStr);
   if (S.dowWeights && Object.keys(S.dowWeights).length > 0) {
     lines.push('# Per-DOW Weights: Active (' + Object.keys(S.dowWeights).length + ' DOWs optimized)');
@@ -3856,7 +3921,8 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon, catOpt) {
     ensemble = applyBiasCorrection(ensemble, seriesData, seriesDates, lastDate, fcDates, biasConf);
   }
 
-  return applyClosedDays(ensemble, lastDate, horizon);
+  var result = applyClosedDays(ensemble, lastDate, horizon);
+  return applyForecastFloor(result, seriesData, seriesDates, lastDate, horizon);
 }
 
 /* ==================================================================
@@ -4265,18 +4331,43 @@ function renderForecastTable() {
   headerHTML += '<th class="num" style="font-weight:700;font-size:.8rem">Total Pcs</th></tr>';
   thead.innerHTML = headerHTML;
 
+  // Gather DOW floors for warning indicators
+  var totalFloors = (fr.dowFloors && fr.dowFloors.__total) ? fr.dowFloors.__total : null;
+  var catFloors = {};
+  for (var fli = 0; fli < catNames.length; fli++) {
+    catFloors[catNames[fli]] = (fr.dowFloors && fr.dowFloors[catNames[fli]]) ? fr.dowFloors[catNames[fli]] : null;
+  }
+
   var bodyHTML = '';
+  var flooredCount = 0;
   for (var h = 0; h < horizon; h++) {
     var d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
+    var dow = d.getDay();
     var closed = isClosedDay(d);
     var rowStyle = closed ? ' style="opacity:.4;text-decoration:line-through"' : '';
     var closedTag = closed ? ' <span style="font-size:.65rem;color:var(--error);font-weight:600">CLOSED</span>' : '';
-    bodyHTML += '<tr' + rowStyle + '><td>' + formatDateISO(d) + '</td><td>' + DOW_NAMES[d.getDay()] + closedTag + '</td>';
+    bodyHTML += '<tr' + rowStyle + '><td>' + formatDateISO(d) + '</td><td>' + DOW_NAMES[dow] + closedTag + '</td>';
     for (var ci = 0; ci < catNames.length; ci++) {
-      var v = fr.categories[catNames[ci]][h];
-      bodyHTML += '<td class="num">' + Math.round(v) + '</td>';
+      var cn = catNames[ci];
+      var v = fr.categories[cn][h];
+      var catFloor = catFloors[cn] ? catFloors[cn][dow] : 0;
+      var isAtFloor = !closed && catFloor > 0 && Math.round(v) <= Math.round(catFloor);
+      var cellStyle = isAtFloor ? ' style="color:var(--warning);font-weight:600"' : '';
+      var floorTag = isAtFloor ? ' <span title="Raised to DOW floor" style="font-size:.6rem">&#x26A0;</span>' : '';
+      bodyHTML += '<td class="num"' + cellStyle + '>' + Math.round(v) + floorTag + '</td>';
     }
-    bodyHTML += '<td class="num" style="font-weight:700">' + Math.round(fr.total[h]) + '</td></tr>';
+    var totalV = fr.total[h];
+    var totalFloor = totalFloors ? totalFloors[dow] : 0;
+    var totalAtFloor = !closed && totalFloor > 0 && Math.round(totalV) <= Math.round(totalFloor);
+    if (totalAtFloor) flooredCount++;
+    var totalStyle = totalAtFloor ? 'font-weight:700;color:var(--warning)' : 'font-weight:700';
+    var totalFloorTag = totalAtFloor ? ' <span title="Raised to DOW floor" style="font-size:.6rem">&#x26A0;</span>' : '';
+    bodyHTML += '<td class="num" style="' + totalStyle + '">' + Math.round(totalV) + totalFloorTag + '</td></tr>';
+  }
+  if (flooredCount > 0) {
+    bodyHTML += '<tr><td colspan="' + (catNames.length + 3) + '" style="font-size:.7rem;color:var(--warning);padding:8px;border:none">' +
+      '&#x26A0; ' + flooredCount + ' day(s) boosted to DOW floor (10th percentile of recent 6 months). ' +
+      'Values were below normal range for that day of week.</td></tr>';
   }
   tbody.innerHTML = bodyHTML;
   document.getElementById('fcResultCard').style.display = '';
@@ -4700,10 +4791,19 @@ function doForecast() {
   var totalOpt = S.catOptimized.__total || null;
   var totalFc = computeAllMethodEnsemble(S.series.totalPieces, dates, horizon, totalOpt);
 
+  // Compute DOW floors for each category and total for display warnings
+  var floorInfo = {};
+  for (var fi = 0; fi < catNames.length; fi++) {
+    var fcn = catNames[fi];
+    floorInfo[fcn] = computeDOWFloors(S.series.categories[fcn].pieces, dates);
+  }
+  floorInfo.__total = computeDOWFloors(S.series.totalPieces, dates);
+
   S.forecastResults = {
     categories: pieceCategories,
     total: totalFc,
-    horizon: horizon
+    horizon: horizon,
+    dowFloors: floorInfo
   };
 
   renderForecastTable();
