@@ -2425,6 +2425,67 @@ function alignForecastToTestDates(fullForecast, lastTrainDate, testDates) {
   });
 }
 
+/* ── Rolling Window Forecast Generation ────────────────────────────────
+   When backtest window is large relative to available data, a single
+   train/test split leaves insufficient training data.  E.g. with 1588
+   points and 1275-day backtest, only 313 points (~1 year) remain for
+   training — methods must then forecast 4+ years from 1 year of data.
+
+   The rolling approach splits the test period into ~65-business-day
+   chunks (~3 months each) and retrains for every chunk.  This way the
+   first chunk trains on 313 points and forecasts only ~90 calendar
+   days (fine), while later chunks get progressively more training data.
+
+   Trigger: training points < 500 AND backtest window > 260.
+   ──────────────────────────────────────────────────────────────────── */
+var ROLLING_MIN_TRAIN = 500;   // use rolling if train points < this
+var ROLLING_MIN_TEST  = 260;   // only bother rolling for large tests
+var ROLLING_CHUNK     = 65;    // ~3 months business days per chunk
+
+function needsRollingWindow(n, win) {
+  return (n - win) < ROLLING_MIN_TRAIN && win > ROLLING_MIN_TEST;
+}
+
+/**
+ * Generate per-method forecasts using a rolling window.
+ * Returns { forecasts: { key: Float64Array(win) } }
+ */
+function generateRollingForecasts(data, dates, n, win, methodKeys) {
+  var testDates = dates.slice(n - win);
+  var numChunks = Math.ceil(win / ROLLING_CHUNK);
+  var forecasts = {};
+  for (var ki = 0; ki < methodKeys.length; ki++) {
+    forecasts[methodKeys[ki]] = new Array(win).fill(0);
+  }
+
+  for (var chunk = 0; chunk < numChunks; chunk++) {
+    var cStart = chunk * ROLLING_CHUNK;
+    var cEnd   = Math.min(cStart + ROLLING_CHUNK, win);
+
+    // Training: everything in the full dataset up to this chunk's start
+    var cTrainEnd = (n - win) + cStart;
+    if (cTrainEnd < 14) continue;
+
+    var cTrainData  = data.slice(0, cTrainEnd);
+    var cTrainDates = dates.slice(0, cTrainEnd);
+    var cLastTrain  = cTrainDates[cTrainDates.length - 1];
+    var cTestSlice  = testDates.slice(cStart, cEnd);
+    var cLastTest   = cTestSlice[cTestSlice.length - 1];
+    var cHorizon    = Math.round((cLastTest - cLastTrain) / 86400000);
+
+    for (var ki2 = 0; ki2 < methodKeys.length; ki2++) {
+      var k = methodKeys[ki2];
+      var cFc = runMethod(k, cTrainData, cTrainDates, cHorizon);
+      cFc = applyClosedDays(cFc, cLastTrain, cHorizon);
+      var cAligned = alignForecastToTestDates(cFc, cLastTrain, cTestSlice);
+      for (var ci = 0; ci < cAligned.length; ci++) {
+        forecasts[k][cStart + ci] = cAligned[ci];
+      }
+    }
+  }
+  return forecasts;
+}
+
 function runBacktest(windowSize) {
   const data = getActiveSeries();
   const dates = S.series.dates;
@@ -2437,23 +2498,40 @@ function runBacktest(windowSize) {
   const testDates = dates.slice(n - windowSize);
   const lastTrainDate = trainDates[trainDates.length - 1];
 
-  // Calculate the true calendar horizon (may be > windowSize if data skips closed days)
+  // Calendar horizon for alignment
   const lastTestDate = testDates[testDates.length - 1];
   const calendarHorizon = Math.round((lastTestDate - lastTrainDate) / 86400000);
 
+  const useRolling = needsRollingWindow(n, windowSize);
+  const enabledMethodKeys = Object.keys(S.methods).filter(function(k) { return S.methods[k].enabled; });
+
   const results = {};
-  for (const [key, method] of Object.entries(S.methods)) {
-    if (!method.enabled) continue;
-    // Generate forecast for full calendar span, then align to test dates
-    let fullFc = runMethod(key, trainData, trainDates, calendarHorizon);
-    fullFc = applyClosedDays(fullFc, lastTrainDate, calendarHorizon);
-    const fc = alignForecastToTestDates(fullFc, lastTrainDate, testDates);
-    results[key] = {
-      forecast: fc,
-      mape: calculateMAPE(testData, fc, testDates),
-      wape: calculateWAPE(testData, fc, testDates),
-      mae: calculateMAE(testData, fc, testDates)
-    };
+  if (useRolling) {
+    // Rolling window: retrain for each ~3-month chunk of the test period
+    var rollingFc = generateRollingForecasts(data, dates, n, windowSize, enabledMethodKeys);
+    for (var ri = 0; ri < enabledMethodKeys.length; ri++) {
+      var rk = enabledMethodKeys[ri];
+      results[rk] = {
+        forecast: rollingFc[rk],
+        mape: calculateMAPE(testData, rollingFc[rk], testDates),
+        wape: calculateWAPE(testData, rollingFc[rk], testDates),
+        mae: calculateMAE(testData, rollingFc[rk], testDates)
+      };
+    }
+  } else {
+    // Original single-split approach
+    for (const [key, method] of Object.entries(S.methods)) {
+      if (!method.enabled) continue;
+      let fullFc = runMethod(key, trainData, trainDates, calendarHorizon);
+      fullFc = applyClosedDays(fullFc, lastTrainDate, calendarHorizon);
+      const fc = alignForecastToTestDates(fullFc, lastTrainDate, testDates);
+      results[key] = {
+        forecast: fc,
+        mape: calculateMAPE(testData, fc, testDates),
+        wape: calculateWAPE(testData, fc, testDates),
+        mae: calculateMAE(testData, fc, testDates)
+      };
+    }
   }
 
   // Ensemble: use per-DOW weights if available, otherwise flat weights
@@ -2600,13 +2678,24 @@ function autoOptimize(options) {
   if (enabledKeys.length === 0) return;
 
   // Get date-aligned forecasts for each method
+  // Use rolling window when training data is small relative to test window
+  const useRolling = needsRollingWindow(n, win);
   const forecasts = {};
   const mapes = {};
-  for (const k of enabledKeys) {
-    let fullFc = runMethod(k, trainData, trainDates, calendarHorizon);
-    fullFc = applyClosedDays(fullFc, lastTrainDate, calendarHorizon);
-    forecasts[k] = alignForecastToTestDates(fullFc, lastTrainDate, testDates);
-    mapes[k] = calculateMAPE(testData, forecasts[k], testDates);
+  if (useRolling) {
+    var rollingFc = generateRollingForecasts(data, dates, n, win, enabledKeys);
+    for (var rkOpt = 0; rkOpt < enabledKeys.length; rkOpt++) {
+      var rkKey = enabledKeys[rkOpt];
+      forecasts[rkKey] = rollingFc[rkKey];
+      mapes[rkKey] = calculateMAPE(testData, forecasts[rkKey], testDates);
+    }
+  } else {
+    for (const k of enabledKeys) {
+      let fullFc = runMethod(k, trainData, trainDates, calendarHorizon);
+      fullFc = applyClosedDays(fullFc, lastTrainDate, calendarHorizon);
+      forecasts[k] = alignForecastToTestDates(fullFc, lastTrainDate, testDates);
+      mapes[k] = calculateMAPE(testData, forecasts[k], testDates);
+    }
   }
 
   function getEnsembleMAPE(w, biasOvr) {
@@ -4532,6 +4621,10 @@ document.getElementById('exportBacktestBtn').addEventListener('click', function(
   lines.push('=== PIECECAST BACKTEST DEBUG EXPORT ===');
   lines.push('Series: ' + getSeriesLabel());
   lines.push('Window: ' + S.backtestWindow + ' data points');
+  var dbgN = (bt.trainData.length + bt.testData.length);
+  var dbgRolling = needsRollingWindow(dbgN, S.backtestWindow);
+  lines.push('Evaluation Mode: ' + (dbgRolling ? 'ROLLING WINDOW (chunk=' + ROLLING_CHUNK + ' biz days, ' + Math.ceil(S.backtestWindow / ROLLING_CHUNK) + ' chunks)' : 'Single Split'));
+  lines.push('Training Points: ' + bt.trainData.length + (dbgRolling ? ' (initial; grows each chunk)' : ''));
   lines.push('Closed Days: ' + (S.closedDays.length > 0 ? S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') : 'None'));
   lines.push('');
 
