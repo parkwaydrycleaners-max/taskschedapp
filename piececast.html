@@ -3051,13 +3051,48 @@ function autoOptimize(options) {
   if (seaW.hasOwnProperty('annualDow')) seaW['annualDow'] = 15;
   startingPoints.push(seaW);
 
-  // Extra random starts for shuffle (refine) runs only
-  if (doShuffle) {
-    for (var rsp = 0; rsp < 2; rsp++) {
-      var randW = {};
-      for (var rk of enabledKeys) randW[rk] = Math.floor(Math.random() * 50);
-      startingPoints.push(randW);
-    }
+  // Deep search: add starting points tailored for volatile/low-volume series
+  if (deepSearch) {
+    // 7: median/trimmed/q25 focus (outlier-resistant methods for volatile data)
+    var robustW = {};
+    for (var krb of enabledKeys) robustW[krb] = 0;
+    if (robustW.hasOwnProperty('medDow')) robustW['medDow'] = 40;
+    if (robustW.hasOwnProperty('trimDow')) robustW['trimDow'] = 30;
+    if (robustW.hasOwnProperty('q25')) robustW['q25'] = 30;
+    if (robustW.hasOwnProperty('winsDow')) robustW['winsDow'] = 20;
+    if (robustW.hasOwnProperty('adapMedian')) robustW['adapMedian'] = 20;
+    startingPoints.push(robustW);
+
+    // 8: recent-only (short lookback for fast-changing patterns)
+    var recW = {};
+    for (var krc of enabledKeys) recW[krc] = 0;
+    if (recW.hasOwnProperty('recent')) recW['recent'] = 30;
+    if (recW.hasOwnProperty('last2')) recW['last2'] = 25;
+    if (recW.hasOwnProperty('wDow')) recW['wDow'] = 25;
+    if (recW.hasOwnProperty('expSmooth')) recW['expSmooth'] = 20;
+    if (recW.hasOwnProperty('regime')) recW['regime'] = 20;
+    startingPoints.push(recW);
+
+    // 9: top-3 concentrated (tighter focus for better convergence)
+    var t3W = {};
+    for (var kt3 of enabledKeys) t3W[kt3] = 0;
+    var top3 = wSorted.slice(0, Math.min(3, wSorted.length));
+    for (var kt3b of top3) t3W[kt3b] = wapeW[kt3b] || 20;
+    startingPoints.push(t3W);
+
+    // 10: best method solo
+    var soloW = {};
+    for (var kso of enabledKeys) soloW[kso] = 0;
+    soloW[wSorted[0]] = 100;
+    startingPoints.push(soloW);
+  }
+
+  // Extra random starts for shuffle or deep search runs
+  var nRandom = deepSearch ? 4 : (doShuffle ? 2 : 0);
+  for (var rsp = 0; rsp < nRandom; rsp++) {
+    var randW = {};
+    for (var rk of enabledKeys) randW[rk] = Math.floor(Math.random() * 50);
+    startingPoints.push(randW);
   }
 
   let globalBestMape = 999;
@@ -3455,9 +3490,11 @@ function buildOptimizeAndBacktestSteps() {
         var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
         if (wape > 500) wape = -1;
 
-        // Auto-refine: if WMAPE > 20%, run up to 5 extra shuffled passes with deep search
+        // Auto-refine: if WMAPE > 20%, run extra shuffled passes with deep search
+        // More passes for harder categories (> 25% gets 8 passes, > 20% gets 5)
+        var maxRefPasses = wape > 25 ? 8 : 5;
         if (wape > 0 && wape > 20) {
-          for (var refPass = 0; refPass < 5; refPass++) {
+          for (var refPass = 0; refPass < maxRefPasses; refPass++) {
             resetMethods();
             S.activeSeries = 'pieces:' + cn;
             autoOptimize({ shuffle: true, deepSearch: true });
@@ -3471,6 +3508,37 @@ function buildOptimizeAndBacktestSteps() {
               wts = rWts; dw = rDw; bc = rBc; mp = rMp; wape = rWape;
             }
             if (wape <= 20) break;
+          }
+        }
+
+        // Safeguard: if ensemble WMAPE > 20%, also try best-individual-concentrated approach
+        if (wape > 0 && wape > 20 && bt && bt.results) {
+          var bestIndWape = 999, bestIndKey = null;
+          Object.keys(bt.results).forEach(function(mk) {
+            if (mk === '__ensemble') return;
+            var mw = bt.results[mk] ? bt.results[mk].wape : 999;
+            if (mw > 0 && mw < bestIndWape) { bestIndWape = mw; bestIndKey = mk; }
+          });
+          // If best individual is better, concentrate on top methods
+          if (bestIndKey && bestIndWape < wape) {
+            resetMethods();
+            S.activeSeries = 'pieces:' + cn;
+            // Set starting weights concentrated on top individual methods
+            var sortedMethods = Object.keys(bt.results).filter(function(mk) { return mk !== '__ensemble' && bt.results[mk] && bt.results[mk].wape > 0; });
+            sortedMethods.sort(function(a, b) { return bt.results[a].wape - bt.results[b].wape; });
+            Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 0; });
+            var topN2 = sortedMethods.slice(0, 3);
+            topN2.forEach(function(k, idx) { S.methods[k].weight = 80 - idx * 25; });
+            autoOptimize({ deepSearch: true });
+            var cWts = {}; Object.keys(S.methods).forEach(function(k) { cWts[k] = S.methods[k].weight; });
+            var cDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+            var cBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+            var cMp = captureMethodParams();
+            var cBt = runBacktest(S.backtestWindow);
+            var cWape = cBt && cBt.results.__ensemble ? cBt.results.__ensemble.wape : 999;
+            if (cWape > 0 && cWape < wape) {
+              wts = cWts; dw = cDw; bc = cBc; mp = cMp; wape = cWape;
+            }
           }
         }
 
@@ -3587,7 +3655,8 @@ function refineOptimization() {
 
         resetMethods();
         S.activeSeries = 'pieces:' + cn;
-        autoOptimize({ shuffle: true });
+        // Use deep search for categories still above 20%
+        autoOptimize({ shuffle: true, deepSearch: existing.wape > 20 });
         var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
         var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
         var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
@@ -3973,6 +4042,15 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon, catOpt) {
   var useWeights = catOpt ? catOpt.weights : null;
   var useDowWeights = catOpt ? catOpt.dowWeights : S.dowWeights;
 
+  // CRITICAL: Restore per-category tuned method params before generating forecasts.
+  // Without this, we'd use whichever category was optimized last (e.g. Total Pieces params
+  // instead of Alterations params), producing incorrect forecasts.
+  var savedParams = null;
+  if (catOpt && catOpt.methodParams) {
+    savedParams = captureMethodParams(); // save current
+    restoreMethodParams(catOpt.methodParams); // apply category-specific params
+  }
+
   var enabledKeys = Object.keys(S.methods).filter(function(k) { return S.methods[k].enabled; });
   // If using catOpt, also include methods that have weight > 0 in catOpt even if globally disabled
   if (useWeights) {
@@ -3983,13 +4061,19 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon, catOpt) {
   var totalW = enabledKeys.reduce(function(s, k) {
     return s + (useWeights ? (useWeights[k] || 0) : S.methods[k].weight);
   }, 0);
-  if (totalW === 0 || enabledKeys.length === 0) return new Array(horizon).fill(0);
+  if (totalW === 0 || enabledKeys.length === 0) {
+    if (savedParams) restoreMethodParams(savedParams);
+    return new Array(horizon).fill(0);
+  }
 
   var lastDate = seriesDates[seriesDates.length - 1];
   var allForecasts = {};
   for (var mi = 0; mi < enabledKeys.length; mi++) {
     allForecasts[enabledKeys[mi]] = runMethod(enabledKeys[mi], seriesData, seriesDates, horizon);
   }
+
+  // Restore original params after generating forecasts
+  if (savedParams) restoreMethodParams(savedParams);
 
   var fcDates = [];
   for (var h = 1; h <= horizon; h++) {
