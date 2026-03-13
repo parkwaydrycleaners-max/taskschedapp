@@ -3067,7 +3067,7 @@ function autoOptimize(options) {
   const dates = S.series.dates;
   const n = data.length;
   const win = S.backtestWindow;
-  if (win >= n - 14) return;
+  if (win >= n - 14) return { wape: 999 };
 
   const trainData = data.slice(0, n - win);
   const trainDates = dates.slice(0, n - win);
@@ -3080,7 +3080,7 @@ function autoOptimize(options) {
   const calendarHorizon = Math.round((lastTestDate - lastTrainDate) / 86400000);
 
   const enabledKeys = Object.keys(S.methods).filter(k => S.methods[k].enabled);
-  if (enabledKeys.length === 0) return;
+  if (enabledKeys.length === 0) return { wape: 999 };
 
   // Get date-aligned forecasts for each method
   // Use rolling window when training data is small relative to test window
@@ -3096,7 +3096,8 @@ function autoOptimize(options) {
   const forecasts = {};
   const mapes = {};
   if (useRolling) {
-    var rollingFc = generateRollingForecasts(data, dates, n, win, enabledKeys);
+    // Use cached rolling forecasts if provided (massive speedup for refine passes)
+    var rollingFc = options.cachedRollingFc || generateRollingForecasts(data, dates, n, win, enabledKeys);
     for (var rkOpt = 0; rkOpt < enabledKeys.length; rkOpt++) {
       var rkKey = enabledKeys[rkOpt];
       forecasts[rkKey] = rollingFc[rkKey];
@@ -3540,6 +3541,7 @@ function autoOptimize(options) {
 
   // Safeguard: verify per-DOW actually improves overall WMAPE
   // Compare: global+bias vs per-DOW (no bias), matching what runBacktest does
+  var finalOptWape = getEnsembleMAPE(globalBestWeights); // default: global weights + bias
   if (Object.keys(S.dowWeights).length > 0) {
     var sgGlobalEns = new Array(testData.length).fill(0);
     var sgPerDowEns = new Array(testData.length).fill(0);
@@ -3564,9 +3566,13 @@ function autoOptimize(options) {
     var sgPerDowWape = calculateWAPE(testData, sgPerDowEns, testDates);
     if (sgPerDowWape >= sgGlobalWape - 0.3) {
       S.dowWeights = {}; // Per-DOW didn't improve enough, revert
+      finalOptWape = sgGlobalWape;
+    } else {
+      finalOptWape = sgPerDowWape;
     }
   }
 
+  return { wape: finalOptWape };
 }
 
 /* ==================================================================
@@ -3618,29 +3624,40 @@ function buildOptimizeAndBacktestSteps() {
 
         resetMethods();
         S.activeSeries = 'pieces:' + cn;
-        autoOptimize();
+
+        // Pre-compute rolling forecasts ONCE for this category (massive speedup).
+        // In rolling mode, method params aren't tuned, so forecasts are identical
+        // across all autoOptimize calls. Avoids regenerating 14×30=420 runMethod
+        // calls per pass — was the #1 bottleneck.
+        var catRollingCache = null;
+        var catN = catData.length;
+        var catWin = S.backtestWindow;
+        if (needsRollingWindow(catN, catWin)) {
+          var catEnabledKeys = Object.keys(S.methods).filter(function(k) { return baselineEnabled[k]; });
+          catRollingCache = generateRollingForecasts(catData, S.series.dates, catN, catWin, catEnabledKeys);
+        }
+
+        var optResult = autoOptimize({ cachedRollingFc: catRollingCache });
         var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
         var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
         var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
         var mp = captureMethodParams();
-        var bt = runBacktest(S.backtestWindow);
-        var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
+        var wape = optResult ? optResult.wape : 999;
         if (wape > 500) wape = -1;
 
         // Auto-refine: if WMAPE > 20%, run extra shuffled passes with deep search
-        // More passes for harder categories (> 25% gets 8 passes, > 20% gets 5)
-        var maxRefPasses = wape > 25 ? 8 : 5;
+        // Reduced from 5/8 to 3/4 passes (rolling cache makes each pass fast)
+        var maxRefPasses = wape > 25 ? 4 : 3;
         if (wape > 0 && wape > 20) {
           for (var refPass = 0; refPass < maxRefPasses; refPass++) {
             resetMethods();
             S.activeSeries = 'pieces:' + cn;
-            autoOptimize({ shuffle: true, deepSearch: true });
+            var rResult = autoOptimize({ shuffle: true, deepSearch: true, cachedRollingFc: catRollingCache });
             var rWts = {}; Object.keys(S.methods).forEach(function(k) { rWts[k] = S.methods[k].weight; });
             var rDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
             var rBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
             var rMp = captureMethodParams();
-            var rBt = runBacktest(S.backtestWindow);
-            var rWape = rBt && rBt.results.__ensemble ? rBt.results.__ensemble.wape : 999;
+            var rWape = rResult ? rResult.wape : 999;
             if (rWape > 0 && rWape < wape) {
               wts = rWts; dw = rDw; bc = rBc; mp = rMp; wape = rWape;
             }
@@ -3649,32 +3666,41 @@ function buildOptimizeAndBacktestSteps() {
         }
 
         // Safeguard: if ensemble WMAPE > 20%, also try best-individual-concentrated approach
-        if (wape > 0 && wape > 20 && bt && bt.results) {
-          var bestIndWape = 999, bestIndKey = null;
-          Object.keys(bt.results).forEach(function(mk) {
-            if (mk === '__ensemble') return;
-            var mw = bt.results[mk] ? bt.results[mk].wape : 999;
-            if (mw > 0 && mw < bestIndWape) { bestIndWape = mw; bestIndKey = mk; }
-          });
-          // If best individual is better, concentrate on top methods
-          if (bestIndKey && bestIndWape < wape) {
-            resetMethods();
-            S.activeSeries = 'pieces:' + cn;
-            // Set starting weights concentrated on top individual methods
-            var sortedMethods = Object.keys(bt.results).filter(function(mk) { return mk !== '__ensemble' && bt.results[mk] && bt.results[mk].wape > 0; });
-            sortedMethods.sort(function(a, b) { return bt.results[a].wape - bt.results[b].wape; });
-            Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 0; });
-            var topN2 = sortedMethods.slice(0, 3);
-            topN2.forEach(function(k, idx) { S.methods[k].weight = 80 - idx * 25; });
-            autoOptimize({ deepSearch: true });
-            var cWts = {}; Object.keys(S.methods).forEach(function(k) { cWts[k] = S.methods[k].weight; });
-            var cDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
-            var cBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
-            var cMp = captureMethodParams();
-            var cBt = runBacktest(S.backtestWindow);
-            var cWape = cBt && cBt.results.__ensemble ? cBt.results.__ensemble.wape : 999;
-            if (cWape > 0 && cWape < wape) {
-              wts = cWts; dw = cDw; bc = cBc; mp = cMp; wape = cWape;
+        if (wape > 0 && wape > 20) {
+          // Run a quick backtest to identify the best individual method
+          resetMethods();
+          S.activeSeries = 'pieces:' + cn;
+          // Restore the best weights found so far to get individual method WAPEs
+          Object.keys(wts).forEach(function(k) { if (S.methods[k]) S.methods[k].weight = wts[k]; });
+          S.dowWeights = JSON.parse(JSON.stringify(dw));
+          S.biasConfig = JSON.parse(JSON.stringify(bc));
+          if (mp) restoreMethodParams(mp);
+          var bt = runBacktest(S.backtestWindow);
+          if (bt && bt.results) {
+            var bestIndWape = 999, bestIndKey = null;
+            Object.keys(bt.results).forEach(function(mk) {
+              if (mk === '__ensemble') return;
+              var mw = bt.results[mk] ? bt.results[mk].wape : 999;
+              if (mw > 0 && mw < bestIndWape) { bestIndWape = mw; bestIndKey = mk; }
+            });
+            // If best individual is better, concentrate on top methods
+            if (bestIndKey && bestIndWape < wape) {
+              resetMethods();
+              S.activeSeries = 'pieces:' + cn;
+              var sortedMethods = Object.keys(bt.results).filter(function(mk) { return mk !== '__ensemble' && bt.results[mk] && bt.results[mk].wape > 0; });
+              sortedMethods.sort(function(a, b) { return bt.results[a].wape - bt.results[b].wape; });
+              Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 0; });
+              var topN2 = sortedMethods.slice(0, 3);
+              topN2.forEach(function(k, idx) { S.methods[k].weight = 80 - idx * 25; });
+              var cResult = autoOptimize({ deepSearch: true, cachedRollingFc: catRollingCache });
+              var cWts = {}; Object.keys(S.methods).forEach(function(k) { cWts[k] = S.methods[k].weight; });
+              var cDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+              var cBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+              var cMp = captureMethodParams();
+              var cWape = cResult ? cResult.wape : 999;
+              if (cWape > 0 && cWape < wape) {
+                wts = cWts; dw = cDw; bc = cBc; mp = cMp; wape = cWape;
+              }
             }
           }
         }
@@ -3691,26 +3717,35 @@ function buildOptimizeAndBacktestSteps() {
     if (!S.dataLoaded) return;
     resetMethods();
     S.activeSeries = '__total_pieces';
-    autoOptimize();
+
+    // Pre-compute rolling cache for Total Pieces
+    var tpRollingCache = null;
+    var tpData = S.series.totalPieces;
+    var tpN = tpData ? tpData.length : 0;
+    var tpWin = S.backtestWindow;
+    if (tpN > 0 && needsRollingWindow(tpN, tpWin)) {
+      var tpEnabledKeys = Object.keys(S.methods).filter(function(k) { return baselineEnabled[k]; });
+      tpRollingCache = generateRollingForecasts(tpData, S.series.dates, tpN, tpWin, tpEnabledKeys);
+    }
+
+    var optResult = autoOptimize({ cachedRollingFc: tpRollingCache });
     var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
     var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
     var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
     var mp = captureMethodParams();
-    var bt = runBacktest(S.backtestWindow);
-    var wape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
+    var wape = optResult ? optResult.wape : 999;
     if (wape > 500) wape = -1;
 
     // Auto-refine Total Pieces if WMAPE > 15%
     if (wape > 0 && wape > 15) {
       resetMethods();
       S.activeSeries = '__total_pieces';
-      autoOptimize({ shuffle: true });
+      var tResult = autoOptimize({ shuffle: true, cachedRollingFc: tpRollingCache });
       var tWts = {}; Object.keys(S.methods).forEach(function(k) { tWts[k] = S.methods[k].weight; });
       var tDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
       var tBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
       var tMp = captureMethodParams();
-      var tBt = runBacktest(S.backtestWindow);
-      var tWape = tBt && tBt.results.__ensemble ? tBt.results.__ensemble.wape : 999;
+      var tWape = tResult ? tResult.wape : 999;
       if (tWape > 0 && tWape < wape) {
         wts = tWts; dw = tDw; bc = tBc; mp = tMp; wape = tWape;
       }
@@ -3790,16 +3825,24 @@ function refineOptimization() {
         if (!catData) return;
         var origActive = S.activeSeries;
 
+        // Pre-compute rolling cache for this category (speed optimization)
+        var refRollingCache = null;
+        var refN = catData.length;
+        var refWin = S.backtestWindow;
+        if (needsRollingWindow(refN, refWin)) {
+          var refEnabledKeys = Object.keys(S.methods).filter(function(k) { return baselineEnabled[k]; });
+          refRollingCache = generateRollingForecasts(catData, S.series.dates, refN, refWin, refEnabledKeys);
+        }
+
         resetMethods();
         S.activeSeries = 'pieces:' + cn;
         // Use deep search for categories still above 20%
-        autoOptimize({ shuffle: true, deepSearch: existing.wape > 20 });
+        var refResult = autoOptimize({ shuffle: true, deepSearch: existing.wape > 20, cachedRollingFc: refRollingCache });
         var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
         var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
         var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
         var mp = captureMethodParams();
-        var bt = runBacktest(S.backtestWindow);
-        var newWape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
+        var newWape = refResult ? refResult.wape : 999;
 
         if (newWape < existing.wape && newWape <= 500) {
           S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc, methodParams: mp };
@@ -3815,15 +3858,24 @@ function refineOptimization() {
     var existing = S.catOptimized.__total;
     if (!existing || existing.wape < 0) return;
 
+    // Pre-compute rolling cache for Total Pieces
+    var tpRefCache = null;
+    var tpData = S.series.totalPieces;
+    var tpN = tpData ? tpData.length : 0;
+    var tpWin = S.backtestWindow;
+    if (tpN > 0 && needsRollingWindow(tpN, tpWin)) {
+      var tpEnabledKeys = Object.keys(S.methods).filter(function(k) { return baselineEnabled[k]; });
+      tpRefCache = generateRollingForecasts(tpData, S.series.dates, tpN, tpWin, tpEnabledKeys);
+    }
+
     resetMethods();
     S.activeSeries = '__total_pieces';
-    autoOptimize({ shuffle: true });
+    var tpResult = autoOptimize({ shuffle: true, cachedRollingFc: tpRefCache });
     var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
     var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
     var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
     var mp = captureMethodParams();
-    var bt = runBacktest(S.backtestWindow);
-    var newWape = bt && bt.results.__ensemble ? bt.results.__ensemble.wape : 999;
+    var newWape = tpResult ? tpResult.wape : 999;
 
     if (newWape < existing.wape && newWape <= 500) {
       S.catOptimized.__total = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc, methodParams: mp };
