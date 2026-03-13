@@ -3439,8 +3439,40 @@ function autoOptimize(options) {
   S.dowWeights = {};
   var dowActiveKeys = enabledKeys.filter(function(k) { return forecasts[k]; });
 
-  // Helper: run coordinate descent + backward elimination for a single DOW
-  function optimizeDOWWeights(dIdx, dActual, dSum, dowTopN, dowW, isFriday) {
+  for (var dw = 0; dw < 7; dw++) {
+    if (!dowTestIndices[dw] || dowTestIndices[dw].length < 2) continue;
+    var dIdx = dowTestIndices[dw];
+    var dActual = dIdx.map(function(j) { return testData[j]; });
+    var dSum = dActual.reduce(function(a, b) { return a + b; }, 0);
+    if (dSum === 0) continue;
+
+    // Per-method error for this DOW
+    var dowMethodErr = {};
+    for (var mk = 0; mk < dowActiveKeys.length; mk++) {
+      var mKey = dowActiveKeys[mk];
+      var mErr = 0;
+      for (var mi = 0; mi < dIdx.length; mi++) {
+        mErr += Math.abs(dActual[mi] - (forecasts[mKey][dIdx[mi]] || 0));
+      }
+      dowMethodErr[mKey] = mErr;
+    }
+
+    // Sort methods by DOW error, take top 8
+    var sortedMethods = dowActiveKeys.slice().sort(function(a, b) {
+      return (dowMethodErr[a] || 999) - (dowMethodErr[b] || 999);
+    });
+    var dowTopN = sortedMethods.slice(0, Math.min(8, sortedMethods.length));
+
+    // Initialize: blend global weights with per-DOW inverse-error
+    var dowW = {};
+    for (var dk = 0; dk < dowTopN.length; dk++) {
+      var dKey = dowTopN[dk];
+      var gw = globalBestWeights[dKey] || 0;
+      var mErr2 = dowMethodErr[dKey];
+      var dowInvE = (mErr2 > 0.1) ? (dSum / mErr2) : 100;
+      dowW[dKey] = gw * 0.3 + dowInvE * 10;
+    }
+
     // Evaluation function: total error for this DOW with given weights
     var getDOWErr = function(w) {
       var wt = 0;
@@ -3458,16 +3490,12 @@ function autoOptimize(options) {
       return err;
     };
 
-    // Friday gets enhanced optimization: finer steps, more iterations
-    var dowSteps = isFriday
-      ? (deepSearch ? [10, 5, 2, 1, 0.5, 0.2] : [10, 5, 2, 1, 0.5])
-      : (deepSearch ? [10, 5, 2, 1, 0.5] : [10, 5, 2, 1]);
-    var maxIter = isFriday ? 50 : 30;
-
+    // Coordinate descent
+    var dowSteps = deepSearch ? [10, 5, 2, 1, 0.5] : [10, 5, 2, 1];
     for (var ds = 0; ds < dowSteps.length; ds++) {
       var dStep = dowSteps[ds];
       var dowCDKeys = doShuffle ? shuffleArray(dowTopN.slice()) : dowTopN;
-      for (var dIter = 0; dIter < maxIter; dIter++) {
+      for (var dIter = 0; dIter < 30; dIter++) {
         var dImproved = false;
         for (var dk2 = 0; dk2 < dowCDKeys.length; dk2++) {
           var dk2Key = dowCDKeys[dk2];
@@ -3508,205 +3536,204 @@ function autoOptimize(options) {
       if (!dePruned) break;
     }
 
-    return { weights: dowW, err: getDOWErr(dowW) };
+    S.dowWeights[dw] = dowW;
   }
 
-  for (var dw = 0; dw < 7; dw++) {
-    if (!dowTestIndices[dw] || dowTestIndices[dw].length < 2) continue;
-    var dIdx = dowTestIndices[dw];
-    var dActual = dIdx.map(function(j) { return testData[j]; });
-    var dSum = dActual.reduce(function(a, b) { return a + b; }, 0);
-    if (dSum === 0) continue;
-
-    var isFriday = (dw === 5);
-
-    // Per-method error for this DOW
-    var dowMethodErr = {};
-    for (var mk = 0; mk < dowActiveKeys.length; mk++) {
-      var mKey = dowActiveKeys[mk];
-      var mErr = 0;
-      for (var mi = 0; mi < dIdx.length; mi++) {
-        mErr += Math.abs(dActual[mi] - (forecasts[mKey][dIdx[mi]] || 0));
-      }
-      dowMethodErr[mKey] = mErr;
-    }
-
-    // Sort methods by DOW error — Friday gets top 12 candidates, others top 8
-    var sortedMethods = dowActiveKeys.slice().sort(function(a, b) {
-      return (dowMethodErr[a] || 999) - (dowMethodErr[b] || 999);
-    });
-    var dowTopN = sortedMethods.slice(0, Math.min(isFriday ? 12 : 8, sortedMethods.length));
-
-    // Initialize: blend global weights with per-DOW inverse-error
-    var dowW = {};
-    for (var dk = 0; dk < dowTopN.length; dk++) {
-      var dKey = dowTopN[dk];
-      var gw = globalBestWeights[dKey] || 0;
-      var mErr2 = dowMethodErr[dKey];
-      var dowInvE = (mErr2 > 0.1) ? (dSum / mErr2) : 100;
-      dowW[dKey] = gw * 0.3 + dowInvE * 10;
-    }
-
-    // Run the main optimization
-    var bestResult = optimizeDOWWeights(dIdx, dActual, dSum, dowTopN, dowW, isFriday);
-    var bestDOWW = bestResult.weights;
-    var bestDOWErr = bestResult.err;
-
-    // Friday gets multiple random restarts to escape local minima
-    if (isFriday) {
-      var fridayRestarts = deepSearch ? 5 : 3;
-      for (var frr = 0; frr < fridayRestarts; frr++) {
-        // Random restart: shuffle weights significantly
-        var rndW = {};
-        for (var rdk = 0; rdk < dowTopN.length; rdk++) {
-          var rdKey = dowTopN[rdk];
-          var base = dowW[rdKey] || 5;
-          rndW[rdKey] = Math.max(0, base * (0.2 + Math.random() * 1.6));
-        }
-        var rndResult = optimizeDOWWeights(dIdx, dActual, dSum, dowTopN, rndW, true);
-        if (rndResult.err < bestDOWErr) {
-          bestDOWW = rndResult.weights;
-          bestDOWErr = rndResult.err;
-        }
-      }
-
-      // Friday extra: try a recent-trend-biased restart
-      // If recent Fridays are trending down vs historical, favor methods
-      // that predict lower, and vice versa
-      if (dIdx.length >= 6) {
-        var recentN = Math.min(4, Math.floor(dIdx.length / 2));
-        var recentSum = 0, olderSum = 0;
-        for (var fri2 = dIdx.length - recentN; fri2 < dIdx.length; fri2++) recentSum += dActual[fri2];
-        for (var oi = 0; oi < recentN; oi++) olderSum += dActual[oi];
-        var recentAvg = recentSum / recentN;
-        var olderAvg = olderSum / recentN;
-        // For each method, compute its mean prediction on recent Fridays
-        var trendW = {};
-        for (var ftk = 0; ftk < dowTopN.length; ftk++) {
-          var tKey = dowTopN[ftk];
-          var tSum2 = 0;
-          for (var fti = dIdx.length - recentN; fti < dIdx.length; fti++) {
-            tSum2 += (forecasts[tKey][dIdx[fti]] || 0);
-          }
-          var tAvg = tSum2 / recentN;
-          // Favor methods whose predictions align with recent trend direction
-          var trendDiff = Math.abs(tAvg - recentAvg);
-          trendW[tKey] = (trendDiff > 0.1) ? (recentAvg * recentN / (trendDiff + 1)) : 50;
-        }
-        var trendResult = optimizeDOWWeights(dIdx, dActual, dSum, dowTopN, trendW, true);
-        if (trendResult.err < bestDOWErr) {
-          bestDOWW = trendResult.weights;
-          bestDOWErr = trendResult.err;
-        }
-      }
-
-      // Friday extra: try concentrating on top-2 and top-3 methods only
-      for (var topK = 2; topK <= 3; topK++) {
-        var concTopN = sortedMethods.slice(0, topK);
-        var friConcW = {};
-        for (var ck = 0; ck < concTopN.length; ck++) {
-          friConcW[concTopN[ck]] = 50 - ck * 15;
-        }
-        var concResult = optimizeDOWWeights(dIdx, dActual, dSum, concTopN, friConcW, true);
-        if (concResult.err < bestDOWErr) {
-          bestDOWW = concResult.weights;
-          bestDOWErr = concResult.err;
-        }
-      }
-    }
-
-    S.dowWeights[dw] = bestDOWW;
-  }
-
-  // ── Per-DAY safeguard: evaluate each DOW independently ──────────────
-  // Instead of all-or-nothing, keep per-DOW weights only for days where
-  // they actually improve over global weights. This prevents good Friday
-  // weights from being thrown out because other DOWs didn't improve.
-  var finalOptWape = getEnsembleMAPE(globalBestWeights); // default: global + bias
+  // ── All-or-nothing safeguard: per-DOW must improve overall WMAPE ≥ 0.3% ──
+  var sgGlobalWape = getEnsembleMAPE(globalBestWeights);
+  var finalOptWape = sgGlobalWape;
   if (Object.keys(S.dowWeights).length > 0) {
-    // Compute global ensemble with bias
-    var sgGlobalEns = new Array(testData.length).fill(0);
+    // Compute per-DOW ensemble with bias correction
+    var sgPerDowEns = new Array(testData.length).fill(0);
     for (var sg = 0; sg < testData.length; sg++) {
-      var sgGS = 0, sgGV = 0;
+      var sgDow = testDates[sg].getDay();
+      var sgDowW = S.dowWeights[sgDow] || null;
+      var sgWS = 0, sgWV = 0;
       for (var sgk = 0; sgk < enabledKeys.length; sgk++) {
         var sgKey = enabledKeys[sgk];
         var sgFc = (forecasts[sgKey] && forecasts[sgKey][sg]) || 0;
-        var sgGlobal = globalBestWeights[sgKey] || 0;
-        sgGV += sgGlobal * sgFc; sgGS += sgGlobal;
+        var sgW = sgDowW ? (sgDowW[sgKey] || 0) : globalBestWeights[sgKey];
+        sgWV += sgW * sgFc;
+        sgWS += sgW;
       }
-      sgGlobalEns[sg] = sgGS > 0 ? sgGV / sgGS : 0;
+      sgPerDowEns[sg] = sgWS > 0 ? sgWV / sgWS : 0;
     }
-    sgGlobalEns = applyBiasCorrection(sgGlobalEns, trainData, trainDates, lastTrainDate, testDates);
+    sgPerDowEns = applyBiasCorrection(sgPerDowEns, trainData, trainDates, lastTrainDate, testDates);
+    var sgPerDowWape = calculateWAPE(testData, sgPerDowEns, testDates);
 
-    // Per-DOW evaluation: for each DOW, compare per-DOW WMAPE vs global WMAPE
-    for (var sgDow = 0; sgDow < 7; sgDow++) {
-      if (!S.dowWeights[sgDow]) continue;
-      if (!dowTestIndices[sgDow] || dowTestIndices[sgDow].length < 2) {
-        delete S.dowWeights[sgDow];
-        continue;
-      }
-      var sgDIdx = dowTestIndices[sgDow];
-      var sgDActual = sgDIdx.map(function(j) { return testData[j]; });
-      var sgDActualSum = sgDActual.reduce(function(a, b) { return a + b; }, 0);
-      if (sgDActualSum === 0) { delete S.dowWeights[sgDow]; continue; }
-
-      // Global ensemble error for this DOW
-      var sgGlobalDOWErr = 0;
-      for (var sgi = 0; sgi < sgDIdx.length; sgi++) {
-        sgGlobalDOWErr += Math.abs(sgDActual[sgi] - sgGlobalEns[sgDIdx[sgi]]);
-      }
-
-      // Per-DOW ensemble error for this DOW
-      var sgPerDowDOWErr = 0;
-      var sgDowW = S.dowWeights[sgDow];
-      for (var sgi2 = 0; sgi2 < sgDIdx.length; sgi2++) {
-        var sgPS2 = 0, sgPV2 = 0;
-        for (var sgk2 = 0; sgk2 < enabledKeys.length; sgk2++) {
-          var sgKey2 = enabledKeys[sgk2];
-          var sgFc2 = (forecasts[sgKey2] && forecasts[sgKey2][sgDIdx[sgi2]]) || 0;
-          var sgPDW2 = sgDowW[sgKey2] || 0;
-          sgPV2 += sgPDW2 * sgFc2; sgPS2 += sgPDW2;
-        }
-        var sgPred = sgPS2 > 0 ? sgPV2 / sgPS2 : 0;
-        sgPerDowDOWErr += Math.abs(sgDActual[sgi2] - sgPred);
-      }
-
-      // Keep per-DOW weights only if they improve this DOW's WMAPE
-      var sgGlobalDOWWape = (sgDActualSum > 0) ? (sgGlobalDOWErr / sgDActualSum) * 100 : 999;
-      var sgPerDowDOWWape = (sgDActualSum > 0) ? (sgPerDowDOWErr / sgDActualSum) * 100 : 999;
-      if (sgPerDowDOWWape >= sgGlobalDOWWape - 0.1) {
-        // Per-DOW didn't improve this specific day, revert to global for this DOW
-        delete S.dowWeights[sgDow];
-      }
-    }
-
-    // Recompute final WMAPE with the hybrid approach (per-DOW where it helps, global elsewhere)
-    var hybridEns = new Array(testData.length).fill(0);
-    for (var hb = 0; hb < testData.length; hb++) {
-      var hbDow = testDates[hb].getDay();
-      var hbDowW = S.dowWeights[hbDow] || null;
-      if (hbDowW) {
-        var hbPS = 0, hbPV = 0;
-        for (var hbk = 0; hbk < enabledKeys.length; hbk++) {
-          var hbKey = enabledKeys[hbk];
-          var hbFc = (forecasts[hbKey] && forecasts[hbKey][hb]) || 0;
-          var hbW2 = hbDowW[hbKey] || 0;
-          hbPV += hbW2 * hbFc; hbPS += hbW2;
-        }
-        hybridEns[hb] = hbPS > 0 ? hbPV / hbPS : sgGlobalEns[hb];
-      } else {
-        hybridEns[hb] = sgGlobalEns[hb];
-      }
-    }
-    var hybridWape = calculateWAPE(testData, hybridEns, testDates);
-    var sgGlobalWape = calculateWAPE(testData, sgGlobalEns, testDates);
-
-    if (hybridWape < sgGlobalWape) {
-      finalOptWape = hybridWape;
-    } else {
-      // Hybrid didn't help at all, revert everything
-      S.dowWeights = {};
+    if (sgPerDowWape >= sgGlobalWape - 0.3) {
+      S.dowWeights = {}; // Per-DOW didn't improve enough, revert ALL
       finalOptWape = sgGlobalWape;
+    } else {
+      finalOptWape = sgPerDowWape;
+    }
+  }
+
+  // ── Friday-specific post-pass ─────────────────────────────────────────
+  // If the all-or-nothing safeguard rejected per-DOW weights, try a
+  // Friday-only optimization. Friday typically has high variance, so
+  // dedicated weights may help even when full per-DOW doesn't.
+  if (Object.keys(S.dowWeights).length === 0 && dowTestIndices[5] && dowTestIndices[5].length >= 3) {
+    var friIdx = dowTestIndices[5];
+    var friActual = friIdx.map(function(j) { return testData[j]; });
+    var friSum = friActual.reduce(function(a, b) { return a + b; }, 0);
+
+    if (friSum > 0) {
+      // Per-method error for Friday only
+      var friMethodErr = {};
+      for (var fmk = 0; fmk < dowActiveKeys.length; fmk++) {
+        var fmKey = dowActiveKeys[fmk];
+        var fmErr = 0;
+        for (var fmi = 0; fmi < friIdx.length; fmi++) {
+          fmErr += Math.abs(friActual[fmi] - (forecasts[fmKey][friIdx[fmi]] || 0));
+        }
+        friMethodErr[fmKey] = fmErr;
+      }
+
+      // Top 10 methods for Friday (broader than normal 8)
+      var friSorted = dowActiveKeys.slice().sort(function(a, b) {
+        return (friMethodErr[a] || 999) - (friMethodErr[b] || 999);
+      });
+      var friTopN = friSorted.slice(0, Math.min(10, friSorted.length));
+
+      // Friday-specific evaluation function
+      var getFriErr = function(w) {
+        var wt = 0;
+        for (var fw2 = 0; fw2 < friTopN.length; fw2++) wt += (w[friTopN[fw2]] || 0);
+        if (wt === 0) return 9999;
+        var err = 0;
+        for (var fp = 0; fp < friIdx.length; fp++) {
+          var pred = 0;
+          for (var fpk = 0; fpk < friTopN.length; fpk++) {
+            pred += (w[friTopN[fpk]] || 0) * (forecasts[friTopN[fpk]][friIdx[fp]] || 0);
+          }
+          pred /= wt;
+          err += Math.abs(friActual[fp] - pred);
+        }
+        return err;
+      };
+
+      // Helper: run coordinate descent on Friday weights
+      var optimizeFriWeights = function(w) {
+        var friSteps = deepSearch ? [10, 5, 2, 1, 0.5, 0.2] : [10, 5, 2, 1, 0.5];
+        for (var fds = 0; fds < friSteps.length; fds++) {
+          var fStep = friSteps[fds];
+          var friCDKeys = doShuffle ? shuffleArray(friTopN.slice()) : friTopN;
+          for (var fIter = 0; fIter < 50; fIter++) {
+            var fImproved = false;
+            for (var fdk = 0; fdk < friCDKeys.length; fdk++) {
+              var fdKey = friCDKeys[fdk];
+              var fCur = getFriErr(w);
+              w[fdKey] = Math.max(0, (w[fdKey] || 0) + fStep);
+              var fUp = getFriErr(w);
+              w[fdKey] = Math.max(0, w[fdKey] - 2 * fStep);
+              var fDn = getFriErr(w);
+              if (fUp < fCur && fUp <= fDn) {
+                w[fdKey] = Math.max(0, w[fdKey] + 2 * fStep);
+                fImproved = true;
+              } else if (fDn < fCur) {
+                fImproved = true;
+              } else {
+                w[fdKey] = Math.max(0, w[fdKey] + fStep);
+              }
+            }
+            if (!fImproved) break;
+          }
+        }
+        // Backward elimination
+        for (var fElim = 0; fElim < 5; fElim++) {
+          var fePruned = false;
+          var feCur = getFriErr(w);
+          for (var fe2 = 0; fe2 < friTopN.length; fe2++) {
+            var feKey = friTopN[fe2];
+            if ((w[feKey] || 0) <= 0) continue;
+            var feSaved = w[feKey];
+            w[feKey] = 0;
+            if (getFriErr(w) < feCur - 0.001) {
+              feCur = getFriErr(w);
+              fePruned = true;
+            } else {
+              w[feKey] = feSaved;
+            }
+          }
+          if (!fePruned) break;
+        }
+        return w;
+      };
+
+      // Start 1: global-blended initialization
+      var friW = {};
+      for (var fki = 0; fki < friTopN.length; fki++) {
+        var fKey = friTopN[fki];
+        var fgw = globalBestWeights[fKey] || 0;
+        var fme = friMethodErr[fKey];
+        var fInvE = (fme > 0.1) ? (friSum / fme) : 100;
+        friW[fKey] = fgw * 0.3 + fInvE * 10;
+      }
+      optimizeFriWeights(friW);
+      var bestFriW = JSON.parse(JSON.stringify(friW));
+      var bestFriErr = getFriErr(friW);
+
+      // Random restarts to escape local minima
+      var numFriRestarts = deepSearch ? 4 : 2;
+      for (var frr2 = 0; frr2 < numFriRestarts; frr2++) {
+        var rW2 = {};
+        for (var rrk2 = 0; rrk2 < friTopN.length; rrk2++) {
+          var rrKey2 = friTopN[rrk2];
+          var rrBase2 = bestFriW[rrKey2] || 5;
+          rW2[rrKey2] = Math.max(0, rrBase2 * (0.2 + Math.random() * 1.6));
+        }
+        optimizeFriWeights(rW2);
+        if (getFriErr(rW2) < bestFriErr) {
+          bestFriW = JSON.parse(JSON.stringify(rW2));
+          bestFriErr = getFriErr(rW2);
+        }
+      }
+
+      // Concentrated restarts: try top-2 and top-3 methods only
+      for (var ftk2 = 2; ftk2 <= 3; ftk2++) {
+        var fConc = {};
+        for (var fci = 0; fci < Math.min(ftk2, friSorted.length); fci++) {
+          fConc[friSorted[fci]] = 50 - fci * 15;
+        }
+        optimizeFriWeights(fConc);
+        if (getFriErr(fConc) < bestFriErr) {
+          bestFriW = JSON.parse(JSON.stringify(fConc));
+          bestFriErr = getFriErr(fConc);
+        }
+      }
+
+      // Validation: does Friday-only per-DOW improve OVERALL WMAPE?
+      // Build ensemble: global weights for all days, bestFriW for Friday only
+      var friTestEns = new Array(testData.length).fill(0);
+      for (var ftei = 0; ftei < testData.length; ftei++) {
+        var fteDow = testDates[ftei].getDay();
+        var fteWS = 0, fteWV = 0;
+        if (fteDow === 5) {
+          for (var ftek = 0; ftek < friTopN.length; ftek++) {
+            var fteKey = friTopN[ftek];
+            var fteFc = (forecasts[fteKey] && forecasts[fteKey][ftei]) || 0;
+            fteWV += (bestFriW[fteKey] || 0) * fteFc;
+            fteWS += (bestFriW[fteKey] || 0);
+          }
+        } else {
+          for (var ftek2b = 0; ftek2b < enabledKeys.length; ftek2b++) {
+            var fteKey2 = enabledKeys[ftek2b];
+            var fteFc2 = (forecasts[fteKey2] && forecasts[fteKey2][ftei]) || 0;
+            fteWV += globalBestWeights[fteKey2] * fteFc2;
+            fteWS += globalBestWeights[fteKey2];
+          }
+        }
+        friTestEns[ftei] = fteWS > 0 ? fteWV / fteWS : 0;
+      }
+      friTestEns = applyBiasCorrection(friTestEns, trainData, trainDates, lastTrainDate, testDates);
+      var friTestWape = calculateWAPE(testData, friTestEns, testDates);
+
+      // Accept Friday-only weights if they improve overall WMAPE by >= 0.1%
+      if (friTestWape < finalOptWape - 0.1) {
+        S.dowWeights = { 5: bestFriW };
+        finalOptWape = friTestWape;
+      }
     }
   }
 
@@ -3784,8 +3811,8 @@ function buildOptimizeAndBacktestSteps() {
         if (wape > 500) wape = -1;
 
         // Auto-refine: if WMAPE > 20%, run extra shuffled passes with deep search
-        // Reduced from 5/8 to 3/4 passes (rolling cache makes each pass fast)
-        var maxRefPasses = wape > 25 ? 4 : 3;
+        // More passes for higher WMAPE; rolling cache keeps each pass fast
+        var maxRefPasses = wape > 25 ? 6 : 5;
         if (wape > 0 && wape > 20) {
           for (var refPass = 0; refPass < maxRefPasses; refPass++) {
             resetMethods();
@@ -3803,12 +3830,11 @@ function buildOptimizeAndBacktestSteps() {
           }
         }
 
-        // Safeguard: if ensemble WMAPE > 20%, also try best-individual-concentrated approach
+        // Safeguard: if ensemble WMAPE > 20%, try concentrated approaches
         if (wape > 0 && wape > 20) {
-          // Run a quick backtest to identify the best individual method
+          // Run a quick backtest to identify per-method WAPEs
           resetMethods();
           S.activeSeries = 'pieces:' + cn;
-          // Restore the best weights found so far to get individual method WAPEs
           Object.keys(wts).forEach(function(k) { if (S.methods[k]) S.methods[k].weight = wts[k]; });
           S.dowWeights = JSON.parse(JSON.stringify(dw));
           S.biasConfig = JSON.parse(JSON.stringify(bc));
@@ -3821,12 +3847,13 @@ function buildOptimizeAndBacktestSteps() {
               var mw = bt.results[mk] ? bt.results[mk].wape : 999;
               if (mw > 0 && mw < bestIndWape) { bestIndWape = mw; bestIndKey = mk; }
             });
-            // If best individual is better, concentrate on top methods
+            var sortedMethods = Object.keys(bt.results).filter(function(mk) { return mk !== '__ensemble' && bt.results[mk] && bt.results[mk].wape > 0; });
+            sortedMethods.sort(function(a, b) { return bt.results[a].wape - bt.results[b].wape; });
+
+            // Strategy A: concentrate on top-3 methods
             if (bestIndKey && bestIndWape < wape) {
               resetMethods();
               S.activeSeries = 'pieces:' + cn;
-              var sortedMethods = Object.keys(bt.results).filter(function(mk) { return mk !== '__ensemble' && bt.results[mk] && bt.results[mk].wape > 0; });
-              sortedMethods.sort(function(a, b) { return bt.results[a].wape - bt.results[b].wape; });
               Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 0; });
               var topN2 = sortedMethods.slice(0, 3);
               topN2.forEach(function(k, idx) { S.methods[k].weight = 80 - idx * 25; });
@@ -3838,6 +3865,43 @@ function buildOptimizeAndBacktestSteps() {
               var cWape = cResult ? cResult.wape : 999;
               if (cWape > 0 && cWape < wape) {
                 wts = cWts; dw = cDw; bc = cBc; mp = cMp; wape = cWape;
+              }
+            }
+
+            // Strategy B: concentrate on top-5 methods (broader ensemble)
+            if (wape > 20 && sortedMethods.length >= 5) {
+              resetMethods();
+              S.activeSeries = 'pieces:' + cn;
+              Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 0; });
+              var topN5 = sortedMethods.slice(0, 5);
+              topN5.forEach(function(k, idx) { S.methods[k].weight = 60 - idx * 10; });
+              var c5Result = autoOptimize({ deepSearch: true, cachedRollingFc: catRollingCache });
+              var c5Wts = {}; Object.keys(S.methods).forEach(function(k) { c5Wts[k] = S.methods[k].weight; });
+              var c5Dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+              var c5Bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+              var c5Mp = captureMethodParams();
+              var c5Wape = c5Result ? c5Result.wape : 999;
+              if (c5Wape > 0 && c5Wape < wape) {
+                wts = c5Wts; dw = c5Dw; bc = c5Bc; mp = c5Mp; wape = c5Wape;
+              }
+            }
+
+            // Strategy C: disable bottom half of methods, optimize remaining
+            if (wape > 20 && sortedMethods.length >= 6) {
+              resetMethods();
+              S.activeSeries = 'pieces:' + cn;
+              var halfIdx = Math.ceil(sortedMethods.length / 2);
+              for (var dbi = halfIdx; dbi < sortedMethods.length; dbi++) {
+                if (S.methods[sortedMethods[dbi]]) S.methods[sortedMethods[dbi]].enabled = false;
+              }
+              var dhResult = autoOptimize({ shuffle: true, deepSearch: true, cachedRollingFc: catRollingCache });
+              var dhWts = {}; Object.keys(S.methods).forEach(function(k) { dhWts[k] = S.methods[k].weight; });
+              var dhDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+              var dhBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+              var dhMp = captureMethodParams();
+              var dhWape = dhResult ? dhResult.wape : 999;
+              if (dhWape > 0 && dhWape < wape) {
+                wts = dhWts; dw = dhDw; bc = dhBc; mp = dhMp; wape = dhWape;
               }
             }
           }
