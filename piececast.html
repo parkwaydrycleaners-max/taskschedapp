@@ -4193,14 +4193,41 @@ function renderBacktestChart(bt) {
   });
 }
 
-function renderForecastChart(fcData, histDays) {
+function renderForecastChart(fcDataOverride, histDaysOverride) {
+  var fr = S.forecastResults;
+  if (!fr) return;
   const ctx = document.getElementById('fcChart');
   if (S.fcChart) S.fcChart.destroy();
 
   const colors = getChartColors();
   const data = getActiveSeries();
   const dates = S.series.dates;
+  var histDays = histDaysOverride || Math.min(60, data.length);
   const hStart = Math.max(0, data.length - histDays);
+
+  // Determine the correct forecast data based on active series
+  var fcData;
+  if (fcDataOverride) {
+    fcData = fcDataOverride;
+  } else {
+    var seriesKey = S.activeSeries;
+    if (seriesKey === '__total_revenue') {
+      fcData = fr.totalRevenue || fr.total;
+    } else if (seriesKey === '__total_pieces') {
+      fcData = fr.total;
+    } else {
+      var parts = seriesKey.split(':');
+      var sType = parts[0];
+      var sName = parts.slice(1).join(':');
+      if (sType === 'revenue' && fr.revenueCategories && fr.revenueCategories[sName]) {
+        fcData = fr.revenueCategories[sName];
+      } else if (fr.categories && fr.categories[sName]) {
+        fcData = fr.categories[sName];
+      } else {
+        fcData = fr.total;
+      }
+    }
+  }
 
   const labels = [];
   for (let i = hStart; i < data.length; i++) labels.push(formatDateShort(dates[i]));
@@ -4361,13 +4388,13 @@ function generateExport(scope) {
       allForecasts['pcs_' + cn] = hasCachedFc && fr.categories[cn] ? fr.categories[cn] : computeAllMethodEnsemble(S.series.categories[cn].pieces, dates, horizon, catOpt);
       var rData = S.series.categories[cn].revenue;
       if (rData.some(function(v) { return v > 0; })) {
-        allForecasts['rev_' + cn] = computeAllMethodEnsemble(rData, dates, horizon, catOpt);
+        allForecasts['rev_' + cn] = (hasCachedFc && fr.revenueCategories && fr.revenueCategories[cn]) ? fr.revenueCategories[cn] : computeAllMethodEnsemble(rData, dates, horizon, catOpt);
       }
     }
     var totalOpt = S.catOptimized.__total || null;
     allForecasts['Total Pieces'] = hasCachedFc ? fr.total : computeAllMethodEnsemble(S.series.totalPieces, dates, horizon, totalOpt);
     if (S.series.totalRevenue.some(function(v) { return v > 0; })) {
-      allForecasts['Total Revenue'] = computeAllMethodEnsemble(S.series.totalRevenue, dates, horizon, totalOpt);
+      allForecasts['Total Revenue'] = (hasCachedFc && fr.totalRevenue) ? fr.totalRevenue : computeAllMethodEnsemble(S.series.totalRevenue, dates, horizon, totalOpt);
     }
 
     var colNames = [];
@@ -4903,20 +4930,37 @@ function renderForecastTable() {
   var horizon = fr.horizon;
   var catNames = Object.keys(fr.categories);
 
+  // Determine whether we're showing revenue or pieces
+  var seriesKey = S.activeSeries;
+  var isRevenue = seriesKey === '__total_revenue' || (seriesKey.indexOf('revenue:') === 0);
+  var showRevenue = isRevenue && fr.hasRevenue;
+
+  // Select the right forecast data source
+  var catFcData = showRevenue ? fr.revenueCategories : fr.categories;
+  var totalFcData = showRevenue ? fr.totalRevenue : fr.total;
+  var unitLabel = showRevenue ? '$' : 'Pcs';
+
   // Build header: Date | Day | Category1 | Category2 | ... | Total
   var headerHTML = '<tr><th>Date</th><th>Day</th>';
   for (var hi = 0; hi < catNames.length; hi++) {
-    headerHTML += '<th class="num" style="font-size:.75rem">' + escHtml(catNames[hi]) + '</th>';
+    headerHTML += '<th class="num" style="font-size:.75rem">' + escHtml(catNames[hi]) + (showRevenue ? ' ($)' : '') + '</th>';
   }
-  headerHTML += '<th class="num" style="font-weight:700;font-size:.8rem">Total Pcs</th></tr>';
+  headerHTML += '<th class="num" style="font-weight:700;font-size:.8rem">Total ' + unitLabel + '</th></tr>';
   thead.innerHTML = headerHTML;
 
-  // Gather DOW floors for warning indicators
-  var totalFloors = (fr.dowFloors && fr.dowFloors.__total) ? fr.dowFloors.__total : null;
+  // Gather DOW floors for warning indicators (only for pieces mode)
+  var totalFloors = (!showRevenue && fr.dowFloors && fr.dowFloors.__total) ? fr.dowFloors.__total : null;
   var catFloors = {};
-  for (var fli = 0; fli < catNames.length; fli++) {
-    catFloors[catNames[fli]] = (fr.dowFloors && fr.dowFloors[catNames[fli]]) ? fr.dowFloors[catNames[fli]] : null;
+  if (!showRevenue) {
+    for (var fli = 0; fli < catNames.length; fli++) {
+      catFloors[catNames[fli]] = (fr.dowFloors && fr.dowFloors[catNames[fli]]) ? fr.dowFloors[catNames[fli]] : null;
+    }
   }
+
+  // Format value based on revenue/pieces mode
+  var fmtVal = showRevenue
+    ? function(v) { return '$' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    : function(v) { return String(Math.round(v)); };
 
   var bodyHTML = '';
   var flooredCount = 0;
@@ -4929,20 +4973,20 @@ function renderForecastTable() {
     bodyHTML += '<tr' + rowStyle + '><td>' + formatDateISO(d) + '</td><td>' + DOW_NAMES[dow] + closedTag + '</td>';
     for (var ci = 0; ci < catNames.length; ci++) {
       var cn = catNames[ci];
-      var v = fr.categories[cn][h];
+      var v = catFcData[cn] ? catFcData[cn][h] : 0;
       var catFloor = catFloors[cn] ? catFloors[cn][dow] : 0;
-      var isAtFloor = !closed && catFloor > 0 && Math.round(v) <= Math.round(catFloor);
+      var isAtFloor = !showRevenue && !closed && catFloor > 0 && Math.round(v) <= Math.round(catFloor);
       var cellStyle = isAtFloor ? ' style="color:var(--warning);font-weight:600"' : '';
       var floorTag = isAtFloor ? ' <span title="Raised to DOW floor" style="font-size:.6rem">&#x26A0;</span>' : '';
-      bodyHTML += '<td class="num"' + cellStyle + '>' + Math.round(v) + floorTag + '</td>';
+      bodyHTML += '<td class="num"' + cellStyle + '>' + fmtVal(v) + floorTag + '</td>';
     }
-    var totalV = fr.total[h];
+    var totalV = totalFcData ? totalFcData[h] : 0;
     var totalFloor = totalFloors ? totalFloors[dow] : 0;
-    var totalAtFloor = !closed && totalFloor > 0 && Math.round(totalV) <= Math.round(totalFloor);
+    var totalAtFloor = !showRevenue && !closed && totalFloor > 0 && Math.round(totalV) <= Math.round(totalFloor);
     if (totalAtFloor) flooredCount++;
     var totalStyle = totalAtFloor ? 'font-weight:700;color:var(--warning)' : 'font-weight:700';
     var totalFloorTag = totalAtFloor ? ' <span title="Raised to DOW floor" style="font-size:.6rem">&#x26A0;</span>' : '';
-    bodyHTML += '<td class="num" style="' + totalStyle + '">' + Math.round(totalV) + totalFloorTag + '</td></tr>';
+    bodyHTML += '<td class="num" style="' + totalStyle + '">' + fmtVal(totalV) + totalFloorTag + '</td></tr>';
   }
   if (flooredCount > 0) {
     bodyHTML += '<tr><td colspan="' + (catNames.length + 3) + '" style="font-size:.7rem;color:var(--warning);padding:8px;border:none">' +
@@ -5213,6 +5257,11 @@ document.getElementById('seriesSelect').addEventListener('change', function() {
       { label: 'Running backtest\u2026', fn: function() { doBacktest(); }}
     ]);
   }
+  // Also update forecast display if results exist
+  if (S.forecastResults) {
+    renderForecastTable();
+    renderForecastChart();
+  }
 });
 
 document.getElementById('methodCatSelect').addEventListener('change', function() {
@@ -5372,6 +5421,25 @@ function doForecast() {
   var totalOpt = S.catOptimized.__total || null;
   var totalFc = computeAllMethodEnsemble(S.series.totalPieces, dates, horizon, totalOpt);
 
+  // Compute revenue forecasts for each category + total
+  // Uses the same optimized weights (seasonal patterns are similar between pieces & revenue)
+  var revenueCategories = {};
+  var hasRevenue = false;
+  for (var rci = 0; rci < catNames.length; rci++) {
+    var rcn = catNames[rci];
+    var catRevenue = S.series.categories[rcn].revenue;
+    if (catRevenue && catRevenue.some(function(v) { return v > 0; })) {
+      hasRevenue = true;
+      var rcatOpt = S.catOptimized[rcn] || null;
+      revenueCategories[rcn] = computeAllMethodEnsemble(catRevenue, dates, horizon, rcatOpt);
+    } else {
+      revenueCategories[rcn] = new Array(horizon).fill(0);
+    }
+  }
+  var totalRevFc = hasRevenue
+    ? computeAllMethodEnsemble(S.series.totalRevenue, dates, horizon, totalOpt)
+    : new Array(horizon).fill(0);
+
   // Compute DOW floors for each category and total for display warnings
   var floorInfo = {};
   for (var fi = 0; fi < catNames.length; fi++) {
@@ -5383,6 +5451,9 @@ function doForecast() {
   S.forecastResults = {
     categories: pieceCategories,
     total: totalFc,
+    revenueCategories: revenueCategories,
+    totalRevenue: totalRevFc,
+    hasRevenue: hasRevenue,
     horizon: horizon,
     dowFloors: floorInfo
   };
@@ -5394,7 +5465,7 @@ function doForecast() {
   var mape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.wape.toFixed(1) + '% WMAPE' : '';
   document.getElementById('fcBadge').textContent = horizon + '-day forecast \u00B7 ' + mape;
 
-  renderForecastChart(totalFc, Math.min(60, S.series.totalPieces.length));
+  renderForecastChart();
   document.getElementById('fcChartCard').style.display = '';
 
   // Enable export
@@ -5413,6 +5484,11 @@ document.getElementById('forecastSeriesSelect').addEventListener('change', funct
   S.activeSeries = this.value;
   document.getElementById('seriesSelect').value = this.value;
   applyWeightsForSeries(this.value);
+  // Re-render forecast chart and table with the newly selected series
+  if (S.forecastResults) {
+    renderForecastTable();
+    renderForecastChart();
+  }
 });
 
 document.getElementById('exportBacktestBtn').addEventListener('click', function() {
