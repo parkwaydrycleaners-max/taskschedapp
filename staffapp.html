@@ -4404,54 +4404,33 @@
         }
 
         // ========== AUTO DAY CHANGE DETECTION ==========
-        // Tracks the date when the page was last active
-        let lastKnownDate = new Date().toDateString();
+        // Store the date the page loaded on
+        const pageLoadDate = new Date().toDateString();
 
         function checkForDayChange() {
-            const currentDate = new Date().toDateString();
-            if (currentDate !== lastKnownDate) {
-                console.log('Day changed from', lastKnownDate, 'to', currentDate);
-                lastKnownDate = currentDate;
-
-                // Push yesterday's final state before resetting
-                if (firebaseConfig) {
-                    pushToFirebase().catch(e => console.log('Failed to push yesterday data:', e.message));
-                }
-
-                // Reset to today
-                selectedDate = new Date();
-                loadState();
-                updateDateDisplay();
-                renderChecklists();
-                document.body.classList.remove('viewing-past');
-
-                // Clear caches for new day
-                historicalCompletedData = {};
-
-                // Re-sync with Firebase for the new day
-                if (firebaseConfig) {
-                    syncWithFirebase().then(() => {
-                        console.log('New day sync complete');
-                    });
-                }
-
-                showToast('📅 New day! Checklist has been reset.', 'success');
+            if (new Date().toDateString() !== pageLoadDate) {
+                // New day — hard reload the page. No tricks, no state juggling.
+                window.location.reload();
             }
         }
 
         function startDayChangeWatcher() {
-            // Check every 60 seconds
-            setInterval(checkForDayChange, 60000);
+            // Check every 30 seconds
+            setInterval(checkForDayChange, 30000);
 
-            // Also check when tab becomes visible again (e.g. employee switches back to tab)
+            // Check when tab becomes visible (employee switches back to tab)
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible') {
                     checkForDayChange();
                 }
             });
 
-            // Also check on window focus (covers more browsers/embed scenarios)
+            // Check on window focus (covers embedded iframes)
             window.addEventListener('focus', checkForDayChange);
+
+            // Check on ANY click or touch (catches lazy employees who just start tapping)
+            document.addEventListener('click', checkForDayChange, true);
+            document.addEventListener('touchstart', checkForDayChange, true);
         }
 
         // Register Service Worker for PWA offline capability
