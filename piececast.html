@@ -2049,22 +2049,30 @@ function forecastWeekProfile(trainData, trainDates, horizon) {
   var scale = 1;
   if (yago4wk.length >= 5) {
     var yago4avg = yago4wk.reduce(function(a,b){return a+b;},0) / yago4wk.length;
-    if (yago4avg > 0) {
+    if (yago4avg > 2) { // require meaningful year-ago average (not near-zero)
       scale = rec4avg / yago4avg;
       scale = 1 + (scale - 1) * 0.7; // dampen
       scale = Math.max(0.3, Math.min(3.0, scale)); // safety cap
     }
   }
 
+  // Compute absolute output cap: no forecast point should exceed 5× overall DOW max
+  var _dowMax = 0;
+  for (var _dd = 0; _dd < 7; _dd++) { if (overallDow[_dd] > _dowMax) _dowMax = overallDow[_dd]; }
+  var _outputCap = Math.max(_dowMax * 5, rec4avg * 5, 50);
+
   var fc = [];
   for (var h = 1; h <= horizon; h++) {
     var d = new Date(lastDate); d.setDate(d.getDate() + h);
     var idx = findYOYIndex(trainDates, d);
+    var val;
     if (idx >= 0) {
-      fc.push(Math.max(0, trainData[idx] * scale));
+      val = Math.max(0, trainData[idx] * scale);
     } else {
-      fc.push(Math.max(0, overallDow[d.getDay()]));
+      val = Math.max(0, overallDow[d.getDay()]);
     }
+    // Hard cap each output value
+    fc.push(Math.min(val, _outputCap));
   }
   return fc;
 }
@@ -2448,39 +2456,62 @@ function forecastAdaptiveMedianDOW(trainData, trainDates, horizon, halfLife) {
 
 function runMethod(key, trainData, trainDates, horizon) {
   const m = S.methods[key];
+  var fc;
   switch (key) {
-    case 'dowAvg': return forecastDOWAvg(trainData, trainDates, horizon, m.params.weeks);
-    case 'recent': return forecastRecent(trainData, trainDates, horizon, m.params.weeks);
-    case 'wDow': return forecastWeightedDOW(trainData, trainDates, horizon, m.params.halfLife);
-    case 'medDow': return forecastMedianDOW(trainData, trainDates, horizon, m.params.weeks);
-    case 'trendDow': return forecastTrendDOW(trainData, trainDates, horizon, m.params.weeks);
-    case 'annualDow': return forecastAnnualDOW(trainData, trainDates, horizon, m.params.blendRecent);
-    case 'hw': return forecastHoltWinters(trainData, trainDates, horizon, m.params.alpha, m.params.beta, m.params.gamma);
-    case 'yoy': return forecastYOY(trainData, trainDates, horizon);
-    case 'yoyTrend': return forecastYOYTrend(trainData, trainDates, horizon, m.params.recentWeeks);
-    case 'multiYear': return forecastMultiYearSmoothed(trainData, trainDates, horizon, m.params.windowDays);
-    case 'trimDow': return forecastTrimmedMeanDOW(trainData, trainDates, horizon, m.params.trimPct);
-    case 'momentum': return forecastMomentum(trainData, trainDates, horizon, m.params.lookback);
-    case 'sma7': return forecastSMA(trainData, horizon, 7);
-    case 'sma28': return forecastSMA(trainData, horizon, 28);
-    case 'expSmooth': return forecastExpSmoothDOW(trainData, trainDates, horizon, m.params.alpha);
-    case 'isoWeekDow': return forecastISOWeekDOW(trainData, trainDates, horizon);
-    case 'weekVolSplit': return forecastWeekVolSplit(trainData, trainDates, horizon, m.params.yearsBack);
-    case 'weekProfile': return forecastWeekProfile(trainData, trainDates, horizon);
-    case 'monthDow': return forecastMonthDOW(trainData, trainDates, horizon);
-    case 'monthDowR': return forecastMonthDOWRecency(trainData, trainDates, horizon);
-    case 'biweekly': return forecastBiweekly(trainData, trainDates, horizon);
-    case 'annualDowR': return forecastAnnualDOWRecency(trainData, trainDates, horizon);
-    case 'q75': return forecastQ75(trainData, trainDates, horizon);
-    case 'q25': return forecastQ25(trainData, trainDates, horizon);
-    case 'last2': return forecastLast2(trainData, trainDates, horizon);
-    case 'regime': return forecastRegime(trainData, trainDates, horizon);
-    case 'trendSeason': return forecastTrendSeasonDOW(trainData, trainDates, horizon, m.params.recentWeeks);
-    case 'recentMonth': return forecastRecentMonthDOW(trainData, trainDates, horizon, m.params.yearsBack);
-    case 'winsDow': return forecastWinsorizedDOW(trainData, trainDates, horizon, m.params.weeks, m.params.capPct);
-    case 'adapMedian': return forecastAdaptiveMedianDOW(trainData, trainDates, horizon, m.params.halfLife);
-    default: return new Array(horizon).fill(0);
+    case 'dowAvg': fc = forecastDOWAvg(trainData, trainDates, horizon, m.params.weeks); break;
+    case 'recent': fc = forecastRecent(trainData, trainDates, horizon, m.params.weeks); break;
+    case 'wDow': fc = forecastWeightedDOW(trainData, trainDates, horizon, m.params.halfLife); break;
+    case 'medDow': fc = forecastMedianDOW(trainData, trainDates, horizon, m.params.weeks); break;
+    case 'trendDow': fc = forecastTrendDOW(trainData, trainDates, horizon, m.params.weeks); break;
+    case 'annualDow': fc = forecastAnnualDOW(trainData, trainDates, horizon, m.params.blendRecent); break;
+    case 'hw': fc = forecastHoltWinters(trainData, trainDates, horizon, m.params.alpha, m.params.beta, m.params.gamma); break;
+    case 'yoy': fc = forecastYOY(trainData, trainDates, horizon); break;
+    case 'yoyTrend': fc = forecastYOYTrend(trainData, trainDates, horizon, m.params.recentWeeks); break;
+    case 'multiYear': fc = forecastMultiYearSmoothed(trainData, trainDates, horizon, m.params.windowDays); break;
+    case 'trimDow': fc = forecastTrimmedMeanDOW(trainData, trainDates, horizon, m.params.trimPct); break;
+    case 'momentum': fc = forecastMomentum(trainData, trainDates, horizon, m.params.lookback); break;
+    case 'sma7': fc = forecastSMA(trainData, horizon, 7); break;
+    case 'sma28': fc = forecastSMA(trainData, horizon, 28); break;
+    case 'expSmooth': fc = forecastExpSmoothDOW(trainData, trainDates, horizon, m.params.alpha); break;
+    case 'isoWeekDow': fc = forecastISOWeekDOW(trainData, trainDates, horizon); break;
+    case 'weekVolSplit': fc = forecastWeekVolSplit(trainData, trainDates, horizon, m.params.yearsBack); break;
+    case 'weekProfile': fc = forecastWeekProfile(trainData, trainDates, horizon); break;
+    case 'monthDow': fc = forecastMonthDOW(trainData, trainDates, horizon); break;
+    case 'monthDowR': fc = forecastMonthDOWRecency(trainData, trainDates, horizon); break;
+    case 'biweekly': fc = forecastBiweekly(trainData, trainDates, horizon); break;
+    case 'annualDowR': fc = forecastAnnualDOWRecency(trainData, trainDates, horizon); break;
+    case 'q75': fc = forecastQ75(trainData, trainDates, horizon); break;
+    case 'q25': fc = forecastQ25(trainData, trainDates, horizon); break;
+    case 'last2': fc = forecastLast2(trainData, trainDates, horizon); break;
+    case 'regime': fc = forecastRegime(trainData, trainDates, horizon); break;
+    case 'trendSeason': fc = forecastTrendSeasonDOW(trainData, trainDates, horizon, m.params.recentWeeks); break;
+    case 'recentMonth': fc = forecastRecentMonthDOW(trainData, trainDates, horizon, m.params.yearsBack); break;
+    case 'winsDow': fc = forecastWinsorizedDOW(trainData, trainDates, horizon, m.params.weeks, m.params.capPct); break;
+    case 'adapMedian': fc = forecastAdaptiveMedianDOW(trainData, trainDates, horizon, m.params.halfLife); break;
+    default: fc = new Array(horizon).fill(0);
   }
+
+  /* ── UNIVERSAL SANITY CAP ──────────────────────────────────────────
+     Nuclear safety net: no forecasting method should EVER produce a value
+     beyond a reasonable multiple of recent/max training data.  This catches
+     runaway YoY scaling, exponential drift, or any other pathology.
+     Cap = max(maxTrainingValue × 3, recentMean × 8, 50).
+     E.g. if max historical day = 300 pieces → cap = 900.
+          if recent mean = 140 → cap = 1120.
+     Value of 26,366 would be caught by either branch. */
+  var _n = trainData.length;
+  var _recentN = Math.min(30, _n);
+  var _recentSum = 0, _maxVal = 0;
+  for (var _i = 0; _i < _n; _i++) {
+    if (trainData[_i] > _maxVal) _maxVal = trainData[_i];
+    if (_i >= _n - _recentN) _recentSum += trainData[_i];
+  }
+  var _recentMean = _recentN > 0 ? _recentSum / _recentN : 1;
+  var _hardCap = Math.max(_maxVal * 3, _recentMean * 8, 50);
+  for (var _j = 0; _j < fc.length; _j++) {
+    if (fc[_j] > _hardCap) fc[_j] = _hardCap;
+  }
+  return fc;
 }
 
 /* ==================================================================
@@ -2585,11 +2616,16 @@ function generateRollingForecasts(data, dates, n, win, methodKeys) {
     var cLastTest   = cTestSlice[cTestSlice.length - 1];
     var cHorizon    = Math.round((cLastTest - cLastTrain) / 86400000);
 
+    // Per-chunk ceiling: backup safety net using this chunk's training data
+    var chunkCeilings = computeForecastCeiling(cTrainData, cTrainDates);
+
     for (var ki2 = 0; ki2 < methodKeys.length; ki2++) {
       var k = methodKeys[ki2];
       var cFc = runMethod(k, cTrainData, cTrainDates, cHorizon);
       cFc = applyClosedDays(cFc, cLastTrain, cHorizon);
-      // Sanity cap: prevent any method from producing insane values in rolling window
+      // Layer 1: per-chunk ceiling from chunk's training data
+      cFc = applyForecastCeiling(cFc, cLastTrain, cHorizon, chunkCeilings);
+      // Layer 2: global ceiling from full dataset
       cFc = applyForecastCeiling(cFc, cLastTrain, cHorizon, globalCeilings);
       var cAligned = alignForecastToTestDates(cFc, cLastTrain, cTestSlice);
       for (var ci = 0; ci < cAligned.length; ci++) {
@@ -2768,7 +2804,20 @@ function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, tes
    this ceiling acts as a universal safety net. */
 function computeForecastCeiling(seriesData, seriesDates) {
   var n = seriesData.length;
-  if (n < 28) return null;
+  if (n < 14) return null;
+
+  // Compute overall fallback: max of ALL data × 4 (regardless of date range)
+  var allMax = 0, allSum = 0, allCount = 0;
+  for (var ai = 0; ai < n; ai++) {
+    if (seriesData[ai] > 2) {
+      if (seriesData[ai] > allMax) allMax = seriesData[ai];
+      allSum += seriesData[ai];
+      allCount++;
+    }
+  }
+  var fallbackCeiling = Math.max(allMax * 4, allCount > 0 ? (allSum / allCount) * 8 : 500, 50);
+
+  // Try per-DOW ceilings from last 12 months
   var cutoffDate = new Date(seriesDates[n - 1]);
   cutoffDate.setMonth(cutoffDate.getMonth() - 12);
   var dowBuckets = [[], [], [], [], [], [], []];
@@ -2778,14 +2827,30 @@ function computeForecastCeiling(seriesData, seriesDates) {
     if (seriesData[i] <= 2) continue;
     dowBuckets[seriesDates[i].getDay()].push(seriesData[i]);
   }
-  var ceilings = null;
+
+  // If no recent data found (e.g. date comparison issue), use ALL data as fallback
+  var hasAnyRecentData = false;
+  for (var chk = 0; chk < 7; chk++) {
+    if (dowBuckets[chk].length > 0) { hasAnyRecentData = true; break; }
+  }
+  if (!hasAnyRecentData) {
+    // Fallback: use all data (no date filter)
+    for (var fi = 0; fi < n; fi++) {
+      if (isClosedDay(seriesDates[fi])) continue;
+      if (seriesData[fi] <= 2) continue;
+      dowBuckets[seriesDates[fi].getDay()].push(seriesData[fi]);
+    }
+  }
+
+  // Always return a ceilings array (never null) — use fallback for missing DOWs
+  var ceilings = [fallbackCeiling, fallbackCeiling, fallbackCeiling,
+                  fallbackCeiling, fallbackCeiling, fallbackCeiling, fallbackCeiling];
   for (var d = 0; d < 7; d++) {
     var vals = dowBuckets[d];
-    if (!vals || vals.length < 4) continue;
+    if (!vals || vals.length < 3) continue;
     vals.sort(function(a, b) { return a - b; });
     var p90idx = Math.floor(vals.length * 0.90);
-    if (!ceilings) ceilings = [Infinity, Infinity, Infinity, Infinity, Infinity, Infinity, Infinity];
-    ceilings[d] = vals[p90idx] * 5; // 5× the 90th percentile
+    ceilings[d] = Math.min(vals[p90idx] * 5, fallbackCeiling); // per-DOW cap
   }
   return ceilings;
 }
