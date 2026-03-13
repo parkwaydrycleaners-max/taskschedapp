@@ -3756,7 +3756,7 @@
                     console.log('Push error:', e.message);
                     updateSyncStatus('error', 'Sync failed');
                 }
-            }, 3000); // Wait 3 seconds to batch rapid checkbox clicks
+            }, 300); // Push almost immediately
         }
 
         // Override saveState to trigger sync (but not during pull)
