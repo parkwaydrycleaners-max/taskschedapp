@@ -1533,7 +1533,8 @@ function forecastAnnualDOW(trainData, trainDates, horizon, blendRecent) {
     const doy = getDayOfYear(trainDates[i]);
     recentProfile += smoothed[doy];
   }
-  const levelRatio = recentProfile > 0 ? recentActual / recentProfile : 1;
+  var rawLevelR = recentProfile > 0 ? recentActual / recentProfile : 1;
+  const levelRatio = Math.max(0.3, Math.min(3.0, rawLevelR)); // safety cap
 
   // Also compute recent DOW averages (last 8 weeks)
   const recentCutoff = Math.max(0, n - 56);
@@ -1675,7 +1676,8 @@ function forecastYOYTrend(trainData, trainDates, horizon, recentWeeks) {
     }
   }
 
-  const growthRatio = (yoyCnt > 0 && yoySum > 0) ? (recentSum / recentCnt) / (yoySum / yoyCnt) : 1;
+  var rawGrowthR = (yoyCnt > 0 && yoySum > 0) ? (recentSum / recentCnt) / (yoySum / yoyCnt) : 1;
+  const growthRatio = Math.max(0.3, Math.min(3.0, rawGrowthR)); // safety cap
   const fallbackAvgs = buildDOWAvg(trainData.slice(Math.max(0, n - 196)), trainDates.slice(Math.max(0, n - 196)));
 
   const fc = [];
@@ -1741,7 +1743,8 @@ function forecastMultiYearSmoothed(trainData, trainDates, horizon, windowDays) {
     const historicalAvg = matchSum / matchCount;
 
     // Trend adjustment: ratio of recent level to historical average
-    const trendRatio = historicalAvg > 0 ? recentAvg / historicalAvg : 1;
+    var rawTrendR = historicalAvg > 0 ? recentAvg / historicalAvg : 1;
+    const trendRatio = Math.max(0.3, Math.min(3.0, rawTrendR)); // safety cap
 
     // Weighted: more recent years get higher weight
     let weightedSum = 0, weightTotal = 0;
@@ -2040,10 +2043,18 @@ function forecastWeekProfile(trainData, trainDates, horizon) {
     var age = Math.round((lastDate - trainDates[yi]) / 86400000);
     if (age >= 337 && age <= 393) yago4wk.push(trainData[yi]);
   }
-  var yago4avg = yago4wk.length > 0 ? yago4wk.reduce(function(a,b){return a+b;},0) / yago4wk.length : 1;
 
-  var scale = (yago4avg > 0) ? rec4avg / yago4avg : 1;
-  scale = 1 + (scale - 1) * 0.7; // dampen
+  // BUG FIX: If insufficient year-ago data, scale = 1 (no scaling).
+  // Previously defaulted yago4avg to 1, making scale = rec4avg/1 ≈ 210 → forecasts of 25,000+
+  var scale = 1;
+  if (yago4wk.length >= 5) {
+    var yago4avg = yago4wk.reduce(function(a,b){return a+b;},0) / yago4wk.length;
+    if (yago4avg > 0) {
+      scale = rec4avg / yago4avg;
+      scale = 1 + (scale - 1) * 0.7; // dampen
+      scale = Math.max(0.3, Math.min(3.0, scale)); // safety cap
+    }
+  }
 
   var fc = [];
   for (var h = 1; h <= horizon; h++) {
@@ -2556,6 +2567,9 @@ function generateRollingForecasts(data, dates, n, win, methodKeys) {
     forecasts[methodKeys[ki]] = new Array(win).fill(0);
   }
 
+  // Pre-compute global forecast ceiling from all available data for sanity checks
+  var globalCeilings = computeForecastCeiling(data.slice(0, n), dates.slice(0, n));
+
   for (var chunk = 0; chunk < numChunks; chunk++) {
     var cStart = chunk * ROLLING_CHUNK;
     var cEnd   = Math.min(cStart + ROLLING_CHUNK, win);
@@ -2575,6 +2589,8 @@ function generateRollingForecasts(data, dates, n, win, methodKeys) {
       var k = methodKeys[ki2];
       var cFc = runMethod(k, cTrainData, cTrainDates, cHorizon);
       cFc = applyClosedDays(cFc, cLastTrain, cHorizon);
+      // Sanity cap: prevent any method from producing insane values in rolling window
+      cFc = applyForecastCeiling(cFc, cLastTrain, cHorizon, globalCeilings);
       var cAligned = alignForecastToTestDates(cFc, cLastTrain, cTestSlice);
       for (var ci = 0; ci < cAligned.length; ci++) {
         forecasts[k][cStart + ci] = cAligned[ci];
@@ -2618,10 +2634,12 @@ function runBacktest(windowSize) {
     }
   } else {
     // Original single-split approach
+    var btCeilings = computeForecastCeiling(trainData, trainDates);
     for (const [key, method] of Object.entries(S.methods)) {
       if (!method.enabled) continue;
       let fullFc = runMethod(key, trainData, trainDates, calendarHorizon);
       fullFc = applyClosedDays(fullFc, lastTrainDate, calendarHorizon);
+      fullFc = applyForecastCeiling(fullFc, lastTrainDate, calendarHorizon, btCeilings);
       const fc = alignForecastToTestDates(fullFc, lastTrainDate, testDates);
       results[key] = {
         forecast: fc,
@@ -2742,6 +2760,52 @@ function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, tes
     }
   }
   return corrected;
+}
+
+/* Compute per-DOW forecast CEILING to prevent insane outlier forecasts from individual methods.
+   Returns 5× the 90th percentile of recent 12-month data per DOW.
+   Methods like YoY Week Profile can produce values 100x normal when data is insufficient;
+   this ceiling acts as a universal safety net. */
+function computeForecastCeiling(seriesData, seriesDates) {
+  var n = seriesData.length;
+  if (n < 28) return null;
+  var cutoffDate = new Date(seriesDates[n - 1]);
+  cutoffDate.setMonth(cutoffDate.getMonth() - 12);
+  var dowBuckets = [[], [], [], [], [], [], []];
+  for (var i = 0; i < n; i++) {
+    if (isClosedDay(seriesDates[i])) continue;
+    if (seriesDates[i] < cutoffDate) continue;
+    if (seriesData[i] <= 2) continue;
+    dowBuckets[seriesDates[i].getDay()].push(seriesData[i]);
+  }
+  var ceilings = null;
+  for (var d = 0; d < 7; d++) {
+    var vals = dowBuckets[d];
+    if (!vals || vals.length < 4) continue;
+    vals.sort(function(a, b) { return a - b; });
+    var p90idx = Math.floor(vals.length * 0.90);
+    if (!ceilings) ceilings = [Infinity, Infinity, Infinity, Infinity, Infinity, Infinity, Infinity];
+    ceilings[d] = vals[p90idx] * 5; // 5× the 90th percentile
+  }
+  return ceilings;
+}
+
+/* Apply per-DOW ceiling to a forecast array. Caps insane values without affecting normal ones. */
+function applyForecastCeiling(forecast, lastDate, horizon, ceilings) {
+  if (!ceilings) return forecast;
+  var result = [];
+  for (var h = 0; h < horizon; h++) {
+    var d = new Date(lastDate);
+    d.setDate(d.getDate() + h + 1);
+    var dow = d.getDay();
+    var val = forecast[h] || 0;
+    if (ceilings[dow] < Infinity && val > ceilings[dow]) {
+      result.push(ceilings[dow]);
+    } else {
+      result.push(val);
+    }
+  }
+  return result;
 }
 
 /* Compute per-DOW floor (10th percentile) from recent data for forecast sanity checking.
@@ -2974,9 +3038,11 @@ function autoOptimize(options) {
       mapes[rkKey] = calculateMAPE(testData, forecasts[rkKey], testDates);
     }
   } else {
+    var optCeilings = computeForecastCeiling(trainData, trainDates);
     for (const k of enabledKeys) {
       let fullFc = runMethod(k, trainData, trainDates, calendarHorizon);
       fullFc = applyClosedDays(fullFc, lastTrainDate, calendarHorizon);
+      fullFc = applyForecastCeiling(fullFc, lastTrainDate, calendarHorizon, optCeilings);
       forecasts[k] = alignForecastToTestDates(fullFc, lastTrainDate, testDates);
       mapes[k] = calculateMAPE(testData, forecasts[k], testDates);
     }
@@ -4080,6 +4146,14 @@ function computeAllMethodEnsemble(seriesData, seriesDates, horizon, catOpt) {
 
   // Restore original params after generating forecasts
   if (savedParams) restoreMethodParams(savedParams);
+
+  // Sanity ceiling: cap individual method forecasts to prevent ensemble poisoning
+  var fCeilings = computeForecastCeiling(seriesData, seriesDates);
+  if (fCeilings) {
+    for (var ci = 0; ci < enabledKeys.length; ci++) {
+      allForecasts[enabledKeys[ci]] = applyForecastCeiling(allForecasts[enabledKeys[ci]], lastDate, horizon, fCeilings);
+    }
+  }
 
   var fcDates = [];
   for (var h = 1; h <= horizon; h++) {
