@@ -356,14 +356,17 @@ html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50
   <div class="card animate-in">
     <div class="card-title"><span class="icon">&#x1F4CB;</span> Paste POS Report Data</div>
     <div class="info-box">
-      Paste your <strong>Sales Report By Category</strong> directly from your POS. The multi-page format (left page with Drop/Dry/Laundry/Alterations, right page with Press/Totals) is <strong>auto-detected</strong> — no manual column mapping needed. The last day is automatically excluded (partial data).
+      Paste your <strong>Sales Report By Category</strong> directly from your POS. The multi-page format (left page with Drop/Dry/Laundry/Alterations, right page with Press/Totals) is <strong>auto-detected</strong> — no manual column mapping needed. By default the last day is excluded (partial data) — check <em>Include last date</em> to keep it.
       <br><br>Also supports generic tab-separated and CSV formats with manual column mapping.
     </div>
     <textarea id="pasteArea" class="textarea-paste" placeholder="Paste your POS report data here...&#10;&#10;Example:&#10;Date&#9;Dry Cleaning&#9;Laundry&#9;Alterations&#9;Total Pcs&#9;Total Rev&#10;1/2/2025&#9;45&#9;28&#9;12&#9;85&#9;$595.00&#10;1/3/2025&#9;52&#9;32&#9;15&#9;99&#9;$693.00"></textarea>
-    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-primary" id="parseBtn">Parse Data</button>
       <button class="btn btn-secondary" id="sampleBtn">Load Sample Data</button>
       <button class="btn btn-secondary" id="clearBtn">Clear</button>
+      <label style="display:flex;align-items:center;gap:5px;margin-left:auto;font-size:.82rem;color:var(--text-muted);cursor:pointer;user-select:none">
+        <input type="checkbox" id="includeLastDate" style="width:16px;height:16px;cursor:pointer"> Include last date
+      </label>
     </div>
   </div>
 
@@ -833,11 +836,14 @@ function parsePOSReport(text) {
     rows.push([...left, ...middle, ...right]);
   }
 
-  // Always drop ALL rows for the last date (partial day — report run mid-day).
+  // Drop ALL rows for the last date (partial day — report run mid-day),
+  // unless the user checked "Include last date".
   // The same date can appear multiple times due to POS report page breaks;
   // rows.pop() alone only removes the last occurrence while processData's
   // dedup keeps the first, letting the partial day slip through.
-  if (rows.length > 0) {
+  var includeLastCb = document.getElementById('includeLastDate');
+  var keepLastDate = includeLastCb && includeLastCb.checked;
+  if (rows.length > 0 && !keepLastDate) {
     var lastDateVal = rows[rows.length - 1][0];
     for (var rd = rows.length - 1; rd >= 0; rd--) {
       if (rows[rd][0] === lastDateVal) rows.splice(rd, 1);
@@ -4754,9 +4760,10 @@ document.getElementById('parseBtn').addEventListener('click', function() {
     { label: 'Detecting outliers\u2026', fn: function() { onDataLoaded_ui(); }}
   ];
   runWithLoading('Loading POS Data', preSteps.concat(buildOptimizeAndBacktestSteps()), function() {
+    var lastDayMsg = (document.getElementById('includeLastDate') && document.getElementById('includeLastDate').checked) ? 'last day included' : 'last day excluded';
     showNotification('Auto-detected <strong>Sales Report By Category</strong> format.<br>' +
       S.series.dates.length + ' days loaded across ' +
-      Object.keys(S.series.categories).length + ' categories (last day excluded, Press merged into Dry Cleaning).', 'success');
+      Object.keys(S.series.categories).length + ' categories (' + lastDayMsg + ', Press merged into Dry Cleaning).', 'success');
   });
 });
 
