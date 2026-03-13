@@ -2378,12 +2378,12 @@
                 state = { staffName: '', lastDate: '', completed: {}, completedSubtasks: {}, customTasks: null, todayOnlyTasks: null };
             }
 
-            // Auto-reset completed tasks and today-only tasks if new day
+            // Auto-reset completed tasks if new day (or if lastDate is missing/corrupt)
             const today = new Date().toDateString();
-            if (state.lastDate && state.lastDate !== today) {
+            if (state.lastDate !== today) {
                 state.completed = {};
-                state.completedSubtasks = {}; // Clear completed subtasks on new day
-                state.todayOnlyTasks = null; // Clear today-only tasks on new day
+                state.completedSubtasks = {};
+                state.todayOnlyTasks = null;
             }
             state.lastDate = today;
 
@@ -3712,6 +3712,11 @@
 
                 // Fetch all data under the key in one call
                 const allData = await firebaseRequest('GET', '');
+
+                // ALWAYS clear completed state first — only restore if today's data exists
+                state.completed = {};
+                state.completedSubtasks = {};
+                state.todayOnlyTasks = null;
 
                 if (allData) {
                     if (allData.master) applyMasterData(allData.master);
