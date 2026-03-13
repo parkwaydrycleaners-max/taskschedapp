@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Manager's Checklist</title>
 
     <!-- PWA Meta Tags -->
@@ -4433,58 +4436,20 @@
             document.addEventListener('touchstart', checkForDayChange, true);
         }
 
-        // Register Service Worker for PWA offline capability
+        // REMOVE old Service Worker and clear all caches (was causing stale page issues)
         if ('serviceWorker' in navigator) {
-            const swCode = `
-                const CACHE_NAME = 'managers-checklist-v1';
-                const OFFLINE_URLS = [
-                    'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap',
-                    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
-                ];
-
-                self.addEventListener('install', event => {
-                    event.waitUntil(
-                        caches.open(CACHE_NAME).then(cache => {
-                            return cache.addAll(OFFLINE_URLS).catch(() => {});
-                        })
-                    );
-                    self.skipWaiting();
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                registrations.forEach(reg => {
+                    reg.unregister();
+                    console.log('Removed old Service Worker');
                 });
-
-                self.addEventListener('activate', event => {
-                    event.waitUntil(
-                        caches.keys().then(keys => {
-                            return Promise.all(
-                                keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-                            );
-                        })
-                    );
-                    self.clients.claim();
-                });
-
-                self.addEventListener('fetch', event => {
-                    if (event.request.method !== 'GET') return;
-                    event.respondWith(
-                        fetch(event.request)
-                            .then(response => {
-                                if (response.ok && event.request.url.startsWith('http')) {
-                                    const clone = response.clone();
-                                    caches.open(CACHE_NAME).then(cache => {
-                                        cache.put(event.request, clone);
-                                    });
-                                }
-                                return response;
-                            })
-                            .catch(() => caches.match(event.request))
-                    );
-                });
-            `;
-
-            const swBlob = new Blob([swCode], { type: 'application/javascript' });
-            const swUrl = URL.createObjectURL(swBlob);
-            navigator.serviceWorker.register(swUrl, { scope: '/' })
-                .then(() => console.log('PWA: Service Worker registered'))
-                .catch(() => console.log('PWA: Service Worker skipped'));
+            });
+        }
+        if ('caches' in window) {
+            caches.keys().then(keys => {
+                keys.forEach(key => caches.delete(key));
+                if (keys.length > 0) console.log('Cleared all browser caches');
+            });
         }
 
         init();
