@@ -3021,8 +3021,10 @@
 
         document.getElementById('resetConfirm').addEventListener('click', () => {
             state.completed = {};
+            state.completedSubtasks = {};
             saveState();
             renderChecklists();
+            debouncedPush();
             resetModal.classList.remove('show');
         });
 
