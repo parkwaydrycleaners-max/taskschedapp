@@ -652,9 +652,7 @@ const S = {
     trendSeason: { name: 'Trend-Season DOW',  enabled: true, weight: 10, params: { recentWeeks: 13 } },
     recentMonth: { name: 'Recent Month×DOW',  enabled: true, weight: 10, params: { yearsBack: 2 } },
     winsDow:     { name: 'Winsorized DOW',    enabled: true, weight: 5, params: { weeks: 20, capPct: 10 } },
-    adapMedian:  { name: 'Adaptive Median',   enabled: true, weight: 5, params: { halfLife: 6 } },
-    q60:         { name: 'DOW 60th Pctile',    enabled: true, weight: 5, params: {} },
-    blendRM:     { name: 'Blend Recent+Month', enabled: true, weight: 5, params: { recentWeeks: 6 } }
+    adapMedian:  { name: 'Adaptive Median',   enabled: true, weight: 5, params: { halfLife: 6 } }
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
@@ -2237,67 +2235,6 @@ function forecastQ25(trainData, trainDates, horizon) {
   return fc;
 }
 
-/* 31. DOW 60th Percentile — moderate-high estimate per DOW (better for Alterations) */
-function forecastQ60(trainData, trainDates, horizon) {
-  var n = trainData.length;
-  var lastDate = trainDates[n - 1];
-  var dowVals = [[],[],[],[],[],[],[]];
-  for (var i = 0; i < n; i++) dowVals[trainDates[i].getDay()].push(trainData[i]);
-  var q = [];
-  for (var dw = 0; dw < 7; dw++) {
-    var s = dowVals[dw].slice().sort(function(a,b){return a-b;});
-    if (s.length > 0) {
-      var idx = Math.min(Math.floor(s.length * 0.60), s.length - 1);
-      q[dw] = s[idx];
-    } else {
-      q[dw] = 0;
-    }
-  }
-  var fc = [];
-  for (var h = 1; h <= horizon; h++) {
-    var d = new Date(lastDate); d.setDate(d.getDate() + h);
-    fc.push(Math.max(0, q[d.getDay()]));
-  }
-  return fc;
-}
-
-/* 32. Blend Recent + Month — blends recent DOW average with Month x DOW for stability */
-function forecastBlendRecentMonth(trainData, trainDates, horizon, recentWeeks) {
-  recentWeeks = recentWeeks || 6;
-  var n = trainData.length;
-  var lastDate = trainDates[n - 1];
-  // Recent DOW average
-  var recentCutoff = Math.max(0, n - recentWeeks * 7);
-  var recentAvgs = buildDOWAvg(trainData.slice(recentCutoff), trainDates.slice(recentCutoff));
-  // Month × DOW average
-  var monthDow = {};
-  for (var i = 0; i < n; i++) {
-    var mo = trainDates[i].getMonth();
-    var dw = trainDates[i].getDay();
-    var key = mo * 10 + dw;
-    if (!monthDow[key]) monthDow[key] = [];
-    monthDow[key].push(trainData[i]);
-  }
-  var fc = [];
-  for (var h = 1; h <= horizon; h++) {
-    var d = new Date(lastDate); d.setDate(d.getDate() + h);
-    var dow = d.getDay();
-    var month = d.getMonth();
-    var mKey = month * 10 + dow;
-    var recentVal = recentAvgs[dow] || 0;
-    var monthVal = 0;
-    if (monthDow[mKey] && monthDow[mKey].length > 0) {
-      var sum = 0;
-      for (var j = 0; j < monthDow[mKey].length; j++) sum += monthDow[mKey][j];
-      monthVal = sum / monthDow[mKey].length;
-    } else {
-      monthVal = recentVal;
-    }
-    fc.push(Math.max(0, 0.5 * recentVal + 0.5 * monthVal));
-  }
-  return fc;
-}
-
 /* 25. Last 2 Same-DOW Average — uses only the two most recent same-DOW values */
 function forecastLast2(trainData, trainDates, horizon) {
   var n = trainData.length;
@@ -2551,8 +2488,6 @@ function runMethod(key, trainData, trainDates, horizon) {
     case 'recentMonth': fc = forecastRecentMonthDOW(trainData, trainDates, horizon, m.params.yearsBack); break;
     case 'winsDow': fc = forecastWinsorizedDOW(trainData, trainDates, horizon, m.params.weeks, m.params.capPct); break;
     case 'adapMedian': fc = forecastAdaptiveMedianDOW(trainData, trainDates, horizon, m.params.halfLife); break;
-    case 'q60': fc = forecastQ60(trainData, trainDates, horizon); break;
-    case 'blendRM': fc = forecastBlendRecentMonth(trainData, trainDates, horizon, m.params.recentWeeks); break;
     default: fc = new Array(horizon).fill(0);
   }
 
@@ -3007,8 +2942,7 @@ var DEFAULT_PARAMS = {
   weekVolSplit: { yearsBack: 3 }, weekProfile: {}, monthDow: {}, monthDowR: {},
   biweekly: {}, annualDowR: {}, q75: {}, q25: {}, last2: {}, regime: {},
   trendSeason: { recentWeeks: 13 }, recentMonth: { yearsBack: 2 },
-  winsDow: { weeks: 20, capPct: 10 }, adapMedian: { halfLife: 6 },
-  q60: {}, blendRM: { recentWeeks: 6 }
+  winsDow: { weeks: 20, capPct: 10 }, adapMedian: { halfLife: 6 }
 };
 
 /* ── Parameter Grid for Per-Category Tuning ─────────────────────────── */
@@ -3029,8 +2963,7 @@ var PARAM_GRID = {
   trendSeason: { recentWeeks: [6, 8, 10, 13, 20, 30] },
   recentMonth: { yearsBack: [1, 2, 3, 4] },
   winsDow:     { weeks: [8, 14, 20, 30, 52], capPct: [5, 10, 15, 20] },
-  adapMedian:  { halfLife: [3, 4, 6, 10, 16] },
-  blendRM:     { recentWeeks: [3, 4, 6, 8, 10, 13] }
+  adapMedian:  { halfLife: [3, 4, 6, 10, 16] }
 };
 
 /**
@@ -3091,7 +3024,7 @@ function tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDate
     tunedFc = alignForecastToTestDates(tunedFc, cvLastTrain, cvValDates);
     var tunedWape = calculateWAPE(cvValData, tunedFc, cvValDates);
 
-    if (tunedWape >= defaultWape - 0.5) {
+    if (tunedWape >= defaultWape - 0.2) {
       // Tuning didn't help enough — revert to defaults
       S.methods[k].params = origParams;
     }
@@ -3154,17 +3087,22 @@ function autoOptimize(options) {
   const useRolling = needsRollingWindow(n, win);
 
   // ── Per-category parameter tuning ──────────────────────────────────
-  // Only tune parameters when we have enough training data.
-  // When rolling window is active, training set is too small and tuning
-  // overfits to a poor data split, making results worse.
-  if (!useRolling && trainData.length >= 500) {
+  // Tune method parameters when we have enough training data.
+  // For rolling-window categories (lower volume), use a smaller CV split
+  // to still discover better parameters without overfitting.
+  var paramsTuned = false;
+  if (trainData.length >= 300) {
+    var preParams = captureMethodParams();
     tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate);
+    var postParams = captureMethodParams();
+    paramsTuned = (JSON.stringify(preParams) !== JSON.stringify(postParams));
   }
   const forecasts = {};
   const mapes = {};
   if (useRolling) {
-    // Use cached rolling forecasts if provided (massive speedup for refine passes)
-    var rollingFc = options.cachedRollingFc || generateRollingForecasts(data, dates, n, win, enabledKeys);
+    // Use cached rolling forecasts if provided — BUT invalidate cache if params were tuned
+    // since the cache was generated with default params
+    var rollingFc = (options.cachedRollingFc && !paramsTuned) ? options.cachedRollingFc : generateRollingForecasts(data, dates, n, win, enabledKeys);
     for (var rkOpt = 0; rkOpt < enabledKeys.length; rkOpt++) {
       var rkKey = enabledKeys[rkOpt];
       forecasts[rkKey] = rollingFc[rkKey];
@@ -3240,7 +3178,7 @@ function autoOptimize(options) {
   // 5: DOW-methods-only (helps low-volume categories like Alterations)
   var dowOnlyW = {};
   for (var kd of enabledKeys) dowOnlyW[kd] = 0;
-  var dowMethods = ['dowAvg','recent','wDow','medDow','trimDow','q75','q60','last2','monthDow','monthDowR','trendSeason','recentMonth','winsDow','adapMedian','blendRM'];
+  var dowMethods = ['dowAvg','recent','wDow','medDow','trimDow','q75','last2','monthDow','monthDowR','trendSeason','recentMonth','winsDow','adapMedian'];
   for (var dmi = 0; dmi < dowMethods.length; dmi++) {
     if (dowOnlyW.hasOwnProperty(dowMethods[dmi])) dowOnlyW[dowMethods[dmi]] = 15;
   }
@@ -3290,17 +3228,6 @@ function autoOptimize(options) {
     for (var kso of enabledKeys) soloW[kso] = 0;
     soloW[wSorted[0]] = 100;
     startingPoints.push(soloW);
-
-    // 11: q60 + seasonal blend (proven effective for volatile categories like Alterations)
-    var q60SeaW = {};
-    for (var kq6 of enabledKeys) q60SeaW[kq6] = 0;
-    if (q60SeaW.hasOwnProperty('q60')) q60SeaW['q60'] = 30;
-    if (q60SeaW.hasOwnProperty('annualDow')) q60SeaW['annualDow'] = 25;
-    if (q60SeaW.hasOwnProperty('trimDow')) q60SeaW['trimDow'] = 25;
-    if (q60SeaW.hasOwnProperty('multiYear')) q60SeaW['multiYear'] = 20;
-    if (q60SeaW.hasOwnProperty('blendRM')) q60SeaW['blendRM'] = 20;
-    if (q60SeaW.hasOwnProperty('weekVolSplit')) q60SeaW['weekVolSplit'] = 15;
-    startingPoints.push(q60SeaW);
   }
 
   // Extra random starts for shuffle or deep search runs
@@ -3323,7 +3250,7 @@ function autoOptimize(options) {
     if (globalBestMape < 900 && startScore > globalBestMape * 2) continue;
 
     // Multi-resolution coordinate descent (3-4 step sizes, max 40 iters each)
-    const stepSizes = deepSearch ? [5, 2, 1, 0.5] : [5, 2, 1];
+    const stepSizes = deepSearch ? [5, 2, 1, 0.5, 0.25] : [5, 2, 1, 0.5];
     for (const step of stepSizes) {
       var cdKeys = doShuffle ? shuffleArray(enabledKeys.slice()) : enabledKeys;
       let bestMape = getEnsembleMAPE(weights);
@@ -3419,27 +3346,50 @@ function autoOptimize(options) {
   // --- Adaptive bias correction: search for best settings ---
   var biasConfigs = [
     { weeks: 0, dampen: 0 },    // no correction
+    { weeks: 1, dampen: 0.2 },
+    { weeks: 1, dampen: 0.4 },
+    { weeks: 2, dampen: 0.1 },
     { weeks: 2, dampen: 0.2 },
+    { weeks: 2, dampen: 0.4 },
     { weeks: 2, dampen: 0.5 },
+    { weeks: 3, dampen: 0.2 },
     { weeks: 3, dampen: 0.3 },
+    { weeks: 3, dampen: 0.5 },
+    { weeks: 4, dampen: 0.1 },
     { weeks: 4, dampen: 0.2 },
+    { weeks: 4, dampen: 0.4 },
     { weeks: 4, dampen: 0.5 },
+    { weeks: 5, dampen: 0.2 },
+    { weeks: 5, dampen: 0.4 },
+    { weeks: 6, dampen: 0.1 },
     { weeks: 6, dampen: 0.3 },
     { weeks: 6, dampen: 0.5 },
+    { weeks: 7, dampen: 0.2 },
+    { weeks: 7, dampen: 0.4 },
+    { weeks: 8, dampen: 0.1 },
     { weeks: 8, dampen: 0.3 },
     { weeks: 8, dampen: 0.5 },
+    { weeks: 10, dampen: 0.2 },
     { weeks: 10, dampen: 0.3 },
+    { weeks: 12, dampen: 0.3 },
     { weeks: 12, dampen: 0.5 },
+    { weeks: 14, dampen: 0.3 },
     { weeks: 14, dampen: 0.5 }
   ];
-  // Deep search: add aggressive short-window configs for volatile series
+  // Deep search: add aggressive and extreme dampen configs
   if (deepSearch) {
     biasConfigs.push(
-      { weeks: 1, dampen: 0.1 }, { weeks: 1, dampen: 0.3 }, { weeks: 1, dampen: 0.5 },
-      { weeks: 2, dampen: 0.1 }, { weeks: 2, dampen: 0.7 },
-      { weeks: 3, dampen: 0.1 }, { weeks: 3, dampen: 0.5 }, { weeks: 3, dampen: 0.7 },
-      { weeks: 4, dampen: 0.1 }, { weeks: 4, dampen: 0.7 },
-      { weeks: 6, dampen: 0.1 }, { weeks: 6, dampen: 0.7 },
+      { weeks: 1, dampen: 0.1 }, { weeks: 1, dampen: 0.3 }, { weeks: 1, dampen: 0.5 }, { weeks: 1, dampen: 0.7 },
+      { weeks: 2, dampen: 0.7 },
+      { weeks: 3, dampen: 0.1 }, { weeks: 3, dampen: 0.7 },
+      { weeks: 4, dampen: 0.3 }, { weeks: 4, dampen: 0.7 },
+      { weeks: 5, dampen: 0.1 }, { weeks: 5, dampen: 0.3 }, { weeks: 5, dampen: 0.6 },
+      { weeks: 6, dampen: 0.2 }, { weeks: 6, dampen: 0.7 },
+      { weeks: 7, dampen: 0.1 }, { weeks: 7, dampen: 0.3 }, { weeks: 7, dampen: 0.6 },
+      { weeks: 8, dampen: 0.2 }, { weeks: 8, dampen: 0.7 },
+      { weeks: 9, dampen: 0.2 }, { weeks: 9, dampen: 0.4 },
+      { weeks: 10, dampen: 0.1 }, { weeks: 10, dampen: 0.5 },
+      { weeks: 12, dampen: 0.1 }, { weeks: 12, dampen: 0.7 },
       { weeks: 16, dampen: 0.3 }, { weeks: 16, dampen: 0.5 }
     );
   }
@@ -3535,11 +3485,11 @@ function autoOptimize(options) {
       dowMethodErr[mKey] = mErr;
     }
 
-    // Sort methods by DOW error, take top 10 (was 8; broader pool helps Alterations)
+    // Sort methods by DOW error, take top 8
     var sortedMethods = dowActiveKeys.slice().sort(function(a, b) {
       return (dowMethodErr[a] || 999) - (dowMethodErr[b] || 999);
     });
-    var dowTopN = sortedMethods.slice(0, Math.min(deepSearch ? 10 : 8, sortedMethods.length));
+    var dowTopN = sortedMethods.slice(0, Math.min(8, sortedMethods.length));
 
     // Initialize: blend global weights with per-DOW inverse-error
     var dowW = {};
@@ -3617,8 +3567,7 @@ function autoOptimize(options) {
     S.dowWeights[dw] = dowW;
   }
 
-  // ── All-or-nothing safeguard: per-DOW must improve overall WMAPE ──
-  // Threshold: 0.3% for normal categories, 0.05% for deepSearch (high-WMAPE like Alterations)
+  // ── All-or-nothing safeguard: per-DOW must improve overall WMAPE ≥ 0.3% ──
   var sgGlobalWape = getEnsembleMAPE(globalBestWeights);
   var finalOptWape = sgGlobalWape;
   if (Object.keys(S.dowWeights).length > 0) {
@@ -3640,76 +3589,9 @@ function autoOptimize(options) {
     sgPerDowEns = applyBiasCorrection(sgPerDowEns, trainData, trainDates, lastTrainDate, testDates);
     var sgPerDowWape = calculateWAPE(testData, sgPerDowEns, testDates);
 
-    // deepSearch = high-WMAPE category: use lower threshold to allow per-DOW improvements
-    var sgThreshold = deepSearch ? 0.05 : 0.3;
-    if (sgPerDowWape >= sgGlobalWape - sgThreshold) {
-      // Per-DOW didn't improve enough — try selective per-DOW: keep only DOWs that help
-      var selectiveDowWeights = {};
-      var anySaved = false;
-      for (var sdw = 0; sdw < 7; sdw++) {
-        if (!S.dowWeights[sdw] || !dowTestIndices[sdw] || dowTestIndices[sdw].length < 3) continue;
-        // Compare per-DOW vs global for this specific DOW
-        var sdIdx = dowTestIndices[sdw];
-        var sdGlobalErr = 0, sdPerErr = 0, sdActSum = 0;
-        for (var sdi = 0; sdi < sdIdx.length; sdi++) {
-          var sdj = sdIdx[sdi];
-          var sdAct = testData[sdj];
-          if (sdAct <= 2) continue;
-          sdActSum += sdAct;
-          // Global forecast for this day
-          var sdGW = 0, sdGS = 0;
-          for (var sdk = 0; sdk < enabledKeys.length; sdk++) {
-            sdGW += globalBestWeights[enabledKeys[sdk]] * (forecasts[enabledKeys[sdk]][sdj] || 0);
-            sdGS += globalBestWeights[enabledKeys[sdk]];
-          }
-          var sdGlobalFc = sdGS > 0 ? sdGW / sdGS : 0;
-          // Per-DOW forecast for this day
-          var sdPW = 0, sdPS = 0;
-          var sdDowW = S.dowWeights[sdw];
-          for (var sdk2 = 0; sdk2 < enabledKeys.length; sdk2++) {
-            var sdKey2 = enabledKeys[sdk2];
-            sdPW += (sdDowW[sdKey2] || 0) * (forecasts[sdKey2][sdj] || 0);
-            sdPS += (sdDowW[sdKey2] || 0);
-          }
-          var sdPerFc = sdPS > 0 ? sdPW / sdPS : sdGlobalFc;
-          sdGlobalErr += Math.abs(sdAct - sdGlobalFc);
-          sdPerErr += Math.abs(sdAct - sdPerFc);
-        }
-        // Keep this DOW's weights if per-DOW is better for this DOW
-        if (sdActSum > 0 && sdPerErr < sdGlobalErr - 0.5) {
-          selectiveDowWeights[sdw] = S.dowWeights[sdw];
-          anySaved = true;
-        }
-      }
-      if (anySaved) {
-        // Re-evaluate with selective per-DOW
-        S.dowWeights = selectiveDowWeights;
-        var sgSelectEns = new Array(testData.length).fill(0);
-        for (var sg2 = 0; sg2 < testData.length; sg2++) {
-          var sg2Dow = testDates[sg2].getDay();
-          var sg2DowW = S.dowWeights[sg2Dow] || null;
-          var sg2WS = 0, sg2WV = 0;
-          for (var sg2k = 0; sg2k < enabledKeys.length; sg2k++) {
-            var sg2Key = enabledKeys[sg2k];
-            var sg2Fc = (forecasts[sg2Key] && forecasts[sg2Key][sg2]) || 0;
-            var sg2W = sg2DowW ? (sg2DowW[sg2Key] || 0) : globalBestWeights[sg2Key];
-            sg2WV += sg2W * sg2Fc;
-            sg2WS += sg2W;
-          }
-          sgSelectEns[sg2] = sg2WS > 0 ? sg2WV / sg2WS : 0;
-        }
-        sgSelectEns = applyBiasCorrection(sgSelectEns, trainData, trainDates, lastTrainDate, testDates);
-        var sgSelectWape = calculateWAPE(testData, sgSelectEns, testDates);
-        if (sgSelectWape < sgGlobalWape - 0.01) {
-          finalOptWape = sgSelectWape;
-        } else {
-          S.dowWeights = {};
-          finalOptWape = sgGlobalWape;
-        }
-      } else {
-        S.dowWeights = {};
-        finalOptWape = sgGlobalWape;
-      }
+    if (sgPerDowWape >= sgGlobalWape - 0.3) {
+      S.dowWeights = {}; // Per-DOW didn't improve enough, revert ALL
+      finalOptWape = sgGlobalWape;
     } else {
       finalOptWape = sgPerDowWape;
     }
@@ -3958,7 +3840,7 @@ function buildOptimizeAndBacktestSteps() {
 
         // Auto-refine: if WMAPE > 20%, run extra shuffled passes with deep search
         // More passes for higher WMAPE; rolling cache keeps each pass fast
-        var maxRefPasses = wape > 25 ? 8 : 6;
+        var maxRefPasses = wape > 25 ? 8 : (wape > 22 ? 7 : 5);
         if (wape > 0 && wape > 20) {
           for (var refPass = 0; refPass < maxRefPasses; refPass++) {
             resetMethods();
@@ -3997,7 +3879,8 @@ function buildOptimizeAndBacktestSteps() {
             sortedMethods.sort(function(a, b) { return bt.results[a].wape - bt.results[b].wape; });
 
             // Strategy A: concentrate on top-3 methods
-            if (bestIndKey && bestIndWape < wape) {
+            // Trigger if best individual is within 1% of ensemble (don't require it to beat ensemble)
+            if (bestIndKey && bestIndWape < wape + 1) {
               resetMethods();
               S.activeSeries = 'pieces:' + cn;
               Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 0; });
@@ -4048,42 +3931,6 @@ function buildOptimizeAndBacktestSteps() {
               var dhWape = dhResult ? dhResult.wape : 999;
               if (dhWape > 0 && dhWape < wape) {
                 wts = dhWts; dw = dhDw; bc = dhBc; mp = dhMp; wape = dhWape;
-              }
-            }
-
-            // Strategy D: disable known high-error methods for volatile categories
-            // (YoY, Momentum, Q25 consistently hurt Alterations and similar volatile series)
-            if (wape > 20) {
-              resetMethods();
-              S.activeSeries = 'pieces:' + cn;
-              var harmfulMethods = ['yoy', 'yoyTrend', 'momentum', 'q25', 'sma7', 'sma28'];
-              harmfulMethods.forEach(function(hm) { if (S.methods[hm]) S.methods[hm].enabled = false; });
-              var hdResult = autoOptimize({ shuffle: true, deepSearch: true, cachedRollingFc: catRollingCache });
-              var hdWts = {}; Object.keys(S.methods).forEach(function(k) { hdWts[k] = S.methods[k].weight; });
-              var hdDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
-              var hdBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
-              var hdMp = captureMethodParams();
-              var hdWape = hdResult ? hdResult.wape : 999;
-              if (hdWape > 0 && hdWape < wape) {
-                wts = hdWts; dw = hdDw; bc = hdBc; mp = hdMp; wape = hdWape;
-              }
-            }
-
-            // Strategy E: seasonal-heavy start for volatile categories
-            if (wape > 20 && sortedMethods.length >= 3) {
-              resetMethods();
-              S.activeSeries = 'pieces:' + cn;
-              Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 0; });
-              var seasonalKeys = ['annualDow', 'annualDowR', 'monthDow', 'monthDowR', 'recentMonth', 'trimDow', 'multiYear', 'q60', 'blendRM'];
-              seasonalKeys.forEach(function(sk) { if (S.methods[sk]) S.methods[sk].weight = 20; });
-              var seResult = autoOptimize({ shuffle: true, deepSearch: true, cachedRollingFc: catRollingCache });
-              var seWts = {}; Object.keys(S.methods).forEach(function(k) { seWts[k] = S.methods[k].weight; });
-              var seDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
-              var seBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
-              var seMp = captureMethodParams();
-              var seWape = seResult ? seResult.wape : 999;
-              if (seWape > 0 && seWape < wape) {
-                wts = seWts; dw = seDw; bc = seBc; mp = seMp; wape = seWape;
               }
             }
           }
@@ -4218,19 +4065,28 @@ function refineOptimization() {
           refRollingCache = generateRollingForecasts(catData, S.series.dates, refN, refWin, refEnabledKeys);
         }
 
-        resetMethods();
-        S.activeSeries = 'pieces:' + cn;
-        // Use deep search for categories still above 20%
-        var refResult = autoOptimize({ shuffle: true, deepSearch: existing.wape > 20, cachedRollingFc: refRollingCache });
-        var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
-        var dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
-        var bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
-        var mp = captureMethodParams();
-        var newWape = refResult ? refResult.wape : 999;
+        // For high-WMAPE categories, run multiple shuffled passes to escape local minima
+        var refPasses = existing.wape > 22 ? 3 : 1;
+        var bestRefWape = existing.wape;
+        var bestRefWts = null, bestRefDw = null, bestRefBc = null, bestRefMp = null;
+        for (var rp = 0; rp < refPasses; rp++) {
+          resetMethods();
+          S.activeSeries = 'pieces:' + cn;
+          var refResult = autoOptimize({ shuffle: true, deepSearch: existing.wape > 20, cachedRollingFc: refRollingCache });
+          var rWts = {}; Object.keys(S.methods).forEach(function(k) { rWts[k] = S.methods[k].weight; });
+          var rDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
+          var rBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
+          var rMp = captureMethodParams();
+          var rWape = refResult ? refResult.wape : 999;
+          if (rWape > 0 && rWape < bestRefWape && rWape <= 500) {
+            bestRefWape = rWape;
+            bestRefWts = rWts; bestRefDw = rDw; bestRefBc = rBc; bestRefMp = rMp;
+          }
+        }
 
-        if (newWape < existing.wape && newWape <= 500) {
-          S.catOptimized[cn] = { weights: wts, dowWeights: dw, wape: newWape, biasConfig: bc, methodParams: mp };
-          improved.push(cn + ': ' + existing.wape.toFixed(1) + '% \u2192 ' + newWape.toFixed(1) + '%');
+        if (bestRefWts && bestRefWape < existing.wape) {
+          S.catOptimized[cn] = { weights: bestRefWts, dowWeights: bestRefDw, wape: bestRefWape, biasConfig: bestRefBc, methodParams: bestRefMp };
+          improved.push(cn + ': ' + existing.wape.toFixed(1) + '% \u2192 ' + bestRefWape.toFixed(1) + '%');
         }
         S.activeSeries = origActive;
       }});
@@ -4534,21 +4390,7 @@ function generateExport(scope) {
   const fcEnd = new Date(lastDate); fcEnd.setDate(fcEnd.getDate() + horizon);
   lines.push('# Forecast Period: ' + formatDateISO(fcStart) + ' to ' + formatDateISO(fcEnd));
   lines.push('# Backtest Window: ' + S.backtestWindow + ' days');
-  lines.push('# Ensemble WMAPE (default weights): ' + ensembleWape + '% | MAPE: ' + ensembleMape + '%');
-  // Add per-category optimized WMAPEs for clarity
-  if (S.catOptimized) {
-    var catWapeStrs = [];
-    Object.keys(S.catOptimized).forEach(function(cKey) {
-      var cOpt = S.catOptimized[cKey];
-      if (cOpt && cOpt.wape > 0) {
-        var displayName = cKey === '__total' ? 'Total' : cKey;
-        catWapeStrs.push(displayName + ': ' + cOpt.wape.toFixed(1) + '%');
-      }
-    });
-    if (catWapeStrs.length > 0) {
-      lines.push('# Per-Category Optimized WMAPE: ' + catWapeStrs.join(', '));
-    }
-  }
+  lines.push('# Ensemble WMAPE: ' + ensembleWape + '% | MAPE: ' + ensembleMape + '%');
   if (S.closedDays.length > 0) {
     lines.push('# Closed Days: ' + S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') + ' (forecast=0)');
   }
@@ -5752,9 +5594,7 @@ document.getElementById('exportBacktestBtn').addEventListener('click', function(
     lines.push(S.methods[k].name + '\tWMAPE: ' + bt.results[k].wape.toFixed(1) + '%\tMAPE: ' + bt.results[k].mape.toFixed(1) + '%\tMAE: ' + bt.results[k].mae.toFixed(1));
   });
   if (bt.results.__ensemble) {
-    lines.push('Ensemble (default weights)\tWMAPE: ' + bt.results.__ensemble.wape.toFixed(1) + '%\tMAPE: ' + bt.results.__ensemble.mape.toFixed(1) + '%\tMAE: ' + bt.results.__ensemble.mae.toFixed(1));
-    lines.push('NOTE: The above ensemble uses default weights for the currently-active series.');
-    lines.push('Per-category optimized results (shown at top) use independently-tuned weights and are typically much better.');
+    lines.push('Ensemble\tWMAPE: ' + bt.results.__ensemble.wape.toFixed(1) + '%\tMAPE: ' + bt.results.__ensemble.mape.toFixed(1) + '%\tMAE: ' + bt.results.__ensemble.mae.toFixed(1));
   }
   lines.push('');
 
