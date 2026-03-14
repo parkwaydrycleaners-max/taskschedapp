@@ -469,6 +469,8 @@ html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50
         <div style="display:flex;align-items:center;gap:8px">
           <span id="refineRunCount" style="font-size:.7rem;color:var(--text-muted);font-weight:400"></span>
           <button id="refineBtn" class="btn btn-sm" style="font-size:.7rem;padding:4px 10px" title="Run an additional shuffled optimization pass to try to improve WMAPE">&#x1F504; Refine</button>
+          <button id="autoAlignBtn" class="btn btn-sm" style="font-size:.7rem;padding:4px 10px" title="Auto-find best time shift for each method to minimize WMAPE">&#x1F50D; Auto-Align</button>
+          <button id="resetShiftsBtn" class="btn btn-sm" style="font-size:.7rem;padding:4px 10px" title="Reset all method shifts to 0">&#x21BA; Reset Shifts</button>
         </div>
       </div>
       <div id="catWmapeSummary" style="display:flex;flex-wrap:wrap;gap:10px"></div>
@@ -623,36 +625,36 @@ const S = {
   dataLoaded: false,
   activeSeries: '__total_pieces',
   methods: {
-    dowAvg:    { name: 'DOW Avg (trailing)',   enabled: true, weight: 5, params: { weeks: 16 } },
-    recent:    { name: 'Recent DOW (4wk)',     enabled: true, weight: 10, params: { weeks: 4 } },
-    wDow:      { name: 'Weighted DOW (decay)', enabled: true, weight: 15, params: { halfLife: 8 } },
-    medDow:    { name: 'Median DOW',           enabled: true, weight: 10, params: { weeks: 20 } },
-    trendDow:  { name: 'Trend + DOW',          enabled: true, weight: 15, params: { weeks: 12 } },
-    annualDow: { name: 'Annual Seasonal',      enabled: true, weight: 15, params: { blendRecent: 0.5 } },
-    hw:        { name: 'Holt-Winters Weekly',  enabled: true, weight: 10, params: { alpha: 0.2, beta: 0.05, gamma: 0.3 } },
-    yoy:       { name: 'Year-over-Year',       enabled: true, weight: 5, params: {} },
-    yoyTrend:  { name: 'YoY Trend-Adjusted',   enabled: true, weight: 10, params: { recentWeeks: 6 } },
-    multiYear: { name: 'Multi-Year Smoothed',  enabled: true, weight: 10, params: { windowDays: 14 } },
-    trimDow:   { name: 'Trimmed Mean DOW',    enabled: true, weight: 10, params: { trimPct: 15 } },
-    momentum:  { name: 'Momentum-Adjusted',   enabled: true, weight: 10, params: { lookback: 3 } },
-    sma7:      { name: '7-Day Moving Avg',     enabled: false, weight: 0, params: {} },
-    sma28:     { name: '28-Day Moving Avg',     enabled: false, weight: 0, params: {} },
-    expSmooth: { name: 'Exp Smooth + DOW',     enabled: true, weight: 5, params: { alpha: 0.3 } },
-    isoWeekDow:{ name: 'ISO Week × DOW',     enabled: true, weight: 15, params: {} },
-    weekVolSplit:{ name: 'Weekly Vol Split',  enabled: true, weight: 15, params: { yearsBack: 3 } },
-    weekProfile: { name: 'YoY Week Profile',  enabled: true, weight: 15, params: {} },
-    monthDow:    { name: 'Month × DOW',       enabled: true, weight: 10, params: {} },
-    monthDowR:   { name: 'Month × DOW Recency',enabled: true, weight: 10, params: {} },
-    biweekly:    { name: 'Biweekly Pattern',   enabled: true, weight: 10, params: {} },
-    annualDowR:  { name: 'Annual DOW Recency', enabled: true, weight: 10, params: {} },
-    q75:         { name: 'DOW 75th Pctile',    enabled: true, weight: 10, params: {} },
-    q25:         { name: 'DOW 25th Pctile',    enabled: true, weight: 5, params: {} },
-    last2:       { name: 'Last 2 DOW Avg',     enabled: true, weight: 10, params: {} },
-    regime:      { name: 'Regime Adaptive',    enabled: true, weight: 5, params: {} },
-    trendSeason: { name: 'Trend-Season DOW',  enabled: true, weight: 10, params: { recentWeeks: 13 } },
-    recentMonth: { name: 'Recent Month×DOW',  enabled: true, weight: 10, params: { yearsBack: 2 } },
-    winsDow:     { name: 'Winsorized DOW',    enabled: true, weight: 5, params: { weeks: 20, capPct: 10 } },
-    adapMedian:  { name: 'Adaptive Median',   enabled: true, weight: 5, params: { halfLife: 6 } }
+    dowAvg:    { name: 'DOW Avg (trailing)',   enabled: true, weight: 5, shift: 0, params: { weeks: 16 } },
+    recent:    { name: 'Recent DOW (4wk)',     enabled: true, weight: 10, shift: 0, params: { weeks: 4 } },
+    wDow:      { name: 'Weighted DOW (decay)', enabled: true, weight: 15, shift: 0, params: { halfLife: 8 } },
+    medDow:    { name: 'Median DOW',           enabled: true, weight: 10, shift: 0, params: { weeks: 20 } },
+    trendDow:  { name: 'Trend + DOW',          enabled: true, weight: 15, shift: 0, params: { weeks: 12 } },
+    annualDow: { name: 'Annual Seasonal',      enabled: true, weight: 15, shift: 0, params: { blendRecent: 0.5 } },
+    hw:        { name: 'Holt-Winters Weekly',  enabled: true, weight: 10, shift: 0, params: { alpha: 0.2, beta: 0.05, gamma: 0.3 } },
+    yoy:       { name: 'Year-over-Year',       enabled: true, weight: 5, shift: 0, params: {} },
+    yoyTrend:  { name: 'YoY Trend-Adjusted',   enabled: true, weight: 10, shift: 0, params: { recentWeeks: 6 } },
+    multiYear: { name: 'Multi-Year Smoothed',  enabled: true, weight: 10, shift: 0, params: { windowDays: 14 } },
+    trimDow:   { name: 'Trimmed Mean DOW',    enabled: true, weight: 10, shift: 0, params: { trimPct: 15 } },
+    momentum:  { name: 'Momentum-Adjusted',   enabled: true, weight: 10, shift: 0, params: { lookback: 3 } },
+    sma7:      { name: '7-Day Moving Avg',     enabled: false, weight: 0, shift: 0, params: {} },
+    sma28:     { name: '28-Day Moving Avg',     enabled: false, weight: 0, shift: 0, params: {} },
+    expSmooth: { name: 'Exp Smooth + DOW',     enabled: true, weight: 5, shift: 0, params: { alpha: 0.3 } },
+    isoWeekDow:{ name: 'ISO Week × DOW',     enabled: true, weight: 15, shift: 0, params: {} },
+    weekVolSplit:{ name: 'Weekly Vol Split',  enabled: true, weight: 15, shift: 0, params: { yearsBack: 3 } },
+    weekProfile: { name: 'YoY Week Profile',  enabled: true, weight: 15, shift: 0, params: {} },
+    monthDow:    { name: 'Month × DOW',       enabled: true, weight: 10, shift: 0, params: {} },
+    monthDowR:   { name: 'Month × DOW Recency',enabled: true, weight: 10, shift: 0, params: {} },
+    biweekly:    { name: 'Biweekly Pattern',   enabled: true, weight: 10, shift: 0, params: {} },
+    annualDowR:  { name: 'Annual DOW Recency', enabled: true, weight: 10, shift: 0, params: {} },
+    q75:         { name: 'DOW 75th Pctile',    enabled: true, weight: 10, shift: 0, params: {} },
+    q25:         { name: 'DOW 25th Pctile',    enabled: true, weight: 5, shift: 0, params: {} },
+    last2:       { name: 'Last 2 DOW Avg',     enabled: true, weight: 10, shift: 0, params: {} },
+    regime:      { name: 'Regime Adaptive',    enabled: true, weight: 5, shift: 0, params: {} },
+    trendSeason: { name: 'Trend-Season DOW',  enabled: true, weight: 10, shift: 0, params: { recentWeeks: 13 } },
+    recentMonth: { name: 'Recent Month×DOW',  enabled: true, weight: 10, shift: 0, params: { yearsBack: 2 } },
+    winsDow:     { name: 'Winsorized DOW',    enabled: true, weight: 5, shift: 0, params: { weeks: 20, capPct: 10 } },
+    adapMedian:  { name: 'Adaptive Median',   enabled: true, weight: 5, shift: 0, params: { halfLife: 6 } }
   },
   closedDays: [],   // DOW indices where business is closed (0=Sun,1=Mon,...6=Sat)
   closedDayThreshold: 85, // percentage (50-100): >X% zeros OR <(100-X)% of expected appearances
@@ -2580,7 +2582,7 @@ function alignForecastToTestDates(fullForecast, lastTrainDate, testDates) {
    ──────────────────────────────────────────────────────────────────── */
 var ROLLING_MIN_TRAIN = 500;   // use rolling if train points < this
 var ROLLING_MIN_TEST  = 260;   // only bother rolling for large tests
-var ROLLING_CHUNK     = 45;    // ~2 months business days per chunk
+var ROLLING_CHUNK     = 65;    // ~3 months business days per chunk
 
 function needsRollingWindow(n, win) {
   return (n - win) < ROLLING_MIN_TRAIN && win > ROLLING_MIN_TEST;
@@ -2636,6 +2638,24 @@ function generateRollingForecasts(data, dates, n, win, methodKeys) {
   return forecasts;
 }
 
+/** Apply time shift to a forecast array.
+ *  shift > 0: move forecast RIGHT (delay — use when forecast is too early)
+ *  shift < 0: move forecast LEFT (advance — use when forecast is too late)
+ *  shiftedFc[i] = originalFc[i - shift], clamped to valid range */
+function applyForecastShift(fc, shift) {
+  if (!shift || shift === 0) return fc;
+  var shifted = new Array(fc.length);
+  for (var si = 0; si < fc.length; si++) {
+    var srcIdx = si - shift;
+    if (srcIdx < 0 || srcIdx >= fc.length) {
+      shifted[si] = 0;
+    } else {
+      shifted[si] = fc[srcIdx];
+    }
+  }
+  return shifted;
+}
+
 function runBacktest(windowSize) {
   const data = getActiveSeries();
   const dates = S.series.dates;
@@ -2661,11 +2681,12 @@ function runBacktest(windowSize) {
     var rollingFc = generateRollingForecasts(data, dates, n, windowSize, enabledMethodKeys);
     for (var ri = 0; ri < enabledMethodKeys.length; ri++) {
       var rk = enabledMethodKeys[ri];
+      var rkFc = applyForecastShift(rollingFc[rk], S.methods[rk].shift || 0);
       results[rk] = {
-        forecast: rollingFc[rk],
-        mape: calculateMAPE(testData, rollingFc[rk], testDates),
-        wape: calculateWAPE(testData, rollingFc[rk], testDates),
-        mae: calculateMAE(testData, rollingFc[rk], testDates)
+        forecast: rkFc,
+        mape: calculateMAPE(testData, rkFc, testDates),
+        wape: calculateWAPE(testData, rkFc, testDates),
+        mae: calculateMAE(testData, rkFc, testDates)
       };
     }
   } else {
@@ -2676,7 +2697,8 @@ function runBacktest(windowSize) {
       let fullFc = runMethod(key, trainData, trainDates, calendarHorizon);
       fullFc = applyClosedDays(fullFc, lastTrainDate, calendarHorizon);
       fullFc = applyForecastCeiling(fullFc, lastTrainDate, calendarHorizon, btCeilings);
-      const fc = alignForecastToTestDates(fullFc, lastTrainDate, testDates);
+      var fc = alignForecastToTestDates(fullFc, lastTrainDate, testDates);
+      fc = applyForecastShift(fc, method.shift || 0);
       results[key] = {
         forecast: fc,
         mape: calculateMAPE(testData, fc, testDates),
@@ -3063,10 +3085,6 @@ function autoOptimize(options) {
   options = options || {};
   var doShuffle = options.shuffle || false;
   var deepSearch = options.deepSearch || false; // finer steps + more bias configs for hard categories
-  // Reset bias to no-correction for fair safety net comparisons.
-  // Stale bias from a previous optimization call can make the ensemble
-  // look artificially better than individual methods, bypassing safeguards.
-  S.biasConfig = { weeks: 0, dampen: 0 };
   const data = getActiveSeries();
   const dates = S.series.dates;
   const n = data.length;
@@ -3442,39 +3460,11 @@ function autoOptimize(options) {
     }
   }
 
-  // Update bestIndividualWape: test top-3 individuals WITH their own best bias
-  // This makes the final safety net comparison fair (both sides use best bias)
-  var sortedByRawWape = enabledKeys.slice().sort(function(a,b) { return wapes[a] - wapes[b]; });
-  for (var bik = 0; bik < Math.min(3, sortedByRawWape.length); bik++) {
-    var biKey = sortedByRawWape[bik];
-    var biSoloW = {};
-    for (var bij = 0; bij < enabledKeys.length; bij++) biSoloW[enabledKeys[bij]] = 0;
-    biSoloW[biKey] = 100;
-    for (var bic = 0; bic < biasConfigs.length; bic++) {
-      var biw = getEnsembleMAPE(biSoloW, biasConfigs[bic]);
-      if (biw < bestIndividualWape) {
-        bestIndividualWape = biw;
-        bestIndividualKey = biKey;
-      }
-    }
-  }
-
-  // Final check: is optimized ensemble still better than best individual (with its own best bias)?
+  // Final check: is optimized ensemble still better than best individual?
   var finalEnsWape = getEnsembleMAPE(globalBestWeights);
   if (finalEnsWape > bestIndividualWape) {
     for (var fk2 = 0; fk2 < enabledKeys.length; fk2++) globalBestWeights[enabledKeys[fk2]] = 0;
     globalBestWeights[bestIndividualKey] = 100;
-    // Re-search bias for single-method weights (ensemble's bias may not suit individual)
-    var soloBestBias = { weeks: 0, dampen: 0 };
-    var soloBestWape = getEnsembleMAPE(globalBestWeights, soloBestBias);
-    for (var sobi = 0; sobi < biasConfigs.length; sobi++) {
-      var sobw = getEnsembleMAPE(globalBestWeights, biasConfigs[sobi]);
-      if (sobw < soloBestWape) {
-        soloBestWape = sobw;
-        soloBestBias = biasConfigs[sobi];
-      }
-    }
-    S.biasConfig = soloBestBias;
   }
 
   // Apply best global weights
@@ -3599,60 +3589,41 @@ function autoOptimize(options) {
     S.dowWeights[dw] = dowW;
   }
 
-  // ── Selective per-DOW safeguard: keep only DOWs that improve overall WMAPE ──
-  // Instead of all-or-nothing, test each DOW individually and keep beneficial ones.
+  // ── All-or-nothing safeguard: per-DOW must improve overall WMAPE ≥ 0.3% ──
   var sgGlobalWape = getEnsembleMAPE(globalBestWeights);
   var finalOptWape = sgGlobalWape;
   if (Object.keys(S.dowWeights).length > 0) {
-    // Helper: compute overall WMAPE with current S.dowWeights
-    var computeSelectiveDowWape = function() {
-      var selEns = new Array(testData.length).fill(0);
-      for (var si = 0; si < testData.length; si++) {
-        var sDow = testDates[si].getDay();
-        var sDowW = S.dowWeights[sDow] || null;
-        var sWS = 0, sWV = 0;
-        for (var sk = 0; sk < enabledKeys.length; sk++) {
-          var sKey = enabledKeys[sk];
-          var sFc = (forecasts[sKey] && forecasts[sKey][si]) || 0;
-          var sW = sDowW ? (sDowW[sKey] || 0) : globalBestWeights[sKey];
-          sWV += sW * sFc;
-          sWS += sW;
-        }
-        selEns[si] = sWS > 0 ? sWV / sWS : 0;
+    // Compute per-DOW ensemble with bias correction
+    var sgPerDowEns = new Array(testData.length).fill(0);
+    for (var sg = 0; sg < testData.length; sg++) {
+      var sgDow = testDates[sg].getDay();
+      var sgDowW = S.dowWeights[sgDow] || null;
+      var sgWS = 0, sgWV = 0;
+      for (var sgk = 0; sgk < enabledKeys.length; sgk++) {
+        var sgKey = enabledKeys[sgk];
+        var sgFc = (forecasts[sgKey] && forecasts[sgKey][sg]) || 0;
+        var sgW = sgDowW ? (sgDowW[sgKey] || 0) : globalBestWeights[sgKey];
+        sgWV += sgW * sgFc;
+        sgWS += sgW;
       }
-      selEns = applyBiasCorrection(selEns, trainData, trainDates, lastTrainDate, testDates);
-      return calculateWAPE(testData, selEns, testDates);
-    };
+      sgPerDowEns[sg] = sgWS > 0 ? sgWV / sgWS : 0;
+    }
+    sgPerDowEns = applyBiasCorrection(sgPerDowEns, trainData, trainDates, lastTrainDate, testDates);
+    var sgPerDowWape = calculateWAPE(testData, sgPerDowEns, testDates);
 
-    // First: quick check if ALL per-DOW together helps significantly
-    var allDowWape = computeSelectiveDowWape();
-    if (allDowWape < sgGlobalWape - 0.3) {
-      // All per-DOW together helps — keep all
-      finalOptWape = allDowWape;
+    if (sgPerDowWape >= sgGlobalWape - 0.3) {
+      S.dowWeights = {}; // Per-DOW didn't improve enough, revert ALL
+      finalOptWape = sgGlobalWape;
     } else {
-      // All-or-nothing failed — try selective: add each DOW if it helps
-      var savedAllDow = JSON.parse(JSON.stringify(S.dowWeights));
-      S.dowWeights = {};
-
-      for (var selDow = 0; selDow < 7; selDow++) {
-        if (!savedAllDow[selDow]) continue;
-        // Temporarily add this DOW
-        S.dowWeights[selDow] = savedAllDow[selDow];
-        var selWape = computeSelectiveDowWape();
-        if (selWape < finalOptWape - 0.05) {
-          finalOptWape = selWape; // Keep this DOW
-        } else {
-          delete S.dowWeights[selDow]; // Reject this DOW
-        }
-      }
+      finalOptWape = sgPerDowWape;
     }
   }
 
   // ── Friday-specific post-pass ─────────────────────────────────────────
-  // If Friday doesn't have per-DOW weights (either rejected by selective
-  // acceptance or not computed), try an enhanced Friday-only optimization.
-  // Friday typically has high variance and benefits from dedicated weights.
-  if (!S.dowWeights[5] && dowTestIndices[5] && dowTestIndices[5].length >= 3) {
+  // If the all-or-nothing safeguard rejected per-DOW weights, try a
+  // Friday-only optimization. Friday typically has high variance, so
+  // dedicated weights may help even when full per-DOW doesn't.
+  if (Object.keys(S.dowWeights).length === 0 && dowTestIndices[5] && dowTestIndices[5].length >= 3) {
     var friIdx = dowTestIndices[5];
     var friActual = friIdx.map(function(j) { return testData[j]; });
     var friSum = friActual.reduce(function(a, b) { return a + b; }, 0);
@@ -3783,7 +3754,7 @@ function autoOptimize(options) {
       }
 
       // Validation: does Friday-only per-DOW improve OVERALL WMAPE?
-      // Build ensemble: per-DOW weights where accepted, bestFriW for Friday, global for the rest
+      // Build ensemble: global weights for all days, bestFriW for Friday only
       var friTestEns = new Array(testData.length).fill(0);
       for (var ftei = 0; ftei < testData.length; ftei++) {
         var fteDow = testDates[ftei].getDay();
@@ -3796,14 +3767,11 @@ function autoOptimize(options) {
             fteWS += (bestFriW[fteKey] || 0);
           }
         } else {
-          // Use accepted per-DOW weights for this DOW, otherwise global weights
-          var fteExistDow = S.dowWeights[fteDow] || null;
           for (var ftek2b = 0; ftek2b < enabledKeys.length; ftek2b++) {
             var fteKey2 = enabledKeys[ftek2b];
             var fteFc2 = (forecasts[fteKey2] && forecasts[fteKey2][ftei]) || 0;
-            var fteW2 = fteExistDow ? (fteExistDow[fteKey2] || 0) : globalBestWeights[fteKey2];
-            fteWV += fteW2 * fteFc2;
-            fteWS += fteW2;
+            fteWV += globalBestWeights[fteKey2] * fteFc2;
+            fteWS += globalBestWeights[fteKey2];
           }
         }
         friTestEns[ftei] = fteWS > 0 ? fteWV / fteWS : 0;
@@ -3811,9 +3779,9 @@ function autoOptimize(options) {
       friTestEns = applyBiasCorrection(friTestEns, trainData, trainDates, lastTrainDate, testDates);
       var friTestWape = calculateWAPE(testData, friTestEns, testDates);
 
-      // Accept Friday weights if they improve overall WMAPE by >= 0.1%
+      // Accept Friday-only weights if they improve overall WMAPE by >= 0.1%
       if (friTestWape < finalOptWape - 0.1) {
-        S.dowWeights[5] = bestFriW; // Add Friday to existing per-DOW (don't overwrite other DOWs)
+        S.dowWeights = { 5: bestFriW };
         finalOptWape = friTestWape;
       }
     }
@@ -4212,6 +4180,75 @@ document.getElementById('refineBtn').addEventListener('click', function() {
     return;
   }
   refineOptimization();
+});
+
+/* Auto-Align: find optimal per-method time shifts to minimize backtest WMAPE.
+   Tries shifts from -5 to +5 for each enabled method, picking the shift that
+   minimizes that method's individual WAPE. Then re-runs backtest with all shifts. */
+document.getElementById('autoAlignBtn').addEventListener('click', function() {
+  if (!S.dataLoaded) {
+    showNotification('Load data first.', 'error');
+    return;
+  }
+  runWithLoading('Auto-Aligning\u2026', [{ label: 'Finding optimal shifts\u2026', fn: function() {
+    // First run a baseline backtest with shift=0 for all methods
+    var enabledKeys = Object.keys(S.methods).filter(function(k) { return S.methods[k].enabled; });
+    var origShifts = {};
+    enabledKeys.forEach(function(k) { origShifts[k] = S.methods[k].shift || 0; S.methods[k].shift = 0; });
+
+    // Get raw (unshifted) backtest to test shifts against
+    var bt0 = runBacktest(S.backtestWindow);
+    if (!bt0) {
+      enabledKeys.forEach(function(k) { S.methods[k].shift = origShifts[k]; });
+      showNotification('Not enough data for backtest.', 'error');
+      return;
+    }
+
+    // For each method, try shifts -5 to +5, find the one that minimizes individual WAPE
+    var shiftChanges = [];
+    enabledKeys.forEach(function(k) {
+      S.methods[k].shift = 0;
+      var baseFc = bt0.results[k] ? bt0.results[k].forecast : null;
+      if (!baseFc) return;
+
+      var bestShift = 0;
+      var bestWape = calculateWAPE(bt0.testData, baseFc, bt0.testDates);
+
+      for (var tryShift = -5; tryShift <= 5; tryShift++) {
+        if (tryShift === 0) continue;
+        var shiftedFc = applyForecastShift(baseFc, tryShift);
+        var shiftedWape = calculateWAPE(bt0.testData, shiftedFc, bt0.testDates);
+        if (shiftedWape < bestWape - 0.05) {  // require at least 0.05% improvement
+          bestWape = shiftedWape;
+          bestShift = tryShift;
+        }
+      }
+      S.methods[k].shift = bestShift;
+      if (bestShift !== 0) shiftChanges.push(S.methods[k].name + ': ' + (bestShift > 0 ? '+' : '') + bestShift + 'd');
+    });
+
+    // Re-run backtest with optimized shifts
+    doBacktest();
+    renderMethodGrid();
+
+    if (shiftChanges.length > 0) {
+      showNotification('Aligned ' + shiftChanges.length + ' method(s): ' + shiftChanges.join(', '), 'success');
+    } else {
+      showNotification('All methods already aligned (no beneficial shifts found).', 'info');
+    }
+  }}]);
+});
+
+document.getElementById('resetShiftsBtn').addEventListener('click', function() {
+  var changed = false;
+  Object.keys(S.methods).forEach(function(k) {
+    if (S.methods[k].shift !== 0) { S.methods[k].shift = 0; changed = true; }
+  });
+  if (changed && S.dataLoaded) {
+    doBacktest();
+    renderMethodGrid();
+    showNotification('All shifts reset to 0.', 'info');
+  }
 });
 
 /* ==================================================================
@@ -4879,6 +4916,11 @@ function renderMethodGrid() {
         '<input type="range" class="weight-slider" data-method-weight="' + key + '" min="0" max="100" value="' + m.weight + '"' + (!m.enabled ? ' disabled' : '') + '>' +
         '<span class="weight-val">' + m.weight + '</span>' +
       '</div>' +
+      '<div class="weight-row" style="gap:4px">' +
+        '<label title="Shift forecast left (−) or right (+) by N days">Shift:</label>' +
+        '<input type="range" class="shift-slider" data-method-shift="' + key + '" min="-7" max="7" value="' + (m.shift || 0) + '" style="flex:1"' + (!m.enabled ? ' disabled' : '') + '>' +
+        '<span class="shift-val" style="min-width:28px;text-align:center;font-variant-numeric:tabular-nums">' + (m.shift || 0) + 'd</span>' +
+      '</div>' +
       paramsHTML;
 
     grid.appendChild(card);
@@ -4894,6 +4936,8 @@ function renderMethodGrid() {
       card.classList.toggle('active', this.checked);
       const slider = card.querySelector('.weight-slider');
       if (slider) slider.disabled = !this.checked;
+      const shiftSlider = card.querySelector('.shift-slider');
+      if (shiftSlider) shiftSlider.disabled = !this.checked;
     });
   });
 
@@ -4903,6 +4947,16 @@ function renderMethodGrid() {
       S.methods[k].weight = parseInt(this.value);
       this.nextElementSibling.textContent = this.value;
       S.dowWeights = {};
+    });
+  });
+
+  grid.querySelectorAll('[data-method-shift]').forEach(sl => {
+    sl.addEventListener('input', function() {
+      const k = this.dataset.methodShift;
+      S.methods[k].shift = parseInt(this.value);
+      this.nextElementSibling.textContent = this.value + 'd';
+      // Live re-run backtest to show shifted forecast on chart
+      if (S.dataLoaded) doBacktest();
     });
   });
 
