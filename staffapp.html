@@ -2550,7 +2550,7 @@
             }
 
             try {
-                const recordId = selectedDate.toISOString().split('T')[0];
+                const recordId = getLocalDateKey(selectedDate);
                 const data = await firebaseRequest('GET', `daily/${recordId}`);
 
                 if (data) {
@@ -3684,7 +3684,7 @@
         // Push local data to Firebase (1 API call using multi-path update)
         async function pushToFirebase() {
             if (!firebaseConfig) return;
-            const todayKey = new Date().toISOString().split('T')[0];
+            const todayKey = getLocalDateKey();
             const updates = {};
             updates['/master'] = { tasks: checklistData, lastModified: Date.now() };
             updates['/daily/' + todayKey] = {
@@ -3769,7 +3769,7 @@
             try {
                 updateSyncStatus('syncing', 'Syncing...');
 
-                const todayKey = new Date().toISOString().split('T')[0];
+                const todayKey = getLocalDateKey();
 
                 // Fetch all data under the key in one call
                 const allData = await firebaseRequest('GET', '');
@@ -3787,7 +3787,14 @@
                         console.log('Firebase: no master data found');
                     }
                     if (allData.daily && allData.daily[todayKey]) {
-                        applyDailyData(allData.daily[todayKey]);
+                        const dailyRecord = allData.daily[todayKey];
+                        // Guard: if the stored date doesn't match today, it's stale data
+                        // from the old UTC date bug — ignore it
+                        if (dailyRecord.date && dailyRecord.date !== new Date().toDateString()) {
+                            console.log('Firebase daily record date mismatch — ignoring stale data. Stored: ' + dailyRecord.date + ', Today: ' + new Date().toDateString());
+                        } else {
+                            applyDailyData(dailyRecord);
+                        }
                     }
                 } else {
                     console.log('Firebase: no data at all');
@@ -3874,7 +3881,7 @@
 
                     try {
                         const { path, data } = JSON.parse(e.data);
-                        const todayKey = new Date().toISOString().split('T')[0];
+                        const todayKey = getLocalDateKey();
 
                         if (path === '/') {
                             // Full data update
@@ -3898,10 +3905,15 @@
                         } else if (path === '/daily/' + todayKey || path.startsWith('/daily/' + todayKey + '/')) {
                             // Today's daily data update
                             if (path === '/daily/' + todayKey && data) {
-                                applyDailyData(data);
-                                saveState();
-                                renderChecklists();
-                                updateSyncStatus('connected', 'Synced just now');
+                                // Skip stale data from old UTC date bug
+                                if (data.date && data.date !== new Date().toDateString()) {
+                                    console.log('Realtime: ignoring stale daily record');
+                                } else {
+                                    applyDailyData(data);
+                                    saveState();
+                                    renderChecklists();
+                                    updateSyncStatus('connected', 'Synced just now');
+                                }
                             }
                         }
                     } catch (parseErr) {
@@ -4166,12 +4178,16 @@
         let oldestLoadedDate = null;
         const DAYS_PER_LOAD = 14; // 2 weeks
 
-        // Generate date string for a given date (YYYY-MM-DD)
+        // ALWAYS use LOCAL date — toISOString() returns UTC which saves evening data under the wrong day!
+        function getLocalDateKey(date) {
+            const d = date || new Date();
+            return d.getFullYear() + '-' +
+                String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0');
+        }
+        // Alias used by History
         function getDateString(date) {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
+            return getLocalDateKey(date);
         }
 
         // Generate Firebase path key for a date
@@ -4499,34 +4515,77 @@
             scrollToFirstIncomplete();
         }
 
-        // ========== AUTO DAY CHANGE DETECTION ==========
-        // Store the date the page loaded on
+        // ========== IDLE DETECTION + DAY CHANGE + AUTO-RESYNC ==========
         const pageLoadDate = new Date().toDateString();
+        let lastActivityTime = Date.now();
+        let lastWakeCheck = Date.now();
+        const IDLE_RESYNC_MS = 3 * 60 * 1000; // 3 minutes idle → resync on return
+        let isResyncing = false;
 
-        function checkForDayChange() {
+        function handleReturnFromIdle() {
+            const now = Date.now();
+            const idleTime = now - lastActivityTime;
+            lastActivityTime = now;
+
+            // Day changed → hard reload, no questions asked
             if (new Date().toDateString() !== pageLoadDate) {
-                // New day — hard reload the page. No tricks, no state juggling.
+                console.log('Day changed — reloading page');
                 window.location.reload();
+                return;
+            }
+
+            // Idle for 3+ minutes → force a fresh Firebase sync
+            if (idleTime > IDLE_RESYNC_MS && firebaseConfig && !isResyncing) {
+                isResyncing = true;
+                console.log('Returned from idle (' + Math.round(idleTime / 1000) + 's) — resyncing');
+                syncWithFirebase(true).finally(() => { isResyncing = false; });
             }
         }
 
-        function startDayChangeWatcher() {
-            // Check every 30 seconds
-            setInterval(checkForDayChange, 30000);
+        function trackActivity() {
+            lastActivityTime = Date.now();
+        }
 
-            // Check when tab becomes visible (employee switches back to tab)
+        function startDayChangeWatcher() {
+            // 1. Interval — fires every 15s for visible tabs.
+            //    Browsers throttle background tabs, but this catches visible-idle scenarios.
+            setInterval(() => {
+                const now = Date.now();
+                const gap = now - lastWakeCheck;
+                lastWakeCheck = now;
+
+                // If gap is way bigger than 15s, the computer was asleep/frozen.
+                // Treat that as an idle return.
+                if (gap > 60000) {
+                    console.log('Wake from sleep detected (gap: ' + Math.round(gap / 1000) + 's)');
+                    handleReturnFromIdle();
+                    return;
+                }
+
+                // Normal day-change check
+                if (new Date().toDateString() !== pageLoadDate) {
+                    window.location.reload();
+                }
+            }, 15000);
+
+            // 2. Tab becomes visible (employee switches back to this tab)
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible') {
-                    checkForDayChange();
+                    handleReturnFromIdle();
                 }
             });
 
-            // Check on window focus (covers embedded iframes)
-            window.addEventListener('focus', checkForDayChange);
+            // 3. Window gains focus
+            window.addEventListener('focus', handleReturnFromIdle);
 
-            // Check on ANY click or touch (catches lazy employees who just start tapping)
-            document.addEventListener('click', checkForDayChange, true);
-            document.addEventListener('touchstart', checkForDayChange, true);
+            // 4. ANY user interaction — the moment they touch/click, check staleness
+            document.addEventListener('click', handleReturnFromIdle, true);
+            document.addEventListener('touchstart', handleReturnFromIdle, true);
+
+            // 5. Track activity silently (no resync, just update timestamp)
+            document.addEventListener('mousemove', trackActivity, { passive: true });
+            document.addEventListener('keydown', trackActivity, { passive: true });
+            document.addEventListener('scroll', trackActivity, { passive: true });
         }
 
         init();
