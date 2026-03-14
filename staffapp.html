@@ -2310,7 +2310,7 @@
             customTasks: null
         };
 
-        let checklistData = null;
+        let checklistData = { opening: { tasks: [] }, sorting: { tasks: [] }, closing: { tasks: [] } };
         let editMode = false;
         let currentTaskEdit = null;
 
@@ -2394,9 +2394,9 @@
                 // Migrate old sorting structure to new flat structure
                 if (checklistData.sorting && !checklistData.sorting.tasks) {
                     const oldTasks = [
-                        ...(checklistData.sorting.intake || []),
-                        ...(checklistData.sorting.category || []),
-                        ...(checklistData.sorting.quality || [])
+                        ...ensureArray(checklistData.sorting.intake),
+                        ...ensureArray(checklistData.sorting.category),
+                        ...ensureArray(checklistData.sorting.quality)
                     ];
                     checklistData.sorting = { tasks: oldTasks };
                 }
@@ -2404,9 +2404,9 @@
                 // Migrate old opening structure to new flat structure
                 if (checklistData.opening && !checklistData.opening.tasks) {
                     const oldOpeningTasks = [
-                        ...(checklistData.opening.setup || []),
-                        ...(checklistData.opening.equipment || []),
-                        ...(checklistData.opening.customer || [])
+                        ...ensureArray(checklistData.opening.setup),
+                        ...ensureArray(checklistData.opening.equipment),
+                        ...ensureArray(checklistData.opening.customer)
                     ];
                     checklistData.opening = { tasks: oldOpeningTasks };
                 }
@@ -2414,11 +2414,22 @@
                 // Migrate old closing structure to new flat structure
                 if (checklistData.closing && !checklistData.closing.tasks) {
                     const oldClosingTasks = [
-                        ...(checklistData.closing.end || []),
-                        ...(checklistData.closing.equipment || []),
-                        ...(checklistData.closing.security || [])
+                        ...ensureArray(checklistData.closing.end),
+                        ...ensureArray(checklistData.closing.equipment),
+                        ...ensureArray(checklistData.closing.security)
                     ];
                     checklistData.closing = { tasks: oldClosingTasks };
+                }
+
+                // Always ensure tasks arrays are actual arrays (Firebase object→array fix)
+                for (const section of ['opening', 'closing', 'sorting']) {
+                    if (checklistData[section] && checklistData[section].tasks) {
+                        checklistData[section].tasks = ensureArray(checklistData[section].tasks);
+                    } else if (!checklistData[section]) {
+                        checklistData[section] = { tasks: [] };
+                    } else if (!checklistData[section].tasks) {
+                        checklistData[section].tasks = [];
+                    }
                 }
             } else {
                 checklistData = JSON.parse(JSON.stringify(emptyChecklistData));
@@ -2672,8 +2683,14 @@
 
         // Get combined items (permanent + today-only) for a section/group
         function getCombinedItems(section, group) {
-            const permanent = checklistData[section] && checklistData[section][group] ? checklistData[section][group] : [];
-            const todayOnly = state.todayOnlyTasks && state.todayOnlyTasks[section] && state.todayOnlyTasks[section][group] ? state.todayOnlyTasks[section][group] : [];
+            let permanent = [];
+            if (checklistData && checklistData[section] && checklistData[section][group]) {
+                permanent = ensureArray(checklistData[section][group]);
+            }
+            let todayOnly = [];
+            if (state.todayOnlyTasks && state.todayOnlyTasks[section] && state.todayOnlyTasks[section][group]) {
+                todayOnly = ensureArray(state.todayOnlyTasks[section][group]);
+            }
             return [...permanent, ...todayOnly];
         }
 
@@ -2705,8 +2722,19 @@
 
         // Get all items for a section (permanent + today-only)
         function getAllSectionItems(section) {
-            const permanentItems = Object.values(checklistData[section] || {}).flat();
-            const todayItems = state.todayOnlyTasks && state.todayOnlyTasks[section] ? Object.values(state.todayOnlyTasks[section]).flat() : [];
+            let permanentItems = [];
+            if (checklistData && checklistData[section]) {
+                const sectionData = checklistData[section];
+                for (const val of Object.values(sectionData)) {
+                    permanentItems = permanentItems.concat(ensureArray(val));
+                }
+            }
+            let todayItems = [];
+            if (state.todayOnlyTasks && state.todayOnlyTasks[section]) {
+                for (const val of Object.values(state.todayOnlyTasks[section])) {
+                    todayItems = todayItems.concat(ensureArray(val));
+                }
+            }
             return [...permanentItems, ...todayItems];
         }
 
@@ -2744,20 +2772,33 @@
         // Find item by ID (searches both permanent and today-only tasks)
         function findItemById(id) {
             // Search in permanent tasks
-            for (const section of Object.keys(checklistData)) {
-                for (const group of Object.keys(checklistData[section])) {
-                    const items = checklistData[section][group];
-                    const index = items.findIndex(item => item.id === id);
-                    if (index !== -1) {
-                        return { section, group, index, item: items[index], isTodayOnly: false };
+            if (checklistData) {
+                for (const section of Object.keys(checklistData)) {
+                    const sectionData = checklistData[section];
+                    if (!sectionData || typeof sectionData !== 'object') continue;
+                    for (const group of Object.keys(sectionData)) {
+                        // Ensure we work with an array
+                        if (!Array.isArray(sectionData[group])) {
+                            sectionData[group] = ensureArray(sectionData[group]);
+                        }
+                        const items = sectionData[group];
+                        const index = items.findIndex(item => item.id === id);
+                        if (index !== -1) {
+                            return { section, group, index, item: items[index], isTodayOnly: false };
+                        }
                     }
                 }
             }
             // Search in today-only tasks
             if (state.todayOnlyTasks) {
                 for (const section of Object.keys(state.todayOnlyTasks)) {
-                    for (const group of Object.keys(state.todayOnlyTasks[section])) {
-                        const items = state.todayOnlyTasks[section][group];
+                    const sectionData = state.todayOnlyTasks[section];
+                    if (!sectionData || typeof sectionData !== 'object') continue;
+                    for (const group of Object.keys(sectionData)) {
+                        if (!Array.isArray(sectionData[group])) {
+                            sectionData[group] = ensureArray(sectionData[group]);
+                        }
+                        const items = sectionData[group];
                         const index = items.findIndex(item => item.id === id);
                         if (index !== -1) {
                             return { section, group, index, item: items[index], isTodayOnly: true };
@@ -3657,6 +3698,13 @@
             lastSyncTime = Date.now();
         }
 
+        // Firebase can convert arrays to objects with numeric keys — this ensures we always get an array
+        function ensureArray(val) {
+            if (Array.isArray(val)) return val;
+            if (val && typeof val === 'object') return Object.values(val);
+            return [];
+        }
+
         // Apply master data from Firebase
         function applyMasterData(masterData) {
             if (masterData && masterData.tasks) {
@@ -3665,27 +3713,40 @@
                 // Migrate old structures if needed
                 if (checklistData.sorting && !checklistData.sorting.tasks) {
                     const oldTasks = [
-                        ...(checklistData.sorting.intake || []),
-                        ...(checklistData.sorting.category || []),
-                        ...(checklistData.sorting.quality || [])
+                        ...ensureArray(checklistData.sorting.intake),
+                        ...ensureArray(checklistData.sorting.category),
+                        ...ensureArray(checklistData.sorting.quality)
                     ];
                     checklistData.sorting = { tasks: oldTasks };
                 }
                 if (checklistData.opening && !checklistData.opening.tasks) {
                     const oldTasks = [
-                        ...(checklistData.opening.setup || []),
-                        ...(checklistData.opening.equipment || []),
-                        ...(checklistData.opening.customer || [])
+                        ...ensureArray(checklistData.opening.setup),
+                        ...ensureArray(checklistData.opening.equipment),
+                        ...ensureArray(checklistData.opening.customer)
                     ];
                     checklistData.opening = { tasks: oldTasks };
                 }
                 if (checklistData.closing && !checklistData.closing.tasks) {
                     const oldTasks = [
-                        ...(checklistData.closing.end || []),
-                        ...(checklistData.closing.equipment || []),
-                        ...(checklistData.closing.security || [])
+                        ...ensureArray(checklistData.closing.end),
+                        ...ensureArray(checklistData.closing.equipment),
+                        ...ensureArray(checklistData.closing.security)
                     ];
                     checklistData.closing = { tasks: oldTasks };
+                }
+
+                // Always ensure tasks arrays are actual arrays (Firebase object→array fix)
+                for (const section of ['opening', 'closing', 'sorting']) {
+                    if (checklistData[section]) {
+                        if (checklistData[section].tasks) {
+                            checklistData[section].tasks = ensureArray(checklistData[section].tasks);
+                        } else {
+                            checklistData[section] = { tasks: [] };
+                        }
+                    } else {
+                        checklistData[section] = { tasks: [] };
+                    }
                 }
             }
         }
@@ -3719,10 +3780,17 @@
                 state.todayOnlyTasks = null;
 
                 if (allData) {
-                    if (allData.master) applyMasterData(allData.master);
+                    if (allData.master) {
+                        applyMasterData(allData.master);
+                        console.log('Firebase master loaded: ' + (checklistData.opening.tasks.length + checklistData.sorting.tasks.length + checklistData.closing.tasks.length) + ' total tasks');
+                    } else {
+                        console.log('Firebase: no master data found');
+                    }
                     if (allData.daily && allData.daily[todayKey]) {
                         applyDailyData(allData.daily[todayKey]);
                     }
+                } else {
+                    console.log('Firebase: no data at all');
                 }
 
                 state.lastDate = new Date().toDateString();
@@ -4217,9 +4285,9 @@
         function renderHistoryTasks(dayCompleted, dayTodayOnlyTasks) {
             // Combine permanent and today-only tasks by section
             const allTasks = {
-                opening: [...Object.values(checklistData.opening).flat()],
-                closing: [...Object.values(checklistData.closing).flat()],
-                sorting: [...Object.values(checklistData.sorting).flat()]
+                opening: checklistData && checklistData.opening ? ensureArray(checklistData.opening.tasks) : [],
+                closing: checklistData && checklistData.closing ? ensureArray(checklistData.closing.tasks) : [],
+                sorting: checklistData && checklistData.sorting ? ensureArray(checklistData.sorting.tasks) : []
             };
 
             // Add today-only tasks from that day
@@ -4411,9 +4479,14 @@
         function init() {
             loadState();
             updateDateDisplay();
-            renderChecklists();
 
-            // Initialize Firebase sync
+            try {
+                renderChecklists();
+            } catch (e) {
+                console.log('Initial render error:', e.message);
+            }
+
+            // Initialize Firebase sync — MUST always run regardless of render success
             initFirebase();
 
             // Initialize browser notifications
