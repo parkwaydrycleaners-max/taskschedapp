@@ -2580,7 +2580,7 @@ function alignForecastToTestDates(fullForecast, lastTrainDate, testDates) {
    ──────────────────────────────────────────────────────────────────── */
 var ROLLING_MIN_TRAIN = 500;   // use rolling if train points < this
 var ROLLING_MIN_TEST  = 260;   // only bother rolling for large tests
-var ROLLING_CHUNK     = 65;    // ~3 months business days per chunk
+var ROLLING_CHUNK     = 45;    // ~2 months business days per chunk
 
 function needsRollingWindow(n, win) {
   return (n - win) < ROLLING_MIN_TRAIN && win > ROLLING_MIN_TEST;
@@ -3063,6 +3063,10 @@ function autoOptimize(options) {
   options = options || {};
   var doShuffle = options.shuffle || false;
   var deepSearch = options.deepSearch || false; // finer steps + more bias configs for hard categories
+  // Reset bias to no-correction for fair safety net comparisons.
+  // Stale bias from a previous optimization call can make the ensemble
+  // look artificially better than individual methods, bypassing safeguards.
+  S.biasConfig = { weeks: 0, dampen: 0 };
   const data = getActiveSeries();
   const dates = S.series.dates;
   const n = data.length;
@@ -3438,11 +3442,39 @@ function autoOptimize(options) {
     }
   }
 
-  // Final check: is optimized ensemble still better than best individual?
+  // Update bestIndividualWape: test top-3 individuals WITH their own best bias
+  // This makes the final safety net comparison fair (both sides use best bias)
+  var sortedByRawWape = enabledKeys.slice().sort(function(a,b) { return wapes[a] - wapes[b]; });
+  for (var bik = 0; bik < Math.min(3, sortedByRawWape.length); bik++) {
+    var biKey = sortedByRawWape[bik];
+    var biSoloW = {};
+    for (var bij = 0; bij < enabledKeys.length; bij++) biSoloW[enabledKeys[bij]] = 0;
+    biSoloW[biKey] = 100;
+    for (var bic = 0; bic < biasConfigs.length; bic++) {
+      var biw = getEnsembleMAPE(biSoloW, biasConfigs[bic]);
+      if (biw < bestIndividualWape) {
+        bestIndividualWape = biw;
+        bestIndividualKey = biKey;
+      }
+    }
+  }
+
+  // Final check: is optimized ensemble still better than best individual (with its own best bias)?
   var finalEnsWape = getEnsembleMAPE(globalBestWeights);
   if (finalEnsWape > bestIndividualWape) {
     for (var fk2 = 0; fk2 < enabledKeys.length; fk2++) globalBestWeights[enabledKeys[fk2]] = 0;
     globalBestWeights[bestIndividualKey] = 100;
+    // Re-search bias for single-method weights (ensemble's bias may not suit individual)
+    var soloBestBias = { weeks: 0, dampen: 0 };
+    var soloBestWape = getEnsembleMAPE(globalBestWeights, soloBestBias);
+    for (var sobi = 0; sobi < biasConfigs.length; sobi++) {
+      var sobw = getEnsembleMAPE(globalBestWeights, biasConfigs[sobi]);
+      if (sobw < soloBestWape) {
+        soloBestWape = sobw;
+        soloBestBias = biasConfigs[sobi];
+      }
+    }
+    S.biasConfig = soloBestBias;
   }
 
   // Apply best global weights
@@ -3567,41 +3599,60 @@ function autoOptimize(options) {
     S.dowWeights[dw] = dowW;
   }
 
-  // ── All-or-nothing safeguard: per-DOW must improve overall WMAPE ≥ 0.3% ──
+  // ── Selective per-DOW safeguard: keep only DOWs that improve overall WMAPE ──
+  // Instead of all-or-nothing, test each DOW individually and keep beneficial ones.
   var sgGlobalWape = getEnsembleMAPE(globalBestWeights);
   var finalOptWape = sgGlobalWape;
   if (Object.keys(S.dowWeights).length > 0) {
-    // Compute per-DOW ensemble with bias correction
-    var sgPerDowEns = new Array(testData.length).fill(0);
-    for (var sg = 0; sg < testData.length; sg++) {
-      var sgDow = testDates[sg].getDay();
-      var sgDowW = S.dowWeights[sgDow] || null;
-      var sgWS = 0, sgWV = 0;
-      for (var sgk = 0; sgk < enabledKeys.length; sgk++) {
-        var sgKey = enabledKeys[sgk];
-        var sgFc = (forecasts[sgKey] && forecasts[sgKey][sg]) || 0;
-        var sgW = sgDowW ? (sgDowW[sgKey] || 0) : globalBestWeights[sgKey];
-        sgWV += sgW * sgFc;
-        sgWS += sgW;
+    // Helper: compute overall WMAPE with current S.dowWeights
+    var computeSelectiveDowWape = function() {
+      var selEns = new Array(testData.length).fill(0);
+      for (var si = 0; si < testData.length; si++) {
+        var sDow = testDates[si].getDay();
+        var sDowW = S.dowWeights[sDow] || null;
+        var sWS = 0, sWV = 0;
+        for (var sk = 0; sk < enabledKeys.length; sk++) {
+          var sKey = enabledKeys[sk];
+          var sFc = (forecasts[sKey] && forecasts[sKey][si]) || 0;
+          var sW = sDowW ? (sDowW[sKey] || 0) : globalBestWeights[sKey];
+          sWV += sW * sFc;
+          sWS += sW;
+        }
+        selEns[si] = sWS > 0 ? sWV / sWS : 0;
       }
-      sgPerDowEns[sg] = sgWS > 0 ? sgWV / sgWS : 0;
-    }
-    sgPerDowEns = applyBiasCorrection(sgPerDowEns, trainData, trainDates, lastTrainDate, testDates);
-    var sgPerDowWape = calculateWAPE(testData, sgPerDowEns, testDates);
+      selEns = applyBiasCorrection(selEns, trainData, trainDates, lastTrainDate, testDates);
+      return calculateWAPE(testData, selEns, testDates);
+    };
 
-    if (sgPerDowWape >= sgGlobalWape - 0.3) {
-      S.dowWeights = {}; // Per-DOW didn't improve enough, revert ALL
-      finalOptWape = sgGlobalWape;
+    // First: quick check if ALL per-DOW together helps significantly
+    var allDowWape = computeSelectiveDowWape();
+    if (allDowWape < sgGlobalWape - 0.3) {
+      // All per-DOW together helps — keep all
+      finalOptWape = allDowWape;
     } else {
-      finalOptWape = sgPerDowWape;
+      // All-or-nothing failed — try selective: add each DOW if it helps
+      var savedAllDow = JSON.parse(JSON.stringify(S.dowWeights));
+      S.dowWeights = {};
+
+      for (var selDow = 0; selDow < 7; selDow++) {
+        if (!savedAllDow[selDow]) continue;
+        // Temporarily add this DOW
+        S.dowWeights[selDow] = savedAllDow[selDow];
+        var selWape = computeSelectiveDowWape();
+        if (selWape < finalOptWape - 0.05) {
+          finalOptWape = selWape; // Keep this DOW
+        } else {
+          delete S.dowWeights[selDow]; // Reject this DOW
+        }
+      }
     }
   }
 
   // ── Friday-specific post-pass ─────────────────────────────────────────
-  // If the all-or-nothing safeguard rejected per-DOW weights, try a
-  // Friday-only optimization. Friday typically has high variance, so
-  // dedicated weights may help even when full per-DOW doesn't.
-  if (Object.keys(S.dowWeights).length === 0 && dowTestIndices[5] && dowTestIndices[5].length >= 3) {
+  // If Friday doesn't have per-DOW weights (either rejected by selective
+  // acceptance or not computed), try an enhanced Friday-only optimization.
+  // Friday typically has high variance and benefits from dedicated weights.
+  if (!S.dowWeights[5] && dowTestIndices[5] && dowTestIndices[5].length >= 3) {
     var friIdx = dowTestIndices[5];
     var friActual = friIdx.map(function(j) { return testData[j]; });
     var friSum = friActual.reduce(function(a, b) { return a + b; }, 0);
@@ -3732,7 +3783,7 @@ function autoOptimize(options) {
       }
 
       // Validation: does Friday-only per-DOW improve OVERALL WMAPE?
-      // Build ensemble: global weights for all days, bestFriW for Friday only
+      // Build ensemble: per-DOW weights where accepted, bestFriW for Friday, global for the rest
       var friTestEns = new Array(testData.length).fill(0);
       for (var ftei = 0; ftei < testData.length; ftei++) {
         var fteDow = testDates[ftei].getDay();
@@ -3745,11 +3796,14 @@ function autoOptimize(options) {
             fteWS += (bestFriW[fteKey] || 0);
           }
         } else {
+          // Use accepted per-DOW weights for this DOW, otherwise global weights
+          var fteExistDow = S.dowWeights[fteDow] || null;
           for (var ftek2b = 0; ftek2b < enabledKeys.length; ftek2b++) {
             var fteKey2 = enabledKeys[ftek2b];
             var fteFc2 = (forecasts[fteKey2] && forecasts[fteKey2][ftei]) || 0;
-            fteWV += globalBestWeights[fteKey2] * fteFc2;
-            fteWS += globalBestWeights[fteKey2];
+            var fteW2 = fteExistDow ? (fteExistDow[fteKey2] || 0) : globalBestWeights[fteKey2];
+            fteWV += fteW2 * fteFc2;
+            fteWS += fteW2;
           }
         }
         friTestEns[ftei] = fteWS > 0 ? fteWV / fteWS : 0;
@@ -3757,9 +3811,9 @@ function autoOptimize(options) {
       friTestEns = applyBiasCorrection(friTestEns, trainData, trainDates, lastTrainDate, testDates);
       var friTestWape = calculateWAPE(testData, friTestEns, testDates);
 
-      // Accept Friday-only weights if they improve overall WMAPE by >= 0.1%
+      // Accept Friday weights if they improve overall WMAPE by >= 0.1%
       if (friTestWape < finalOptWape - 0.1) {
-        S.dowWeights = { 5: bestFriW };
+        S.dowWeights[5] = bestFriW; // Add Friday to existing per-DOW (don't overwrite other DOWs)
         finalOptWape = friTestWape;
       }
     }
