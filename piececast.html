@@ -2994,7 +2994,7 @@ var PARAM_GRID = {
  * whichever minimises that method's individual WMAPE on the test set.
  * Parameters are tuned independently (one at a time, sequentially).
  */
-function tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate) {
+function tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate, useRolling) {
   // Use time-series cross-validation: hold out last 25% of training data
   // for validation so we don't overfit tuning to the test set directly.
   var cvSplit = Math.floor(trainData.length * 0.75);
@@ -3040,13 +3040,16 @@ function tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDate
     }
 
     // Validation guard: score the tuned params on the CV validation set.
-    // Only keep tuned params if they improve by at least 0.5% over default.
+    // Only keep tuned params if they improve enough over default (0.5% normal, 1.0% rolling).
     var tunedFc = runMethod(k, cvTrainData, cvTrainDates, cvHorizon);
     tunedFc = applyClosedDays(tunedFc, cvLastTrain, cvHorizon);
     tunedFc = alignForecastToTestDates(tunedFc, cvLastTrain, cvValDates);
     var tunedWape = calculateWAPE(cvValData, tunedFc, cvValDates);
 
-    if (tunedWape >= defaultWape - 0.2) {
+    // Rolling-window categories have noisier CV data, so require a larger
+    // improvement to accept tuned params (1.0% vs 0.5%) to prevent overfitting.
+    var tuneThreshold = useRolling ? 1.0 : 0.5;
+    if (tunedWape >= defaultWape - tuneThreshold) {
       // Tuning didn't help enough — revert to defaults
       S.methods[k].params = origParams;
     }
@@ -3115,7 +3118,7 @@ function autoOptimize(options) {
   var paramsTuned = false;
   if (trainData.length >= 300) {
     var preParams = captureMethodParams();
-    tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate);
+    tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate, useRolling);
     var postParams = captureMethodParams();
     paramsTuned = (JSON.stringify(preParams) !== JSON.stringify(postParams));
   }
@@ -3841,9 +3844,9 @@ function buildOptimizeAndBacktestSteps() {
         S.activeSeries = 'pieces:' + cn;
 
         // Pre-compute rolling forecasts ONCE for this category (massive speedup).
-        // In rolling mode, method params aren't tuned, so forecasts are identical
-        // across all autoOptimize calls. Avoids regenerating 14×30=420 runMethod
-        // calls per pass — was the #1 bottleneck.
+        // Each autoOptimize call starts with default params (via resetMethods).
+        // If param tuning changes params inside autoOptimize, the cache is
+        // automatically invalidated and rolling forecasts are regenerated.
         var catRollingCache = null;
         var catN = catData.length;
         var catWin = S.backtestWindow;
