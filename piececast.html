@@ -3116,7 +3116,7 @@ function autoOptimize(options) {
   // For rolling-window categories (lower volume), use a smaller CV split
   // to still discover better parameters without overfitting.
   var paramsTuned = false;
-  if (trainData.length >= 300) {
+  if (!options.skipParamTuning && trainData.length >= 300) {
     var preParams = captureMethodParams();
     tuneMethodParams(enabledKeys, trainData, trainDates, testData, testDates, calendarHorizon, lastTrainDate, useRolling);
     var postParams = captureMethodParams();
@@ -3274,12 +3274,12 @@ function autoOptimize(options) {
     var startScore = getEnsembleMAPE(weights);
     if (globalBestMape < 900 && startScore > globalBestMape * 2) continue;
 
-    // Multi-resolution coordinate descent (3-4 step sizes, max 40 iters each)
-    const stepSizes = deepSearch ? [5, 2, 1, 0.5, 0.25] : [5, 2, 1, 0.5];
+    // Multi-resolution coordinate descent (3-4 step sizes, max 30 iters each)
+    const stepSizes = deepSearch ? [5, 2, 1, 0.5] : [5, 2, 1];
     for (const step of stepSizes) {
       var cdKeys = doShuffle ? shuffleArray(enabledKeys.slice()) : enabledKeys;
       let bestMape = getEnsembleMAPE(weights);
-      for (let iter = 0; iter < 40; iter++) {
+      for (let iter = 0; iter < 30; iter++) {
         let improved = false;
         for (const k of cdKeys) {
           weights[k] += step;
@@ -3371,51 +3371,31 @@ function autoOptimize(options) {
   // --- Adaptive bias correction: search for best settings ---
   var biasConfigs = [
     { weeks: 0, dampen: 0 },    // no correction
-    { weeks: 1, dampen: 0.2 },
-    { weeks: 1, dampen: 0.4 },
-    { weeks: 2, dampen: 0.1 },
     { weeks: 2, dampen: 0.2 },
-    { weeks: 2, dampen: 0.4 },
     { weeks: 2, dampen: 0.5 },
-    { weeks: 3, dampen: 0.2 },
     { weeks: 3, dampen: 0.3 },
     { weeks: 3, dampen: 0.5 },
-    { weeks: 4, dampen: 0.1 },
     { weeks: 4, dampen: 0.2 },
-    { weeks: 4, dampen: 0.4 },
     { weeks: 4, dampen: 0.5 },
-    { weeks: 5, dampen: 0.2 },
-    { weeks: 5, dampen: 0.4 },
-    { weeks: 6, dampen: 0.1 },
     { weeks: 6, dampen: 0.3 },
     { weeks: 6, dampen: 0.5 },
-    { weeks: 7, dampen: 0.2 },
-    { weeks: 7, dampen: 0.4 },
-    { weeks: 8, dampen: 0.1 },
     { weeks: 8, dampen: 0.3 },
     { weeks: 8, dampen: 0.5 },
-    { weeks: 10, dampen: 0.2 },
     { weeks: 10, dampen: 0.3 },
-    { weeks: 12, dampen: 0.3 },
-    { weeks: 12, dampen: 0.5 },
-    { weeks: 14, dampen: 0.3 },
-    { weeks: 14, dampen: 0.5 }
+    { weeks: 12, dampen: 0.3 }
   ];
-  // Deep search: add aggressive and extreme dampen configs
+  // Deep search: add finer granularity configs
   if (deepSearch) {
     biasConfigs.push(
-      { weeks: 1, dampen: 0.1 }, { weeks: 1, dampen: 0.3 }, { weeks: 1, dampen: 0.5 }, { weeks: 1, dampen: 0.7 },
-      { weeks: 2, dampen: 0.7 },
-      { weeks: 3, dampen: 0.1 }, { weeks: 3, dampen: 0.7 },
-      { weeks: 4, dampen: 0.3 }, { weeks: 4, dampen: 0.7 },
-      { weeks: 5, dampen: 0.1 }, { weeks: 5, dampen: 0.3 }, { weeks: 5, dampen: 0.6 },
-      { weeks: 6, dampen: 0.2 }, { weeks: 6, dampen: 0.7 },
-      { weeks: 7, dampen: 0.1 }, { weeks: 7, dampen: 0.3 }, { weeks: 7, dampen: 0.6 },
-      { weeks: 8, dampen: 0.2 }, { weeks: 8, dampen: 0.7 },
-      { weeks: 9, dampen: 0.2 }, { weeks: 9, dampen: 0.4 },
-      { weeks: 10, dampen: 0.1 }, { weeks: 10, dampen: 0.5 },
-      { weeks: 12, dampen: 0.1 }, { weeks: 12, dampen: 0.7 },
-      { weeks: 16, dampen: 0.3 }, { weeks: 16, dampen: 0.5 }
+      { weeks: 1, dampen: 0.3 },
+      { weeks: 2, dampen: 0.1 }, { weeks: 2, dampen: 0.4 },
+      { weeks: 3, dampen: 0.2 },
+      { weeks: 4, dampen: 0.1 }, { weeks: 4, dampen: 0.4 },
+      { weeks: 5, dampen: 0.3 },
+      { weeks: 6, dampen: 0.1 },
+      { weeks: 7, dampen: 0.3 },
+      { weeks: 10, dampen: 0.5 },
+      { weeks: 14, dampen: 0.3 }
     );
   }
   var bestBiasWape = 999;
@@ -3544,7 +3524,7 @@ function autoOptimize(options) {
     };
 
     // Coordinate descent
-    var dowSteps = deepSearch ? [10, 5, 2, 1, 0.5] : [10, 5, 2, 1];
+    var dowSteps = deepSearch ? [10, 5, 2, 1] : [10, 5, 2];
     for (var ds = 0; ds < dowSteps.length; ds++) {
       var dStep = dowSteps[ds];
       var dowCDKeys = doShuffle ? shuffleArray(dowTopN.slice()) : dowTopN;
@@ -3668,11 +3648,11 @@ function autoOptimize(options) {
 
       // Helper: run coordinate descent on Friday weights
       var optimizeFriWeights = function(w) {
-        var friSteps = deepSearch ? [10, 5, 2, 1, 0.5, 0.2] : [10, 5, 2, 1, 0.5];
+        var friSteps = deepSearch ? [10, 5, 2, 1, 0.5] : [10, 5, 2, 1];
         for (var fds = 0; fds < friSteps.length; fds++) {
           var fStep = friSteps[fds];
           var friCDKeys = doShuffle ? shuffleArray(friTopN.slice()) : friTopN;
-          for (var fIter = 0; fIter < 50; fIter++) {
+          for (var fIter = 0; fIter < 30; fIter++) {
             var fImproved = false;
             for (var fdk = 0; fdk < friCDKeys.length; fdk++) {
               var fdKey = friCDKeys[fdk];
@@ -3728,7 +3708,7 @@ function autoOptimize(options) {
       var bestFriErr = getFriErr(friW);
 
       // Random restarts to escape local minima
-      var numFriRestarts = deepSearch ? 4 : 2;
+      var numFriRestarts = deepSearch ? 2 : 1;
       for (var frr2 = 0; frr2 < numFriRestarts; frr2++) {
         var rW2 = {};
         for (var rrk2 = 0; rrk2 < friTopN.length; rrk2++) {
@@ -3863,14 +3843,19 @@ function buildOptimizeAndBacktestSteps() {
         var wape = optResult ? optResult.wape : 999;
         if (wape > 500) wape = -1;
 
+        // Capture tuned params from first pass — reuse on all subsequent passes
+        // to avoid expensive re-tuning (param tuning is the #1 bottleneck)
+        var tunedParams = mp;
+
         // Auto-refine: if WMAPE > 20%, run extra shuffled passes with deep search
-        // More passes for higher WMAPE; rolling cache keeps each pass fast
-        var maxRefPasses = wape > 25 ? 8 : (wape > 22 ? 7 : 5);
+        // Passes reduced for speed; param tuning skipped (reuses first-pass params)
+        var maxRefPasses = wape > 25 ? 4 : (wape > 22 ? 3 : 2);
         if (wape > 0 && wape > 20) {
           for (var refPass = 0; refPass < maxRefPasses; refPass++) {
             resetMethods();
+            if (tunedParams) restoreMethodParams(tunedParams);
             S.activeSeries = 'pieces:' + cn;
-            var rResult = autoOptimize({ shuffle: true, deepSearch: true, cachedRollingFc: catRollingCache });
+            var rResult = autoOptimize({ shuffle: true, deepSearch: true, skipParamTuning: true, cachedRollingFc: catRollingCache });
             var rWts = {}; Object.keys(S.methods).forEach(function(k) { rWts[k] = S.methods[k].weight; });
             var rDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
             var rBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
@@ -3887,11 +3872,11 @@ function buildOptimizeAndBacktestSteps() {
         if (wape > 0 && wape > 20) {
           // Run a quick backtest to identify per-method WAPEs
           resetMethods();
+          if (tunedParams) restoreMethodParams(tunedParams);
           S.activeSeries = 'pieces:' + cn;
           Object.keys(wts).forEach(function(k) { if (S.methods[k]) S.methods[k].weight = wts[k]; });
           S.dowWeights = JSON.parse(JSON.stringify(dw));
           S.biasConfig = JSON.parse(JSON.stringify(bc));
-          if (mp) restoreMethodParams(mp);
           var bt = runBacktest(S.backtestWindow);
           if (bt && bt.results) {
             var bestIndWape = 999, bestIndKey = null;
@@ -3904,14 +3889,14 @@ function buildOptimizeAndBacktestSteps() {
             sortedMethods.sort(function(a, b) { return bt.results[a].wape - bt.results[b].wape; });
 
             // Strategy A: concentrate on top-3 methods
-            // Trigger if best individual is within 1% of ensemble (don't require it to beat ensemble)
             if (bestIndKey && bestIndWape < wape + 1) {
               resetMethods();
+              if (tunedParams) restoreMethodParams(tunedParams);
               S.activeSeries = 'pieces:' + cn;
               Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 0; });
               var topN2 = sortedMethods.slice(0, 3);
               topN2.forEach(function(k, idx) { S.methods[k].weight = 80 - idx * 25; });
-              var cResult = autoOptimize({ deepSearch: true, cachedRollingFc: catRollingCache });
+              var cResult = autoOptimize({ deepSearch: true, skipParamTuning: true, cachedRollingFc: catRollingCache });
               var cWts = {}; Object.keys(S.methods).forEach(function(k) { cWts[k] = S.methods[k].weight; });
               var cDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
               var cBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
@@ -3925,11 +3910,12 @@ function buildOptimizeAndBacktestSteps() {
             // Strategy B: concentrate on top-5 methods (broader ensemble)
             if (wape > 20 && sortedMethods.length >= 5) {
               resetMethods();
+              if (tunedParams) restoreMethodParams(tunedParams);
               S.activeSeries = 'pieces:' + cn;
               Object.keys(S.methods).forEach(function(k) { S.methods[k].weight = 0; });
               var topN5 = sortedMethods.slice(0, 5);
               topN5.forEach(function(k, idx) { S.methods[k].weight = 60 - idx * 10; });
-              var c5Result = autoOptimize({ deepSearch: true, cachedRollingFc: catRollingCache });
+              var c5Result = autoOptimize({ deepSearch: true, skipParamTuning: true, cachedRollingFc: catRollingCache });
               var c5Wts = {}; Object.keys(S.methods).forEach(function(k) { c5Wts[k] = S.methods[k].weight; });
               var c5Dw = JSON.parse(JSON.stringify(S.dowWeights || {}));
               var c5Bc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
@@ -3943,12 +3929,13 @@ function buildOptimizeAndBacktestSteps() {
             // Strategy C: disable bottom half of methods, optimize remaining
             if (wape > 20 && sortedMethods.length >= 6) {
               resetMethods();
+              if (tunedParams) restoreMethodParams(tunedParams);
               S.activeSeries = 'pieces:' + cn;
               var halfIdx = Math.ceil(sortedMethods.length / 2);
               for (var dbi = halfIdx; dbi < sortedMethods.length; dbi++) {
                 if (S.methods[sortedMethods[dbi]]) S.methods[sortedMethods[dbi]].enabled = false;
               }
-              var dhResult = autoOptimize({ shuffle: true, deepSearch: true, cachedRollingFc: catRollingCache });
+              var dhResult = autoOptimize({ shuffle: true, deepSearch: true, skipParamTuning: true, cachedRollingFc: catRollingCache });
               var dhWts = {}; Object.keys(S.methods).forEach(function(k) { dhWts[k] = S.methods[k].weight; });
               var dhDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
               var dhBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
@@ -3993,10 +3980,13 @@ function buildOptimizeAndBacktestSteps() {
     if (wape > 500) wape = -1;
 
     // Auto-refine Total Pieces if WMAPE > 15%
+    // Skip param tuning — reuse params from first pass
+    var tpTunedParams = mp;
     if (wape > 0 && wape > 15) {
       resetMethods();
+      if (tpTunedParams) restoreMethodParams(tpTunedParams);
       S.activeSeries = '__total_pieces';
-      var tResult = autoOptimize({ shuffle: true, cachedRollingFc: tpRollingCache });
+      var tResult = autoOptimize({ shuffle: true, skipParamTuning: true, cachedRollingFc: tpRollingCache });
       var tWts = {}; Object.keys(S.methods).forEach(function(k) { tWts[k] = S.methods[k].weight; });
       var tDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
       var tBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
@@ -4091,18 +4081,22 @@ function refineOptimization() {
         }
 
         // For high-WMAPE categories, run multiple shuffled passes to escape local minima
+        // First pass tunes params; subsequent passes reuse them (skipParamTuning)
         var refPasses = existing.wape > 22 ? 3 : 1;
         var bestRefWape = existing.wape;
         var bestRefWts = null, bestRefDw = null, bestRefBc = null, bestRefMp = null;
+        var refTunedParams = existing.methodParams || null;
         for (var rp = 0; rp < refPasses; rp++) {
           resetMethods();
+          if (rp > 0 && refTunedParams) restoreMethodParams(refTunedParams);
           S.activeSeries = 'pieces:' + cn;
-          var refResult = autoOptimize({ shuffle: true, deepSearch: existing.wape > 20, cachedRollingFc: refRollingCache });
+          var refResult = autoOptimize({ shuffle: true, deepSearch: existing.wape > 20, skipParamTuning: rp > 0, cachedRollingFc: refRollingCache });
           var rWts = {}; Object.keys(S.methods).forEach(function(k) { rWts[k] = S.methods[k].weight; });
           var rDw = JSON.parse(JSON.stringify(S.dowWeights || {}));
           var rBc = JSON.parse(JSON.stringify(S.biasConfig || DEFAULT_BIAS));
           var rMp = captureMethodParams();
           var rWape = refResult ? refResult.wape : 999;
+          if (rp === 0) refTunedParams = rMp; // capture first-pass tuned params
           if (rWape > 0 && rWape < bestRefWape && rWape <= 500) {
             bestRefWape = rWape;
             bestRefWts = rWts; bestRefDw = rDw; bestRefBc = rBc; bestRefMp = rMp;
@@ -4134,6 +4128,8 @@ function refineOptimization() {
     }
 
     resetMethods();
+    // Restore previously-tuned params so we don't re-tune from scratch
+    if (existing.methodParams) restoreMethodParams(existing.methodParams);
     S.activeSeries = '__total_pieces';
     var tpResult = autoOptimize({ shuffle: true, cachedRollingFc: tpRefCache });
     var wts = {}; Object.keys(S.methods).forEach(function(k) { wts[k] = S.methods[k].weight; });
@@ -5645,75 +5641,243 @@ document.getElementById('exportBacktestBtn').addEventListener('click', function(
   const bt = S.backtestResults[btKey];
   if (!bt) { showNotification('No backtest results to export.', 'error'); return; }
 
-  const lines = [];
-  lines.push('=== PIECECAST BACKTEST DEBUG EXPORT ===');
-  lines.push('Series: ' + getSeriesLabel());
-  lines.push('Window: ' + S.backtestWindow + ' data points');
-  var dbgN = (bt.trainData.length + bt.testData.length);
+  var lines = [];
+  var trainN = bt.trainData.length;
+  var testN = bt.testData.length;
+  var dbgN = trainN + testN;
   var dbgRolling = needsRollingWindow(dbgN, S.backtestWindow);
-  lines.push('Evaluation Mode: ' + (dbgRolling ? 'ROLLING WINDOW (chunk=' + ROLLING_CHUNK + ' biz days, ' + Math.ceil(S.backtestWindow / ROLLING_CHUNK) + ' chunks)' : 'Single Split'));
-  lines.push('Training Points: ' + bt.trainData.length + (dbgRolling ? ' (initial; grows each chunk)' : ''));
-  lines.push('Closed Days: ' + (S.closedDays.length > 0 ? S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') : 'None'));
-  lines.push('');
+  var lastTrainDate = bt.trainDates[trainN - 1];
+  var firstTestDate = bt.testDates[0];
+  var lastTestDate = bt.testDates[testN - 1];
+  var calendarHorizon = Math.round((lastTestDate - lastTrainDate) / 86400000);
 
-  // Show train tail (last 14 data points + dates)
-  lines.push('--- LAST 14 TRAINING POINTS ---');
-  lines.push('Index\tDate\tDOW\tValue');
-  const trainN = bt.trainData.length;
-  const tailStart = Math.max(0, trainN - 14);
-  for (let i = tailStart; i < trainN; i++) {
-    const d = bt.trainDates[i];
-    lines.push(i + '\t' + formatDateISO(d) + '\t' + DOW_NAMES[d.getDay()] + '\t' + bt.trainData[i]);
+  // ── Helper: compute stats for a data array ──
+  function arrStats(arr) {
+    if (!arr || arr.length === 0) return { mean: 0, median: 0, std: 0, min: 0, max: 0, sum: 0, n: 0 };
+    var sorted = arr.slice().sort(function(a,b){ return a-b; });
+    var sum = arr.reduce(function(a,b){ return a+b; }, 0);
+    var mean = sum / arr.length;
+    var median = arr.length % 2 === 0 ? (sorted[arr.length/2-1]+sorted[arr.length/2])/2 : sorted[Math.floor(arr.length/2)];
+    var variance = arr.reduce(function(s,v){ return s + (v-mean)*(v-mean); }, 0) / arr.length;
+    return { mean: mean, median: median, std: Math.sqrt(variance), min: sorted[0], max: sorted[sorted.length-1], sum: sum, n: arr.length };
   }
+
+  // ── Helper: group data by DOW ──
+  function groupByDOW(data, dates) {
+    var byDow = {};
+    for (var i = 0; i < data.length; i++) {
+      var dow = dates[i].getDay();
+      if (!byDow[dow]) byDow[dow] = { vals: [], indices: [] };
+      byDow[dow].vals.push(data[i]);
+      byDow[dow].indices.push(i);
+    }
+    return byDow;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  lines.push('=== PIECECAST BACKTEST DEBUG EXPORT ===');
+  lines.push('Export Date: ' + new Date().toISOString().slice(0,10));
+  lines.push('Active Series: ' + getSeriesLabel());
+  lines.push('Backtest Window: ' + S.backtestWindow + ' biz days');
+  lines.push('Evaluation Mode: ' + (dbgRolling ? 'ROLLING (chunk=' + ROLLING_CHUNK + ', ' + Math.ceil(S.backtestWindow / ROLLING_CHUNK) + ' chunks)' : 'Single Split'));
+  lines.push('Total Data Points: ' + dbgN + ' (train=' + trainN + ', test=' + testN + ')');
+  lines.push('Date Range: ' + formatDateISO(bt.trainDates[0]) + ' to ' + formatDateISO(lastTestDate));
+  lines.push('Closed Days: ' + (S.closedDays.length > 0 ? S.closedDays.map(function(d) { return DOW_NAMES[d]; }).join(', ') : 'None'));
+  lines.push('Low-Value Exclusion: \u22642 pieces');
   lines.push('');
 
-  // Show date gaps in data
-  lines.push('--- DATE GAP ANALYSIS (last 30 data points) ---');
-  const gapStart = Math.max(0, trainN - 30);
-  const allDates = bt.trainDates.concat(bt.testDates);
-  const allData = bt.trainData.concat(bt.testData);
-  for (let i = gapStart + 1; i < Math.min(allDates.length, gapStart + 45); i++) {
-    const diff = Math.round((allDates[i] - allDates[i - 1]) / 86400000);
-    if (diff > 1) {
-      lines.push('GAP: ' + formatDateISO(allDates[i - 1]) + ' -> ' + formatDateISO(allDates[i]) + ' (' + diff + ' calendar days, ' + (diff - 1) + ' missing)');
+  // ── 1. DATA CHARACTERISTICS ──────────────────────────────────────
+  lines.push('--- DATA CHARACTERISTICS ---');
+  var trainStats = arrStats(bt.trainData);
+  var testStats = arrStats(bt.testData);
+  lines.push('Training: mean=' + trainStats.mean.toFixed(1) + ', median=' + trainStats.median.toFixed(1) + ', std=' + trainStats.std.toFixed(1) + ', min=' + trainStats.min + ', max=' + trainStats.max);
+  lines.push('Test:     mean=' + testStats.mean.toFixed(1) + ', median=' + testStats.median.toFixed(1) + ', std=' + testStats.std.toFixed(1) + ', min=' + testStats.min + ', max=' + testStats.max);
+  lines.push('CoV (test): ' + (testStats.mean > 0 ? (testStats.std / testStats.mean * 100).toFixed(1) + '%' : 'N/A'));
+
+  // DOW averages for train and test
+  var trainByDow = groupByDOW(bt.trainData, bt.trainDates);
+  var testByDow = groupByDOW(bt.testData, bt.testDates);
+  lines.push('');
+  lines.push('DOW Averages (Train / Test):');
+  for (var dowi = 0; dowi < 7; dowi++) {
+    var trnD = trainByDow[dowi] ? arrStats(trainByDow[dowi].vals) : null;
+    var tstD = testByDow[dowi] ? arrStats(testByDow[dowi].vals) : null;
+    if (!trnD && !tstD) continue;
+    var trnStr = trnD ? trnD.mean.toFixed(1) + ' (n=' + trnD.n + ', std=' + trnD.std.toFixed(1) + ')' : 'N/A';
+    var tstStr = tstD ? tstD.mean.toFixed(1) + ' (n=' + tstD.n + ', std=' + tstD.std.toFixed(1) + ')' : 'N/A';
+    var pctChg = (trnD && tstD && trnD.mean > 0) ? ((tstD.mean - trnD.mean) / trnD.mean * 100).toFixed(1) + '%' : '';
+    lines.push('  ' + DOW_NAMES[dowi] + ':\tTrain=' + trnStr + '\tTest=' + tstStr + (pctChg ? '\t\u0394=' + pctChg : ''));
+  }
+
+  // Trend: compare first-half vs second-half of training data
+  var halfTrain = Math.floor(trainN / 2);
+  var firstHalfMean = arrStats(bt.trainData.slice(0, halfTrain)).mean;
+  var secondHalfMean = arrStats(bt.trainData.slice(halfTrain)).mean;
+  var trendPct = firstHalfMean > 0 ? ((secondHalfMean - firstHalfMean) / firstHalfMean * 100).toFixed(1) : 'N/A';
+  lines.push('');
+  lines.push('Training Trend: 1st-half mean=' + firstHalfMean.toFixed(1) + ', 2nd-half mean=' + secondHalfMean.toFixed(1) + ', change=' + trendPct + '%');
+  lines.push('');
+
+  // ── 2. PER-DOW ERROR BREAKDOWN (Ensemble) ───────────────────────
+  lines.push('--- PER-DOW ERROR BREAKDOWN (Ensemble) ---');
+  if (bt.results.__ensemble) {
+    var ensFc = bt.results.__ensemble.forecast;
+    lines.push('DOW\tCount\tActSum\tFcSum\tAbsErr\tWMAPE\tAvgActual\tAvgFc\tBias');
+    for (var edow = 0; edow < 7; edow++) {
+      var td = testByDow[edow];
+      if (!td) continue;
+      var eActSum = 0, eFcSum = 0, eAbsErr = 0;
+      for (var ei = 0; ei < td.indices.length; ei++) {
+        var idx = td.indices[ei];
+        var eAct = bt.testData[idx];
+        var eFc = ensFc[idx] || 0;
+        eActSum += eAct;
+        eFcSum += eFc;
+        eAbsErr += Math.abs(eAct - eFc);
+      }
+      var eWmape = eActSum > 0 ? (eAbsErr / eActSum * 100).toFixed(1) : 'N/A';
+      var eBias = eActSum > 0 ? ((eFcSum - eActSum) / eActSum * 100).toFixed(1) : '0';
+      lines.push(DOW_NAMES[edow] + '\t' + td.vals.length + '\t' + eActSum.toFixed(0) + '\t' + eFcSum.toFixed(0) + '\t' + eAbsErr.toFixed(0) + '\t' + eWmape + '%\t' + (eActSum/td.vals.length).toFixed(1) + '\t' + (eFcSum/td.vals.length).toFixed(1) + '\t' + eBias + '%');
     }
   }
   lines.push('');
 
-  // Show test data vs all method forecasts
-  const methodKeys = Object.keys(bt.results).filter(function(k) { return k !== '__ensemble'; });
-  lines.push('--- TEST DATA vs FORECASTS ---');
-  const header = ['Index', 'Date', 'DOW', 'Actual'];
-  methodKeys.forEach(function(k) { header.push(S.methods[k] ? S.methods[k].name : k); });
-  header.push('Ensemble');
-  lines.push(header.join('\t'));
-
-  for (let i = 0; i < bt.testData.length; i++) {
-    const d = bt.testDates[i];
-    const row = [i, formatDateISO(d), DOW_NAMES[d.getDay()], bt.testData[i]];
-    methodKeys.forEach(function(k) {
-      row.push(bt.results[k].forecast[i] !== undefined ? Math.round(bt.results[k].forecast[i] * 10) / 10 : 'N/A');
-    });
-    row.push(bt.results.__ensemble ? Math.round(bt.results.__ensemble.forecast[i] * 10) / 10 : 'N/A');
-    lines.push(row.join('\t'));
+  // ── 3. WORST FORECAST DAYS ──────────────────────────────────────
+  lines.push('--- WORST 15 FORECAST DAYS (by absolute error) ---');
+  if (bt.results.__ensemble) {
+    var dayErrors = [];
+    for (var wi = 0; wi < testN; wi++) {
+      var wAct = bt.testData[wi];
+      var wFc = bt.results.__ensemble.forecast[wi] || 0;
+      dayErrors.push({ idx: wi, date: bt.testDates[wi], actual: wAct, fc: wFc, absErr: Math.abs(wAct - wFc), pctErr: wAct > 0 ? Math.abs(wAct - wFc) / wAct * 100 : 0 });
+    }
+    dayErrors.sort(function(a,b){ return b.absErr - a.absErr; });
+    lines.push('Date\tDOW\tActual\tForecast\tError\tError%\tDirection');
+    for (var wj = 0; wj < Math.min(15, dayErrors.length); wj++) {
+      var we = dayErrors[wj];
+      var dir = we.fc > we.actual ? 'Over' : 'Under';
+      lines.push(formatDateISO(we.date) + '\t' + DOW_NAMES[we.date.getDay()] + '\t' + we.actual + '\t' + we.fc.toFixed(1) + '\t' + we.absErr.toFixed(1) + '\t' + we.pctErr.toFixed(1) + '%\t' + dir);
+    }
   }
   lines.push('');
 
-  // Show per-method MAPE
-  lines.push('--- METHOD METRICS ---');
-  methodKeys.forEach(function(k) {
-    lines.push(S.methods[k].name + '\tWMAPE: ' + bt.results[k].wape.toFixed(1) + '%\tMAPE: ' + bt.results[k].mape.toFixed(1) + '%\tMAE: ' + bt.results[k].mae.toFixed(1));
+  // ── 4. ERROR DISTRIBUTION ───────────────────────────────────────
+  lines.push('--- ERROR DISTRIBUTION ---');
+  if (bt.results.__ensemble) {
+    var errBuckets = [0,0,0,0,0,0]; // <5%, <10%, <20%, <30%, <50%, 50%+
+    var overCount = 0, underCount = 0, totalBias = 0;
+    for (var edi = 0; edi < testN; edi++) {
+      var edAct = bt.testData[edi];
+      var edFc = bt.results.__ensemble.forecast[edi] || 0;
+      var edPct = edAct > 0 ? Math.abs(edAct - edFc) / edAct * 100 : 0;
+      if (edPct < 5) errBuckets[0]++;
+      else if (edPct < 10) errBuckets[1]++;
+      else if (edPct < 20) errBuckets[2]++;
+      else if (edPct < 30) errBuckets[3]++;
+      else if (edPct < 50) errBuckets[4]++;
+      else errBuckets[5]++;
+      if (edFc > edAct) overCount++; else underCount++;
+      totalBias += (edFc - edAct);
+    }
+    lines.push('<5%: ' + errBuckets[0] + ' days (' + (errBuckets[0]/testN*100).toFixed(0) + '%)');
+    lines.push('5-10%: ' + errBuckets[1] + ' days (' + (errBuckets[1]/testN*100).toFixed(0) + '%)');
+    lines.push('10-20%: ' + errBuckets[2] + ' days (' + (errBuckets[2]/testN*100).toFixed(0) + '%)');
+    lines.push('20-30%: ' + errBuckets[3] + ' days (' + (errBuckets[3]/testN*100).toFixed(0) + '%)');
+    lines.push('30-50%: ' + errBuckets[4] + ' days (' + (errBuckets[4]/testN*100).toFixed(0) + '%)');
+    lines.push('>50%: ' + errBuckets[5] + ' days (' + (errBuckets[5]/testN*100).toFixed(0) + '%)');
+    lines.push('Over-forecast: ' + overCount + ' days, Under-forecast: ' + underCount + ' days');
+    lines.push('Total Bias: ' + totalBias.toFixed(1) + ' (' + (testStats.sum > 0 ? (totalBias/testStats.sum*100).toFixed(1) : '0') + '% of total actual)');
+  }
+  lines.push('');
+
+  // ── 5. FIRST-HALF vs SECOND-HALF TEST ERROR ────────────────────
+  lines.push('--- FORECAST STABILITY (1st half vs 2nd half of test) ---');
+  if (bt.results.__ensemble) {
+    var halfTest = Math.floor(testN / 2);
+    var h1ActSum = 0, h1AbsErr = 0, h2ActSum = 0, h2AbsErr = 0;
+    for (var hi = 0; hi < testN; hi++) {
+      var hAct = bt.testData[hi];
+      var hFc = bt.results.__ensemble.forecast[hi] || 0;
+      if (hi < halfTest) { h1ActSum += hAct; h1AbsErr += Math.abs(hAct - hFc); }
+      else { h2ActSum += hAct; h2AbsErr += Math.abs(hAct - hFc); }
+    }
+    lines.push('1st half (' + halfTest + ' days): WMAPE=' + (h1ActSum > 0 ? (h1AbsErr/h1ActSum*100).toFixed(1) : 'N/A') + '%');
+    lines.push('2nd half (' + (testN - halfTest) + ' days): WMAPE=' + (h2ActSum > 0 ? (h2AbsErr/h2ActSum*100).toFixed(1) : 'N/A') + '%');
+  }
+  lines.push('');
+
+  // ── 6. WEEKLY SUMMARY ──────────────────────────────────────────
+  lines.push('--- WEEKLY SUMMARY (Actual vs Forecast) ---');
+  if (bt.results.__ensemble) {
+    // Group test days by ISO week
+    var weeks = {};
+    for (var wki = 0; wki < testN; wki++) {
+      var wkDate = bt.testDates[wki];
+      // Use Mon-based week key: find Monday of this week
+      var wkDay = wkDate.getDay();
+      var wkMon = new Date(wkDate);
+      wkMon.setDate(wkMon.getDate() - ((wkDay + 6) % 7));
+      var wkKey = formatDateISO(wkMon);
+      if (!weeks[wkKey]) weeks[wkKey] = { actual: 0, fc: 0, count: 0 };
+      weeks[wkKey].actual += bt.testData[wki];
+      weeks[wkKey].fc += (bt.results.__ensemble.forecast[wki] || 0);
+      weeks[wkKey].count++;
+    }
+    lines.push('WeekOf\tDays\tActual\tForecast\tError%\tDirection');
+    var wkKeys = Object.keys(weeks).sort();
+    for (var wkj = 0; wkj < wkKeys.length; wkj++) {
+      var wk = weeks[wkKeys[wkj]];
+      var wkErr = wk.actual > 0 ? ((wk.fc - wk.actual) / wk.actual * 100).toFixed(1) : '0';
+      var wkDir = wk.fc > wk.actual ? 'Over' : 'Under';
+      lines.push(wkKeys[wkj] + '\t' + wk.count + '\t' + wk.actual.toFixed(0) + '\t' + wk.fc.toFixed(0) + '\t' + wkErr + '%\t' + wkDir);
+    }
+  }
+  lines.push('');
+
+  // ── 7. METHOD METRICS (sorted by WMAPE) ─────────────────────────
+  var methodKeys = Object.keys(bt.results).filter(function(k) { return k !== '__ensemble'; });
+  lines.push('--- METHOD METRICS (sorted by WMAPE) ---');
+  var methodMetrics = methodKeys.map(function(k) {
+    return { key: k, name: S.methods[k] ? S.methods[k].name : k, wape: bt.results[k].wape, mape: bt.results[k].mape, mae: bt.results[k].mae, weight: S.methods[k] ? S.methods[k].weight : 0, shift: S.methods[k] ? (S.methods[k].shift || 0) : 0 };
+  }).sort(function(a,b){ return a.wape - b.wape; });
+  lines.push('Method\tWMAPE\tMAPE\tMAE\tWeight\tShift');
+  methodMetrics.forEach(function(m) {
+    lines.push(m.name + '\t' + m.wape.toFixed(1) + '%\t' + m.mape.toFixed(1) + '%\t' + m.mae.toFixed(1) + '\t' + m.weight + (m.shift !== 0 ? '\t' + m.shift + 'd' : '\t0'));
   });
   if (bt.results.__ensemble) {
-    lines.push('Ensemble\tWMAPE: ' + bt.results.__ensemble.wape.toFixed(1) + '%\tMAPE: ' + bt.results.__ensemble.mape.toFixed(1) + '%\tMAE: ' + bt.results.__ensemble.mae.toFixed(1));
+    lines.push('** Ensemble **\t' + bt.results.__ensemble.wape.toFixed(1) + '%\t' + bt.results.__ensemble.mape.toFixed(1) + '%\t' + bt.results.__ensemble.mae.toFixed(1) + '\t-\t-');
   }
   lines.push('');
 
-  // Show tuned method parameters (if different from defaults)
-  lines.push('--- TUNED METHOD PARAMETERS ---');
-  if (dbgRolling) {
-    lines.push('(tuning skipped — rolling window active, training data insufficient)');
+  // ── 8. CURRENT WEIGHTS + BIAS + DOW WEIGHTS ────────────────────
+  lines.push('--- ACTIVE WEIGHTS & CONFIG ---');
+  var activeWeights = methodKeys.filter(function(k){ return S.methods[k] && S.methods[k].weight > 0; })
+    .map(function(k){ return { k: k, w: S.methods[k].weight }; })
+    .sort(function(a,b){ return b.w - a.w; });
+  lines.push('Weights: ' + (activeWeights.length > 0 ? activeWeights.map(function(x){ return (S.methods[x.k] ? S.methods[x.k].name : x.k) + '=' + x.w; }).join(', ') : '(none)'));
+  lines.push('Bias Config: weeks=' + (S.biasConfig ? S.biasConfig.weeks : DEFAULT_BIAS.weeks) + ', dampen=' + (S.biasConfig ? S.biasConfig.dampen : DEFAULT_BIAS.dampen));
+  if (S.dowWeights && Object.keys(S.dowWeights).length > 0) {
+    lines.push('Per-DOW Weights:');
+    Object.keys(S.dowWeights).forEach(function(dw) {
+      var dwObj = S.dowWeights[dw];
+      var dwActive = Object.keys(dwObj).filter(function(k){ return dwObj[k] > 0; })
+        .map(function(k){ return { k:k, w:dwObj[k] }; })
+        .sort(function(a,b){ return b.w - a.w; });
+      lines.push('  ' + DOW_NAMES[dw] + ': ' + dwActive.map(function(x){ return (S.methods[x.k]?S.methods[x.k].name:x.k)+'='+Math.round(x.w); }).join(', '));
+    });
+  } else {
+    lines.push('Per-DOW Weights: (none — using global weights for all days)');
   }
+  // Method shifts
+  var shiftedMethods = Object.keys(S.methods).filter(function(k){ return S.methods[k].shift && S.methods[k].shift !== 0; });
+  if (shiftedMethods.length > 0) {
+    lines.push('Method Shifts: ' + shiftedMethods.map(function(k){ return S.methods[k].name + '=' + S.methods[k].shift + 'd'; }).join(', '));
+  }
+  lines.push('');
+
+  // ── 9. TUNED PARAMS (current series) ────────────────────────────
+  lines.push('--- TUNED METHOD PARAMETERS (current series) ---');
+  if (dbgRolling) lines.push('(rolling window active)');
   var anyTuned = false;
   Object.keys(S.methods).forEach(function(k) {
     if (!S.methods[k].enabled || !PARAM_GRID[k]) return;
@@ -5722,102 +5886,138 @@ document.getElementById('exportBacktestBtn').addEventListener('click', function(
     var diffs = [];
     Object.keys(p).forEach(function(pn) {
       if (d[pn] !== undefined && p[pn] !== d[pn]) {
-        diffs.push(pn + ': ' + d[pn] + ' → ' + p[pn]);
+        diffs.push(pn + ': ' + d[pn] + '\u2192' + p[pn]);
       }
     });
-    if (diffs.length > 0) {
-      lines.push(S.methods[k].name + '\t' + diffs.join(', '));
-      anyTuned = true;
-    }
+    if (diffs.length > 0) { lines.push(S.methods[k].name + ': ' + diffs.join(', ')); anyTuned = true; }
   });
   if (!anyTuned) lines.push('(all defaults)');
   lines.push('');
 
-  // Per-category WMAPE summary
-  lines.push('--- PER-CATEGORY WMAPE ---');
+  // ── 10. PER-CATEGORY OPTIMIZATION DETAIL ────────────────────────
+  lines.push('--- PER-CATEGORY OPTIMIZATION DETAIL ---');
   if (S.catOptimized && Object.keys(S.catOptimized).length > 0) {
-    var catKeys = Object.keys(S.catOptimized).filter(function(k) { return k !== '__total'; });
-    catKeys.sort();
-    for (var ci = 0; ci < catKeys.length; ci++) {
-      var ck = catKeys[ci];
-      var co = S.catOptimized[ck];
-      var cWape = (co && co.wape >= 0) ? co.wape.toFixed(1) + '%' : 'N/A';
-      var cRating = (!co || co.wape < 0) ? '' : co.wape <= 15 ? ' (good)' : co.wape <= 25 ? ' (ok)' : ' (poor)';
-      var cTopWts = '';
-      if (co && co.weights) {
-        var cwArr = Object.keys(co.weights).filter(function(wk) { return co.weights[wk] > 0; })
-          .map(function(wk) { return { k: wk, w: co.weights[wk] }; })
-          .sort(function(a, b) { return b.w - a.w; }).slice(0, 5);
-        if (cwArr.length > 0) {
-          cTopWts = '\tTop: ' + cwArr.map(function(x) { return (S.methods[x.k] ? S.methods[x.k].name : x.k) + '=' + x.w.toFixed(1); }).join(', ');
-        }
-      }
-      lines.push(ck + '\tWMAPE: ' + cWape + cRating + cTopWts);
-    }
-    if (S.catOptimized.__total) {
-      var tw = S.catOptimized.__total.wape;
-      var tWape = (tw >= 0) ? tw.toFixed(1) + '%' : 'N/A';
-      var tRating = (tw < 0) ? '' : tw <= 15 ? ' (good)' : tw <= 25 ? ' (ok)' : ' (poor)';
-      var tTopWts = '';
-      if (S.catOptimized.__total.weights) {
-        var twArr = Object.keys(S.catOptimized.__total.weights).filter(function(wk) { return S.catOptimized.__total.weights[wk] > 0; })
-          .map(function(wk) { return { k: wk, w: S.catOptimized.__total.weights[wk] }; })
-          .sort(function(a, b) { return b.w - a.w; }).slice(0, 5);
-        if (twArr.length > 0) {
-          tTopWts = '\tTop: ' + twArr.map(function(x) { return (S.methods[x.k] ? S.methods[x.k].name : x.k) + '=' + x.w.toFixed(1); }).join(', ');
-        }
-      }
-      lines.push('Total Pieces\tWMAPE: ' + tWape + tRating + tTopWts);
-    }
-    lines.push('');
+    var catKeys = Object.keys(S.catOptimized).filter(function(k) { return k !== '__total'; }).sort();
+    var allOptKeys = catKeys.concat(S.catOptimized.__total ? ['__total'] : []);
 
-    // Per-category tuned parameters detail
-    lines.push('--- PER-CATEGORY TUNED PARAMS ---');
-    var allCatKeys = catKeys.concat(S.catOptimized.__total ? ['__total'] : []);
-    for (var cpi = 0; cpi < allCatKeys.length; cpi++) {
-      var cpk = allCatKeys[cpi];
-      var cpOpt = S.catOptimized[cpk];
-      var cpLabel = cpk === '__total' ? 'Total Pieces' : cpk;
-      if (!cpOpt || !cpOpt.methodParams) {
-        lines.push(cpLabel + ': (no params saved)');
-        continue;
+    for (var cdi = 0; cdi < allOptKeys.length; cdi++) {
+      var cdk = allOptKeys[cdi];
+      var co = S.catOptimized[cdk];
+      var cdLabel = cdk === '__total' ? 'Total Pieces' : cdk;
+      if (!co || co.wape < 0) { lines.push(cdLabel + ': N/A (insufficient data)'); lines.push(''); continue; }
+
+      lines.push('[' + cdLabel + '] WMAPE=' + co.wape.toFixed(1) + '%');
+
+      // Bias config
+      var cBias = co.biasConfig || DEFAULT_BIAS;
+      lines.push('  Bias: weeks=' + cBias.weeks + ', dampen=' + cBias.dampen);
+
+      // Full weights (all non-zero, sorted)
+      if (co.weights) {
+        var cwAll = Object.keys(co.weights).filter(function(wk) { return co.weights[wk] > 0; })
+          .map(function(wk) { return { k: wk, w: co.weights[wk] }; })
+          .sort(function(a, b) { return b.w - a.w; });
+        lines.push('  Weights (' + cwAll.length + ' active): ' + cwAll.map(function(x) { return (S.methods[x.k] ? S.methods[x.k].name : x.k) + '=' + Math.round(x.w); }).join(', '));
+        // Weight concentration: top method's share of total
+        var cwTotal = cwAll.reduce(function(s,x){ return s+x.w; }, 0);
+        if (cwAll.length > 0 && cwTotal > 0) {
+          lines.push('  Top method share: ' + (cwAll[0].w / cwTotal * 100).toFixed(0) + '% (' + (S.methods[cwAll[0].k] ? S.methods[cwAll[0].k].name : cwAll[0].k) + ')');
+        }
       }
-      var cpDiffs = [];
-      Object.keys(cpOpt.methodParams).forEach(function(mk) {
-        if (!DEFAULT_PARAMS[mk] || !PARAM_GRID[mk]) return;
-        var mp = cpOpt.methodParams[mk];
-        var dp = DEFAULT_PARAMS[mk];
-        Object.keys(mp).forEach(function(pn) {
-          if (dp[pn] !== undefined && mp[pn] !== dp[pn]) {
-            cpDiffs.push(mk + '.' + pn + ': ' + dp[pn] + '→' + mp[pn]);
-          }
+
+      // DOW weights
+      if (co.dowWeights && Object.keys(co.dowWeights).length > 0) {
+        Object.keys(co.dowWeights).forEach(function(cdw) {
+          var cdwObj = co.dowWeights[cdw];
+          var cdwA = Object.keys(cdwObj).filter(function(k){ return cdwObj[k] > 0; })
+            .map(function(k){ return {k:k,w:cdwObj[k]}; }).sort(function(a,b){ return b.w-a.w; });
+          lines.push('  DOW ' + DOW_NAMES[cdw] + ' weights: ' + cdwA.map(function(x){ return (S.methods[x.k]?S.methods[x.k].name:x.k)+'='+Math.round(x.w); }).join(', '));
         });
-      });
-      if (cpDiffs.length > 0) {
-        lines.push(cpLabel + ': ' + cpDiffs.join(', '));
-      } else {
-        lines.push(cpLabel + ': (all defaults)');
       }
+
+      // Tuned params
+      if (co.methodParams) {
+        var cpDiffs = [];
+        Object.keys(co.methodParams).forEach(function(mk) {
+          if (!DEFAULT_PARAMS[mk] || !PARAM_GRID[mk]) return;
+          var mp = co.methodParams[mk];
+          var dp = DEFAULT_PARAMS[mk];
+          Object.keys(mp).forEach(function(pn) {
+            if (dp[pn] !== undefined && mp[pn] !== dp[pn]) {
+              cpDiffs.push((S.methods[mk]?S.methods[mk].name:mk) + '.' + pn + ': ' + dp[pn] + '\u2192' + mp[pn]);
+            }
+          });
+        });
+        if (cpDiffs.length > 0) {
+          lines.push('  Tuned: ' + cpDiffs.join(', '));
+        } else {
+          lines.push('  Tuned: (all defaults)');
+        }
+      }
+      lines.push('');
     }
   } else {
-    lines.push('(no per-category optimization data — run Optimize All first)');
+    lines.push('(no per-category optimization — run Optimize All first)');
+    lines.push('');
+  }
+
+  // ── 11. DATE GAP ANALYSIS ──────────────────────────────────────
+  lines.push('--- DATE GAP ANALYSIS ---');
+  var allDates = bt.trainDates.concat(bt.testDates);
+  var gapCount = 0;
+  var gapStart = Math.max(0, trainN - 30);
+  for (var gi = gapStart + 1; gi < Math.min(allDates.length, gapStart + 45); gi++) {
+    var gDiff = Math.round((allDates[gi] - allDates[gi - 1]) / 86400000);
+    if (gDiff > 1) {
+      lines.push('GAP: ' + formatDateISO(allDates[gi - 1]) + ' \u2192 ' + formatDateISO(allDates[gi]) + ' (' + gDiff + ' cal days)');
+      gapCount++;
+    }
+  }
+  if (gapCount === 0) lines.push('(no gaps found in last 45 data points)');
+  lines.push('');
+
+  // ── 12. ALIGNMENT DEBUG ────────────────────────────────────────
+  lines.push('--- ALIGNMENT ---');
+  lines.push('Last train: ' + formatDateISO(lastTrainDate) + ' (' + DOW_NAMES[lastTrainDate.getDay()] + ')');
+  lines.push('First test: ' + formatDateISO(firstTestDate) + ' (' + DOW_NAMES[firstTestDate.getDay()] + ')');
+  lines.push('Last test: ' + formatDateISO(lastTestDate) + ' (' + DOW_NAMES[lastTestDate.getDay()] + ')');
+  lines.push('Calendar horizon: ' + calendarHorizon + ' days, Gap train\u2192test: ' + Math.round((firstTestDate - lastTrainDate) / 86400000) + ' cal days');
+  lines.push('');
+
+  // ── 13. LAST 14 TRAINING POINTS ────────────────────────────────
+  lines.push('--- LAST 14 TRAINING POINTS ---');
+  lines.push('Date\tDOW\tValue');
+  var tailStart = Math.max(0, trainN - 14);
+  for (var ti = tailStart; ti < trainN; ti++) {
+    var tpd = bt.trainDates[ti];
+    lines.push(formatDateISO(tpd) + '\t' + DOW_NAMES[tpd.getDay()] + '\t' + bt.trainData[ti]);
   }
   lines.push('');
 
-  // Alignment debug info
-  lines.push('--- ALIGNMENT DEBUG ---');
-  const lastTrainDate = bt.trainDates[bt.trainDates.length - 1];
-  const firstTestDate = bt.testDates[0];
-  const lastTestDate = bt.testDates[bt.testDates.length - 1];
-  const calendarHorizon = Math.round((lastTestDate - lastTrainDate) / 86400000);
-  lines.push('Last train date: ' + formatDateISO(lastTrainDate) + ' (' + DOW_NAMES[lastTrainDate.getDay()] + ')');
-  lines.push('First test date: ' + formatDateISO(firstTestDate) + ' (' + DOW_NAMES[firstTestDate.getDay()] + ')');
-  lines.push('Last test date: ' + formatDateISO(lastTestDate) + ' (' + DOW_NAMES[lastTestDate.getDay()] + ')');
-  lines.push('Test data points: ' + bt.testData.length);
-  lines.push('Calendar horizon: ' + calendarHorizon + ' days');
-  lines.push('Gap between train end and test start: ' + Math.round((firstTestDate - lastTrainDate) / 86400000) + ' calendar days');
+  // ── 14. TEST DATA vs FORECASTS (full table) ────────────────────
+  lines.push('--- TEST DATA vs FORECASTS ---');
+  var fHeader = ['Date', 'DOW', 'Actual'];
+  // Only include methods with non-zero weight + ensemble
+  var activeMethods = methodKeys.filter(function(k){ return S.methods[k] && S.methods[k].weight > 0; });
+  activeMethods.forEach(function(k) { fHeader.push(S.methods[k].name); });
+  fHeader.push('Ensemble');
+  fHeader.push('Error');
+  lines.push(fHeader.join('\t'));
 
-  const text = lines.join('\n');
+  for (var fi = 0; fi < testN; fi++) {
+    var fd = bt.testDates[fi];
+    var fRow = [formatDateISO(fd), DOW_NAMES[fd.getDay()], bt.testData[fi]];
+    activeMethods.forEach(function(k) {
+      fRow.push(bt.results[k] && bt.results[k].forecast[fi] !== undefined ? Math.round(bt.results[k].forecast[fi] * 10) / 10 : 'N/A');
+    });
+    var fEns = bt.results.__ensemble ? (Math.round(bt.results.__ensemble.forecast[fi] * 10) / 10) : 'N/A';
+    var fErr = (bt.results.__ensemble && bt.testData[fi] > 0) ? Math.round((bt.results.__ensemble.forecast[fi] - bt.testData[fi]) / bt.testData[fi] * 1000) / 10 : '';
+    fRow.push(fEns);
+    fRow.push(fErr !== '' ? fErr + '%' : '');
+    lines.push(fRow.join('\t'));
+  }
+
+  var text = lines.join('\n');
   navigator.clipboard.writeText(text).then(function() {
     document.getElementById('exportBtStatus').textContent = '\u2705 Copied to clipboard!';
     setTimeout(function() { document.getElementById('exportBtStatus').textContent = ''; }, 3000);
