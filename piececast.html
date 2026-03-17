@@ -2778,10 +2778,16 @@ function computeEnsemblePerDOW(methodResults, horizon, testDates) {
    Uses S.biasConfig for tunable parameters (set by autoOptimize). */
 var DEFAULT_BIAS = { weeks: 8, dampen: 0.3 };
 
-function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, testDates, config) {
+/**
+ * Compute per-DOW bias correction factors. This is the EXPENSIVE part
+ * (calls collectSeasonalDOW which iterates all training data).
+ * Returns array of 7 multipliers [Sun..Sat], or null if correction disabled.
+ * CACHE THIS and reuse — only depends on trainData + config, not ensemble.
+ */
+function computeBiasFactors(trainData, trainDates, lastTrainDate, config) {
   config = config || S.biasConfig || DEFAULT_BIAS;
-  if (config.weeks === 0) return ensemble; // bias correction disabled
-  if (trainData.length < 28) return ensemble;
+  if (config.weeks === 0) return null; // bias correction disabled
+  if (trainData.length < 28) return null;
 
   var recentN = Math.min(config.weeks * 6, trainData.length);
   var dowActualSum = [0,0,0,0,0,0,0];
@@ -2808,16 +2814,33 @@ function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, tes
       correction[dd] = (1 - damp) + damp * rawRatio;
     }
   }
+  return correction;
+}
 
-  var corrected = [];
+/**
+ * Apply pre-computed bias correction factors to an ensemble.
+ * This is the CHEAP part — just multiply each value by its DOW factor.
+ * @param {Array} factors — output of computeBiasFactors, or null for no correction
+ */
+function applyBiasFactors(ensemble, testDates, factors) {
+  if (!factors) return ensemble;
+  var corrected = new Array(ensemble.length);
   for (var j = 0; j < ensemble.length; j++) {
-    if (testDates && testDates[j]) {
-      corrected.push(Math.max(0, ensemble[j] * correction[testDates[j].getDay()]));
-    } else {
-      corrected.push(ensemble[j]);
-    }
+    corrected[j] = (testDates && testDates[j])
+      ? Math.max(0, ensemble[j] * factors[testDates[j].getDay()])
+      : ensemble[j];
   }
   return corrected;
+}
+
+/**
+ * Legacy wrapper: compute factors + apply in one call.
+ * Use for one-off corrections (forecasts, non-hot-loop code).
+ * DO NOT use inside optimization loops — use computeBiasFactors + applyBiasFactors instead.
+ */
+function applyBiasCorrection(ensemble, trainData, trainDates, lastTrainDate, testDates, config) {
+  var factors = computeBiasFactors(trainData, trainDates, lastTrainDate, config);
+  return applyBiasFactors(ensemble, testDates, factors);
 }
 
 /* Compute per-DOW forecast CEILING to prevent insane outlier forecasts from individual methods.
@@ -3144,21 +3167,33 @@ function autoOptimize(options) {
     }
   }
 
-  function getEnsembleMAPE(w, biasOvr) {
-    const total = enabledKeys.reduce((s,k) => s + w[k], 0);
-    if (total === 0) return 999;
-    var ens = new Array(win).fill(0);
-    for (let i = 0; i < win; i++) {
-      var wSum = 0, weighted = 0;
-      enabledKeys.forEach(k => {
-        weighted += w[k] * (forecasts[k][i] || 0);
-        wSum += w[k];
-      });
-      ens[i] = wSum > 0 ? weighted / wSum : 0;
+  // Pre-compute bias factors for the current bias config (ONCE, not per-evaluation)
+  var cachedBiasFactors = computeBiasFactors(trainData, trainDates, lastTrainDate, S.biasConfig || DEFAULT_BIAS);
+
+  // Pre-compute test DOW indices for fast bias application
+  var testDowIdx = new Uint8Array(win);
+  for (var tdi2 = 0; tdi2 < win; tdi2++) {
+    testDowIdx[tdi2] = testDates[tdi2] ? testDates[tdi2].getDay() : 0;
+  }
+
+  function getEnsembleMAPE(w, biasFactorsOvr) {
+    var wSum = 0;
+    for (var ek = 0; ek < enabledKeys.length; ek++) wSum += w[enabledKeys[ek]];
+    if (wSum === 0) return 999;
+    var invW = 1 / wSum;
+    var absErr = 0, actSum = 0;
+    var bf = biasFactorsOvr || cachedBiasFactors;
+    for (var ei = 0; ei < win; ei++) {
+      var weighted = 0;
+      for (var ek2 = 0; ek2 < enabledKeys.length; ek2++) {
+        weighted += w[enabledKeys[ek2]] * (forecasts[enabledKeys[ek2]][ei] || 0);
+      }
+      var pred = weighted * invW;
+      if (bf) pred = Math.max(0, pred * bf[testDowIdx[ei]]);
+      var act = testData[ei];
+      if (act > 2) { absErr += Math.abs(act - pred); actSum += act; }
     }
-    var bc = biasOvr || S.biasConfig || DEFAULT_BIAS;
-    ens = applyBiasCorrection(ens, trainData, trainDates, lastTrainDate, testDates, bc);
-    return calculateWAPE(testData, ens, testDates);
+    return actSum > 0 ? absErr / actSum * 100 : 999;
   }
 
   // ── Starting points (6 diverse starts) ──────────────────────────────
@@ -3400,14 +3435,18 @@ function autoOptimize(options) {
   }
   var bestBiasWape = 999;
   var bestBiasConfig = DEFAULT_BIAS;
+  var bestBiasFactors = cachedBiasFactors;
   for (var bi = 0; bi < biasConfigs.length; bi++) {
-    var bw = getEnsembleMAPE(globalBestWeights, biasConfigs[bi]);
+    var bFactors = computeBiasFactors(trainData, trainDates, lastTrainDate, biasConfigs[bi]);
+    var bw = getEnsembleMAPE(globalBestWeights, bFactors);
     if (bw < bestBiasWape) {
       bestBiasWape = bw;
       bestBiasConfig = biasConfigs[bi];
+      bestBiasFactors = bFactors;
     }
   }
   S.biasConfig = bestBiasConfig;
+  cachedBiasFactors = bestBiasFactors; // Update cached factors for re-optimization
 
   // Light re-optimization with the best bias config
   if (bestBiasConfig.weeks > 0 || bestBiasWape < globalBestMape) {
@@ -3591,7 +3630,7 @@ function autoOptimize(options) {
       }
       sgPerDowEns[sg] = sgWS > 0 ? sgWV / sgWS : 0;
     }
-    sgPerDowEns = applyBiasCorrection(sgPerDowEns, trainData, trainDates, lastTrainDate, testDates);
+    sgPerDowEns = applyBiasFactors(sgPerDowEns, testDates, cachedBiasFactors);
     var sgPerDowWape = calculateWAPE(testData, sgPerDowEns, testDates);
 
     if (sgPerDowWape >= sgGlobalWape - 0.3) {
@@ -3759,7 +3798,7 @@ function autoOptimize(options) {
         }
         friTestEns[ftei] = fteWS > 0 ? fteWV / fteWS : 0;
       }
-      friTestEns = applyBiasCorrection(friTestEns, trainData, trainDates, lastTrainDate, testDates);
+      friTestEns = applyBiasFactors(friTestEns, testDates, cachedBiasFactors);
       var friTestWape = calculateWAPE(testData, friTestEns, testDates);
 
       // Accept Friday-only weights if they improve overall WMAPE by >= 0.1%
