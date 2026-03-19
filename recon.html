@@ -1253,7 +1253,13 @@
                         '<input type="radio" name="cashHandoff" value="safe" style="min-width:18px;min-height:18px;width:18px;height:18px;accent-color:#4a90e2"> Put in the safe' +
                     '</label>' +
                     '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;border:2px solid var(--border);border-radius:6px;color:var(--text)">' +
-                        '<input type="radio" name="cashHandoff" value="person" style="min-width:18px;min-height:18px;width:18px;height:18px;accent-color:#4a90e2"> Given to someone' +
+                        '<input type="radio" name="cashHandoff" value="Chris" style="min-width:18px;min-height:18px;width:18px;height:18px;accent-color:#4a90e2"> Given to Chris' +
+                    '</label>' +
+                    '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;border:2px solid var(--border);border-radius:6px;color:var(--text)">' +
+                        '<input type="radio" name="cashHandoff" value="Iris" style="min-width:18px;min-height:18px;width:18px;height:18px;accent-color:#4a90e2"> Given to Iris' +
+                    '</label>' +
+                    '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;border:2px solid var(--border);border-radius:6px;color:var(--text)">' +
+                        '<input type="radio" name="cashHandoff" value="other" style="min-width:18px;min-height:18px;width:18px;height:18px;accent-color:#4a90e2"> Given to other' +
                     '</label>' +
                 '</div>' +
                 '<div id="personNameContainer" style="display:none;margin-bottom:1rem">' +
@@ -1275,7 +1281,7 @@
             radios.forEach(function(radio) {
                 radio.addEventListener('change', function() {
                     errorMsg.style.display = 'none';
-                    if (radio.value === 'person') {
+                    if (radio.value === 'other') {
                         personContainer.style.display = 'block';
                         personInput.focus();
                     } else {
@@ -1297,7 +1303,7 @@
                     errorMsg.textContent = '⚠️ Please select where the cash was placed';
                     return;
                 }
-                if (selected.value === 'person') {
+                if (selected.value === 'other') {
                     var name = personInput.value.trim();
                     if (!name) {
                         errorMsg.style.display = 'block';
@@ -1306,8 +1312,10 @@
                         return;
                     }
                     cashHandoff = 'Given to ' + name;
-                } else {
+                } else if (selected.value === 'safe') {
                     cashHandoff = 'Put in the safe';
+                } else {
+                    cashHandoff = 'Given to ' + selected.value;
                 }
                 m.remove();
                 onSubmit();
