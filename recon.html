@@ -638,13 +638,21 @@
                 </div>
 
                 <div class="row">
+                    <div class="row-label">
+                        MODIFIED PAST ORDER PAYMENTS
+                        <div class="helper-text">Payments on old orders — shows on terminal today but POS registers it on the original date</div>
+                    </div>
+                    <div class="row-value"><input type="number" id="modifiedPastOrders" step="0.01" placeholder="0.00" tabindex="8" ></div>
+                </div>
+
+                <div class="row">
                     <div class="row-label">STORE CREDIT IN CARD</div>
-                    <div class="row-value"><input type="number" id="storeCreditCard" step="0.01" placeholder="0.00" tabindex="8" ></div>
+                    <div class="row-value"><input type="number" id="storeCreditCard" step="0.01" placeholder="0.00" tabindex="9" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">VOIDS</div>
-                    <div class="row-value"><input type="number" id="voidsCard" step="0.01" placeholder="0.00" tabindex="9" ></div>
+                    <div class="row-value"><input type="number" id="voidsCard" step="0.01" placeholder="0.00" tabindex="10" ></div>
                 </div>
 
                 <div class="row">
@@ -674,17 +682,17 @@
 
                 <div class="row">
                     <div class="row-label">POS CASH SALES</div>
-                    <div class="row-value"><input type="number" id="posCashSales" step="0.01" placeholder="0.00" tabindex="10" ></div>
+                    <div class="row-value"><input type="number" id="posCashSales" step="0.01" placeholder="0.00" tabindex="11" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">POS MIXED (CASH PORTION ONLY)</div>
-                    <div class="row-value"><input type="number" id="posMixedCash" step="0.01" placeholder="0.00" tabindex="11" ></div>
+                    <div class="row-value"><input type="number" id="posMixedCash" step="0.01" placeholder="0.00" tabindex="12" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">POS EXPENSE REGISTER</div>
-                    <div class="row-value"><input type="number" id="posExpense" step="0.01" placeholder="0.00" tabindex="12" ></div>
+                    <div class="row-value"><input type="number" id="posExpense" step="0.01" placeholder="0.00" tabindex="13" ></div>
                 </div>
 
                 <div class="row">
@@ -699,12 +707,12 @@
 
                 <div class="row">
                     <div class="row-label">CASH REGISTER 1</div>
-                    <div class="row-value"><input type="number" id="cashRegister1" step="0.01" placeholder="0.00" tabindex="13" ></div>
+                    <div class="row-value"><input type="number" id="cashRegister1" step="0.01" placeholder="0.00" tabindex="14" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">CASH REGISTER 2</div>
-                    <div class="row-value"><input type="number" id="cashRegister2" step="0.01" placeholder="0.00" tabindex="14" ></div>
+                    <div class="row-value"><input type="number" id="cashRegister2" step="0.01" placeholder="0.00" tabindex="15" ></div>
                 </div>
 
                 <div class="row">
@@ -719,22 +727,22 @@
 
                 <div class="row">
                     <div class="row-label">PETTY CASH</div>
-                    <div class="row-value"><input type="number" id="pettyCash" step="0.01" placeholder="0.00" tabindex="15" ></div>
+                    <div class="row-value"><input type="number" id="pettyCash" step="0.01" placeholder="0.00" tabindex="16" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">OTHER CASH ADDED</div>
-                    <div class="row-value"><input type="number" id="otherCashAdded" step="0.01" placeholder="0.00" tabindex="16" ></div>
+                    <div class="row-value"><input type="number" id="otherCashAdded" step="0.01" placeholder="0.00" tabindex="17" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">CASH SALES NOT ON POS</div>
-                    <div class="row-value"><input type="number" id="cashNotPOS" step="0.01" placeholder="0.00" tabindex="17" ></div>
+                    <div class="row-value"><input type="number" id="cashNotPOS" step="0.01" placeholder="0.00" tabindex="18" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">STORE CREDIT IN CASH</div>
-                    <div class="row-value"><input type="number" id="storeCreditCash" step="0.01" placeholder="0.00" tabindex="18" ></div>
+                    <div class="row-value"><input type="number" id="storeCreditCash" step="0.01" placeholder="0.00" tabindex="19" ></div>
                 </div>
 
                 <div class="row">
@@ -742,7 +750,7 @@
                         CASH REFUNDS
                         <div class="helper-text">Usually already included in POS Expense Register</div>
                     </div>
-                    <div class="row-value"><input type="number" id="cashRefunds" step="0.01" placeholder="0.00" tabindex="19" ></div>
+                    <div class="row-value"><input type="number" id="cashRefunds" step="0.01" placeholder="0.00" tabindex="20" ></div>
                 </div>
 
                 <div class="row">
@@ -794,6 +802,7 @@
 
     <script>
         let history = [];
+        let cashHandoff = '';
 
         // Dark mode
         if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -867,10 +876,11 @@
             const additional50Amount = additional50Count * 0.50;
             const otherCardTrans = getVal('otherCardTrans');
             const addSalesNotPOS = getVal('addSalesNotPOS');
+            const modifiedPastOrders = getVal('modifiedPastOrders');
             const storeCreditCard = getVal('storeCreditCard');
             const voidsCard = getVal('voidsCard');
 
-            const totalCCActual = totalCCMachine - additional50Amount - otherCardTrans - addSalesNotPOS - storeCreditCard - voidsCard;
+            const totalCCActual = totalCCMachine - additional50Amount - otherCardTrans - addSalesNotPOS - modifiedPastOrders - storeCreditCard - voidsCard;
             const cardBalance = totalCCActual - totalPOSCard;
 
             document.getElementById('totalPOSCard').textContent = fmt(totalPOSCard);
@@ -883,6 +893,7 @@
             if (additional50Amount > 0) cardCalc += ` - ${fmt(additional50Amount)} (${additional50Count} × $0.50)`;
             if (otherCardTrans > 0) cardCalc += ` - ${fmt(otherCardTrans)} (other trans)`;
             if (addSalesNotPOS > 0) cardCalc += ` - ${fmt(addSalesNotPOS)} (not on POS)`;
+            if (modifiedPastOrders > 0) cardCalc += ` - ${fmt(modifiedPastOrders)} (past orders)`;
             if (storeCreditCard > 0) cardCalc += ` - ${fmt(storeCreditCard)} (store credit)`;
             if (voidsCard > 0) cardCalc += ` - ${fmt(voidsCard)} (voids)`;
             cardCalc += ` = ${fmt(totalCCActual)}`;
@@ -997,7 +1008,7 @@
                 items.push({text: 'Check for transactions between $14.50–$14.99 that were rounded up to $15.00 on the terminal — these round-ups do not appear on the POS'});
                 items.push({text: 'Confirm all adjustment fields (voids, store credits, other card transactions, additional sales not on POS) are correctly entered'});
                 items.push({text: '<strong>Look over the credit card terminal report</strong> (prints for the whole store) and look for the unbalanced amount (' + diff + ') as a specific transaction'});
-                items.push({text: 'Check if any modified receipts from past orders were paid today — these show on the CC terminal but not in today\'s POS sales'});
+                items.push({text: 'Check if any modified past orders were paid today — these show on the CC terminal but POS registers them on the original date. Enter the total in the <strong>Modified Past Order Payments</strong> field'});
                 items.push({text: 'If the amount is not found on the terminal report, <strong>reconcile each CC terminal transaction against each POS transaction one-by-one</strong>. The terminal report lists the last transaction at the top and the first transaction at the bottom. Sort your POS transactions the same way (latest first) and match them in order.'});
                 items.push({text: 'Review mixed payment transactions — verify the card portion entered in POS matches what the terminal actually charged'});
 
@@ -1129,6 +1140,10 @@
             report += `Total Sales (Card + Cash):    ${fmt(totalSales)}\n`;
             report += `Overall Status:               ${allBalanced ? '✓ BALANCED' : '⚠️ VARIANCE DETECTED'}\n`;
 
+            if (cashHandoff) {
+                report += `Cash:                         ${cashHandoff}\n`;
+            }
+
             if (notes) {
                 report += '\n📝 NOTES\n';
                 report += '───────────────────────────────────────────────\n';
@@ -1228,6 +1243,77 @@
             };
         }
 
+        function showCashHandoffModal(onSubmit) {
+            var m = document.createElement('div');
+            m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+            m.innerHTML = '<div style="background:var(--bg);padding:2rem;border-radius:8px;max-width:500px;width:90%;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid var(--border)">' +
+                '<p style="color:var(--text);font-weight:700;font-size:1.15rem;margin-bottom:1rem">💵 Where was the cash placed?</p>' +
+                '<div id="cashHandoffOptions" style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1rem">' +
+                    '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;border:2px solid var(--border);border-radius:6px;color:var(--text)">' +
+                        '<input type="radio" name="cashHandoff" value="safe" style="min-width:18px;min-height:18px;width:18px;height:18px;accent-color:#4a90e2"> Put in the safe' +
+                    '</label>' +
+                    '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;border:2px solid var(--border);border-radius:6px;color:var(--text)">' +
+                        '<input type="radio" name="cashHandoff" value="person" style="min-width:18px;min-height:18px;width:18px;height:18px;accent-color:#4a90e2"> Given to someone' +
+                    '</label>' +
+                '</div>' +
+                '<div id="personNameContainer" style="display:none;margin-bottom:1rem">' +
+                    '<label style="color:var(--text);font-weight:600;font-size:0.95rem;display:block;margin-bottom:0.5rem">Who was the cash given to?</label>' +
+                    '<input id="cashPersonName" type="text" style="width:100%;padding:0.75rem;font-size:1rem;font-family:inherit;border:2px solid #4a90e2;border-radius:6px;background:var(--input-bg);color:var(--text)" placeholder="Enter name">' +
+                '</div>' +
+                '<p id="cashHandoffError" style="color:var(--red-text);font-size:0.9rem;margin-bottom:1rem;display:none">⚠️ Please select an option</p>' +
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">' +
+                    '<button class="cancel-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Cancel</button>' +
+                    '<button class="submit-btn" style="padding:0.75rem;background:#4a90e2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Continue</button>' +
+                '</div></div>';
+            document.body.appendChild(m);
+
+            var radios = m.querySelectorAll('input[name="cashHandoff"]');
+            var personContainer = m.querySelector('#personNameContainer');
+            var personInput = m.querySelector('#cashPersonName');
+            var errorMsg = m.querySelector('#cashHandoffError');
+
+            radios.forEach(function(radio) {
+                radio.addEventListener('change', function() {
+                    errorMsg.style.display = 'none';
+                    if (radio.value === 'person') {
+                        personContainer.style.display = 'block';
+                        personInput.focus();
+                    } else {
+                        personContainer.style.display = 'none';
+                    }
+                    // Highlight selected option
+                    radios.forEach(function(r) {
+                        r.closest('label').style.borderColor = r.checked ? '#4a90e2' : 'var(--border)';
+                        r.closest('label').style.background = r.checked ? 'rgba(74,144,226,0.08)' : 'transparent';
+                    });
+                });
+            });
+
+            m.querySelector('.cancel-btn').onclick = function() { m.remove(); };
+            m.querySelector('.submit-btn').onclick = function() {
+                var selected = m.querySelector('input[name="cashHandoff"]:checked');
+                if (!selected) {
+                    errorMsg.style.display = 'block';
+                    errorMsg.textContent = '⚠️ Please select where the cash was placed';
+                    return;
+                }
+                if (selected.value === 'person') {
+                    var name = personInput.value.trim();
+                    if (!name) {
+                        errorMsg.style.display = 'block';
+                        errorMsg.textContent = '⚠️ Please enter the name of the person';
+                        personInput.style.borderColor = '#dc3545';
+                        return;
+                    }
+                    cashHandoff = 'Given to ' + name;
+                } else {
+                    cashHandoff = 'Put in the safe';
+                }
+                m.remove();
+                onSubmit();
+            };
+        }
+
         function proceedWithDateCheck() {
             var selected = document.getElementById('reconciliationDate').value;
             if (selected && selected !== getTodayString()) {
@@ -1237,6 +1323,13 @@
                 return;
             }
             doCopy();
+        }
+
+        function proceedWithCashHandoff() {
+            showCashHandoffModal(function() {
+                generateReport();
+                proceedWithDateCheck();
+            });
         }
 
         function copyReport() {
@@ -1258,12 +1351,12 @@
                         notesField.value = 'VARIANCE EXPLANATION: ' + explanation;
                     }
                     generateReport();
-                    proceedWithDateCheck();
+                    proceedWithCashHandoff();
                 });
                 return;
             }
 
-            proceedWithDateCheck();
+            proceedWithCashHandoff();
         }
 
         function validateInputs() {
@@ -1326,6 +1419,7 @@
                     additional50Amount: getVal('additional50') * 0.50,
                     otherCardTrans: getVal('otherCardTrans'),
                     addSalesNotPOS: getVal('addSalesNotPOS'),
+                    modifiedPastOrders: getVal('modifiedPastOrders'),
                     storeCreditCard: getVal('storeCreditCard'),
                     voidsCard: getVal('voidsCard'),
                     totalCCActual: parseFloat(document.getElementById('totalCCActual').textContent.replace('$', '')),
@@ -1361,6 +1455,7 @@
             showConfirm('Clear all fields?', () => {
                 inputs.forEach(input => input.value = '');
                 document.getElementById('notesField').value = '';
+                cashHandoff = '';
                 calculate();
                 generateReport();
             });
@@ -1398,7 +1493,7 @@
                 return;
             }
 
-            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Terminal 1', 'CC Terminal 2', 'Total CC Terminal', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Store Credit Card', 'Voids', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance'];
+            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Terminal 1', 'CC Terminal 2', 'Total CC Terminal', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Modified Past Orders', 'Store Credit Card', 'Voids', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance'];
 
             const rows = history.map(r => [
                 r.date,
@@ -1406,7 +1501,7 @@
                 r.card.posCardSales, r.card.posMixedCard, r.card.totalPOSCard,
                 r.card.ccMachine1, r.card.ccMachine2, r.card.totalCCMachine,
                 r.card.additional50Count, r.card.additional50Amount,
-                r.card.otherCardTrans, r.card.addSalesNotPOS, r.card.storeCreditCard,
+                r.card.otherCardTrans, r.card.addSalesNotPOS, r.card.modifiedPastOrders || 0, r.card.storeCreditCard,
                 r.card.voidsCard, r.card.totalCCActual, r.card.balance,
                 r.cash.posCashSales, r.cash.posMixedCash, r.cash.posExpense, r.cash.totalPOSCash,
                 r.cash.cashRegister1, r.cash.cashRegister2, r.cash.totalCashRegister,
