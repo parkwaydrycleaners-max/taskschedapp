@@ -3907,8 +3907,8 @@ attachSearchListeners() {
              const personTasks = this.tasks[dateKey][person];
              if (!Array.isArray(personTasks)) continue;
              personTasks.forEach(task => {
-                 const taskCreatedDate = task.createdAt || dateKey;
-                 if (taskCreatedDate === todayStr) {
+                 // Only show orders that have a createdAt matching today
+                 if (task.createdAt && task.createdAt === todayStr) {
                      orders.push({
                          orderNumber: task.orderNumber || '—',
                          person: person,
@@ -3987,9 +3987,8 @@ attachSearchListeners() {
          const personTasks = this.tasks[dateKey][person];
          if (!Array.isArray(personTasks)) continue;
          personTasks.forEach(task => {
-             // Match if createdAt is today; fall back to work date for older orders without createdAt
-             const taskCreatedDate = task.createdAt || dateKey;
-             if (taskCreatedDate === todayStr) {
+             // Only count orders that have a createdAt matching today
+             if (task.createdAt && task.createdAt === todayStr) {
                  totalOrders++;
                  totalPieces += parseInt(task.alterationPieces) || 1;
              }
