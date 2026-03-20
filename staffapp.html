@@ -911,6 +911,27 @@
             color: white;
         }
 
+        .toast-notification.warning {
+            background: #E67E22;
+            color: white;
+        }
+
+        .toast-notification.warning i {
+            margin-right: 6px;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+
+        .checklist-item.shake {
+            animation: shake 0.4s ease;
+        }
+
         /* Modal */
         .modal-overlay {
             position: fixed;
@@ -2946,7 +2967,12 @@
                         renderChecklists();
                     } else {
                         // Checking — enforce sequential order
-                        if (isTaskLocked(section, group, id)) return;
+                        if (isTaskLocked(section, group, id)) {
+                            item.classList.add('shake');
+                            setTimeout(() => item.classList.remove('shake'), 500);
+                            showToast('<i class="fas fa-lock"></i> Complete the previous step first', 'warning');
+                            return;
+                        }
 
                         state.completed[id] = {
                             time: formatTime()
