@@ -2724,9 +2724,8 @@
                     <div class="item-subtasks">
                         ${item.subtasks.map(sub => {
                             const subChecked = taskSubtasks[sub.id];
-                            const subLocked = !subChecked && isSubtaskLocked(item.id, sub.id, item.subtasks);
                             return `
-                                <div class="subtask-row ${subChecked ? 'checked' : ''} ${subLocked ? 'locked' : ''}" data-task-id="${item.id}" data-subtask-id="${sub.id}">
+                                <div class="subtask-row ${subChecked ? 'checked' : ''}" data-task-id="${item.id}" data-subtask-id="${sub.id}">
                                     <div class="subtask-check">
                                         <i class="fas fa-check"></i>
                                     </div>
@@ -2984,7 +2983,7 @@
                 });
             });
 
-            // Subtask click handlers
+            // Subtask click handlers (no sequential enforcement — subtasks are optional/any order)
             document.querySelectorAll('.subtask-row').forEach(row => {
                 row.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -2994,10 +2993,6 @@
                     const taskId = row.dataset.taskId;
                     const subtaskId = row.dataset.subtaskId;
 
-                    // Get the subtasks list for sequential enforcement
-                    const found = findItemById(taskId);
-                    const subtasks = found && found.item.subtasks ? found.item.subtasks : [];
-
                     if (!state.completedSubtasks) {
                         state.completedSubtasks = {};
                     }
@@ -3006,30 +3001,33 @@
                     }
 
                     if (state.completedSubtasks[taskId][subtaskId]) {
-                        // Unchecking — cascade: also uncheck all subtasks after this one
-                        cascadeUncheckSubtasks(taskId, subtaskId, subtasks);
-                        saveState();
-                        schedulePush();
-                        renderChecklists();
+                        delete state.completedSubtasks[taskId][subtaskId];
+                        row.classList.remove('checked');
                     } else {
-                        // Checking — enforce sequential order
-                        if (isSubtaskLocked(taskId, subtaskId, subtasks)) return;
-
                         state.completedSubtasks[taskId][subtaskId] = true;
                         row.classList.add('checked');
-                        row.classList.remove('locked');
 
                         // Send browser notification for subtask completion
                         const subtaskText = row.querySelector('.subtask-text');
+                        const found = findItemById(taskId);
                         if (found && subtaskText) {
                             sendTaskNotification(subtaskText.textContent.trim(), found.section, true);
                         }
-
-                        saveState();
-                        schedulePush();
-                        // Re-render to unlock the next subtask
-                        renderChecklists();
                     }
+
+                    // Update subtask progress display
+                    const subtasksContainer = row.closest('.item-subtasks');
+                    if (subtasksContainer) {
+                        const totalSubs = subtasksContainer.querySelectorAll('.subtask-row').length;
+                        const doneSubs = subtasksContainer.querySelectorAll('.subtask-row.checked').length;
+                        const progressEl = subtasksContainer.querySelector('.subtask-progress');
+                        if (progressEl) {
+                            progressEl.textContent = `${doneSubs}/${totalSubs} completed`;
+                        }
+                    }
+
+                    saveState();
+                    schedulePush();
                 });
             });
 
