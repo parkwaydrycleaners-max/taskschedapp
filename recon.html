@@ -1369,7 +1369,7 @@
             report += `Overall Status:               ${allBalanced ? '✓ BALANCED' : '⚠️ VARIANCE DETECTED'}\n`;
 
             if (cashHandoff) {
-                report += `Cash Sales Submitted:         ${cashHandoff}\n`;
+                report += `Cash:                         ${fmt(totalRegisterSales)} → ${cashHandoff}\n`;
             }
             if (pettyCashBack !== '') {
                 report += `Petty Cash → Register 1:      ${fmt(pettyCashBack)}\n`;
