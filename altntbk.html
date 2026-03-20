@@ -297,6 +297,10 @@ if (_fouc_loader) _fouc_loader.remove();
                         Ready Date
                     </button>
 
+                    <button id="posCheckBtn" class="px-3 py-2 bg-amber-500 text-white text-sm rounded-lg hover:bg-amber-600 transition-colors" title="POS Piece Count Reconciliation">
+                        POS ✓
+                    </button>
+
                     <button id="oldestIncompleteBtn" class="px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors" title="Go to Oldest Incomplete Order">
                         Oldest Order
                     </button>
@@ -368,6 +372,50 @@ if (_fouc_loader) _fouc_loader.remove();
             </div>
         </div>
     </header>
+
+    <!-- POS Reconciliation Bar -->
+    <div id="posReconBar" class="bg-gray-50 border-b border-gray-200 px-6 py-2 hidden">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-6">
+                <!-- Today's count from Alterations Pro -->
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alterations Pro</span>
+                    <span id="posReconAppCount" class="text-lg font-bold text-indigo-600">0</span>
+                    <span class="text-xs text-gray-400">pcs</span>
+                    <span class="text-gray-300 mx-1">·</span>
+                    <span id="posReconAppOrders" class="text-sm text-gray-500">0 orders</span>
+                </div>
+
+                <!-- Divider -->
+                <div class="h-6 w-px bg-gray-300"></div>
+
+                <!-- POS count input -->
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">POS Drop Report</span>
+                    <input type="number" id="posReconPosCount" class="w-16 p-1.5 text-center text-base font-bold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="—" min="0">
+                    <span class="text-xs text-gray-400">pcs</span>
+                </div>
+
+                <!-- Divider -->
+                <div class="h-6 w-px bg-gray-300"></div>
+
+                <!-- Status indicator -->
+                <div id="posReconStatus" class="flex items-center space-x-2">
+                    <span class="text-sm text-gray-400 italic">Enter POS count to compare</span>
+                </div>
+            </div>
+
+            <!-- Date label -->
+            <div class="flex items-center space-x-3">
+                <span id="posReconDate" class="text-xs text-gray-400"></span>
+                <button id="posReconClose" class="text-gray-400 hover:text-gray-600 p-1 transition-colors" title="Hide POS check bar">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main class="flex-1 p-6">
@@ -971,6 +1019,7 @@ if (_fouc_loader) _fouc_loader.remove();
                 </div>
                 <div class="flex justify-between items-center">
                     <div class="flex space-x-2">
+                        <button id="reportYesterday" class="px-3 py-1 text-sm bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors">Yesterday</button>
                         <button id="reportToday" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Today</button>
                         <button id="reportTomorrow" class="px-3 py-1 text-sm bg-cyan-500 text-white rounded hover:bg-cyan-600 transition-colors">Tomorrow</button>
                         <button id="reportWeek" class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">This Week</button>
@@ -2875,11 +2924,17 @@ renderWhiteboard() {
  for (let dayOffset = 0; dayOffset < this.viewDays; dayOffset++) {
  const viewDate = new Date(this.currentDate);
  viewDate.setDate(viewDate.getDate() + dayOffset);
- 
+
  const dayContainer = this.createDayContainer(viewDate, dayOffset);
  whiteboard.appendChild(dayContainer);
  }
- 
+
+ // Update POS reconciliation bar if visible
+ const posBar = document.getElementById('posReconBar');
+ if (posBar && !posBar.classList.contains('hidden')) {
+ this.updatePosReconCounts();
+ }
+
 }
  
  createDayContainer(date, dayOffset) {
@@ -3513,6 +3568,7 @@ attachTaskCardListeners(card, task) {
  this.attachSettingsListeners();
  this.attachSearchListeners();
  this.attachReportsListeners();
+ this.attachPosReconListeners();
  this.attachOrderModalListeners();
  this.attachTagPrintingListeners();
 
@@ -3764,6 +3820,7 @@ attachSearchListeners() {
 }
  
  attachReportsListeners() {
+ document.getElementById('reportYesterday').addEventListener('click', () => this.setReportDateRange('yesterday'));
  document.getElementById('reportToday').addEventListener('click', () => this.setReportDateRange('today'));
  document.getElementById('reportTomorrow').addEventListener('click', () => this.setReportDateRange('tomorrow'));
  document.getElementById('reportWeek').addEventListener('click', () => this.setReportDateRange('week'));
@@ -3775,7 +3832,95 @@ attachSearchListeners() {
 
  document.getElementById('exportReport').addEventListener('click', () => this.showExportOptionsModal());
  }
- 
+
+ // ---------------------------------------------------------------
+ // POS RECONCILIATION
+ // ---------------------------------------------------------------
+ attachPosReconListeners() {
+ document.getElementById('posCheckBtn').addEventListener('click', () => this.togglePosReconBar());
+ document.getElementById('posReconClose').addEventListener('click', () => this.hidePosReconBar());
+ document.getElementById('posReconPosCount').addEventListener('input', () => this.updatePosReconStatus());
+ }
+
+ togglePosReconBar() {
+ const bar = document.getElementById('posReconBar');
+ if (!bar) return;
+ if (bar.classList.contains('hidden')) {
+ bar.classList.remove('hidden');
+ this.updatePosReconCounts();
+ } else {
+ bar.classList.add('hidden');
+ }
+ }
+
+ hidePosReconBar() {
+ const bar = document.getElementById('posReconBar');
+ if (bar) bar.classList.add('hidden');
+ }
+
+ getTodayPieceCounts() {
+ const todayStr = this.dateToLocalDateString(new Date());
+ let totalPieces = 0;
+ let totalOrders = 0;
+
+ if (this.tasks[todayStr]) {
+ for (const person in this.tasks[todayStr]) {
+ const personTasks = this.tasks[todayStr][person];
+ if (!Array.isArray(personTasks)) continue;
+ personTasks.forEach(task => {
+ totalOrders++;
+ totalPieces += parseInt(task.tagsQuantity) || 1;
+ });
+ }
+ }
+
+ return { totalPieces, totalOrders };
+ }
+
+ updatePosReconCounts() {
+ const { totalPieces, totalOrders } = this.getTodayPieceCounts();
+ const appCountEl = document.getElementById('posReconAppCount');
+ const appOrdersEl = document.getElementById('posReconAppOrders');
+ const dateEl = document.getElementById('posReconDate');
+
+ if (appCountEl) appCountEl.textContent = totalPieces;
+ if (appOrdersEl) appOrdersEl.textContent = `${totalOrders} order${totalOrders !== 1 ? 's' : ''}`;
+
+ const today = new Date();
+ if (dateEl) dateEl.textContent = today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+ this.updatePosReconStatus();
+ }
+
+ updatePosReconStatus() {
+ const posInput = document.getElementById('posReconPosCount');
+ const statusEl = document.getElementById('posReconStatus');
+ if (!posInput || !statusEl) return;
+
+ const posValue = posInput.value.trim();
+ if (posValue === '') {
+ statusEl.innerHTML = '<span class="text-sm text-gray-400 italic">Enter POS count to compare</span>';
+ posInput.className = 'w-16 p-1.5 text-center text-base font-bold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent';
+ return;
+ }
+
+ const posCount = parseInt(posValue) || 0;
+ const { totalPieces } = this.getTodayPieceCounts();
+ const diff = totalPieces - posCount;
+
+ if (diff === 0) {
+ statusEl.innerHTML = '<span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">✅ Counts match!</span>';
+ posInput.className = 'w-16 p-1.5 text-center text-base font-bold border-2 border-green-500 rounded-lg bg-green-50 focus:ring-2 focus:ring-green-500 focus:border-transparent text-green-700';
+ } else if (diff > 0) {
+ statusEl.innerHTML = `<span class="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">⚠️ App has ${diff} more piece${diff !== 1 ? 's' : ''} than POS</span>`;
+ posInput.className = 'w-16 p-1.5 text-center text-base font-bold border-2 border-yellow-500 rounded-lg bg-yellow-50 focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-yellow-700';
+ } else {
+ const missing = Math.abs(diff);
+ statusEl.innerHTML = `<span class="inline-flex items-center px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-bold">🚨 Missing ${missing} piece${missing !== 1 ? 's' : ''} in app — orders not entered!</span>`;
+ posInput.className = 'w-16 p-1.5 text-center text-base font-bold border-2 border-red-500 rounded-lg bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-transparent text-red-700';
+ }
+ }
+
  attachTagPrintingListeners() {
  // Close tag printing modal
  document.getElementById('closeTagPrintingModal').addEventListener('click', () => {
@@ -6180,8 +6325,12 @@ createSearchResultItem(result) {
  setReportDateRange(range) {
  const today = new Date();
  let startDate, endDate;
- 
- if (range === 'today') {
+
+ if (range === 'yesterday') {
+ const yesterday = new Date(today);
+ yesterday.setDate(today.getDate() - 1);
+ startDate = endDate = this.dateToLocalDateString(yesterday);
+ } else if (range === 'today') {
  startDate = endDate = this.dateToLocalDateString(today);
  } else if (range === 'tomorrow') {
  const tomorrow = new Date(today);
