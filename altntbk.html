@@ -489,40 +489,23 @@ if (_fouc_loader) _fouc_loader.remove();
                         <!-- Quick Duration Buttons -->
                         <div class="space-y-2">
                             <span class="block text-xs text-gray-500">Quick select:</span>
-                            <div class="grid grid-cols-5 gap-2">
-                                <!-- Row 1: 1-5 -->
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="1">1</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="2">2</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="3">3</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="4">4</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="5">5</button>
-                                <!-- Row 2: 6-10 -->
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="6">6</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="7">7</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="8">8</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="9">9</button>
-                                <button type="button" class="duration-btn px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="10">10</button>
+                            <div class="flex flex-wrap gap-1">
+                                <button type="button" class="duration-btn px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="1">1</button>
+                                <button type="button" class="duration-btn px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="2">2</button>
+                                <button type="button" class="duration-btn px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="3">3</button>
+                                <button type="button" class="duration-btn px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="4">4</button>
+                                <button type="button" class="duration-btn px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="5">5</button>
+                                <button type="button" class="duration-btn px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="6">6</button>
+                                <button type="button" class="duration-btn px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="7">7</button>
+                                <button type="button" class="duration-btn px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="8">8</button>
+                                <button type="button" class="duration-btn px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="9">9</button>
+                                <button type="button" class="duration-btn px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors" data-duration="10">10</button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Number of Tags -->
-                    <div class="space-y-3">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm font-medium">Number of Tags:</span>
-                            <input type="number" id="tagsQuantityInput" min="1" max="50" value="1" class="w-24 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <span class="text-xs text-gray-500">spans to print</span>
-                        </div>
-                    </div>
-
-                    <!-- Alteration Pieces -->
-                    <div class="space-y-3">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm font-medium">Alteration Pieces:</span>
-                            <input type="number" id="alterationPiecesInput" min="1" max="99" value="1" class="w-24 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <span class="text-xs text-gray-500">for POS reconciliation</span>
-                        </div>
-                    </div>
+                    <!-- Hidden tags quantity (kept for backward compatibility) -->
+                    <input type="hidden" id="tagsQuantityInput" value="1">
                 </div>
 
                 <!-- Right Column -->
@@ -553,6 +536,13 @@ if (_fouc_loader) _fouc_loader.remove();
                                 <!-- Populated by JavaScript -->
                             </div>
                         </div>
+
+                        <!-- Alteration Pieces -->
+                        <div class="mt-3 flex items-center space-x-2">
+                            <span class="text-sm font-medium">Alteration Pieces:</span>
+                            <input type="number" id="alterationPiecesInput" min="1" max="99" value="1" class="w-20 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <span class="text-xs text-gray-500">for POS reconciliation</span>
+                        </div>
                     </div>
 
                     <!-- Completion Status (for editing) -->
@@ -573,13 +563,7 @@ if (_fouc_loader) _fouc_loader.remove();
             </div>
 
             <!-- Action Buttons -->
-            <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
-                <button id="printTagsFromOrder" class="px-6 py-2 bg-purple-500 text-white hover:bg-purple-600 rounded-lg transition-colors flex items-center space-x-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a1 1 0 001-1v-4a1 1 0 00-1-1H9a1 1 0 00-1 1v4a1 1 0 001 1zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-                    </svg>
-                    <span>Print Tags</span>
-                </button>
+            <div class="flex justify-end items-center mt-6 pt-4 border-t border-gray-200">
                 <div class="flex space-x-3">
                     <button id="cancelOrder" class="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
                     <button id="saveOrder" class="px-6 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Save</button>
@@ -4530,24 +4514,26 @@ attachOrderModalListeners() {
  });
  }
 
- // Print Tags From Order Button
- document.getElementById('printTagsFromOrder').addEventListener('click', () => {
+ // Print Tags From Order Button (if present)
+ const printTagsBtn = document.getElementById('printTagsFromOrder');
+ if (printTagsBtn) {
+ printTagsBtn.addEventListener('click', () => {
  const orderNumber = document.getElementById('orderNumberInput').value.trim();
  const tagsQuantity = parseInt(document.getElementById('tagsQuantityInput').value) || 1;
- 
+
  const orderValidation = this.validateOrderNumber(orderNumber);
  if (!orderValidation.isValid) {
  this.showErrorToast('validation', orderValidation.error);
  return;
  }
- 
+
  const tempTaskData = {
  orderNumber: orderNumber,
  tagsQuantity: tagsQuantity,
  dateDue: document.getElementById('dueDateInput').value,
  description: document.getElementById('descriptionInput').value.trim()
  };
- 
+
  let person, dateKey;
  if (document.getElementById('personDateFields').classList.contains('hidden')) {
  person = this.currentOrderPerson;
@@ -4556,10 +4542,11 @@ attachOrderModalListeners() {
  person = document.getElementById('assignPersonSelect').value;
  dateKey = document.getElementById('workDateInput').value;
  }
- 
+
  this.getElement('orderModal').classList.add('hidden');
  this.showTagPrintingModalFromOrder(tempTaskData, person, dateKey);
  });
+ }
 
  // Duration Input Handler
  const durationInput = document.getElementById('durationInput');
