@@ -373,14 +373,15 @@ if (_fouc_loader) _fouc_loader.remove();
     <div id="posReconBar" class="bg-gray-50 border-b border-gray-200 px-6 py-2">
         <div class="flex items-center justify-between">
             <div class="flex items-center space-x-6">
-                <!-- Today's count from Alterations Pro -->
-                <div class="flex items-center space-x-2">
+                <!-- Today's count from Alterations Pro (clickable) -->
+                <button id="posReconDetailBtn" class="flex items-center space-x-2 hover:bg-indigo-50 rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors cursor-pointer" title="Click to view today's order breakdown">
                     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alterations Pro</span>
                     <span id="posReconAppCount" class="text-lg font-bold text-indigo-600">0</span>
                     <span class="text-xs text-gray-400">pcs</span>
                     <span class="text-gray-300 mx-1">·</span>
                     <span id="posReconAppOrders" class="text-sm text-gray-500">0 orders</span>
-                </div>
+                    <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
 
                 <!-- Divider -->
                 <div class="h-6 w-px bg-gray-300"></div>
@@ -1228,6 +1229,57 @@ if (_fouc_loader) _fouc_loader.remove();
             <!-- Footer -->
             <div class="px-5 py-3 bg-gray-50 border-t border-gray-200">
                 <button id="idleWakeConfirmBtn" class="w-full px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- POS Reconciliation Detail Modal -->
+    <div id="posReconDetailModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden fade-in flex flex-col">
+            <!-- Header -->
+            <div class="bg-indigo-600 px-5 py-3 flex items-center justify-between flex-shrink-0">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                    <h3 class="text-white text-base font-bold">Today's Alteration Orders</h3>
+                </div>
+                <button id="posReconDetailClose" class="text-indigo-200 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <!-- Date + Summary bar -->
+            <div class="bg-indigo-50 px-5 py-2 border-b border-indigo-100 flex items-center justify-between flex-shrink-0">
+                <span id="posReconDetailDate" class="text-sm text-indigo-700 font-medium"></span>
+                <span id="posReconDetailSummary" class="text-sm text-indigo-600 font-semibold"></span>
+            </div>
+
+            <!-- Table -->
+            <div class="overflow-y-auto flex-1">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th class="text-left px-5 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Order #</th>
+                            <th class="text-left px-5 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Person</th>
+                            <th class="text-left px-5 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Description</th>
+                            <th class="text-right px-5 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Pieces</th>
+                        </tr>
+                    </thead>
+                    <tbody id="posReconDetailBody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+                <div id="posReconDetailEmpty" class="hidden text-center py-8 text-gray-400">
+                    <p class="text-sm">No alteration orders scheduled for today.</p>
+                </div>
+            </div>
+
+            <!-- Footer totals -->
+            <div id="posReconDetailFooter" class="bg-gray-50 border-t border-gray-200 px-5 py-3 flex items-center justify-between flex-shrink-0">
+                <span class="text-sm font-semibold text-gray-700">Total</span>
+                <div class="flex items-center space-x-4">
+                    <span id="posReconDetailTotalOrders" class="text-sm text-gray-500"></span>
+                    <span id="posReconDetailTotalPieces" class="text-lg font-bold text-indigo-600"></span>
+                </div>
             </div>
         </div>
     </div>
@@ -3820,8 +3872,100 @@ attachSearchListeners() {
  // ---------------------------------------------------------------
  attachPosReconListeners() {
  document.getElementById('posReconPosCount').addEventListener('input', () => this.updatePosReconStatus());
+ document.getElementById('posReconDetailBtn').addEventListener('click', () => this.showPosReconDetailModal());
+ document.getElementById('posReconDetailClose').addEventListener('click', () => {
+     document.getElementById('posReconDetailModal').classList.add('hidden');
+ });
+ // Close on backdrop click
+ document.getElementById('posReconDetailModal').addEventListener('click', (e) => {
+     if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+ });
  // Initialize counts on load
  this.updatePosReconCounts();
+ }
+
+ showPosReconDetailModal() {
+     const todayStr = this.dateToLocalDateString(new Date());
+     const today = new Date();
+     const tbody = document.getElementById('posReconDetailBody');
+     const emptyEl = document.getElementById('posReconDetailEmpty');
+     const footerEl = document.getElementById('posReconDetailFooter');
+     const dateEl = document.getElementById('posReconDetailDate');
+     const summaryEl = document.getElementById('posReconDetailSummary');
+     const totalOrdersEl = document.getElementById('posReconDetailTotalOrders');
+     const totalPiecesEl = document.getElementById('posReconDetailTotalPieces');
+
+     // Set date
+     if (dateEl) dateEl.textContent = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+     // Collect all orders for today
+     const orders = [];
+     if (this.tasks[todayStr]) {
+         for (const person in this.tasks[todayStr]) {
+             const personTasks = this.tasks[todayStr][person];
+             if (!Array.isArray(personTasks)) continue;
+             personTasks.forEach(task => {
+                 orders.push({
+                     orderNumber: task.orderNumber || '—',
+                     person: person,
+                     description: task.description || '',
+                     pieces: parseInt(task.alterationPieces) || 1,
+                     completed: task.completed || false
+                 });
+             });
+         }
+     }
+
+     // Sort by person, then order number
+     orders.sort((a, b) => a.person.localeCompare(b.person) || a.orderNumber.localeCompare(b.orderNumber));
+
+     // Build table
+     tbody.innerHTML = '';
+     if (orders.length === 0) {
+         emptyEl.classList.remove('hidden');
+         footerEl.classList.add('hidden');
+     } else {
+         emptyEl.classList.add('hidden');
+         footerEl.classList.remove('hidden');
+
+         let totalPieces = 0;
+         orders.forEach((order, idx) => {
+             totalPieces += order.pieces;
+             const row = document.createElement('tr');
+             row.className = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+             if (order.completed) row.className += ' opacity-50';
+             row.innerHTML = `
+                 <td class="px-5 py-2 font-mono font-medium text-gray-800">${order.orderNumber}${order.completed ? ' <span class="text-green-600 text-xs">✅</span>' : ''}</td>
+                 <td class="px-5 py-2 text-gray-600">${order.person}</td>
+                 <td class="px-5 py-2 text-gray-500 truncate max-w-[250px]" title="${order.description}">${order.description || '<span class=&quot;italic text-gray-300&quot;>No description</span>'}</td>
+                 <td class="px-5 py-2 text-right font-bold text-indigo-600">${order.pieces}</td>
+             `;
+             tbody.appendChild(row);
+         });
+
+         if (totalOrdersEl) totalOrdersEl.textContent = `${orders.length} order${orders.length !== 1 ? 's' : ''}`;
+         if (totalPiecesEl) totalPiecesEl.textContent = `${totalPieces} pcs`;
+     }
+
+     // Summary in header
+     const posInput = document.getElementById('posReconPosCount');
+     const posValue = posInput ? posInput.value.trim() : '';
+     if (posValue !== '' && summaryEl) {
+         const posCount = parseInt(posValue) || 0;
+         const { totalPieces } = this.getTodayPieceCounts();
+         const diff = totalPieces - posCount;
+         if (diff === 0) {
+             summaryEl.innerHTML = '<span class="text-green-700">✅ Matches POS count</span>';
+         } else if (diff > 0) {
+             summaryEl.innerHTML = `<span class="text-yellow-700">⚠️ ${diff} more than POS</span>`;
+         } else {
+             summaryEl.innerHTML = `<span class="text-red-700">🚨 ${Math.abs(diff)} missing vs POS</span>`;
+         }
+     } else if (summaryEl) {
+         summaryEl.textContent = '';
+     }
+
+     document.getElementById('posReconDetailModal').classList.remove('hidden');
  }
 
  getTodayPieceCounts() {
