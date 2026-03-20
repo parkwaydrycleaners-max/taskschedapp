@@ -541,8 +541,9 @@ if (_fouc_loader) _fouc_loader.remove();
                         <!-- Alteration Pieces -->
                         <div class="mt-3 flex items-center space-x-2">
                             <span class="text-sm font-medium">Alteration Pieces:</span>
-                            <input type="number" id="alterationPiecesInput" min="1" max="99" value="1" class="w-20 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <span class="text-xs text-gray-500">for POS reconciliation</span>
+                            <input type="number" id="alterationPiecesInput" min="0" max="99" value="0" class="w-20 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <span class="text-xs text-gray-500">required for POS reconciliation</span>
+                            <p id="alterationPiecesError" class="text-xs text-red-500 mt-1 hidden">Please enter the number of alteration pieces.</p>
                         </div>
                     </div>
 
@@ -2517,7 +2518,7 @@ if (_fouc_loader) _fouc_loader.remove();
  position: fields.Position || 0,
  completed: fields.Completed || false,
  tagsQuantity: fields.TagsQuantity || 1,
- alterationPieces: fields.AlterationPieces || 1,
+ alterationPieces: fields.AlterationPieces || 0,
  createdAt: fields.CreatedAt || null
  };
  this.tasks[dateKey][fields.Person].push(task);
@@ -3914,7 +3915,7 @@ attachSearchListeners() {
                          person: person,
                          workDate: dateKey,
                          description: task.description || '',
-                         pieces: parseInt(task.alterationPieces) || 1,
+                         pieces: parseInt(task.alterationPieces) || 0,
                          completed: task.completed || false
                      });
                  }
@@ -3990,7 +3991,7 @@ attachSearchListeners() {
              // Only count orders that have a createdAt matching today
              if (task.createdAt && task.createdAt === todayStr) {
                  totalOrders++;
-                 totalPieces += parseInt(task.alterationPieces) || 1;
+                 totalPieces += parseInt(task.alterationPieces) || 0;
              }
          });
      }
@@ -5014,7 +5015,7 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  
  async toggleTaskCompletion(task) {
  let foundTask = null;
- 
+
  for (const dateKey in this.tasks) {
  for (const person in this.tasks[dateKey]) {
  const taskInArray = this.tasks[dateKey][person].find(t => t.id === task.id);
@@ -5025,13 +5026,19 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  }
  if (foundTask) break;
  }
- 
+
  if (!foundTask) {
  this.showToast('Task not found', 'error');
  return;
  }
- 
+
  const newStatus = !foundTask.completed;
+
+ // Block completing if alteration pieces is 0 or missing
+ if (newStatus && (!foundTask.alterationPieces || foundTask.alterationPieces < 1)) {
+     this.showToast('⚠️ Cannot complete — enter Alteration Pieces first (edit the order)', 'error');
+     return;
+ }
  foundTask.completed = newStatus;
  
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
@@ -5164,7 +5171,7 @@ showOrderModalForPerson(person, date = null) {
  document.getElementById('descriptionInput').value = task.description;
  document.getElementById('durationInput').value = task.duration;
  document.getElementById('tagsQuantityInput').value = task.tagsQuantity || 1;
- document.getElementById('alterationPiecesInput').value = task.alterationPieces || 1;
+ document.getElementById('alterationPiecesInput').value = task.alterationPieces || 0;
 
  this.updateCompletionStatusDisplay(task.completed);
 
@@ -5237,7 +5244,10 @@ showOrderModalForPerson(person, date = null) {
  document.getElementById('descriptionInput').value = '';
  document.getElementById('durationInput').value = '2';
  document.getElementById('durationMinutes').textContent = '30';
- document.getElementById('alterationPiecesInput').value = '1';
+ document.getElementById('alterationPiecesInput').value = '0';
+ // Clear alteration pieces error
+ const altPcsError = document.getElementById('alterationPiecesError');
+ if (altPcsError) altPcsError.classList.add('hidden');
 
  // Populate user dropdown and pre-select last used user
  this.populateOrderUserSelect();
@@ -5321,7 +5331,22 @@ async saveOrder() {
  const description = this.sanitizeInput(this.getElement('descriptionInput').value.trim());
  const duration = parseInt(this.getElement('durationInput').value);
  const tagsQuantity = parseInt(this.getElement('tagsQuantityInput').value) || 1;
- const alterationPieces = parseInt(this.getElement('alterationPiecesInput').value) || 1;
+ const alterationPieces = parseInt(this.getElement('alterationPiecesInput').value) || 0;
+
+ // Validate alteration pieces
+ const altPcsError = document.getElementById('alterationPiecesError');
+ if (!alterationPieces || alterationPieces < 1) {
+     if (altPcsError) altPcsError.classList.remove('hidden');
+     const altInput = document.getElementById('alterationPiecesInput');
+     if (altInput) {
+         altInput.classList.add('border-red-500');
+         altInput.focus();
+     }
+     return;
+ }
+ if (altPcsError) altPcsError.classList.add('hidden');
+ const altInput = document.getElementById('alterationPiecesInput');
+ if (altInput) altInput.classList.remove('border-red-500');
 
  // Enhanced validation with user feedback
  const validation = this.validateOrderData(orderNumber, dateDue, description, duration);
@@ -5484,7 +5509,7 @@ if (dateDue && dateDue.trim() !== '') {
  if (currentTask.duration !== duration) auditChanges.push({ field: 'Duration', oldValue: String(currentTask.duration), newValue: String(duration) });
  if (currentTask.dateDue !== dateDue) auditChanges.push({ field: 'DateDue', oldValue: currentTask.dateDue || '', newValue: dateDue || '' });
  if (currentTask.tagsQuantity !== tagsQuantity) auditChanges.push({ field: 'TagsQuantity', oldValue: String(currentTask.tagsQuantity || 1), newValue: String(tagsQuantity) });
- if ((currentTask.alterationPieces || 1) !== alterationPieces) auditChanges.push({ field: 'AlterationPieces', oldValue: String(currentTask.alterationPieces || 1), newValue: String(alterationPieces) });
+ if ((currentTask.alterationPieces || 0) !== alterationPieces) auditChanges.push({ field: 'AlterationPieces', oldValue: String(currentTask.alterationPieces || 0), newValue: String(alterationPieces) });
  }
  if (originalPerson !== targetPerson) auditChanges.push({ field: 'Person', oldValue: originalPerson, newValue: targetPerson });
  if (originalDateKey !== targetDateKey) auditChanges.push({ field: 'Date', oldValue: originalDateKey, newValue: targetDateKey });
@@ -9610,7 +9635,7 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  description: fields.Description || '',
  duration: fields.Duration || 2,
  tagsQuantity: fields.TagsQuantity || 1,
- alterationPieces: fields.AlterationPieces || 1,
+ alterationPieces: fields.AlterationPieces || 0,
  position: fields.Position || 0,
  completed: fields.Completed || false,
  createdBy: fields.CreatedBy || null,
@@ -9996,7 +10021,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  Description: task.description,
  Duration: task.duration,
  TagsQuantity: task.tagsQuantity || 1,
- AlterationPieces: task.alterationPieces || 1,
+ AlterationPieces: task.alterationPieces || 0,
  Position: task.position,
  Completed: task.completed || false,
  CreatedBy: userStamp,
@@ -10012,7 +10037,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  Description: task.description,
  Duration: task.duration,
  TagsQuantity: task.tagsQuantity || 1,
- AlterationPieces: task.alterationPieces || 1,
+ AlterationPieces: task.alterationPieces || 0,
  Position: task.position,
  Completed: task.completed || false,
  CreatedAt: task.createdAt || this.dateToLocalDateString(new Date())
