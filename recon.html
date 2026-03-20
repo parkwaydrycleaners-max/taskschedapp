@@ -585,8 +585,10 @@
                 </div>
 
                 <div class="row">
-                    <div class="row-label">POS MIXED SALES (CARD PORTION ONLY)</div>
-                    <div class="row-value"><input type="number" id="posMixedCard" step="0.01" placeholder="0.00" tabindex="2" ></div>
+                    <div class="row-label">POS MIXED SALES (CARD PORTION)
+                        <div class="helper-text">Click to enter mixed payment breakdown</div>
+                    </div>
+                    <div class="row-value"><input type="number" id="posMixedCard" step="0.01" placeholder="0.00" tabindex="2" readonly style="cursor:pointer" onclick="showMixedBreakdownModal('card')" ></div>
                 </div>
 
                 <div class="row">
@@ -686,8 +688,10 @@
                 </div>
 
                 <div class="row">
-                    <div class="row-label">POS MIXED (CASH PORTION ONLY)</div>
-                    <div class="row-value"><input type="number" id="posMixedCash" step="0.01" placeholder="0.00" tabindex="12" ></div>
+                    <div class="row-label">POS MIXED SALES (CASH PORTION)
+                        <div class="helper-text">Click to enter mixed payment breakdown</div>
+                    </div>
+                    <div class="row-value"><input type="number" id="posMixedCash" step="0.01" placeholder="0.00" tabindex="12" readonly style="cursor:pointer" onclick="showMixedBreakdownModal('cash')" ></div>
                 </div>
 
                 <div class="row">
@@ -741,8 +745,16 @@
                 </div>
 
                 <div class="row">
+                    <div class="row-label">
+                        MODIFIED PAST ORDER PAYMENTS
+                        <div class="helper-text">Cash payments on old orders — shows in register today but POS registers it on the original date</div>
+                    </div>
+                    <div class="row-value"><input type="number" id="modifiedPastOrdersCash" step="0.01" placeholder="0.00" tabindex="19" ></div>
+                </div>
+
+                <div class="row">
                     <div class="row-label">STORE CREDIT IN CASH</div>
-                    <div class="row-value"><input type="number" id="storeCreditCash" step="0.01" placeholder="0.00" tabindex="19" ></div>
+                    <div class="row-value"><input type="number" id="storeCreditCash" step="0.01" placeholder="0.00" tabindex="20" ></div>
                 </div>
 
                 <div class="row">
@@ -750,7 +762,7 @@
                         CASH REFUNDS
                         <div class="helper-text">Usually already included in POS Expense Register</div>
                     </div>
-                    <div class="row-value"><input type="number" id="cashRefunds" step="0.01" placeholder="0.00" tabindex="20" ></div>
+                    <div class="row-value"><input type="number" id="cashRefunds" step="0.01" placeholder="0.00" tabindex="21" ></div>
                 </div>
 
                 <div class="row">
@@ -861,6 +873,137 @@
             return '$' + val.toFixed(2);
         }
 
+        // Mixed payment breakdown storage
+        var mixedBreakdown = {
+            card: { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 },
+            cash: { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 }
+        };
+
+        function showMixedBreakdownModal(side) {
+            var bd = mixedBreakdown[side];
+            var isCard = side === 'card';
+            var categories = isCard
+                ? [
+                    { key: 'cr', label: 'CARD (CR)' },
+                    { key: 'ca', label: 'CASH (CA)' },
+                    { key: 'ck', label: 'CHECK (CK)' },
+                    { key: 'dc', label: 'DISCOUNT (DC)' },
+                    { key: 'cd', label: 'CREDIT (CD)' }
+                ]
+                : [
+                    { key: 'ca', label: 'CASH (CA)' },
+                    { key: 'cr', label: 'CARD (CR)' },
+                    { key: 'ck', label: 'CHECK (CK)' },
+                    { key: 'dc', label: 'DISCOUNT (DC)' },
+                    { key: 'cd', label: 'CREDIT (CD)' }
+                ];
+
+            var m = document.createElement('div');
+            m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+
+            var fieldsHtml = '<div style="margin-bottom:1rem">' +
+                '<label style="color:var(--text);font-weight:700;font-size:1rem;display:block;margin-bottom:0.5rem">TOTAL MIXED PAYMENT</label>' +
+                '<div style="position:relative"><span style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);color:var(--text);font-weight:600">$</span>' +
+                '<input id="mixedTotal" type="number" step="0.01" min="0" value="' + (bd.total || '') + '" style="width:100%;padding:0.75rem 0.75rem 0.75rem 1.75rem;font-size:1.1rem;font-family:inherit;border:2px solid #4a90e2;border-radius:6px;background:var(--input-bg);color:var(--text)" placeholder="0.00"></div></div>';
+
+            fieldsHtml += '<div style="border-top:2px solid var(--border);padding-top:0.75rem;margin-bottom:0.5rem"><p style="color:var(--text);font-weight:700;font-size:0.95rem;margin-bottom:0.75rem">Break down into categories:</p></div>';
+
+            categories.forEach(function(cat) {
+                var highlight = (isCard && cat.key === 'cr') || (!isCard && cat.key === 'ca');
+                var borderColor = highlight ? '#4a90e2' : 'var(--border)';
+                var bgColor = highlight ? 'rgba(74,144,226,0.06)' : 'transparent';
+                fieldsHtml += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;padding:0.5rem;border-radius:6px;background:' + bgColor + '">' +
+                    '<label style="color:var(--text);font-weight:600;font-size:0.9rem;min-width:110px;white-space:nowrap">' + cat.label + (highlight ? ' ✱' : '') + '</label>' +
+                    '<div style="position:relative;flex:1"><span style="position:absolute;left:0.6rem;top:50%;transform:translateY(-50%);color:var(--text);font-size:0.95rem">$</span>' +
+                    '<input data-cat="' + cat.key + '" type="number" step="0.01" min="0" value="' + (bd[cat.key] || '') + '" style="width:100%;padding:0.5rem 0.5rem 0.5rem 1.5rem;font-size:1rem;font-family:inherit;border:2px solid ' + borderColor + ';border-radius:6px;background:var(--input-bg);color:var(--text)" placeholder="0.00"></div></div>';
+            });
+
+            fieldsHtml += '<p id="mixedBreakdownStatus" style="font-size:0.9rem;margin-bottom:0.75rem;color:var(--text);font-weight:600;text-align:right">Remaining: $0.00</p>';
+            fieldsHtml += '<p id="mixedBreakdownError" style="color:var(--red-text);font-size:0.9rem;margin-bottom:0.75rem;display:none"></p>';
+
+            m.innerHTML = '<div style="background:var(--bg);padding:2rem;border-radius:8px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid var(--border)">' +
+                '<p style="color:var(--text);font-weight:700;font-size:1.15rem;margin-bottom:0.25rem">🔀 Mixed Payment Breakdown</p>' +
+                '<p style="color:var(--text);font-size:0.85rem;margin-bottom:1rem;opacity:0.7">The ' + (isCard ? 'CARD (CR)' : 'CASH (CA)') + ' amount will be used for the ' + (isCard ? 'card' : 'cash') + ' side</p>' +
+                fieldsHtml +
+                '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem">' +
+                    '<button class="cancel-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600">Cancel</button>' +
+                    '<button class="clear-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--red-text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600">Clear</button>' +
+                    '<button class="submit-btn" style="padding:0.75rem;background:#4a90e2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600">OK</button>' +
+                '</div></div>';
+            document.body.appendChild(m);
+
+            var totalInput = m.querySelector('#mixedTotal');
+            var catInputs = m.querySelectorAll('[data-cat]');
+            var statusEl = m.querySelector('#mixedBreakdownStatus');
+            var errorEl = m.querySelector('#mixedBreakdownError');
+
+            function updateRemaining() {
+                var total = parseFloat(totalInput.value) || 0;
+                var sum = 0;
+                catInputs.forEach(function(inp) { sum += parseFloat(inp.value) || 0; });
+                var remaining = total - sum;
+                statusEl.textContent = 'Remaining: ' + fmt(remaining);
+                if (Math.abs(remaining) < 0.005) {
+                    statusEl.style.color = 'var(--green-text)';
+                } else if (remaining < 0) {
+                    statusEl.style.color = 'var(--red-text)';
+                } else {
+                    statusEl.style.color = 'var(--text)';
+                }
+            }
+
+            totalInput.addEventListener('input', updateRemaining);
+            catInputs.forEach(function(inp) { inp.addEventListener('input', updateRemaining); });
+            updateRemaining();
+
+            setTimeout(function() { totalInput.select(); }, 50);
+
+            m.querySelector('.cancel-btn').onclick = function() { m.remove(); };
+
+            m.querySelector('.clear-btn').onclick = function() {
+                mixedBreakdown[side] = { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 };
+                var targetId = isCard ? 'posMixedCard' : 'posMixedCash';
+                document.getElementById(targetId).value = '';
+                m.remove();
+                calculate();
+            };
+
+            m.querySelector('.submit-btn').onclick = function() {
+                var total = parseFloat(totalInput.value) || 0;
+                errorEl.style.display = 'none';
+
+                if (total <= 0) {
+                    errorEl.textContent = '⚠️ Please enter a total amount greater than 0';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+
+                var sum = 0;
+                var values = {};
+                catInputs.forEach(function(inp) {
+                    var v = parseFloat(inp.value) || 0;
+                    values[inp.dataset.cat] = v;
+                    sum += v;
+                });
+
+                if (Math.abs(sum - total) > 0.01) {
+                    errorEl.textContent = '⚠️ Categories (' + fmt(sum) + ') must add up to the total (' + fmt(total) + ')';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+
+                mixedBreakdown[side].total = total;
+                Object.keys(values).forEach(function(k) { mixedBreakdown[side][k] = values[k]; });
+
+                var targetId = isCard ? 'posMixedCard' : 'posMixedCash';
+                var targetValue = isCard ? values.cr : values.ca;
+                document.getElementById(targetId).value = targetValue ? targetValue.toFixed(2) : '';
+
+                m.remove();
+                calculate();
+            };
+        }
+
         function calculate() {
             validateInputs();
 
@@ -922,10 +1065,11 @@
             const pettyCash = getVal('pettyCash');
             const otherCashAdded = getVal('otherCashAdded');
             const cashNotPOS = getVal('cashNotPOS');
+            const modifiedPastOrdersCash = getVal('modifiedPastOrdersCash');
             const storeCreditCash = getVal('storeCreditCash');
             const cashRefunds = getVal('cashRefunds');
 
-            const totalRegisterSales = totalCashRegister - pettyCash - otherCashAdded - cashNotPOS - storeCreditCash - cashRefunds;
+            const totalRegisterSales = totalCashRegister - pettyCash - otherCashAdded - cashNotPOS - modifiedPastOrdersCash - storeCreditCash - cashRefunds;
             const cashBalance = totalRegisterSales - totalPOSCash;
 
             document.getElementById('totalPOSCash').textContent = fmt(totalPOSCash);
@@ -938,6 +1082,7 @@
             if (pettyCash > 0) cashCalc += ` - ${fmt(pettyCash)} (petty cash)`;
             if (otherCashAdded > 0) cashCalc += ` - ${fmt(otherCashAdded)} (cash added)`;
             if (cashNotPOS > 0) cashCalc += ` - ${fmt(cashNotPOS)} (not on POS)`;
+            if (modifiedPastOrdersCash > 0) cashCalc += ` - ${fmt(modifiedPastOrdersCash)} (past orders)`;
             if (storeCreditCash > 0) cashCalc += ` - ${fmt(storeCreditCash)} (store credit)`;
             if (cashRefunds > 0) cashCalc += ` - ${fmt(cashRefunds)} (refunds)`;
             cashCalc += ` = ${fmt(totalRegisterSales)}`;
@@ -1128,13 +1273,31 @@
             report += '───────────────────────────────────────────────\n';
             report += `POS Credit Card Total:        ${fmt(totalPOSCard)}\n`;
             report += `Actual CC Terminal Total:      ${fmt(totalCCActual)}\n`;
-            report += `Card Balance:                 ${fmt(cardBalance)} ${cardBalanced ? '✓' : '⚠️'}\n\n`;
+            report += `Card Balance:                 ${fmt(cardBalance)} ${cardBalanced ? '✓' : '⚠️'}\n`;
+            if (mixedBreakdown.card.total > 0) {
+                report += `  Mixed Payment Total:        ${fmt(mixedBreakdown.card.total)}\n`;
+                if (mixedBreakdown.card.cr > 0) report += `    CARD (CR):                ${fmt(mixedBreakdown.card.cr)}\n`;
+                if (mixedBreakdown.card.ca > 0) report += `    CASH (CA):                ${fmt(mixedBreakdown.card.ca)}\n`;
+                if (mixedBreakdown.card.ck > 0) report += `    CHECK (CK):               ${fmt(mixedBreakdown.card.ck)}\n`;
+                if (mixedBreakdown.card.dc > 0) report += `    DISCOUNT (DC):            ${fmt(mixedBreakdown.card.dc)}\n`;
+                if (mixedBreakdown.card.cd > 0) report += `    CREDIT (CD):              ${fmt(mixedBreakdown.card.cd)}\n`;
+            }
+            report += '\n';
 
             report += '💵 CASH SALES\n';
             report += '───────────────────────────────────────────────\n';
             report += `POS Cash Total:               ${fmt(totalPOSCash)}\n`;
             report += `Actual Register Total:        ${fmt(totalRegisterSales)}\n`;
-            report += `Cash Balance:                 ${fmt(cashBalance)} ${cashBalanced ? '✓' : '⚠️'}\n\n`;
+            report += `Cash Balance:                 ${fmt(cashBalance)} ${cashBalanced ? '✓' : '⚠️'}\n`;
+            if (mixedBreakdown.cash.total > 0) {
+                report += `  Mixed Payment Total:        ${fmt(mixedBreakdown.cash.total)}\n`;
+                if (mixedBreakdown.cash.ca > 0) report += `    CASH (CA):                ${fmt(mixedBreakdown.cash.ca)}\n`;
+                if (mixedBreakdown.cash.cr > 0) report += `    CARD (CR):                ${fmt(mixedBreakdown.cash.cr)}\n`;
+                if (mixedBreakdown.cash.ck > 0) report += `    CHECK (CK):               ${fmt(mixedBreakdown.cash.ck)}\n`;
+                if (mixedBreakdown.cash.dc > 0) report += `    DISCOUNT (DC):            ${fmt(mixedBreakdown.cash.dc)}\n`;
+                if (mixedBreakdown.cash.cd > 0) report += `    CREDIT (CD):              ${fmt(mixedBreakdown.cash.cd)}\n`;
+            }
+            report += '\n';
 
             report += '📊 SUMMARY\n';
             report += '───────────────────────────────────────────────\n';
@@ -1142,7 +1305,7 @@
             report += `Overall Status:               ${allBalanced ? '✓ BALANCED' : '⚠️ VARIANCE DETECTED'}\n`;
 
             if (cashHandoff) {
-                report += `Cash:                         ${cashHandoff}\n`;
+                report += `Cash Sales Submitted:         ${cashHandoff}\n`;
             }
             if (pettyCashBack !== '') {
                 report += `Petty Cash → Register 1:      ${fmt(pettyCashBack)}\n`;
@@ -1492,13 +1655,15 @@
                     pettyCash: getVal('pettyCash'),
                     otherCashAdded: getVal('otherCashAdded'),
                     cashNotPOS: getVal('cashNotPOS'),
+                    modifiedPastOrdersCash: getVal('modifiedPastOrdersCash'),
                     storeCreditCash: getVal('storeCreditCash'),
                     cashRefunds: getVal('cashRefunds'),
                     totalRegisterSales: parseFloat(document.getElementById('totalRegisterSales').textContent.replace('$', '')),
                     balance: parseFloat(document.getElementById('cashBalance').textContent.replace('$', ''))
                 },
                 cashHandoff: cashHandoff,
-                pettyCashBack: pettyCashBack
+                pettyCashBack: pettyCashBack,
+                mixedBreakdown: JSON.parse(JSON.stringify(mixedBreakdown))
             };
 
             history.unshift(record);
@@ -1515,6 +1680,10 @@
                 document.getElementById('notesField').value = '';
                 cashHandoff = '';
                 pettyCashBack = '';
+                mixedBreakdown = {
+                    card: { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 },
+                    cash: { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 }
+                };
                 calculate();
                 generateReport();
             });
@@ -1552,7 +1721,7 @@
                 return;
             }
 
-            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Terminal 1', 'CC Terminal 2', 'Total CC Terminal', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Modified Past Orders', 'Store Credit Card', 'Voids', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance', 'Cash Handoff', 'Petty Cash Back to Reg 1'];
+            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Terminal 1', 'CC Terminal 2', 'Total CC Terminal', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Modified Past Orders Card', 'Store Credit Card', 'Voids', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Modified Past Orders Cash', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance', 'Cash Handoff', 'Petty Cash Back to Reg 1'];
 
             const rows = history.map(r => [
                 r.date,
@@ -1565,7 +1734,7 @@
                 r.cash.posCashSales, r.cash.posMixedCash, r.cash.posExpense, r.cash.totalPOSCash,
                 r.cash.cashRegister1, r.cash.cashRegister2, r.cash.totalCashRegister,
                 r.cash.pettyCash, r.cash.otherCashAdded, r.cash.cashNotPOS,
-                r.cash.storeCreditCash, r.cash.cashRefunds, r.cash.totalRegisterSales, r.cash.balance,
+                r.cash.modifiedPastOrdersCash || 0, r.cash.storeCreditCash, r.cash.cashRefunds, r.cash.totalRegisterSales, r.cash.balance,
                 `"${(r.cashHandoff || '').replace(/"/g, '""')}"`,
                 r.pettyCashBack !== undefined && r.pettyCashBack !== '' ? r.pettyCashBack : ''
             ]);
