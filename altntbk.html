@@ -10042,7 +10042,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  Completed: task.completed || false,
  CreatedAt: task.createdAt || this.dateToLocalDateString(new Date())
  },
- // Without TagsQuantity (common missing field)
+ // Without TagsQuantity and user tracking
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -10050,10 +10050,22 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  ...(task.dateDue && { DateDue: task.dateDue }),
  Description: task.description,
  Duration: task.duration,
+ AlterationPieces: task.alterationPieces || 0,
  Position: task.position,
- Completed: task.completed || false
+ Completed: task.completed || false,
+ CreatedAt: task.createdAt || this.dateToLocalDateString(new Date())
  },
- // Minimal required fields only
+ // Minimal + CreatedAt only
+ {
+ OrderNumber: task.orderNumber,
+ Person: person,
+ Date: date,
+ ...(task.dateDue && { DateDue: task.dateDue }),
+ Description: task.description,
+ Duration: task.duration,
+ CreatedAt: task.createdAt || this.dateToLocalDateString(new Date())
+ },
+ // Absolute minimal (no CreatedAt - last resort)
  {
  OrderNumber: task.orderNumber,
  Person: person,
