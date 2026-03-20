@@ -545,6 +545,68 @@
             border-color: var(--text-muted);
         }
 
+        .checklist-item.locked {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .checklist-item.locked .checkbox-wrapper {
+            background: var(--bg-secondary);
+            border-color: var(--border-color);
+            position: relative;
+        }
+
+        .checklist-item.locked .checkbox-wrapper i {
+            display: none;
+        }
+
+        .checklist-item.locked .checkbox-wrapper::after {
+            content: '\f023';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            font-size: 11px;
+            color: var(--text-muted);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        body.edit-mode .checklist-item.locked {
+            opacity: 1;
+            cursor: default;
+        }
+
+        body.edit-mode .checklist-item.locked .checkbox-wrapper::after {
+            display: none;
+        }
+
+        body.edit-mode .checklist-item.locked .checkbox-wrapper i {
+            display: block;
+        }
+
+        .subtask-row.locked {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .subtask-row.locked .subtask-check {
+            background: var(--bg-secondary);
+            border-color: var(--border-color);
+        }
+
+        .subtask-row.locked .subtask-check i {
+            display: none;
+        }
+
+        .subtask-row.locked .subtask-check::after {
+            content: '\f023';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            font-size: 7px;
+            color: var(--text-muted);
+        }
+
         .checklist-item.checked {
             background: var(--checked-bg);
             border-color: var(--success-color);
@@ -2591,10 +2653,59 @@
         }
 
         // Create checklist item HTML
-        function createItem(item) {
+        // ========== SEQUENTIAL ENFORCEMENT ==========
+        // A task is locked if any PREVIOUS checkable task in the same section isn't completed
+        function isTaskLocked(section, group, taskId) {
+            const items = getCombinedItems(section, group);
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].id === taskId) return false;
+                if (items[i].isPlaceholder || items[i].isDivider) continue;
+                if (!state.completed[items[i].id]) return true;
+            }
+            return false;
+        }
+
+        // A subtask is locked if any PREVIOUS subtask in the same task isn't completed
+        function isSubtaskLocked(taskId, subtaskId, subtasks) {
+            const completedSubs = (state.completedSubtasks && state.completedSubtasks[taskId]) || {};
+            for (let i = 0; i < subtasks.length; i++) {
+                if (subtasks[i].id === subtaskId) return false;
+                if (!completedSubs[subtasks[i].id]) return true;
+            }
+            return false;
+        }
+
+        // When unchecking a task, also uncheck all tasks after it in the section
+        function cascadeUncheck(section, group, taskId) {
+            const items = getCombinedItems(section, group);
+            let found = false;
+            items.forEach(item => {
+                if (item.id === taskId) found = true;
+                if (found && !item.isPlaceholder && !item.isDivider) {
+                    delete state.completed[item.id];
+                    if (state.completedSubtasks) {
+                        delete state.completedSubtasks[item.id];
+                    }
+                }
+            });
+        }
+
+        // When unchecking a subtask, also uncheck all subtasks after it
+        function cascadeUncheckSubtasks(taskId, subtaskId, subtasks) {
+            let found = false;
+            subtasks.forEach(sub => {
+                if (sub.id === subtaskId) found = true;
+                if (found && state.completedSubtasks && state.completedSubtasks[taskId]) {
+                    delete state.completedSubtasks[taskId][sub.id];
+                }
+            });
+        }
+
+        function createItem(item, section, group) {
             const isPlaceholder = item.isPlaceholder;
             const isDivider = item.isDivider;
             const checked = !isPlaceholder && !isDivider && state.completed[item.id];
+            const locked = !isPlaceholder && !isDivider && !checked && section && group && isTaskLocked(section, group, item.id);
             const timestamp = checked ? checked.time : '';
             const todayBadge = item.todayOnly ? '<span class="item-badge today-only">Today Only</span>' : '';
             const taskColor = getTaskColor(item.color);
@@ -2613,8 +2724,9 @@
                     <div class="item-subtasks">
                         ${item.subtasks.map(sub => {
                             const subChecked = taskSubtasks[sub.id];
+                            const subLocked = !subChecked && isSubtaskLocked(item.id, sub.id, item.subtasks);
                             return `
-                                <div class="subtask-row ${subChecked ? 'checked' : ''}" data-task-id="${item.id}" data-subtask-id="${sub.id}">
+                                <div class="subtask-row ${subChecked ? 'checked' : ''} ${subLocked ? 'locked' : ''}" data-task-id="${item.id}" data-subtask-id="${sub.id}">
                                     <div class="subtask-check">
                                         <i class="fas fa-check"></i>
                                     </div>
@@ -2628,7 +2740,7 @@
             }
 
             return `
-                <div class="checklist-item ${checked ? 'checked' : ''} ${styleClass}" data-id="${item.id}" ${colorStyle}>
+                <div class="checklist-item ${checked ? 'checked' : ''} ${locked ? 'locked' : ''} ${styleClass}" data-id="${item.id}" data-section="${section || ''}" data-group="${group || ''}" ${colorStyle}>
                     <div class="checkbox-wrapper">
                         <i class="fas fa-check"></i>
                     </div>
@@ -2701,7 +2813,7 @@
             if (items.length === 0) {
                 el.innerHTML = createEmptyState();
             } else {
-                el.innerHTML = items.map(createItem).join('');
+                el.innerHTML = items.map(item => createItem(item, section, group)).join('');
             }
         }
 
@@ -2824,15 +2936,24 @@
                     if (!isToday()) return;
 
                     const id = item.dataset.id;
+                    const section = item.dataset.section;
+                    const group = item.dataset.group;
 
                     if (state.completed[id]) {
-                        delete state.completed[id];
-                        item.classList.remove('checked');
+                        // Unchecking — cascade: also uncheck all tasks after this one
+                        cascadeUncheck(section, group, id);
+                        saveState();
+                        schedulePush();
+                        renderChecklists();
                     } else {
+                        // Checking — enforce sequential order
+                        if (isTaskLocked(section, group, id)) return;
+
                         state.completed[id] = {
                             time: formatTime()
                         };
                         item.classList.add('checked');
+                        item.classList.remove('locked');
 
                         const timestamp = item.querySelector('.item-timestamp');
                         if (timestamp) {
@@ -2847,10 +2968,12 @@
                         if (found) {
                             sendTaskNotification(found.item.title, found.section, false);
                         }
-                    }
 
-                    saveState();
-                    updateProgress();
+                        saveState();
+                        schedulePush();
+                        // Re-render to unlock the next task
+                        renderChecklists();
+                    }
                 };
 
                 checkbox.addEventListener('click', toggleCheck);
@@ -2871,6 +2994,10 @@
                     const taskId = row.dataset.taskId;
                     const subtaskId = row.dataset.subtaskId;
 
+                    // Get the subtasks list for sequential enforcement
+                    const found = findItemById(taskId);
+                    const subtasks = found && found.item.subtasks ? found.item.subtasks : [];
+
                     if (!state.completedSubtasks) {
                         state.completedSubtasks = {};
                     }
@@ -2879,32 +3006,30 @@
                     }
 
                     if (state.completedSubtasks[taskId][subtaskId]) {
-                        delete state.completedSubtasks[taskId][subtaskId];
-                        row.classList.remove('checked');
+                        // Unchecking — cascade: also uncheck all subtasks after this one
+                        cascadeUncheckSubtasks(taskId, subtaskId, subtasks);
+                        saveState();
+                        schedulePush();
+                        renderChecklists();
                     } else {
+                        // Checking — enforce sequential order
+                        if (isSubtaskLocked(taskId, subtaskId, subtasks)) return;
+
                         state.completedSubtasks[taskId][subtaskId] = true;
                         row.classList.add('checked');
+                        row.classList.remove('locked');
 
                         // Send browser notification for subtask completion
                         const subtaskText = row.querySelector('.subtask-text');
-                        const found = findItemById(taskId);
                         if (found && subtaskText) {
                             sendTaskNotification(subtaskText.textContent.trim(), found.section, true);
                         }
-                    }
 
-                    // Update subtask progress display
-                    const subtasksContainer = row.closest('.item-subtasks');
-                    if (subtasksContainer) {
-                        const totalSubs = subtasksContainer.querySelectorAll('.subtask-row').length;
-                        const doneSubs = subtasksContainer.querySelectorAll('.subtask-row.checked').length;
-                        const progressEl = subtasksContainer.querySelector('.subtask-progress');
-                        if (progressEl) {
-                            progressEl.textContent = `${doneSubs}/${totalSubs} completed`;
-                        }
+                        saveState();
+                        schedulePush();
+                        // Re-render to unlock the next subtask
+                        renderChecklists();
                     }
-
-                    saveState();
                 });
             });
 
@@ -3024,7 +3149,7 @@
             state.completedSubtasks = {};
             saveState();
             renderChecklists();
-            debouncedPush();
+            schedulePush();
             resetModal.classList.remove('show');
         });
 
