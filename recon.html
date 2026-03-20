@@ -205,6 +205,36 @@
             color: #999;
         }
 
+        .expense-hint {
+            padding: 0.6rem 0.75rem;
+            margin: -0.25rem 0 0.5rem 0;
+            border-radius: 0 0 6px 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .expense-hint.hint-negative {
+            background: var(--red);
+            color: var(--red-text);
+            border: 1px solid var(--red-text);
+            border-top: none;
+        }
+
+        .expense-hint.hint-positive {
+            background: var(--green);
+            color: var(--green-text);
+            border: 1px solid var(--green-text);
+            border-top: none;
+        }
+
+        .expense-hint.hint-zero {
+            background: var(--total-bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-top: none;
+        }
+
         .actions {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -695,9 +725,12 @@
                 </div>
 
                 <div class="row">
-                    <div class="row-label">POS EXPENSE REGISTER</div>
-                    <div class="row-value"><input type="number" id="posExpense" step="0.01" placeholder="0.00" tabindex="13" ></div>
+                    <div class="row-label">POS EXPENSE REGISTER
+                        <div class="helper-text">Copy the EXACT number from the POS — negative or positive</div>
+                    </div>
+                    <div class="row-value"><input type="number" id="posExpense" step="0.01" placeholder="0.00" tabindex="13" oninput="updateExpenseHint()" ></div>
                 </div>
+                <div id="expenseHint" class="expense-hint" style="display:none"></div>
 
                 <div class="row">
                     <div class="row-label bold">TOTAL POS CASH SALES</div>
@@ -867,6 +900,37 @@
 
         function getVal(id) {
             return parseFloat(document.getElementById(id).value) || 0;
+        }
+
+        function updateExpenseHint() {
+            var hint = document.getElementById('expenseHint');
+            var input = document.getElementById('posExpense');
+            var val = input.value.trim();
+
+            if (val === '' || val === '-') {
+                hint.style.display = 'none';
+                return;
+            }
+
+            var num = parseFloat(val);
+            if (isNaN(num)) {
+                hint.style.display = 'none';
+                return;
+            }
+
+            hint.style.display = 'block';
+            var abs = Math.abs(num).toFixed(2);
+
+            if (num < 0) {
+                hint.className = 'expense-hint hint-negative';
+                hint.innerHTML = '📉 <strong>$' + abs + ' MORE cash went OUT</strong> than came in.<br>→ Your register should have <strong>$' + abs + ' LESS</strong> cash than sales show.';
+            } else if (num > 0) {
+                hint.className = 'expense-hint hint-positive';
+                hint.innerHTML = '📈 <strong>$' + abs + ' MORE cash came IN</strong> than went out.<br>→ Your register should have <strong>$' + abs + ' MORE</strong> cash than sales show.';
+            } else {
+                hint.className = 'expense-hint hint-zero';
+                hint.innerHTML = '⚖️ Cash in and cash out are <strong>equal</strong>. No effect on your register count.';
+            }
         }
 
         function fmt(val) {
