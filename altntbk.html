@@ -565,10 +565,57 @@ if (_fouc_loader) _fouc_loader.remove();
             </div>
 
             <!-- Action Buttons -->
-            <div class="flex justify-end items-center mt-6 pt-4 border-t border-gray-200">
+            <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
+                <button id="openWizardBtn" class="px-5 py-2 bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-colors flex items-center space-x-2 font-medium">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    <span>Step-by-Step</span>
+                </button>
                 <div class="flex space-x-3">
                     <button id="cancelOrder" class="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
                     <button id="saveOrder" class="px-6 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Wizard Modal -->
+    <div id="wizardModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden fade-in" style="max-height:90vh;">
+            <!-- Wizard Header -->
+            <div class="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4 text-white">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 id="wizardTitle" class="text-lg font-bold flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        <span>Step-by-Step Order Entry</span>
+                    </h3>
+                    <button id="closeWizardBtn" class="text-white/80 hover:text-white transition-colors p-1" title="Close">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <!-- Step Indicator -->
+                <div class="flex items-center space-x-1" id="wizardStepIndicator">
+                    <!-- Populated by JS -->
+                </div>
+                <div class="text-xs text-white/80 mt-1" id="wizardStepLabel">Step 1 of 8</div>
+            </div>
+
+            <!-- Wizard Body -->
+            <div class="px-6 py-5 overflow-y-auto" id="wizardBody" style="max-height:55vh;">
+                <!-- Step content rendered dynamically -->
+            </div>
+
+            <!-- Wizard Footer -->
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                <button id="wizardBackBtn" class="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors flex items-center space-x-1 font-medium">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    <span>Back</span>
+                </button>
+                <div class="flex space-x-2">
+                    <button id="wizardCancelBtn" class="px-4 py-2 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors text-sm">Cancel</button>
+                    <button id="wizardNextBtn" class="px-5 py-2 bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-colors flex items-center space-x-1 font-medium">
+                        <span>Next</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
                 </div>
             </div>
         </div>
@@ -2651,6 +2698,7 @@ init() {
 
  // Initialize production features
  this.initOfflineDetection();
+ this.initWizard();
 
 }
 
@@ -10914,6 +10962,474 @@ clearElementCache() {
  }
 }
 
+// ===== ORDER WIZARD =====
+initWizard() {
+ this.wizardStep = 0;
+ this.wizardData = {};
+ this.wizardIsEdit = false;
+
+ document.getElementById('openWizardBtn')?.addEventListener('click', () => this.openWizard());
+ document.getElementById('closeWizardBtn')?.addEventListener('click', () => this.closeWizard());
+ document.getElementById('wizardCancelBtn')?.addEventListener('click', () => this.closeWizard());
+ document.getElementById('wizardNextBtn')?.addEventListener('click', () => this.wizardNext());
+ document.getElementById('wizardBackBtn')?.addEventListener('click', () => this.wizardBack());
+}
+
+getWizardSteps() {
+ const showPersonDate = !document.getElementById('personDateFields')?.classList.contains('hidden');
+ const steps = [];
+
+ steps.push({
+  id: 'userName', label: 'Your Name', icon: '👤',
+  render: () => this.wizardRenderUserName(),
+  validate: () => this.wizardValidateUserName(),
+  apply: () => this.wizardApplyUserName()
+ });
+
+ if (showPersonDate) {
+  steps.push({
+   id: 'assignPerson', label: 'Assign Person', icon: '🧑‍💼',
+   render: () => this.wizardRenderAssignPerson(),
+   validate: () => this.wizardValidateAssignPerson(),
+   apply: () => this.wizardApplyAssignPerson()
+  });
+  steps.push({
+   id: 'workDate', label: 'Work Date', icon: '📅',
+   render: () => this.wizardRenderWorkDate(),
+   validate: () => this.wizardValidateWorkDate(),
+   apply: () => this.wizardApplyWorkDate()
+  });
+ }
+
+ steps.push({
+  id: 'orderNumber', label: 'Order #', icon: '🔢',
+  render: () => this.wizardRenderOrderNumber(),
+  validate: () => this.wizardValidateOrderNumber(),
+  apply: () => this.wizardApplyOrderNumber()
+ });
+
+ steps.push({
+  id: 'dueDate', label: 'Due Date', icon: '📆',
+  render: () => this.wizardRenderDueDate(),
+  validate: () => this.wizardValidateDueDate(),
+  apply: () => this.wizardApplyDueDate()
+ });
+
+ steps.push({
+  id: 'description', label: 'Description', icon: '📝',
+  render: () => this.wizardRenderDescription(),
+  validate: () => this.wizardValidateDescription(),
+  apply: () => this.wizardApplyDescription()
+ });
+
+ steps.push({
+  id: 'duration', label: 'Duration', icon: '⏱️',
+  render: () => this.wizardRenderDuration(),
+  validate: () => true,
+  apply: () => this.wizardApplyDuration()
+ });
+
+ steps.push({
+  id: 'pieces', label: 'Pieces', icon: '🧵',
+  render: () => this.wizardRenderPieces(),
+  validate: () => this.wizardValidatePieces(),
+  apply: () => this.wizardApplyPieces()
+ });
+
+ steps.push({
+  id: 'review', label: 'Review', icon: '✅',
+  render: () => this.wizardRenderReview(),
+  validate: () => true,
+  apply: () => {}
+ });
+
+ return steps;
+}
+
+openWizard() {
+ this.wizardIsEdit = this.isEditingTask;
+ const showPersonDate = !document.getElementById('personDateFields')?.classList.contains('hidden');
+
+ this.wizardData = {
+  userName: document.getElementById('orderUserSelect')?.value || '',
+  assignPerson: showPersonDate ? (document.getElementById('assignPersonSelect')?.value || '') : '',
+  workDate: showPersonDate ? (document.getElementById('workDateInput')?.value || '') : '',
+  orderNumber: document.getElementById('orderNumberInput')?.value || '',
+  dueDate: document.getElementById('dueDateInput')?.value || '',
+  description: document.getElementById('descriptionInput')?.value || '',
+  duration: document.getElementById('durationInput')?.value || '2',
+  pieces: document.getElementById('alterationPiecesInput')?.value || '0'
+ };
+
+ if (this.wizardData.orderNumber === 'new') this.wizardData.orderNumber = '';
+
+ this.wizardStep = 0;
+ this.wizardSteps = this.getWizardSteps();
+
+ document.getElementById('orderModal')?.classList.add('hidden');
+ document.getElementById('wizardModal')?.classList.remove('hidden');
+ this.wizardRenderCurrentStep();
+}
+
+closeWizard() {
+ document.getElementById('wizardModal')?.classList.add('hidden');
+ document.getElementById('orderModal')?.classList.remove('hidden');
+}
+
+wizardRenderCurrentStep() {
+ const steps = this.wizardSteps;
+ const step = steps[this.wizardStep];
+ const body = document.getElementById('wizardBody');
+ const total = steps.length;
+
+ const indicator = document.getElementById('wizardStepIndicator');
+ indicator.innerHTML = steps.map((s, i) => {
+  if (i < this.wizardStep) return '<div class="h-1.5 flex-1 rounded-full bg-white/80"></div>';
+  if (i === this.wizardStep) return '<div class="h-1.5 flex-1 rounded-full bg-white"></div>';
+  return '<div class="h-1.5 flex-1 rounded-full bg-white/30"></div>';
+ }).join('');
+
+ document.getElementById('wizardStepLabel').textContent = 'Step ' + (this.wizardStep + 1) + ' of ' + total + ' \u2014 ' + step.label;
+
+ step.render();
+
+ const backBtn = document.getElementById('wizardBackBtn');
+ const nextBtn = document.getElementById('wizardNextBtn');
+
+ backBtn.classList.toggle('invisible', this.wizardStep === 0);
+
+ if (this.wizardStep === total - 1) {
+  nextBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Save Order</span>';
+  nextBtn.className = 'px-5 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors flex items-center space-x-1 font-medium';
+ } else {
+  nextBtn.innerHTML = '<span>Next</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>';
+  nextBtn.className = 'px-5 py-2 bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-colors flex items-center space-x-1 font-medium';
+ }
+
+ setTimeout(() => {
+  const firstInput = body.querySelector('input:not([type=hidden]),select,textarea');
+  if (firstInput) firstInput.focus();
+ }, 100);
+}
+
+wizardNext() {
+ const step = this.wizardSteps[this.wizardStep];
+ if (!step.validate()) return;
+ step.apply();
+
+ if (this.wizardStep === this.wizardSteps.length - 1) {
+  this.wizardSave();
+ } else {
+  this.wizardStep++;
+  this.wizardRenderCurrentStep();
+ }
+}
+
+wizardBack() {
+ if (this.wizardStep > 0) {
+  const step = this.wizardSteps[this.wizardStep];
+  step.apply();
+  this.wizardStep--;
+  this.wizardRenderCurrentStep();
+ }
+}
+
+wizardShowError(msg) {
+ const errEl = document.getElementById('wizardStepError');
+ if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
+}
+
+wizardClearError() {
+ const errEl = document.getElementById('wizardStepError');
+ if (errEl) errEl.classList.add('hidden');
+}
+
+wizardStepTemplate(icon, title, subtitle, inputHtml) {
+ const body = document.getElementById('wizardBody');
+ body.innerHTML = '<div class="text-center mb-4">' +
+  '<div class="text-3xl mb-1">' + icon + '</div>' +
+  '<h4 class="text-lg font-semibold text-gray-800">' + title + '</h4>' +
+  (subtitle ? '<p class="text-sm text-gray-500 mt-1">' + subtitle + '</p>' : '') +
+  '</div><div class="space-y-3">' + inputHtml + '</div>' +
+  '<p id="wizardStepError" class="text-sm text-red-500 text-center mt-3 hidden"></p>';
+}
+
+wizardRenderUserName() {
+ const options = this.users.map(u =>
+  '<option value="' + u + '"' + (u === this.wizardData.userName ? ' selected' : '') + '>' + u + '</option>'
+ ).join('');
+ this.wizardStepTemplate('👤', 'Who are you?', 'Select your name to track this order.',
+  '<select id="wizUserName" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent">' +
+  '<option value="">— Select your name —</option>' + options + '</select>');
+}
+wizardValidateUserName() {
+ this.wizardClearError();
+ if (!document.getElementById('wizUserName')?.value) { this.wizardShowError('Please select your name.'); return false; }
+ return true;
+}
+wizardApplyUserName() { this.wizardData.userName = document.getElementById('wizUserName')?.value || ''; }
+
+wizardRenderAssignPerson() {
+ const options = this.people.map(p =>
+  '<option value="' + p + '"' + (p === this.wizardData.assignPerson ? ' selected' : '') + '>' + p + '</option>'
+ ).join('');
+ this.wizardStepTemplate('🧑‍💼', 'Assign to Person', 'Who will work on this order?',
+  '<select id="wizAssignPerson" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent">' +
+  '<option value="">— Select a person —</option>' + options + '</select>');
+}
+wizardValidateAssignPerson() {
+ this.wizardClearError();
+ if (!document.getElementById('wizAssignPerson')?.value) { this.wizardShowError('Please select a person.'); return false; }
+ return true;
+}
+wizardApplyAssignPerson() { this.wizardData.assignPerson = document.getElementById('wizAssignPerson')?.value || ''; }
+
+wizardRenderWorkDate() {
+ const val = this.wizardData.workDate || this.dateToLocalDateString(this.currentDate);
+ this.wizardStepTemplate('📅', 'Work Date', 'When should this order be scheduled?',
+  '<input type="date" id="wizWorkDate" value="' + val + '" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent">');
+}
+wizardValidateWorkDate() {
+ this.wizardClearError();
+ if (!document.getElementById('wizWorkDate')?.value) { this.wizardShowError('Please select a work date.'); return false; }
+ return true;
+}
+wizardApplyWorkDate() { this.wizardData.workDate = document.getElementById('wizWorkDate')?.value || ''; }
+
+wizardRenderOrderNumber() {
+ this.wizardStepTemplate('🔢', 'Order Number', 'Enter the full order number from the ticket.',
+  '<input type="text" id="wizOrderNumber" value="' + (this.wizardData.orderNumber || '') + '" placeholder="e.g. 12345" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent text-center text-lg font-mono">');
+}
+wizardValidateOrderNumber() {
+ this.wizardClearError();
+ if (!(document.getElementById('wizOrderNumber')?.value?.trim())) { this.wizardShowError('Please enter an order number.'); return false; }
+ return true;
+}
+wizardApplyOrderNumber() { this.wizardData.orderNumber = document.getElementById('wizOrderNumber')?.value?.trim() || ''; }
+
+wizardRenderDueDate() {
+ this.wizardStepTemplate('📆', 'Due Date', 'When is this order due to the customer?',
+  '<input type="date" id="wizDueDate" value="' + (this.wizardData.dueDate || '') + '" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent">');
+}
+wizardValidateDueDate() {
+ this.wizardClearError();
+ if (!document.getElementById('wizDueDate')?.value) { this.wizardShowError('Please select a due date.'); return false; }
+ return true;
+}
+wizardApplyDueDate() { this.wizardData.dueDate = document.getElementById('wizDueDate')?.value || ''; }
+
+wizardRenderDescription() {
+ var allDescriptions = [];
+ for (var dk in this.tasks) {
+  for (var p in this.tasks[dk]) {
+   if (Array.isArray(this.tasks[dk][p])) {
+    this.tasks[dk][p].forEach(function(t) { if (t.description) allDescriptions.push(t.description); });
+   }
+  }
+ }
+ var wordFreq = {};
+ allDescriptions.forEach(function(desc) {
+  desc.split(/\s+/).forEach(function(w) {
+   var clean = w.replace(/[^a-zA-Z]/g, '').toLowerCase();
+   if (clean.length > 2) wordFreq[clean] = (wordFreq[clean] || 0) + 1;
+  });
+ });
+ var commonWords = Object.entries(wordFreq).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 15).map(function(e) { return e[0]; });
+ var wordBtns = commonWords.map(function(w) {
+  return '<button type="button" class="wiz-word-btn px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors" data-word="' + w + '">' + w + '</button>';
+ }).join('');
+ var numBtns = [1,2,3,4,5,6,7,8,9].map(function(n) {
+  return '<button type="button" class="wiz-num-btn px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-mono" data-num="' + n + '">' + n + '</button>';
+ }).join('');
+
+ var descVal = (this.wizardData.description || '').replace(/"/g, '&quot;');
+ this.wizardStepTemplate('📝', 'Description', 'Quantity, Item Name, Alterations, and if RUSH.',
+  '<textarea id="wizDescription" rows="3" placeholder="Example: 1 pants hem RUSH" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none">' + (this.wizardData.description || '') + '</textarea>' +
+  '<div><span class="block text-xs text-gray-500 mb-1">Quick numbers:</span><div class="flex flex-wrap gap-1">' + numBtns + '</div></div>' +
+  (commonWords.length > 0 ? '<div><span class="block text-xs text-gray-500 mb-1">Common words:</span><div class="flex flex-wrap gap-1">' + wordBtns + '</div></div>' : ''));
+
+ setTimeout(function() {
+  document.querySelectorAll('.wiz-num-btn').forEach(function(btn) {
+   btn.addEventListener('click', function() {
+    var ta = document.getElementById('wizDescription');
+    var num = btn.dataset.num;
+    var start = ta.selectionStart;
+    ta.value = ta.value.slice(0, start) + num + ta.value.slice(ta.selectionEnd);
+    ta.setSelectionRange(start + num.length, start + num.length);
+    ta.focus();
+   });
+  });
+  document.querySelectorAll('.wiz-word-btn').forEach(function(btn) {
+   btn.addEventListener('click', function() {
+    var ta = document.getElementById('wizDescription');
+    var word = btn.dataset.word + ' ';
+    var start = ta.selectionStart;
+    ta.value = ta.value.slice(0, start) + word + ta.value.slice(ta.selectionEnd);
+    ta.setSelectionRange(start + word.length, start + word.length);
+    ta.focus();
+   });
+  });
+ }, 50);
+}
+wizardValidateDescription() {
+ this.wizardClearError();
+ if (!(document.getElementById('wizDescription')?.value?.trim())) { this.wizardShowError('Please enter a description.'); return false; }
+ return true;
+}
+wizardApplyDescription() { this.wizardData.description = document.getElementById('wizDescription')?.value || ''; }
+
+wizardRenderDuration() {
+ var current = parseInt(this.wizardData.duration) || 2;
+ var durBtns = [1,2,3,4,5,6,7,8,9,10].map(function(n) {
+  return '<button type="button" class="wiz-dur-btn px-3 py-2 text-sm rounded-lg font-medium transition-colors ' +
+   (n === current ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200') +
+   '" data-dur="' + n + '">' + n + '</button>';
+ }).join('');
+ this.wizardStepTemplate('⏱️', 'Duration', 'How many 15-minute slots? (default: 2 = 30 min)',
+  '<div class="text-center mb-3"><span class="text-4xl font-bold text-amber-600" id="wizDurDisplay">' + current + '</span>' +
+  '<span class="text-gray-500 ml-2">slots = <span id="wizDurMinutes" class="font-semibold">' + (current * 15) + '</span> min</span></div>' +
+  '<input type="range" id="wizDuration" min="1" max="16" value="' + current + '" class="w-full accent-amber-500">' +
+  '<div class="flex flex-wrap gap-1 mt-3 justify-center">' + durBtns + '</div>');
+
+ setTimeout(function() {
+  var slider = document.getElementById('wizDuration');
+  var display = document.getElementById('wizDurDisplay');
+  var minutes = document.getElementById('wizDurMinutes');
+  var updateDur = function(v) {
+   display.textContent = v;
+   minutes.textContent = v * 15;
+   slider.value = v;
+   document.querySelectorAll('.wiz-dur-btn').forEach(function(b) {
+    if (parseInt(b.dataset.dur) === parseInt(v)) {
+     b.className = 'wiz-dur-btn px-3 py-2 text-sm rounded-lg font-medium transition-colors bg-amber-500 text-white';
+    } else {
+     b.className = 'wiz-dur-btn px-3 py-2 text-sm rounded-lg font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200';
+    }
+   });
+  };
+  slider.addEventListener('input', function() { updateDur(slider.value); });
+  document.querySelectorAll('.wiz-dur-btn').forEach(function(btn) {
+   btn.addEventListener('click', function() { updateDur(btn.dataset.dur); });
+  });
+ }, 50);
+}
+wizardApplyDuration() { this.wizardData.duration = document.getElementById('wizDuration')?.value || '2'; }
+
+wizardRenderPieces() {
+ var current = parseInt(this.wizardData.pieces) || 0;
+ var pcsBtns = [1,2,3,4,5,6,7,8,9,10].map(function(n) {
+  return '<button type="button" class="wiz-pcs-btn px-3 py-2 text-sm rounded-lg font-medium transition-colors ' +
+   (n === current ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200') +
+   '" data-pcs="' + n + '">' + n + '</button>';
+ }).join('');
+ this.wizardStepTemplate('🧵', 'Alteration Pieces', 'Required for POS reconciliation. Must be 1 or more.',
+  '<div class="text-center mb-3"><span class="text-5xl font-bold text-indigo-600" id="wizPcsDisplay">' + current + '</span>' +
+  '<span class="text-gray-500 ml-2">piece' + (current !== 1 ? 's' : '') + '</span></div>' +
+  '<input type="range" id="wizPieces" min="0" max="20" value="' + current + '" class="w-full accent-indigo-500">' +
+  '<div class="flex flex-wrap gap-1 mt-3 justify-center">' + pcsBtns + '</div>');
+
+ setTimeout(function() {
+  var slider = document.getElementById('wizPieces');
+  var display = document.getElementById('wizPcsDisplay');
+  var updatePcs = function(v) {
+   display.textContent = v;
+   slider.value = v;
+   document.querySelectorAll('.wiz-pcs-btn').forEach(function(b) {
+    if (parseInt(b.dataset.pcs) === parseInt(v)) {
+     b.className = 'wiz-pcs-btn px-3 py-2 text-sm rounded-lg font-medium transition-colors bg-indigo-500 text-white';
+    } else {
+     b.className = 'wiz-pcs-btn px-3 py-2 text-sm rounded-lg font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200';
+    }
+   });
+  };
+  slider.addEventListener('input', function() { updatePcs(slider.value); });
+  document.querySelectorAll('.wiz-pcs-btn').forEach(function(btn) {
+   btn.addEventListener('click', function() { updatePcs(btn.dataset.pcs); });
+  });
+ }, 50);
+}
+wizardValidatePieces() {
+ this.wizardClearError();
+ var val = parseInt(document.getElementById('wizPieces')?.value) || 0;
+ if (val < 1) { this.wizardShowError('Alteration pieces must be at least 1.'); return false; }
+ return true;
+}
+wizardApplyPieces() { this.wizardData.pieces = document.getElementById('wizPieces')?.value || '0'; }
+
+wizardRenderReview() {
+ var d = this.wizardData;
+ var showPersonDate = !document.getElementById('personDateFields')?.classList.contains('hidden');
+ var durMinutes = (parseInt(d.duration) || 2) * 15;
+ var dueDateFormatted = d.dueDate;
+ try {
+  if (d.dueDate) {
+   var dd = new Date(d.dueDate + 'T00:00:00');
+   dueDateFormatted = dd.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+ } catch(e) { /* use raw */ }
+ var workDateFormatted = d.workDate;
+ try {
+  if (d.workDate) {
+   var wd = new Date(d.workDate + 'T00:00:00');
+   workDateFormatted = wd.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+ } catch(e) { /* use raw */ }
+
+ var rows = [
+  { label: 'Your Name', value: d.userName }
+ ];
+ if (showPersonDate) {
+  rows.push({ label: 'Assigned To', value: d.assignPerson });
+  rows.push({ label: 'Work Date', value: workDateFormatted });
+ }
+ rows.push({ label: 'Order #', value: d.orderNumber });
+ rows.push({ label: 'Due Date', value: dueDateFormatted });
+ rows.push({ label: 'Description', value: d.description });
+ rows.push({ label: 'Duration', value: d.duration + ' slots (' + durMinutes + ' min)' });
+ rows.push({ label: 'Alteration Pieces', value: d.pieces });
+
+ var rowsHtml = rows.map(function(r) {
+  return '<div class="flex justify-between items-start py-2 border-b border-gray-100 last:border-0">' +
+   '<span class="text-sm text-gray-500 font-medium">' + r.label + '</span>' +
+   '<span class="text-sm text-gray-800 font-semibold text-right max-w-[60%]">' + (r.value || '<span class="text-red-400">Not set</span>') + '</span></div>';
+ }).join('');
+
+ var body = document.getElementById('wizardBody');
+ body.innerHTML = '<div class="text-center mb-4"><div class="text-3xl mb-1">✅</div>' +
+  '<h4 class="text-lg font-semibold text-gray-800">Review & Save</h4>' +
+  '<p class="text-sm text-gray-500 mt-1">Confirm all details are correct before saving.</p></div>' +
+  '<div class="bg-gray-50 rounded-lg p-4 border border-gray-200">' + rowsHtml + '</div>' +
+  '<p id="wizardStepError" class="text-sm text-red-500 text-center mt-3 hidden"></p>';
+}
+
+wizardSave() {
+ var d = this.wizardData;
+ var showPersonDate = !document.getElementById('personDateFields')?.classList.contains('hidden');
+
+ var userSelect = document.getElementById('orderUserSelect');
+ if (userSelect) userSelect.value = d.userName;
+
+ if (showPersonDate) {
+  var personSelect = document.getElementById('assignPersonSelect');
+  if (personSelect) personSelect.value = d.assignPerson;
+  var workDateInput = document.getElementById('workDateInput');
+  if (workDateInput) workDateInput.value = d.workDate;
+ }
+
+ document.getElementById('orderNumberInput').value = d.orderNumber;
+ document.getElementById('orderNumberInput').style.color = '';
+ document.getElementById('orderNumberInput').style.fontStyle = 'normal';
+ document.getElementById('dueDateInput').value = d.dueDate;
+ document.getElementById('descriptionInput').value = d.description;
+ document.getElementById('durationInput').value = d.duration;
+ document.getElementById('durationMinutes').textContent = (parseInt(d.duration) || 2) * 15;
+ document.getElementById('alterationPiecesInput').value = d.pieces;
+
+ document.getElementById('wizardModal').classList.add('hidden');
+ document.getElementById('orderModal').classList.remove('hidden');
+
+ this.saveOrder();
+}
 
 cleanup() {
  // Clear intervals
