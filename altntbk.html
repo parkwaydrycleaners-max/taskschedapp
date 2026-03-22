@@ -5327,37 +5327,6 @@ showOrderModalForPerson(person, date = null) {
  }
  }
 
-	showValidationSummary(errors) {
- let summaryDiv = document.getElementById('validationSummary');
- 
- if (errors.length === 0) {
- if (summaryDiv) summaryDiv.remove();
- return;
- }
- 
- if (!summaryDiv) {
- summaryDiv = document.createElement('div');
- summaryDiv.id = 'validationSummary';
- summaryDiv.className = 'bg-red-50 border border-red-200 rounded-lg p-4 mb-4';
- 
- const modal = document.getElementById('orderModal');
- const content = modal.querySelector('.grid');
- content.parentNode.insertBefore(summaryDiv, content);
- }
- 
- summaryDiv.innerHTML = `
- <div class="flex items-center mb-2">
- <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
- <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.996-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
- </svg>
- <h4 class="font-medium text-red-800">Please fix these issues:</h4>
- </div>
- <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
- ${errors.map(error => `<li>${error}</li>`).join('')}
- </ul>
- `;
-}
-	
 async saveOrder() {
  // Validate user selection first
  const userSelect = document.getElementById('orderUserSelect');
@@ -5385,11 +5354,12 @@ async saveOrder() {
  const altPcsError = document.getElementById('alterationPiecesError');
  if (!alterationPieces || alterationPieces < 1) {
      if (altPcsError) altPcsError.classList.remove('hidden');
-     const altInput = document.getElementById('alterationPiecesInput');
-     if (altInput) {
-         altInput.classList.add('border-red-500');
-         altInput.focus();
+     const altInput2 = document.getElementById('alterationPiecesInput');
+     if (altInput2) {
+         altInput2.classList.add('border-red-500');
+         altInput2.focus();
      }
+     this.showToast('⚠️ Please enter the number of alteration pieces (must be 1 or more).', 'error');
      return;
  }
  if (altPcsError) altPcsError.classList.add('hidden');
@@ -5400,12 +5370,12 @@ async saveOrder() {
  const validation = this.validateOrderData(orderNumber, dateDue, description, duration);
  if (!validation.isValid) {
  this.showValidationSummary(validation.errors);
- 
+
  if (validation.errors.length === 1) {
- this.showErrorToast('validation', validation.errors[0]);
+ this.showToast('⚠️ ' + validation.errors[0], 'error');
  } else {
- const errorList = validation.errors.map((error, index) => `${index + 1}. ${error}`).join('\n');
- this.showErrorToast('validation', `Please fix these issues:\n${errorList}`);
+ const errorList = validation.errors.map((error, index) => `${index + 1}. ${error}`).join(', ');
+ this.showToast('⚠️ ' + errorList, 'error');
  }
  return;
  } else {
@@ -10533,23 +10503,15 @@ handleModalAction(modalId, action) {
 }
 
 resetModalState(modalId) {
- // Only reset order modal state to avoid breaking other modals
- if (modalId === 'orderModal') {
- this.isEditingTask = false;
- this.editingTaskId = null;
- this.originalTaskData = null;
- }
-}
-
-resetModalState(modalId) {
  const modal = document.getElementById(modalId);
- const forms = modal.querySelectorAll('form');
- forms.forEach(form => form.reset());
- 
+ if (modal) {
+  const forms = modal.querySelectorAll('form');
+  forms.forEach(form => form.reset());
+ }
  if (modalId === 'orderModal') {
- this.isEditingTask = false;
- this.editingTaskId = null;
- this.originalTaskData = null;
+  this.isEditingTask = false;
+  this.editingTaskId = null;
+  this.originalTaskData = null;
  }
 }
 
