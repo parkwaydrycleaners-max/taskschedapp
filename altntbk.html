@@ -10987,7 +10987,7 @@ getWizardSteps() {
  steps.push({
   id: 'duration', label: 'Duration', icon: '⏱️',
   render: () => this.wizardRenderDuration(),
-  validate: () => true,
+  validate: () => this.wizardValidateDuration(),
   apply: () => this.wizardApplyDuration()
  });
 
@@ -11116,8 +11116,9 @@ wizardStepTemplate(icon, title, subtitle, inputHtml) {
   '<p id="wizardStepError" class="text-sm text-red-500 text-center mt-3 hidden"></p>';
 }
 
+// ---- Wizard Step: Your Name ----
 wizardRenderUserName() {
- const options = this.users.map(u =>
+ var options = this.users.map(u =>
   '<option value="' + u + '"' + (u === this.wizardData.userName ? ' selected' : '') + '>' + u + '</option>'
  ).join('');
  this.wizardStepTemplate('👤', 'Who are you?', 'Select your name to track this order.',
@@ -11131,8 +11132,9 @@ wizardValidateUserName() {
 }
 wizardApplyUserName() { this.wizardData.userName = document.getElementById('wizUserName')?.value || ''; }
 
+// ---- Wizard Step: Assign Person ----
 wizardRenderAssignPerson() {
- const options = this.people.map(p =>
+ var options = this.people.map(p =>
   '<option value="' + p + '"' + (p === this.wizardData.assignPerson ? ' selected' : '') + '>' + p + '</option>'
  ).join('');
  this.wizardStepTemplate('🧑‍💼', 'Assign to Person', 'Who will work on this order?',
@@ -11146,8 +11148,9 @@ wizardValidateAssignPerson() {
 }
 wizardApplyAssignPerson() { this.wizardData.assignPerson = document.getElementById('wizAssignPerson')?.value || ''; }
 
+// ---- Wizard Step: Work Date ----
 wizardRenderWorkDate() {
- const val = this.wizardData.workDate || this.dateToLocalDateString(this.currentDate);
+ var val = this.wizardData.workDate || this.dateToLocalDateString(this.currentDate);
  this.wizardStepTemplate('📅', 'Work Date', 'When should this order be scheduled?',
   '<input type="date" id="wizWorkDate" value="' + val + '" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent">');
 }
@@ -11158,45 +11161,96 @@ wizardValidateWorkDate() {
 }
 wizardApplyWorkDate() { this.wizardData.workDate = document.getElementById('wizWorkDate')?.value || ''; }
 
+// ---- Wizard Step: Order Number (with real validation) ----
 wizardRenderOrderNumber() {
- this.wizardStepTemplate('🔢', 'Order Number', 'Enter the full order number from the ticket.',
-  '<input type="text" id="wizOrderNumber" value="' + (this.wizardData.orderNumber || '') + '" placeholder="e.g. 12345" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent text-center text-lg font-mono">');
+ var val = this.wizardData.orderNumber || '';
+ this.wizardStepTemplate('🔢', 'Order Number', 'Enter "NEW", 6 digits (123456), or 1 letter + 6 digits (A123456).',
+  '<input type="text" id="wizOrderNumber" value="' + val + '" placeholder="Enter FULL Order Number" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent text-center text-lg font-mono">' +
+  '<div id="wizOrderNumError" class="text-xs text-red-500 mt-1 hidden"></div>');
+ // Add real-time validation as user types
+ var self = this;
+ setTimeout(function() {
+  var inp = document.getElementById('wizOrderNumber');
+  var errDiv = document.getElementById('wizOrderNumError');
+  if (inp && errDiv) {
+   inp.addEventListener('input', function() {
+    var v = inp.value.trim();
+    if (v === '') { errDiv.classList.add('hidden'); inp.classList.remove('border-red-500'); return; }
+    var result = self.validateOrderNumber(v);
+    if (!result.isValid) {
+     errDiv.textContent = result.error;
+     errDiv.classList.remove('hidden');
+     inp.classList.add('border-red-500');
+     inp.classList.remove('border-gray-300');
+    } else {
+     errDiv.classList.add('hidden');
+     inp.classList.remove('border-red-500');
+     inp.classList.add('border-gray-300');
+    }
+   });
+  }
+ }, 50);
 }
 wizardValidateOrderNumber() {
  this.wizardClearError();
- if (!(document.getElementById('wizOrderNumber')?.value?.trim())) { this.wizardShowError('Please enter an order number.'); return false; }
+ var val = (document.getElementById('wizOrderNumber')?.value || '').trim();
+ if (!val) { this.wizardShowError('Order number is required.'); return false; }
+ var result = this.validateOrderNumber(val);
+ if (!result.isValid) { this.wizardShowError(result.error); return false; }
  return true;
 }
-wizardApplyOrderNumber() { this.wizardData.orderNumber = document.getElementById('wizOrderNumber')?.value?.trim() || ''; }
+wizardApplyOrderNumber() { this.wizardData.orderNumber = (document.getElementById('wizOrderNumber')?.value || '').trim(); }
 
+// ---- Wizard Step: Due Date (with auto-populate from offset + past-date validation) ----
 wizardRenderDueDate() {
+ // Auto-populate from settings offset if no value set yet
+ var val = this.wizardData.dueDate || '';
+ if (!val && this.getDueDateOffset() > 0) {
+  val = this.getDefaultDueDate();
+ }
+ var offsetInfo = '';
+ var offset = this.getDueDateOffset();
+ if (offset > 0) {
+  offsetInfo = '<p class="text-xs text-amber-600 mt-2 text-center">Auto-set to ' + offset + ' day' + (offset !== 1 ? 's' : '') + ' from today (from settings).</p>';
+ }
  this.wizardStepTemplate('📆', 'Due Date', 'When is this order due to the customer?',
-  '<input type="date" id="wizDueDate" value="' + (this.wizardData.dueDate || '') + '" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent">');
+  '<input type="date" id="wizDueDate" value="' + val + '" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent">' +
+  '<div id="wizDueDateError" class="text-xs text-red-500 mt-1 hidden"></div>' +
+  offsetInfo);
+ // Add real-time past-date validation
+ var self = this;
+ setTimeout(function() {
+  var inp = document.getElementById('wizDueDate');
+  var errDiv = document.getElementById('wizDueDateError');
+  if (inp && errDiv) {
+   inp.addEventListener('change', function() {
+    var result = self.validateDueDate(inp.value);
+    if (!result.isValid) {
+     errDiv.textContent = result.error;
+     errDiv.classList.remove('hidden');
+     inp.classList.add('border-red-500');
+    } else {
+     errDiv.classList.add('hidden');
+     inp.classList.remove('border-red-500');
+    }
+   });
+  }
+ }, 50);
 }
 wizardValidateDueDate() {
  this.wizardClearError();
- if (!document.getElementById('wizDueDate')?.value) { this.wizardShowError('Please select a due date.'); return false; }
+ var val = document.getElementById('wizDueDate')?.value || '';
+ if (!val) { this.wizardShowError('Please select a due date.'); return false; }
+ var result = this.validateDueDate(val);
+ if (!result.isValid) { this.wizardShowError(result.error); return false; }
  return true;
 }
 wizardApplyDueDate() { this.wizardData.dueDate = document.getElementById('wizDueDate')?.value || ''; }
 
+// ---- Wizard Step: Description (min 3 chars, use generateCommonWords) ----
 wizardRenderDescription() {
- var allDescriptions = [];
- for (var dk in this.tasks) {
-  for (var p in this.tasks[dk]) {
-   if (Array.isArray(this.tasks[dk][p])) {
-    this.tasks[dk][p].forEach(function(t) { if (t.description) allDescriptions.push(t.description); });
-   }
-  }
- }
- var wordFreq = {};
- allDescriptions.forEach(function(desc) {
-  desc.split(/\s+/).forEach(function(w) {
-   var clean = w.replace(/[^a-zA-Z]/g, '').toLowerCase();
-   if (clean.length > 2) wordFreq[clean] = (wordFreq[clean] || 0) + 1;
-  });
- });
- var commonWords = Object.entries(wordFreq).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 15).map(function(e) { return e[0]; });
+ // Use the same common words as the main modal
+ var commonWords = this.generateCommonWords ? this.generateCommonWords() : [];
  var wordBtns = commonWords.map(function(w) {
   return '<button type="button" class="wiz-word-btn px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors" data-word="' + w + '">' + w + '</button>';
  }).join('');
@@ -11204,13 +11258,14 @@ wizardRenderDescription() {
   return '<button type="button" class="wiz-num-btn px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-mono" data-num="' + n + '">' + n + '</button>';
  }).join('');
 
- var descVal = (this.wizardData.description || '').replace(/"/g, '&quot;');
- this.wizardStepTemplate('📝', 'Description', 'Quantity, Item Name, Alterations, and if RUSH.',
+ this.wizardStepTemplate('📝', 'Description', 'Quantity, Item Name, Alterations, and if RUSH. (min 3 characters)',
   '<textarea id="wizDescription" rows="3" placeholder="Example: 1 pants hem RUSH" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none">' + (this.wizardData.description || '') + '</textarea>' +
+  '<div id="wizDescCharCount" class="text-xs text-gray-400 text-right"></div>' +
   '<div><span class="block text-xs text-gray-500 mb-1">Quick numbers:</span><div class="flex flex-wrap gap-1">' + numBtns + '</div></div>' +
   (commonWords.length > 0 ? '<div><span class="block text-xs text-gray-500 mb-1">Common words:</span><div class="flex flex-wrap gap-1">' + wordBtns + '</div></div>' : ''));
 
  setTimeout(function() {
+  // Wire quick number buttons
   document.querySelectorAll('.wiz-num-btn').forEach(function(btn) {
    btn.addEventListener('click', function() {
     var ta = document.getElementById('wizDescription');
@@ -11219,8 +11274,10 @@ wizardRenderDescription() {
     ta.value = ta.value.slice(0, start) + num + ta.value.slice(ta.selectionEnd);
     ta.setSelectionRange(start + num.length, start + num.length);
     ta.focus();
+    updateCharCount();
    });
   });
+  // Wire common word buttons
   document.querySelectorAll('.wiz-word-btn').forEach(function(btn) {
    btn.addEventListener('click', function() {
     var ta = document.getElementById('wizDescription');
@@ -11229,28 +11286,51 @@ wizardRenderDescription() {
     ta.value = ta.value.slice(0, start) + word + ta.value.slice(ta.selectionEnd);
     ta.setSelectionRange(start + word.length, start + word.length);
     ta.focus();
+    updateCharCount();
    });
   });
+  // Live character count
+  var updateCharCount = function() {
+   var ta = document.getElementById('wizDescription');
+   var countEl = document.getElementById('wizDescCharCount');
+   if (ta && countEl) {
+    var len = ta.value.trim().length;
+    if (len > 0 && len < 3) {
+     countEl.textContent = len + ' characters (min 3 required)';
+     countEl.className = 'text-xs text-red-500 text-right';
+    } else {
+     countEl.textContent = len > 0 ? len + ' characters' : '';
+     countEl.className = 'text-xs text-gray-400 text-right';
+    }
+   }
+  };
+  var ta = document.getElementById('wizDescription');
+  if (ta) { ta.addEventListener('input', updateCharCount); updateCharCount(); }
  }, 50);
 }
 wizardValidateDescription() {
  this.wizardClearError();
- if (!(document.getElementById('wizDescription')?.value?.trim())) { this.wizardShowError('Please enter a description.'); return false; }
+ var val = (document.getElementById('wizDescription')?.value || '').trim();
+ if (!val) { this.wizardShowError('Please enter a description.'); return false; }
+ if (val.length < 3) { this.wizardShowError('Description must be at least 3 characters.'); return false; }
  return true;
 }
 wizardApplyDescription() { this.wizardData.description = document.getElementById('wizDescription')?.value || ''; }
 
+// ---- Wizard Step: Duration (validate 1-32 range) ----
 wizardRenderDuration() {
  var current = parseInt(this.wizardData.duration) || 2;
+ if (current < 1) current = 1;
+ if (current > 32) current = 32;
  var durBtns = [1,2,3,4,5,6,7,8,9,10].map(function(n) {
   return '<button type="button" class="wiz-dur-btn px-3 py-2 text-sm rounded-lg font-medium transition-colors ' +
    (n === current ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200') +
    '" data-dur="' + n + '">' + n + '</button>';
  }).join('');
- this.wizardStepTemplate('⏱️', 'Duration', 'How many 15-minute slots? (default: 2 = 30 min)',
+ this.wizardStepTemplate('⏱️', 'Duration', 'How many 15-minute slots? (1\u201332, default: 2 = 30 min)',
   '<div class="text-center mb-3"><span class="text-4xl font-bold text-amber-600" id="wizDurDisplay">' + current + '</span>' +
   '<span class="text-gray-500 ml-2">slots = <span id="wizDurMinutes" class="font-semibold">' + (current * 15) + '</span> min</span></div>' +
-  '<input type="range" id="wizDuration" min="1" max="16" value="' + current + '" class="w-full accent-amber-500">' +
+  '<input type="range" id="wizDuration" min="1" max="32" value="' + current + '" class="w-full accent-amber-500">' +
   '<div class="flex flex-wrap gap-1 mt-3 justify-center">' + durBtns + '</div>');
 
  setTimeout(function() {
@@ -11258,11 +11338,14 @@ wizardRenderDuration() {
   var display = document.getElementById('wizDurDisplay');
   var minutes = document.getElementById('wizDurMinutes');
   var updateDur = function(v) {
+   v = parseInt(v);
+   if (v < 1) v = 1;
+   if (v > 32) v = 32;
    display.textContent = v;
    minutes.textContent = v * 15;
    slider.value = v;
    document.querySelectorAll('.wiz-dur-btn').forEach(function(b) {
-    if (parseInt(b.dataset.dur) === parseInt(v)) {
+    if (parseInt(b.dataset.dur) === v) {
      b.className = 'wiz-dur-btn px-3 py-2 text-sm rounded-lg font-medium transition-colors bg-amber-500 text-white';
     } else {
      b.className = 'wiz-dur-btn px-3 py-2 text-sm rounded-lg font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200';
@@ -11275,8 +11358,15 @@ wizardRenderDuration() {
   });
  }, 50);
 }
+wizardValidateDuration() {
+ this.wizardClearError();
+ var val = parseInt(document.getElementById('wizDuration')?.value) || 0;
+ if (val < 1 || val > 32) { this.wizardShowError('Duration must be between 1 and 32 slots.'); return false; }
+ return true;
+}
 wizardApplyDuration() { this.wizardData.duration = document.getElementById('wizDuration')?.value || '2'; }
 
+// ---- Wizard Step: Alteration Pieces ----
 wizardRenderPieces() {
  var current = parseInt(this.wizardData.pieces) || 0;
  var pcsBtns = [1,2,3,4,5,6,7,8,9,10].map(function(n) {
@@ -11318,6 +11408,7 @@ wizardValidatePieces() {
 }
 wizardApplyPieces() { this.wizardData.pieces = document.getElementById('wizPieces')?.value || '0'; }
 
+// ---- Wizard Step: Review ----
 wizardRenderReview() {
  var d = this.wizardData;
  var showPersonDate = !document.getElementById('personDateFields')?.classList.contains('hidden');
@@ -11364,6 +11455,7 @@ wizardRenderReview() {
   '<p id="wizardStepError" class="text-sm text-red-500 text-center mt-3 hidden"></p>';
 }
 
+// ---- Wizard Save: populate modal fields and trigger save ----
 wizardSave() {
  var d = this.wizardData;
  var showPersonDate = !document.getElementById('personDateFields')?.classList.contains('hidden');
