@@ -9463,6 +9463,14 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  console.warn(`Airtable request attempt ${attempt}/${maxRetries} failed:`, error.message);
  }
 
+ // Don't retry 422 (validation/field) errors — they will always fail with same data
+ if (error.statusCode === 422) {
+  if (!silent) {
+   this.handleProductionError(error, 'airtableRequest');
+  }
+  throw error;
+ }
+
  if (attempt === maxRetries) {
  // Only count server/network errors toward service interruption — NOT client errors (4xx)
  const isClientError = error.statusCode && error.statusCode >= 400 && error.statusCode < 500;
@@ -10028,9 +10036,11 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
  
  // Define field sets to try in order (from most complete to minimal)
+ // Each set removes one more potentially-missing field so we fail fast
  const userStamp = this.currentUser || 'Unknown';
+ const createdAtVal = task.createdAt || this.dateToLocalDateString(new Date());
  const fieldSets = [
- // Full field set with user tracking
+ // 1. Full field set — all fields
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -10044,9 +10054,9 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  Completed: task.completed || false,
  CreatedBy: userStamp,
  LastEditedBy: userStamp,
- CreatedAt: task.createdAt || this.dateToLocalDateString(new Date())
+ CreatedAt: createdAtVal
  },
- // Without CreatedBy/LastEditedBy (if fields don't exist yet)
+ // 2. Drop user tracking (CreatedBy/LastEditedBy)
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -10058,9 +10068,9 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  AlterationPieces: task.alterationPieces || 0,
  Position: task.position,
  Completed: task.completed || false,
- CreatedAt: task.createdAt || this.dateToLocalDateString(new Date())
+ CreatedAt: createdAtVal
  },
- // Without TagsQuantity and user tracking
+ // 3. Drop AlterationPieces (may not exist yet)
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -10068,12 +10078,14 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  ...(task.dateDue && { DateDue: task.dateDue }),
  Description: task.description,
  Duration: task.duration,
- AlterationPieces: task.alterationPieces || 0,
+ TagsQuantity: task.tagsQuantity || 1,
  Position: task.position,
  Completed: task.completed || false,
- CreatedAt: task.createdAt || this.dateToLocalDateString(new Date())
+ CreatedBy: userStamp,
+ LastEditedBy: userStamp,
+ CreatedAt: createdAtVal
  },
- // Minimal + CreatedAt only
+ // 4. Drop both AlterationPieces + user tracking
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -10081,9 +10093,34 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  ...(task.dateDue && { DateDue: task.dateDue }),
  Description: task.description,
  Duration: task.duration,
- CreatedAt: task.createdAt || this.dateToLocalDateString(new Date())
+ TagsQuantity: task.tagsQuantity || 1,
+ Position: task.position,
+ Completed: task.completed || false,
+ CreatedAt: createdAtVal
  },
- // Absolute minimal (no CreatedAt - last resort)
+ // 5. Drop AlterationPieces + TagsQuantity + user tracking
+ {
+ OrderNumber: task.orderNumber,
+ Person: person,
+ Date: date,
+ ...(task.dateDue && { DateDue: task.dateDue }),
+ Description: task.description,
+ Duration: task.duration,
+ Position: task.position,
+ Completed: task.completed || false,
+ CreatedAt: createdAtVal
+ },
+ // 6. Minimal + CreatedAt
+ {
+ OrderNumber: task.orderNumber,
+ Person: person,
+ Date: date,
+ ...(task.dateDue && { DateDue: task.dateDue }),
+ Description: task.description,
+ Duration: task.duration,
+ CreatedAt: createdAtVal
+ },
+ // 7. Absolute minimal (last resort)
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -10165,39 +10202,39 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  
  async updateTaskInAirtable(taskId, updates) {
  const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
- const data = {
- records: [{
- id: taskId,
- fields: updates
- }]
- };
 
- try {
- await this.makeAirtableRequest(tableName, 'PATCH', data);
- } catch (error) {
- // If it failed due to unknown/permission field errors, retry without user tracking fields
- if (error.message && (error.message.includes('Unknown field') || error.message.includes('Insufficient permissions') || error.message.includes('field'))) {
- const stripped = { ...updates };
- delete stripped.LastEditedBy;
- delete stripped.CreatedBy;
- const retryData = {
- records: [{
- id: taskId,
- fields: stripped
- }]
- };
- console.warn('Retrying update without user tracking fields');
- await this.makeAirtableRequest(tableName, 'PATCH', retryData);
- } else {
- throw error;
- }
- }
+ // Progressive field removal for unknown field errors
+ const fieldsToTry = [
+  updates,
+  (() => { const s = { ...updates }; delete s.LastEditedBy; delete s.CreatedBy; return s; })(),
+  (() => { const s = { ...updates }; delete s.AlterationPieces; return s; })(),
+  (() => { const s = { ...updates }; delete s.LastEditedBy; delete s.CreatedBy; delete s.AlterationPieces; return s; })(),
+  (() => { const s = { ...updates }; delete s.LastEditedBy; delete s.CreatedBy; delete s.AlterationPieces; delete s.TagsQuantity; delete s.CreatedAt; return s; })()
+ ];
 
- // Verify the update was successful (use stripped fields for verification)
- const verifyFields = { ...updates };
- delete verifyFields.LastEditedBy;
- delete verifyFields.CreatedBy;
- await this.verifyTaskInAirtable(taskId, verifyFields);
+ let lastError = null;
+ for (let i = 0; i < fieldsToTry.length; i++) {
+  try {
+   const data = { records: [{ id: taskId, fields: fieldsToTry[i] }] };
+   await this.makeAirtableRequest(tableName, 'PATCH', data);
+   // Verify the update (skip fields that may not exist)
+   const verifyFields = { ...fieldsToTry[i] };
+   delete verifyFields.LastEditedBy;
+   delete verifyFields.CreatedBy;
+   delete verifyFields.AlterationPieces;
+   delete verifyFields.CreatedAt;
+   await this.verifyTaskInAirtable(taskId, verifyFields);
+   return;
+  } catch (error) {
+   lastError = error;
+   if (error.message && (error.message.includes('Unknown field') || error.message.includes('Insufficient permissions'))) {
+    console.warn('Retrying update with fewer fields (attempt ' + (i + 1) + '):', error.message);
+    continue;
+   }
+   throw error;
+  }
+ }
+ throw lastError;
  }
  
  async deleteTaskFromAirtable(taskId) {
@@ -10568,12 +10605,17 @@ handleProductionError(error, context = '') {
  return;
  }
 
- if (error.message.includes('Airtable')) {
+ // Suppress toast for field errors during create — the fallback system will handle it
+ if (context === 'airtableRequest' && error.message && error.message.includes('Unknown field')) {
+ return;
+ }
+
+ if (error.message && (error.message.includes('Airtable') || error.message.includes('Unknown field') || error.statusCode === 422)) {
  this.showErrorToast('sync');
- } else if (error.message.includes('Network')) {
+ } else if (error.message && (error.message.includes('Network') || error.message.includes('Failed to fetch'))) {
  this.showErrorToast('network');
  } else {
- this.showErrorToast('validation', 'Something went wrong. Please refresh if issues persist.');
+ this.showToast('⚠️ Something went wrong. Please refresh if issues persist.', 'error');
  }
 }
 
