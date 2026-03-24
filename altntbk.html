@@ -3991,7 +3991,8 @@ attachSearchListeners() {
                          workDate: dateKey,
                          description: task.description || '',
                          pieces: parseInt(task.alterationPieces) || 0,
-                         completed: task.completed || false
+                         completed: task.completed || false,
+                         taskRef: task
                      });
                  }
              });
@@ -4018,12 +4019,20 @@ attachSearchListeners() {
              if (order.completed) row.className += ' opacity-50';
              const workDateDisplay = this.formatDateForDisplay ? this.formatDateForDisplay(order.workDate) : order.workDate;
              row.innerHTML = `
-                 <td class="px-5 py-2 font-mono font-medium text-gray-800">${order.orderNumber}${order.completed ? ' <span class="text-green-600 text-xs">✅</span>' : ''}</td>
+                 <td class="px-5 py-2 font-mono font-medium text-indigo-700 cursor-pointer hover:underline hover:text-indigo-900 select-none" title="Double-click to edit">${order.orderNumber}${order.completed ? ' <span class="text-green-600 text-xs">✅</span>' : ''}</td>
                  <td class="px-5 py-2 text-gray-600">${order.person}</td>
                  <td class="px-5 py-2 text-gray-500 text-xs">${workDateDisplay}</td>
                  <td class="px-5 py-2 text-gray-500 truncate max-w-[200px]" title="${order.description}">${order.description || '<span class=&quot;italic text-gray-300&quot;>No description</span>'}</td>
                  <td class="px-5 py-2 text-right font-bold text-indigo-600">${order.pieces}</td>
              `;
+             // Double-click order number to open edit modal
+             const orderCell = row.querySelector('td:first-child');
+             orderCell.addEventListener('dblclick', () => {
+                 if (order.taskRef) {
+                     document.getElementById('posReconDetailModal').classList.add('hidden');
+                     this.editTask(order.taskRef);
+                 }
+             });
              tbody.appendChild(row);
          });
 
@@ -7530,7 +7539,7 @@ showExportOptionsModal() {
  }
  
  const capacityInputs = this.DAYS_OF_WEEK.map(day => {
- const value = currentCapacity[day] || 16;
+ const value = currentCapacity[day] !== undefined && currentCapacity[day] !== null ? currentCapacity[day] : 16;
  return `
  <div>
  <span class="block text-sm font-medium mb-1">${day}:</span>
