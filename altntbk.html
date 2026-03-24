@@ -1521,6 +1521,7 @@ if (_fouc_loader) _fouc_loader.remove();
  this.peopleCapacity = {};
  this.peopleSpecificCapacity = {};
  this.manuallyDeletedOverrides = new Set(); // Tracks person|date keys deleted by user
+ this.manuallySetOverrides = new Set(); // Tracks person|date keys explicitly set by user via Quick Capacity Override
  this.tasks = {};
 
  // -----------------------------------------------------------------
@@ -1799,8 +1800,8 @@ if (_fouc_loader) _fouc_loader.remove();
  
  const processDate = (dateStr) => {
  this.people.forEach(person => {
- // Skip if this override was manually deleted by user
  const overrideKey = `${person}|${dateStr}`;
+ // Skip if this override was manually deleted by user
  if (this.manuallyDeletedOverrides && this.manuallyDeletedOverrides.has(overrideKey)) {
  debugLog.push({
  person,
@@ -1809,6 +1810,18 @@ if (_fouc_loader) _fouc_loader.remove();
  currentCapacity: 0,
  newCapacity: null,
  reason: 'Skipped - user manually deleted this override'
+ });
+ return;
+ }
+ // Skip if this override was manually SET by user (via Quick Capacity Override)
+ if (this.manuallySetOverrides && this.manuallySetOverrides.has(overrideKey)) {
+ debugLog.push({
+ person,
+ date: dateStr,
+ usedSlots: 0,
+ currentCapacity: 0,
+ newCapacity: null,
+ reason: 'Skipped - user manually set this override via Quick Capacity'
  });
  return;
  }
@@ -8100,7 +8113,11 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  this.manuallyDeletedOverrides.delete(deleteKey);
  this.saveManuallyDeletedOverridesToLocal();
  }
+ // Track this as a manually-set override so auto-capacity won't overwrite it
+ if (!this.manuallySetOverrides) this.manuallySetOverrides = new Set();
+ this.manuallySetOverrides.add(deleteKey);
  });
+ this.saveManuallySetOverridesToLocal();
  
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
  this.showLoading('Updating capacity overrides...');
@@ -8135,6 +8152,12 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  const deleteKey = `${person}|${date}`;
  this.manuallyDeletedOverrides.add(deleteKey);
  this.saveManuallyDeletedOverridesToLocal();
+
+ // Clear the manually-set flag since user is removing this override
+ if (this.manuallySetOverrides && this.manuallySetOverrides.has(deleteKey)) {
+ this.manuallySetOverrides.delete(deleteKey);
+ this.saveManuallySetOverridesToLocal();
+ }
 
  // FORCE save to local storage immediately
  await this.saveCapacityOverridesToLocal();
@@ -8760,6 +8783,76 @@ if (savedConfig) {
 
  if (toRemove.length > 0) {
  this.saveManuallyDeletedOverridesToLocal();
+ }
+ }
+
+ // ---------------------------------------------------------------
+ // MANUALLY SET OVERRIDES PERSISTENCE
+ // Prevents auto-capacity from overwriting overrides the user explicitly set
+ // ---------------------------------------------------------------
+ async saveManuallySetOverridesToLocal() {
+ try {
+ const db = await this.openConfigDatabase();
+ const transaction = db.transaction(['config'], 'readwrite');
+ const store = transaction.objectStore('config');
+
+ const dataToSave = {
+ id: 'manually-set-overrides',
+ data: Array.from(this.manuallySetOverrides || []),
+ lastSaved: new Date().toISOString()
+ };
+
+ return new Promise((resolve, reject) => {
+ const request = store.put(dataToSave);
+ request.onsuccess = () => resolve();
+ request.onerror = () => reject(request.error);
+ });
+ } catch (error) {
+ console.warn('Could not save manually set overrides:', error);
+ }
+ }
+
+ async loadManuallySetOverridesFromLocal() {
+ try {
+ const db = await this.openConfigDatabase();
+ const transaction = db.transaction(['config'], 'readonly');
+ const store = transaction.objectStore('config');
+
+ return new Promise((resolve) => {
+ const request = store.get('manually-set-overrides');
+ request.onsuccess = () => {
+ const result = request.result;
+ if (result && Array.isArray(result.data)) {
+ this.manuallySetOverrides = new Set(result.data);
+ this.cleanupManuallySetOverrides();
+ }
+ resolve();
+ };
+ request.onerror = () => resolve();
+ });
+ } catch (error) {
+ console.warn('Could not load manually set overrides:', error);
+ }
+ }
+
+ cleanupManuallySetOverrides() {
+ // Remove entries older than 35 days to prevent unbounded growth
+ const cutoff = new Date();
+ cutoff.setDate(cutoff.getDate() - 35);
+ const cutoffStr = this.dateToLocalDateString(cutoff);
+
+ const toRemove = [];
+ this.manuallySetOverrides.forEach(key => {
+ const dateStr = key.split('|')[1];
+ if (dateStr && dateStr < cutoffStr) {
+ toRemove.push(key);
+ }
+ });
+
+ toRemove.forEach(key => this.manuallySetOverrides.delete(key));
+
+ if (toRemove.length > 0) {
+ this.saveManuallySetOverridesToLocal();
  }
  }
 
@@ -9500,6 +9593,11 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
   throw error;
  }
 
+ // Don't retry 404 (table/record not found) errors — missing resources won't appear on retry
+ if (error.statusCode === 404) {
+  throw error;
+ }
+
  if (attempt === maxRetries) {
  // Only count server/network errors toward service interruption — NOT client errors (4xx)
  const isClientError = error.statusCode && error.statusCode >= 400 && error.statusCode < 500;
@@ -9725,8 +9823,9 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  } while (offset);
  
  
- // Clear existing overrides before loading fresh data
- this.peopleSpecificCapacity = {};
+ // Build Airtable data into temp object WITHOUT clearing local data first.
+ // This prevents data loss when Airtable save previously failed but local save succeeded.
+ const airtableCapacity = {};
 
  // Track seen keys to detect duplicates, keep the latest record per key
  const seenKeys = new Map(); // key -> { recordId, capacity }
@@ -9745,12 +9844,29 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  // Always keep the latest record (overwrites previous)
  seenKeys.set(mapKey, { recordId: record.id, capacity: fields.Capacity });
 
- if (!this.peopleSpecificCapacity[fields.Person]) {
- this.peopleSpecificCapacity[fields.Person] = {};
+ if (!airtableCapacity[fields.Person]) {
+ airtableCapacity[fields.Person] = {};
  }
- this.peopleSpecificCapacity[fields.Person][dateKey] = fields.Capacity;
+ airtableCapacity[fields.Person][dateKey] = fields.Capacity;
  }
  });
+
+ // Merge strategy: Airtable records take precedence, but preserve
+ // locally-saved overrides that haven't synced to Airtable yet
+ const airtableHasRecords = Object.keys(airtableCapacity).length > 0;
+ if (airtableHasRecords) {
+ // Airtable has data — merge Airtable over local (Airtable is authoritative for entries it has)
+ for (const person in airtableCapacity) {
+ if (!this.peopleSpecificCapacity[person]) {
+ this.peopleSpecificCapacity[person] = {};
+ }
+ for (const dateKey in airtableCapacity[person]) {
+ this.peopleSpecificCapacity[person][dateKey] = airtableCapacity[person][dateKey];
+ }
+ }
+ }
+ // If Airtable returned 0 valid records, preserve existing local data as-is
+ // (the records might not have synced yet due to save failures)
 
  await this.saveCapacityOverridesToLocal();
 
@@ -9824,9 +9940,10 @@ async loadAllDataFromAirtable() {
  this.people = Array.from(peopleSet);
  }
  
- // Load manually deleted overrides BEFORE auto-capacity runs
+ // Load manually deleted/set overrides BEFORE auto-capacity runs
  // so it knows which person+date combos to skip
  await this.loadManuallyDeletedOverridesFromLocal();
+ await this.loadManuallySetOverridesFromLocal();
 
  if (this.autoCapacityRule && this.autoCapacityRule.enabled) {
  this.applyAutoCapacityRule();
