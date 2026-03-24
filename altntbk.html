@@ -539,10 +539,24 @@ if (_fouc_loader) _fouc_loader.remove();
                         </div>
 
                         <!-- Alteration Pieces -->
-                        <div class="mt-3 flex items-center space-x-2">
-                            <span class="text-sm font-medium">Alteration Pieces:</span>
-                            <input type="number" id="alterationPiecesInput" min="0" max="99" value="0" class="w-20 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <span class="text-xs text-gray-500">required for POS reconciliation</span>
+                        <div class="mt-3">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-sm font-medium">Alteration Pieces:</span>
+                                <input type="number" id="alterationPiecesInput" min="0" max="99" value="0" class="w-20 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <span class="text-xs text-gray-500">required for POS reconciliation</span>
+                            </div>
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="1">1</button>
+                                <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="2">2</button>
+                                <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="3">3</button>
+                                <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="4">4</button>
+                                <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="5">5</button>
+                                <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="6">6</button>
+                                <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="7">7</button>
+                                <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="8">8</button>
+                                <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="9">9</button>
+                                <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="10">10</button>
+                            </div>
                             <p id="alterationPiecesError" class="text-xs text-red-500 mt-1 hidden">Please enter the number of alteration pieces.</p>
                         </div>
                     </div>
@@ -4769,6 +4783,21 @@ attachOrderModalListeners() {
  const durationInput = document.getElementById('durationInput');
  durationInput.value = duration;
  durationInput.dispatchEvent(new Event('input'));
+ }
+ });
+
+ // Alteration Pieces Quick Buttons Handler
+ document.addEventListener('click', (e) => {
+ if (e.target.closest('.alt-pcs-btn')) {
+ const btn = e.target.closest('.alt-pcs-btn');
+ const pcs = btn.dataset.pcs;
+ const pcsInput = document.getElementById('alterationPiecesInput');
+ if (pcsInput) {
+  pcsInput.value = pcs;
+  pcsInput.classList.remove('border-red-500');
+  const errEl = document.getElementById('alterationPiecesError');
+  if (errEl) errEl.classList.add('hidden');
+ }
  }
  });
 
