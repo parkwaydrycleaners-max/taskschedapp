@@ -368,13 +368,13 @@ if (_fouc_loader) _fouc_loader.remove();
             </div>
         </div>
 
-        <!-- POS Reconciliation Bar (inside header so it sticks) -->
+        <!-- Drop Alter Piece Count Bar (inside header so it sticks) -->
         <div id="posReconBar" class="bg-gray-50 border-t border-gray-200 px-6 py-2 -mx-6 -mb-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-6">
                     <!-- Today's count from Alterations Pro (clickable) -->
                     <button id="posReconDetailBtn" class="flex items-center space-x-2 hover:bg-indigo-50 rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors cursor-pointer" title="Click to view orders input today">
-                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Input Today</span>
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alterations Pro</span>
                         <span id="posReconAppCount" class="text-lg font-bold text-indigo-600">0</span>
                         <span class="text-xs text-gray-400">pcs</span>
                         <span class="text-gray-300 mx-1">·</span>
@@ -385,9 +385,9 @@ if (_fouc_loader) _fouc_loader.remove();
                     <!-- Divider -->
                     <div class="h-6 w-px bg-gray-300"></div>
 
-                    <!-- POS count input -->
+                    <!-- Drop report count input -->
                     <div class="flex items-center space-x-2">
-                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">POS Drop Report</span>
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Drop Report</span>
                         <input type="text" inputmode="numeric" pattern="[0-9]*" id="posReconPosCount" class="w-16 p-1.5 text-center text-base font-bold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="—">
                         <span class="text-xs text-gray-400">pcs</span>
                     </div>
@@ -397,7 +397,7 @@ if (_fouc_loader) _fouc_loader.remove();
 
                     <!-- Status indicator -->
                     <div id="posReconStatus" class="flex items-center space-x-2">
-                        <span class="text-sm text-gray-400 italic">Enter POS count to compare</span>
+                        <span class="text-sm text-gray-400 italic">Enter drop report count to compare</span>
                     </div>
                 </div>
 
@@ -543,7 +543,7 @@ if (_fouc_loader) _fouc_loader.remove();
                             <div class="flex items-center space-x-2">
                                 <span class="text-sm font-medium">Alteration Pieces:</span>
                                 <input type="number" id="alterationPiecesInput" min="0" max="99" value="0" class="w-20 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                                <span class="text-xs text-gray-500">required for POS reconciliation</span>
+                                <span class="text-xs text-gray-500">required for drop alter piece count</span>
                             </div>
                             <div class="flex flex-wrap gap-1 mt-1">
                                 <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="1">1</button>
@@ -1295,14 +1295,14 @@ if (_fouc_loader) _fouc_loader.remove();
         </div>
     </div>
 
-    <!-- POS Reconciliation Detail Modal -->
+    <!-- Drop Alter Piece Count Detail Modal -->
     <div id="posReconDetailModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden fade-in flex flex-col">
             <!-- Header -->
             <div class="bg-indigo-600 px-5 py-3 flex items-center justify-between flex-shrink-0">
                 <div class="flex items-center space-x-2">
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                    <h3 class="text-white text-base font-bold">Orders Input Today</h3>
+                    <h3 class="text-white text-base font-bold">Drop Alter Piece Count</h3>
                 </div>
                 <button id="posReconDetailClose" class="text-indigo-200 hover:text-white transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -3031,7 +3031,7 @@ renderWhiteboard() {
  whiteboard.appendChild(dayContainer);
  }
 
- // Update POS reconciliation bar counts
+ // Update drop alter piece count bar
  this.updatePosReconCounts();
 
 }
@@ -3933,7 +3933,7 @@ attachSearchListeners() {
  }
 
  // ---------------------------------------------------------------
- // POS RECONCILIATION
+ // DROP ALTER PIECE COUNT
  // ---------------------------------------------------------------
  attachPosReconListeners() {
  document.getElementById('posReconPosCount').addEventListener('input', () => this.updatePosReconStatus());
@@ -4026,11 +4026,11 @@ attachSearchListeners() {
          const { totalPieces } = this.getTodayPieceCounts();
          const diff = totalPieces - posCount;
          if (diff === 0) {
-             summaryEl.innerHTML = '<span class="text-green-700">✅ Matches POS count</span>';
+             summaryEl.innerHTML = '<span class="text-green-700">✅ Matches drop report</span>';
          } else if (diff > 0) {
-             summaryEl.innerHTML = `<span class="text-yellow-700">⚠️ ${diff} more than POS</span>`;
+             summaryEl.innerHTML = `<span class="text-yellow-700">⚠️ ${diff} more than drop report</span>`;
          } else {
-             summaryEl.innerHTML = `<span class="text-red-700">🚨 ${Math.abs(diff)} missing vs POS</span>`;
+             summaryEl.innerHTML = `<span class="text-red-700">🚨 ${Math.abs(diff)} missing vs drop report</span>`;
          }
      } else if (summaryEl) {
          summaryEl.textContent = '';
@@ -4084,7 +4084,7 @@ attachSearchListeners() {
 
  const posValue = posInput.value.trim();
  if (posValue === '') {
- statusEl.innerHTML = '<span class="text-sm text-gray-400 italic">Enter POS count to compare</span>';
+ statusEl.innerHTML = '<span class="text-sm text-gray-400 italic">Enter drop report count to compare</span>';
  posInput.className = 'w-16 p-1.5 text-center text-base font-bold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent';
  return;
  }
@@ -4097,7 +4097,7 @@ attachSearchListeners() {
  statusEl.innerHTML = '<span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">✅ Counts match!</span>';
  posInput.className = 'w-16 p-1.5 text-center text-base font-bold border-2 border-green-500 rounded-lg bg-green-50 focus:ring-2 focus:ring-green-500 focus:border-transparent text-green-700';
  } else if (diff > 0) {
- statusEl.innerHTML = `<span class="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">⚠️ App has ${diff} more piece${diff !== 1 ? 's' : ''} than POS</span>`;
+ statusEl.innerHTML = `<span class="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">⚠️ App has ${diff} more piece${diff !== 1 ? 's' : ''} than drop report</span>`;
  posInput.className = 'w-16 p-1.5 text-center text-base font-bold border-2 border-yellow-500 rounded-lg bg-yellow-50 focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-yellow-700';
  } else {
  const missing = Math.abs(diff);
@@ -11445,7 +11445,7 @@ wizardRenderPieces() {
    (n === current ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200') +
    '" data-pcs="' + n + '">' + n + '</button>';
  }).join('');
- this.wizardStepTemplate('🧵', 'Alteration Pieces', 'Required for POS reconciliation. Must be 1 or more.',
+ this.wizardStepTemplate('🧵', 'Alteration Pieces', 'Required for drop alter piece count. Must be 1 or more.',
   '<div class="text-center mb-3"><span class="text-5xl font-bold text-indigo-600" id="wizPcsDisplay">' + current + '</span>' +
   '<span class="text-gray-500 ml-2">piece' + (current !== 1 ? 's' : '') + '</span></div>' +
   '<input type="range" id="wizPieces" min="0" max="20" value="' + current + '" class="w-full accent-indigo-500">' +
