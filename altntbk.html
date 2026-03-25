@@ -1333,9 +1333,18 @@ tr.recon-checked {
                 </button>
             </div>
 
-            <!-- Date + Summary bar -->
-            <div class="bg-indigo-50 px-5 py-2 border-b border-indigo-100 flex items-center justify-between flex-shrink-0">
-                <span id="posReconDetailDate" class="text-sm text-indigo-700 font-medium"></span>
+            <!-- Date navigation bar -->
+            <div class="bg-indigo-50 px-3 py-2 border-b border-indigo-100 flex items-center justify-between flex-shrink-0">
+                <div class="flex items-center space-x-2">
+                    <button id="posReconDatePrev" class="p-1.5 rounded-lg hover:bg-indigo-200 text-indigo-600 transition-colors" title="Previous day">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <span id="posReconDetailDate" class="text-sm text-indigo-700 font-medium min-w-[200px] text-center"></span>
+                    <button id="posReconDateNext" class="p-1.5 rounded-lg hover:bg-indigo-200 text-indigo-600 transition-colors" title="Next day">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                    <button id="posReconDateToday" class="ml-1 px-2 py-0.5 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors" title="Jump to today">Today</button>
+                </div>
                 <span id="posReconDetailSummary" class="text-sm text-indigo-600 font-semibold"></span>
             </div>
 
@@ -1548,6 +1557,7 @@ tr.recon-checked {
  this.manuallyDeletedOverrides = new Set(); // Tracks person|date keys deleted by user
  this.manuallySetOverrides = new Set(); // Tracks person|date keys explicitly set by user via Quick Capacity Override
  this.reconciledOrders = new Set(); // Tracks task IDs checked off in Drop Alter Piece Count
+ this.posReconViewDate = null; // Currently viewed date in Drop Alter Piece Count modal
  this.tasks = {};
 
  // -----------------------------------------------------------------
@@ -3984,13 +3994,35 @@ attachSearchListeners() {
  document.getElementById('posReconDetailModal').addEventListener('click', (e) => {
      if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
  });
+ // Date navigation arrows
+ document.getElementById('posReconDatePrev').addEventListener('click', () => {
+     if (this.posReconViewDate) {
+         const d = new Date(this.posReconViewDate + 'T12:00:00');
+         d.setDate(d.getDate() - 1);
+         this.showPosReconDetailModal(this.dateToLocalDateString(d));
+     }
+ });
+ document.getElementById('posReconDateNext').addEventListener('click', () => {
+     if (this.posReconViewDate) {
+         const d = new Date(this.posReconViewDate + 'T12:00:00');
+         d.setDate(d.getDate() + 1);
+         this.showPosReconDetailModal(this.dateToLocalDateString(d));
+     }
+ });
+ document.getElementById('posReconDateToday').addEventListener('click', () => {
+     this.showPosReconDetailModal(this.dateToLocalDateString(new Date()));
+ });
  // Initialize counts on load
  this.updatePosReconCounts();
  }
 
- showPosReconDetailModal() {
+ showPosReconDetailModal(viewDateStr) {
      const todayStr = this.dateToLocalDateString(new Date());
-     const today = new Date();
+     const targetDateStr = viewDateStr || todayStr;
+     this.posReconViewDate = targetDateStr;
+     const targetDate = new Date(targetDateStr + 'T12:00:00');
+     const isToday = targetDateStr === todayStr;
+
      const tbody = document.getElementById('posReconDetailBody');
      const emptyEl = document.getElementById('posReconDetailEmpty');
      const footerEl = document.getElementById('posReconDetailFooter');
@@ -3999,18 +4031,22 @@ attachSearchListeners() {
      const totalOrdersEl = document.getElementById('posReconDetailTotalOrders');
      const totalPiecesEl = document.getElementById('posReconDetailTotalPieces');
 
-     // Set date
-     if (dateEl) dateEl.textContent = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+     // Set date display with today indicator
+     const dateDisplay = targetDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+     if (dateEl) dateEl.textContent = isToday ? dateDisplay + ' (Today)' : dateDisplay;
 
-     // Collect all orders INPUT today (by createdAt, not work date)
+     // Show/hide Today button based on whether we're already viewing today
+     const todayBtn = document.getElementById('posReconDateToday');
+     if (todayBtn) todayBtn.classList.toggle('hidden', isToday);
+
+     // Collect all orders created on the target date (by createdAt)
      const orders = [];
      for (const dateKey in this.tasks) {
          for (const person in this.tasks[dateKey]) {
              const personTasks = this.tasks[dateKey][person];
              if (!Array.isArray(personTasks)) continue;
              personTasks.forEach(task => {
-                 // Only show orders that have a createdAt matching today
-                 if (task.createdAt && task.createdAt === todayStr) {
+                 if (task.createdAt && task.createdAt === targetDateStr) {
                      orders.push({
                          orderNumber: task.orderNumber || '—',
                          person: person,
@@ -4031,6 +4067,7 @@ attachSearchListeners() {
      // Build table
      tbody.innerHTML = '';
      if (orders.length === 0) {
+         emptyEl.innerHTML = `<p class="text-sm">No alteration orders were input on ${isToday ? 'today' : targetDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}.</p>`;
          emptyEl.classList.remove('hidden');
          footerEl.classList.add('hidden');
      } else {
@@ -4090,22 +4127,28 @@ attachSearchListeners() {
          this.updateReconciledCounter(orders.length);
      }
 
-     // Summary in header
-     const posInput = document.getElementById('posReconPosCount');
-     const posValue = posInput ? posInput.value.trim() : '';
-     if (posValue !== '' && summaryEl) {
-         const posCount = parseInt(posValue) || 0;
-         const { totalPieces } = this.getTodayPieceCounts();
-         const diff = totalPieces - posCount;
-         if (diff === 0) {
-             summaryEl.innerHTML = '<span class="text-green-700">✅ Matches drop report</span>';
-         } else if (diff > 0) {
-             summaryEl.innerHTML = `<span class="text-yellow-700">⚠️ ${diff} more than drop report</span>`;
+     // Summary in header — only show drop report comparison when viewing today
+     if (summaryEl) {
+         if (isToday) {
+             const posInput = document.getElementById('posReconPosCount');
+             const posValue = posInput ? posInput.value.trim() : '';
+             if (posValue !== '') {
+                 const posCount = parseInt(posValue) || 0;
+                 const { totalPieces: todayTotalPieces } = this.getTodayPieceCounts();
+                 const diff = todayTotalPieces - posCount;
+                 if (diff === 0) {
+                     summaryEl.innerHTML = '<span class="text-green-700">✅ Matches drop report</span>';
+                 } else if (diff > 0) {
+                     summaryEl.innerHTML = `<span class="text-yellow-700">⚠️ ${diff} more than drop report</span>`;
+                 } else {
+                     summaryEl.innerHTML = `<span class="text-red-700">🚨 ${Math.abs(diff)} missing vs drop report</span>`;
+                 }
+             } else {
+                 summaryEl.textContent = '';
+             }
          } else {
-             summaryEl.innerHTML = `<span class="text-red-700">🚨 ${Math.abs(diff)} missing vs drop report</span>`;
+             summaryEl.textContent = '';
          }
-     } else if (summaryEl) {
-         summaryEl.textContent = '';
      }
 
      document.getElementById('posReconDetailModal').classList.remove('hidden');
