@@ -982,6 +982,18 @@ tr.recon-checked {
                     </div>
                 </div>
 
+                <!-- Created Date Range Filters -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <span class="block text-sm font-medium mb-2">Created Date From:</span>
+                        <input type="date" id="searchCreatedDateFrom" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                    <div>
+                        <span class="block text-sm font-medium mb-2">Created Date To:</span>
+                        <input type="date" id="searchCreatedDateTo" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                </div>
+
                 <div class="flex justify-between items-center">
                     <div class="flex space-x-2">
                         <button id="searchToday" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Today</button>
@@ -6197,14 +6209,26 @@ showSearchModal() {
  performSearch() {
  const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
  const resultsContainer = document.getElementById('searchResults');
- 
- if (!searchTerm) {
+
+ // Allow filter-only searches (no text required if any filter is active)
+ const hasActiveFilter = this.hasActiveSearchFilters();
+ if (!searchTerm && !hasActiveFilter) {
  this.showEmptySearchState(resultsContainer);
  return;
  }
- 
+
  const results = this.searchTasks(searchTerm);
  this.displaySearchResults(results, resultsContainer);
+ }
+
+ hasActiveSearchFilters() {
+ return document.getElementById('searchPersonFilter').value !== 'all' ||
+ document.getElementById('searchStatusFilter').value !== 'all' ||
+ document.getElementById('searchDueFilter').value !== 'all' ||
+ document.getElementById('searchWorkDateFrom').value !== '' ||
+ document.getElementById('searchWorkDateTo').value !== '' ||
+ document.getElementById('searchCreatedDateFrom').value !== '' ||
+ document.getElementById('searchCreatedDateTo').value !== '';
  }
  
  showEmptySearchState(container) {
@@ -6250,11 +6274,13 @@ showSearchModal() {
  const description = task.description.toLowerCase();
  const personName = person.toLowerCase();
  
- const matchesText = orderNumber.includes(searchTerm) || 
- description.includes(searchTerm) || 
+ // If search term is provided, require a text match; otherwise match all
+ if (searchTerm) {
+ const matchesText = orderNumber.includes(searchTerm) ||
+ description.includes(searchTerm) ||
  personName.includes(searchTerm);
- 
  if (!matchesText) return false;
+ }
  
  if (filters.person !== 'all' && person !== filters.person) return false;
  
@@ -6268,10 +6294,21 @@ showSearchModal() {
  
  const workDateFrom = document.getElementById('searchWorkDateFrom').value;
  const workDateTo = document.getElementById('searchWorkDateTo').value;
- 
+
  if (workDateFrom && dateKey < workDateFrom) return false;
  if (workDateTo && dateKey > workDateTo) return false;
- 
+
+ // Created date filter (createdAt is stored as YYYY-MM-DD)
+ const createdDateFrom = document.getElementById('searchCreatedDateFrom').value;
+ const createdDateTo = document.getElementById('searchCreatedDateTo').value;
+ const createdAt = task.createdAt || '';
+
+ if (createdDateFrom || createdDateTo) {
+ if (!createdAt) return false; // No created date recorded, exclude when filtering by created date
+ if (createdDateFrom && createdAt < createdDateFrom) return false;
+ if (createdDateTo && createdAt > createdDateTo) return false;
+ }
+
  return true;
  }
  
@@ -6577,6 +6614,8 @@ createSearchResultItem(result) {
  document.getElementById('searchDueFilter').value = 'all';
  document.getElementById('searchWorkDateFrom').value = '';
  document.getElementById('searchWorkDateTo').value = '';
+ document.getElementById('searchCreatedDateFrom').value = '';
+ document.getElementById('searchCreatedDateTo').value = '';
  }
  
  // Reports Modal Functions
