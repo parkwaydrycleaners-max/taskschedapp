@@ -1558,6 +1558,7 @@ tr.recon-checked {
  this.manuallySetOverrides = new Set(); // Tracks person|date keys explicitly set by user via Quick Capacity Override
  this.reconciledOrders = new Set(); // Tracks task IDs checked off in Drop Alter Piece Count
  this.posReconViewDate = null; // Currently viewed date in Drop Alter Piece Count modal
+ this.returnToDropAlterPieceCount = null; // Date to return to after editing from Drop Alter Piece Count
  this.tasks = {};
 
  // -----------------------------------------------------------------
@@ -3860,12 +3861,24 @@ attachTaskCardListeners(card, task) {
  closeButtons.forEach(id => {
  document.getElementById(id)?.addEventListener('click', () => {
  document.getElementById(id.replace('close', '').replace('Modal', '').toLowerCase() + 'Modal').classList.add('hidden');
+ // If closing order modal from a Drop Alter Piece Count edit, reopen the detail modal
+ if (id === 'closeOrderModal' && this.returnToDropAlterPieceCount) {
+ const returnDate = this.returnToDropAlterPieceCount;
+ this.returnToDropAlterPieceCount = null;
+ this.showPosReconDetailModal(returnDate);
+ }
  });
  });
 
  document.getElementById('cancelOrder')?.addEventListener('click', () => {
  this.getElement('orderModal').classList.add('hidden');
  this.resetOrderModal();
+ // If cancel was from a Drop Alter Piece Count edit, reopen the detail modal
+ if (this.returnToDropAlterPieceCount) {
+ const returnDate = this.returnToDropAlterPieceCount;
+ this.returnToDropAlterPieceCount = null;
+ this.showPosReconDetailModal(returnDate);
+ }
  });
 
  document.getElementById('cancelSettings')?.addEventListener('click', () => {
@@ -4100,6 +4113,7 @@ attachSearchListeners() {
              const orderCell = row.querySelector('td:first-child');
              orderCell.addEventListener('dblclick', () => {
                  if (order.taskRef) {
+                     this.returnToDropAlterPieceCount = this.posReconViewDate || this.dateToLocalDateString(new Date());
                      document.getElementById('posReconDetailModal').classList.add('hidden');
                      this.editTask(order.taskRef);
                  }
@@ -5613,6 +5627,13 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  
  this.handleModalAction('orderModal', 'hide');
  this.renderWhiteboard();
+
+ // If edit was initiated from Drop Alter Piece Count, reopen it
+ if (this.returnToDropAlterPieceCount) {
+ const returnDate = this.returnToDropAlterPieceCount;
+ this.returnToDropAlterPieceCount = null;
+ this.showPosReconDetailModal(returnDate);
+ }
  } catch (error) {
  // Error already handled in performAsyncOperation
  }
