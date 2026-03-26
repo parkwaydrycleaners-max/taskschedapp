@@ -1560,6 +1560,7 @@ tr.recon-checked {
  this.posReconViewDate = null; // Currently viewed date in Drop Alter Piece Count modal
  this.returnToDropAlterPieceCount = null; // Date to return to after editing from Drop Alter Piece Count
  this.reconSortState = { column: null, direction: 'asc' }; // Sort state for Drop Alter Piece Count modal
+ this.recentLocalTasks = []; // Tasks created/edited locally that may not yet be in Airtable
  this.tasks = {};
 
  // -----------------------------------------------------------------
@@ -2279,8 +2280,8 @@ tr.recon-checked {
 			 
 			 switch(column) {
 			 case 'orderNumber':
-			 valueA = a.task.orderNumber;
-			 valueB = b.task.orderNumber;
+			 valueA = parseInt((a.task.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
+			 valueB = parseInt((b.task.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
 			 break;
 			 case 'person':
 			 valueA = a.person;
@@ -5814,6 +5815,15 @@ if (dateDue && dateDue.trim() !== '') {
 
  // Add to local state first
  this.addTaskToSpecificDate(targetPerson, task, correctedDateKey);
+
+ // Track this task so auto-refresh doesn't lose it before Airtable sync completes
+ this.recentLocalTasks.push({
+ task: {...task},
+ person: targetPerson,
+ dateKey: correctedDateKey,
+ timestamp: Date.now()
+ });
+
  this.renderWhiteboard();
 
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
@@ -5822,7 +5832,12 @@ if (dateDue && dateDue.trim() !== '') {
  const recordId = await this.createTaskInAirtable(task, targetPerson, correctedDateKey);
 
  // Update the task ID to the Airtable record ID
+ const oldId = task.id;
  task.id = recordId;
+
+ // Update the tracked recent task with the Airtable record ID, then clear it
+ // since Airtable now has this record and future loads will include it
+ this.recentLocalTasks = this.recentLocalTasks.filter(r => r.task.id !== oldId);
 
  this.showToast('✅ Order saved and verified in Airtable!', 'success');
 
@@ -7158,8 +7173,8 @@ sortReportData(data, column, direction = 'asc') {
  
  switch(column) {
  case 'orderNumber':
- valueA = (a.task.orderNumber || '').toLowerCase();
- valueB = (b.task.orderNumber || '').toLowerCase();
+ valueA = parseInt((a.task.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
+ valueB = parseInt((b.task.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
  break;
  
  case 'person':
@@ -10025,6 +10040,27 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  });
  }
  });
+
+ // Merge back any recently created local tasks that aren't yet in the Airtable response.
+ // This prevents the race condition where auto-refresh clears a task before
+ // its Airtable save has propagated.
+ if (this.recentLocalTasks && this.recentLocalTasks.length > 0) {
+ const now = Date.now();
+ // Only keep tasks from the last 60 seconds (after that, they should be in Airtable)
+ this.recentLocalTasks = this.recentLocalTasks.filter(r => (now - r.timestamp) < 60000);
+
+ this.recentLocalTasks.forEach(recent => {
+ const { task, person, dateKey } = recent;
+ if (!this.tasks[dateKey]) this.tasks[dateKey] = {};
+ if (!this.tasks[dateKey][person]) this.tasks[dateKey][person] = [];
+
+ // Only add back if this task ID isn't already in the loaded data
+ const alreadyExists = this.tasks[dateKey][person].some(t => t.id === task.id);
+ if (!alreadyExists) {
+ this.tasks[dateKey][person].push({...task});
+ }
+ });
+ }
  }
 
  async loadCapacityOverridesFromAirtable() {
