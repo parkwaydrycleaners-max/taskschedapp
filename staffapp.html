@@ -2703,8 +2703,13 @@
             items.forEach(item => {
                 if (item.id === taskId) found = true;
                 if (found && !item.isPlaceholder && !item.isDivider) {
+                    markTaskDirty(item.id);
                     delete state.completed[item.id];
-                    if (state.completedSubtasks) {
+                    if (state.completedSubtasks && state.completedSubtasks[item.id]) {
+                        // Mark each subtask dirty before deleting
+                        if (item.subtasks) {
+                            item.subtasks.forEach(sub => markSubtaskDirty(item.id, sub.id));
+                        }
                         delete state.completedSubtasks[item.id];
                     }
                 }
@@ -2974,6 +2979,7 @@
                             return;
                         }
 
+                        markTaskDirty(id);
                         state.completed[id] = {
                             time: formatTime()
                         };
@@ -3025,6 +3031,8 @@
                     if (!state.completedSubtasks[taskId]) {
                         state.completedSubtasks[taskId] = {};
                     }
+
+                    markSubtaskDirty(taskId, subtaskId);
 
                     if (state.completedSubtasks[taskId][subtaskId]) {
                         delete state.completedSubtasks[taskId][subtaskId];
@@ -3091,7 +3099,9 @@
                         const items = checklistData[found.section][found.group];
                         // Swap with previous item
                         [items[found.index - 1], items[found.index]] = [items[found.index], items[found.index - 1]];
+                        markMasterDirty();
                         saveState();
+                        schedulePush();
                         renderChecklists();
                     }
                 });
@@ -3108,7 +3118,9 @@
                         if (found.index < items.length - 1) {
                             // Swap with next item
                             [items[found.index], items[found.index + 1]] = [items[found.index + 1], items[found.index]];
+                            markMasterDirty();
                             saveState();
+                            schedulePush();
                             renderChecklists();
                         }
                     }
@@ -3171,6 +3183,7 @@
         document.getElementById('resetConfirm').addEventListener('click', () => {
             state.completed = {};
             state.completedSubtasks = {};
+            markFullDailyPush(); // Full overwrite — clears everything on Firebase too
             saveState();
             renderChecklists();
             schedulePush();
@@ -3561,7 +3574,10 @@
                 }
             }
 
+            markMasterDirty();
+            markFullDailyPush(); // todayOnly tasks live in daily data
             saveState();
+            schedulePush();
             renderChecklists();
             taskModal.classList.remove('show');
             currentTaskEdit = null;
@@ -3605,7 +3621,10 @@
                 // Also remove from completed if checked
                 delete state.completed[currentDeleteItem.item.id];
 
+                markMasterDirty();
+                markTaskDirty(currentDeleteItem.item.id);
                 saveState();
+                schedulePush();
                 renderChecklists();
             }
             deleteModal.classList.remove('show');
@@ -3832,20 +3851,76 @@
             return response.json();
         }
 
-        // Push local data to Firebase (1 API call using multi-path update)
+        // ========== GRANULAR SYNC (multi-device safe) ==========
+        // Track which tasks/subtasks changed locally so we only push those paths
+        let dirtyTasks = new Set();       // task IDs whose completed state changed
+        let dirtySubtasks = new Set();    // "taskId:subtaskId" keys
+        let masterDirty = false;          // master task list was edited
+        let fullDailyPush = false;        // need to overwrite entire daily record (reset)
+
+        function markTaskDirty(taskId) { dirtyTasks.add(taskId); }
+        function markSubtaskDirty(taskId, subtaskId) { dirtySubtasks.add(taskId + ':' + subtaskId); }
+        function markMasterDirty() { masterDirty = true; }
+        function markFullDailyPush() { fullDailyPush = true; }
+
+        // Push ONLY the changed paths to Firebase — other devices' changes stay untouched
         async function pushToFirebase() {
             if (!firebaseConfig) return;
             const todayKey = getLocalDateKey();
             const updates = {};
-            updates['/master'] = { tasks: checklistData, lastModified: Date.now() };
-            updates['/daily/' + todayKey] = {
-                completed: state.completed,
-                completedSubtasks: state.completedSubtasks,
-                todayOnlyTasks: state.todayOnlyTasks,
-                date: new Date().toDateString(),
-                lastModified: Date.now()
-            };
-            await firebaseRequest('PATCH', '', updates);
+
+            // Master data (only if edited)
+            if (masterDirty) {
+                updates['/master'] = { tasks: checklistData, lastModified: Date.now() };
+                masterDirty = false;
+            }
+
+            if (fullDailyPush) {
+                // Full daily overwrite (reset button, etc.)
+                updates['/daily/' + todayKey] = {
+                    completed: state.completed,
+                    completedSubtasks: state.completedSubtasks,
+                    todayOnlyTasks: state.todayOnlyTasks,
+                    date: new Date().toDateString(),
+                    lastModified: Date.now()
+                };
+                fullDailyPush = false;
+            } else {
+                // Granular: only push changed task completions
+                const dailyBase = '/daily/' + todayKey;
+
+                for (const taskId of dirtyTasks) {
+                    if (state.completed[taskId]) {
+                        updates[dailyBase + '/completed/' + taskId] = state.completed[taskId];
+                    } else {
+                        updates[dailyBase + '/completed/' + taskId] = null; // delete from Firebase
+                    }
+                }
+
+                for (const key of dirtySubtasks) {
+                    const parts = key.split(':');
+                    const taskId = parts[0];
+                    const subtaskId = parts[1];
+                    if (state.completedSubtasks && state.completedSubtasks[taskId] && state.completedSubtasks[taskId][subtaskId]) {
+                        updates[dailyBase + '/completedSubtasks/' + taskId + '/' + subtaskId] = true;
+                    } else {
+                        updates[dailyBase + '/completedSubtasks/' + taskId + '/' + subtaskId] = null;
+                    }
+                }
+
+                // Always update metadata so other devices know this is fresh
+                if (dirtyTasks.size > 0 || dirtySubtasks.size > 0) {
+                    updates[dailyBase + '/date'] = new Date().toDateString();
+                    updates[dailyBase + '/lastModified'] = Date.now();
+                }
+            }
+
+            dirtyTasks.clear();
+            dirtySubtasks.clear();
+
+            if (Object.keys(updates).length > 0) {
+                await firebaseRequest('PATCH', '', updates);
+            }
             lastSyncTime = Date.now();
         }
 
@@ -3975,6 +4050,8 @@
                 const pullSuccess = await pullFromFirebase();
 
                 if (forcePush) {
+                    markMasterDirty();
+                    markFullDailyPush();
                     await pushToFirebase();
                 }
 
@@ -4005,13 +4082,10 @@
             }, 300); // Push almost immediately
         }
 
-        // Override saveState to trigger sync (but not during pull)
+        // Override saveState — NO auto-push. Push is triggered explicitly via schedulePush().
         const originalSaveState = saveState;
         saveState = function() {
             originalSaveState();
-            if (!isSyncing) {
-                schedulePush();
-            }
         };
 
         // Start real-time listener using EventSource (Firebase SSE streaming)
@@ -4025,14 +4099,16 @@
             try {
                 eventSource = new EventSource(url);
 
-                eventSource.addEventListener('put', (e) => {
-                    // Don't process if we just pushed (avoid echo)
-                    if (Date.now() - lastSyncTime < 2000) return;
+                // Handle both 'put' and 'patch' SSE events from Firebase
+                function handleSSEEvent(e) {
+                    // Don't process our own echo
+                    if (Date.now() - lastSyncTime < 1500) return;
                     if (isSyncing) return;
 
                     try {
                         const { path, data } = JSON.parse(e.data);
                         const todayKey = getLocalDateKey();
+                        const dailyPrefix = '/daily/' + todayKey;
 
                         if (path === '/') {
                             // Full data update
@@ -4046,17 +4122,15 @@
                                 updateSyncStatus('connected', 'Synced just now');
                             }
                         } else if (path === '/master') {
-                            // Master tasks update
                             if (data) {
                                 applyMasterData(data);
                                 saveState();
                                 renderChecklists();
                                 updateSyncStatus('connected', 'Synced just now');
                             }
-                        } else if (path === '/daily/' + todayKey || path.startsWith('/daily/' + todayKey + '/')) {
-                            // Today's daily data update
-                            if (path === '/daily/' + todayKey && data) {
-                                // Skip stale data from old UTC date bug
+                        } else if (path === dailyPrefix) {
+                            // Full daily record update
+                            if (data) {
                                 if (data.date && data.date !== new Date().toDateString()) {
                                     console.log('Realtime: ignoring stale daily record');
                                 } else {
@@ -4066,20 +4140,58 @@
                                     updateSyncStatus('connected', 'Synced just now');
                                 }
                             }
+                        } else if (path.startsWith(dailyPrefix + '/completed/')) {
+                            // Granular: single task completion changed on another device
+                            const taskId = path.replace(dailyPrefix + '/completed/', '');
+                            if (data === null) {
+                                delete state.completed[taskId];
+                            } else {
+                                state.completed[taskId] = data;
+                            }
+                            saveState();
+                            renderChecklists();
+                            updateSyncStatus('connected', 'Synced just now');
+                        } else if (path.startsWith(dailyPrefix + '/completedSubtasks/')) {
+                            // Granular: subtask completion changed on another device
+                            const subPath = path.replace(dailyPrefix + '/completedSubtasks/', '');
+                            const parts = subPath.split('/');
+                            if (parts.length === 2) {
+                                const taskId = parts[0];
+                                const subtaskId = parts[1];
+                                if (!state.completedSubtasks) state.completedSubtasks = {};
+                                if (!state.completedSubtasks[taskId]) state.completedSubtasks[taskId] = {};
+                                if (data === null) {
+                                    delete state.completedSubtasks[taskId][subtaskId];
+                                } else {
+                                    state.completedSubtasks[taskId][subtaskId] = data;
+                                }
+                                saveState();
+                                renderChecklists();
+                                updateSyncStatus('connected', 'Synced just now');
+                            } else if (parts.length === 1) {
+                                // Entire task's subtasks updated/deleted
+                                const taskId = parts[0];
+                                if (!state.completedSubtasks) state.completedSubtasks = {};
+                                if (data === null) {
+                                    delete state.completedSubtasks[taskId];
+                                } else {
+                                    state.completedSubtasks[taskId] = data;
+                                }
+                                saveState();
+                                renderChecklists();
+                                updateSyncStatus('connected', 'Synced just now');
+                            }
+                        } else if (path.startsWith(dailyPrefix + '/')) {
+                            // Other daily sub-path (metadata, etc.) — just update status
+                            updateSyncStatus('connected', 'Synced just now');
                         }
                     } catch (parseErr) {
                         console.log('SSE parse error:', parseErr.message);
                     }
-                });
+                }
 
-                eventSource.addEventListener('patch', (e) => {
-                    // Don't process if we just pushed
-                    if (Date.now() - lastSyncTime < 2000) return;
-                    if (isSyncing) return;
-
-                    // For patch events, do a full pull to stay in sync
-                    pullFromFirebase();
-                });
+                eventSource.addEventListener('put', handleSSEEvent);
+                eventSource.addEventListener('patch', handleSSEEvent);
 
                 eventSource.onerror = () => {
                     // EventSource will auto-reconnect; just update status temporarily
