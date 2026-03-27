@@ -1560,6 +1560,8 @@ tr.recon-checked {
  this.posReconViewDate = null; // Currently viewed date in Drop Alter Piece Count modal
  this.returnToDropAlterPieceCount = null; // Date to return to after editing from Drop Alter Piece Count
  this.reconSortState = { column: null, direction: 'asc' }; // Sort state for Drop Alter Piece Count modal
+ this.dayNotes = {}; // { 'YYYY-MM-DD': 'note text' } — per-day scribble notes
+ this.dayNoteSaveTimers = {}; // Debounce timers for day note saves
  this.recentLocalTasks = []; // Tasks created/edited locally that may not yet be in Airtable
  this.tasks = {};
 
@@ -1608,7 +1610,8 @@ tr.recon-checked {
  tasks: 'Tasks',
  capacityOverrides: 'CapacityOverrides',
  users: 'Users',
- auditLog: 'AuditLog'
+ auditLog: 'AuditLog',
+ dayNotes: 'DayNotes'
  }
  };
 
@@ -3129,13 +3132,26 @@ renderWhiteboard() {
  }
 
  dayHeader.className = headerClasses;
+ const dateKey = this.dateToLocalDateString(date);
+ const existingNote = this.dayNotes[dateKey] || '';
  dayHeader.innerHTML = `
  <div class="flex items-center justify-center">
  <span class="text-xl font-extrabold tracking-wide">${dayName.toUpperCase()}</span>
  ${dateIndicator}
  </div>
  <div class="text-sm font-medium opacity-90 mt-1">${dayStr}</div>
+ <div class="mt-1.5 px-2">
+ <input type="text" class="day-note-input w-full text-xs px-2 py-1 rounded bg-white/20 text-white placeholder-white/50 border border-white/25 focus:bg-white/30 focus:outline-none focus:border-white/50 transition-colors" placeholder="✏️ Day note..." data-date="${dateKey}" value="${this.escapeHtml(existingNote)}" maxlength="120" style="font-size:14px;">
+ </div>
  `;
+ // Wire up the note input
+ const noteInput = dayHeader.querySelector('.day-note-input');
+ noteInput.addEventListener('input', (e) => {
+ this.handleDayNoteChange(dateKey, e.target.value);
+ });
+ // Prevent whiteboard drag from interfering
+ noteInput.addEventListener('mousedown', (e) => e.stopPropagation());
+ noteInput.addEventListener('touchstart', (e) => e.stopPropagation());
  container.appendChild(dayHeader);
 
  const columnsContainer = document.createElement('div');
@@ -8678,6 +8694,7 @@ showIdleWakeModal(context) {
  // Auto-load functionality
  async checkForAutoLoad() {
  await this.loadCapacityOverridesFromLocal();
+ await this.loadDayNotesFromLocal();
 // CRITICAL FIX: Don't load people capacity from local storage
 // Let Airtable data load first and save to local storage
 // await this.loadPeopleCapacityFromLocal();
@@ -10182,7 +10199,8 @@ async loadAllDataFromAirtable() {
  // CRITICAL FIX: Save fresh Airtable people capacity to local storage
  await this.savePeopleCapacityToLocal();
  await this.loadTextContentFromAirtable();
- 
+ await this.loadDayNotesFromAirtable();
+
  // Re-render whiteboard after all loads complete
 
  // 🎯 DYNAMIC FIX: Extract people from loaded tasks if needed
@@ -11346,6 +11364,130 @@ sanitizeInput(input) {
  const div = document.createElement('div');
  div.textContent = input;
  return div.innerHTML;
+}
+
+escapeHtml(str) {
+ if (!str) return '';
+ return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ---------------------------------------------------------------
+// DAY NOTES — per-day scribble notes on the whiteboard
+// ---------------------------------------------------------------
+handleDayNoteChange(dateKey, value) {
+ if (value.trim()) {
+ this.dayNotes[dateKey] = value;
+ } else {
+ delete this.dayNotes[dateKey];
+ }
+
+ // Debounce the save (wait 800ms after typing stops)
+ if (this.dayNoteSaveTimers[dateKey]) {
+ clearTimeout(this.dayNoteSaveTimers[dateKey]);
+ }
+ this.dayNoteSaveTimers[dateKey] = setTimeout(async () => {
+ await this.saveDayNotesToLocal();
+ if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
+ await this.upsertDayNoteInAirtable(dateKey, value.trim());
+ }
+ }, 800);
+}
+
+async saveDayNotesToLocal() {
+ try {
+ const db = await this.openConfigDatabase();
+ const transaction = db.transaction(['config'], 'readwrite');
+ const store = transaction.objectStore('config');
+
+ const dataToSave = {
+ id: 'day-notes',
+ data: this.dayNotes,
+ lastSaved: new Date().toISOString()
+ };
+
+ return new Promise((resolve, reject) => {
+ const request = store.put(dataToSave);
+ request.onsuccess = () => resolve();
+ request.onerror = () => reject(request.error);
+ });
+ } catch (error) {
+ console.warn('Could not save day notes locally:', error);
+ }
+}
+
+async loadDayNotesFromLocal() {
+ try {
+ const db = await this.openConfigDatabase();
+ const transaction = db.transaction(['config'], 'readonly');
+ const store = transaction.objectStore('config');
+
+ return new Promise((resolve) => {
+ const request = store.get('day-notes');
+ request.onsuccess = () => {
+ const result = request.result;
+ if (result && result.data && typeof result.data === 'object') {
+ this.dayNotes = result.data;
+ }
+ resolve();
+ };
+ request.onerror = () => resolve();
+ });
+ } catch (error) {
+ console.warn('Could not load day notes locally:', error);
+ }
+}
+
+async upsertDayNoteInAirtable(dateKey, noteText) {
+ try {
+ const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.dayNotes || 'DayNotes');
+
+ // Check for existing record for this date
+ const filterFormula = `{Date}='${dateKey}'`;
+ const response = await this.makeAirtableRequest(
+ `${tableName}?filterByFormula=${encodeURIComponent(filterFormula)}`, 'GET', null, true
+ );
+
+ if (response.records && response.records.length > 0) {
+ const recordId = response.records[0].id;
+ if (noteText) {
+ // Update existing
+ await this.makeAirtableRequest(tableName, 'PATCH', {
+ records: [{ id: recordId, fields: { Date: dateKey, Note: noteText } }]
+ }, true);
+ } else {
+ // Delete if empty
+ await this.makeAirtableRequest(`${tableName}/${recordId}`, 'DELETE', null, true);
+ }
+ } else if (noteText) {
+ // Create new
+ await this.makeAirtableRequest(tableName, 'POST', {
+ records: [{ fields: { Date: dateKey, Note: noteText } }]
+ }, true);
+ }
+ } catch (error) {
+ // Silent fail — notes are saved locally as fallback
+ console.warn('Could not sync day note to Airtable:', error.message);
+ }
+}
+
+async loadDayNotesFromAirtable() {
+ try {
+ const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.dayNotes || 'DayNotes');
+ const response = await this.makeAirtableRequest(tableName, 'GET', null, true);
+
+ if (response.records && response.records.length > 0) {
+ response.records.forEach(record => {
+ const fields = record.fields;
+ if (fields.Date && fields.Note) {
+ this.dayNotes[fields.Date] = fields.Note;
+ }
+ });
+ await this.saveDayNotesToLocal();
+ }
+ } catch (error) {
+ // Table may not exist — that's fine, local notes still work
+ console.warn('Could not load day notes from Airtable:', error.message);
+ }
 }
 
 // Add this method to cache frequently used elements
