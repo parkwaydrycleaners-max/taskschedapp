@@ -39,12 +39,12 @@ body{min-height:100vh;overflow-x:hidden}
 .mono{font-family:'IBM Plex Mono',monospace}
 input,select,textarea,button{font-family:inherit;font-size:16px}
 
-.hdr{background:var(--bg2);border-bottom:1px solid var(--bd);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50}
+.hdr{background:var(--bg2);border-bottom:1px solid var(--bd);padding:12px 20px;display:flex;align-items:center;gap:10px}
 .logo{font-size:1.25rem;font-weight:700;letter-spacing:-.03em;color:var(--ac)}
 .logo span{color:var(--sc)}
 .sub{font-size:.72rem;color:var(--tx3);margin-left:4px}
 
-.tabs{display:flex;gap:2px;background:var(--bg2);border-bottom:1px solid var(--bd);padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tabs{display:flex;gap:2px;background:var(--bg2);border-bottom:1px solid var(--bd);padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:49}
 .tbtn{padding:11px 16px;font-size:.8rem;font-weight:500;color:var(--tx3);border:none;background:none;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:.2s}
 .tbtn:hover{color:var(--tx)}
 .tbtn.on{color:var(--ac);border-bottom-color:var(--ac);font-weight:600}
@@ -395,6 +395,17 @@ tr.closed-row td{color:var(--tx3)!important;font-style:italic}
 <span id="copyExpOk" style="font-size:.8rem;color:var(--ok);display:none"><i class="fa-solid fa-check"></i> Copied!</span>
 </div>
 <pre class="export-area" id="exportArea"></pre>
+</div>
+
+<div class="card anim">
+<div class="ctitle"><i class="fa-solid fa-bug"></i> Debug Snapshot <span class="badge" style="margin-left:auto;background:var(--bg4);color:var(--tx3)">For Troubleshooting</span></div>
+<div class="info">Copy and paste this to share your full app state for debugging. Includes all settings, data summaries, per-day schedule details, and timing info.</div>
+<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+<button class="btn btn-p" id="genDebugBtn"><i class="fa-solid fa-camera"></i> Generate Snapshot</button>
+<button class="btn btn-s" id="copyDebugBtn" style="display:none"><i class="fa-solid fa-clipboard"></i> Copy to Clipboard</button>
+<span id="copyDebugOk" style="font-size:.8rem;color:var(--ok);display:none"><i class="fa-solid fa-check"></i> Copied!</span>
+</div>
+<pre class="export-area" id="debugArea" style="display:none;font-size:.68rem;max-height:400px;overflow-y:auto"></pre>
 </div>
 </div>
 </section>
@@ -1234,8 +1245,20 @@ function renderWeatherForecast(){
   card.innerHTML=html;
 }
 
+/* Cached weather settings — refreshed at start of each schedule generation */
+var WX_SETTINGS={lightAdj:2,modAdj:5,heavyAdj:30,heatThresh:95,heatAdjPct:14,bizOpen:9,bizClose:19};
+function refreshWxSettings(){
+  WX_SETTINGS.lightAdj=parseFloat(document.getElementById('rainLight').value)||0;
+  WX_SETTINGS.modAdj=parseFloat(document.getElementById('rainMod').value)||0;
+  WX_SETTINGS.heavyAdj=parseFloat(document.getElementById('rainHeavy').value)||0;
+  WX_SETTINGS.heatThresh=parseFloat(document.getElementById('heatThresh').value)||95;
+  WX_SETTINGS.heatAdjPct=parseFloat(document.getElementById('heatAdj').value)||0;
+  WX_SETTINGS.bizOpen=parseInt(document.getElementById('bizOpen').value)||9;
+  WX_SETTINGS.bizClose=parseInt(document.getElementById('bizClose').value)||19;
+}
+
 function getWeatherIcon(code,precip,tempMax){
-  var heatThresh=parseFloat(document.getElementById('heatThresh').value)||95;
+  var heatThresh=WX_SETTINGS.heatThresh;
   if(precip>0.6)return'<i class="fa-solid fa-cloud-showers-water" style="color:var(--err)"></i> Heavy Rain';
   if(precip>0.2)return'<i class="fa-solid fa-cloud-showers-heavy" style="color:var(--ac)"></i> Moderate Rain';
   if(precip>0.08)return'<i class="fa-solid fa-cloud-rain" style="color:var(--blue)"></i> Light Rain';
@@ -1248,22 +1271,16 @@ function getWeatherIcon(code,precip,tempMax){
 function calcWeatherAdj(wd){
   var adj=0;
   var precipMM=wd.precip*25.4;
-  var lightAdj=parseFloat(document.getElementById('rainLight').value)||0;
-  var modAdj=parseFloat(document.getElementById('rainMod').value)||0;
-  var heavyAdj=parseFloat(document.getElementById('rainHeavy').value)||0;
-  var heatThresh=parseFloat(document.getElementById('heatThresh').value)||95;
-  var heatAdjPct=parseFloat(document.getElementById('heatAdj').value)||0;
-  var bizOpen=parseInt(document.getElementById('bizOpen').value)||9;
-  var bizClose=parseInt(document.getElementById('bizClose').value)||19;
-  var bizHrs=bizClose-bizOpen;
+  var w=WX_SETTINGS;
+  var bizHrs=w.bizClose-w.bizOpen;
 
   if(bizHrs>0&&wd.precipHrs>0){
     var rainOverlap=Math.min(wd.precipHrs,bizHrs)/bizHrs;
-    if(precipMM>=15)adj-=heavyAdj*rainOverlap;
-    else if(precipMM>=5)adj-=modAdj*rainOverlap;
-    else if(precipMM>=2)adj-=lightAdj*rainOverlap;
+    if(precipMM>=15)adj-=w.heavyAdj*rainOverlap;
+    else if(precipMM>=5)adj-=w.modAdj*rainOverlap;
+    else if(precipMM>=2)adj-=w.lightAdj*rainOverlap;
   }
-  if(wd.tempMax>=heatThresh)adj-=heatAdjPct;
+  if(wd.tempMax>=w.heatThresh)adj-=w.heatAdjPct;
   return adj;
 }
 
@@ -1302,6 +1319,8 @@ document.getElementById('fetchWeatherBtn').addEventListener('click',fetchWeather
    ================================================================ */
 function generateSchedule(){
   if(ST.fc.dates.length<1){showMsg('Import forecast data first.','error');return;}
+  var _t0=performance.now();
+  refreshWxSettings();
 
   var totalCol=findTotalPiecesCol();
   var revCol=findTotalRevenueCol();
@@ -1338,7 +1357,7 @@ function generateSchedule(){
           var lostPcs=pcs*Math.abs(weatherAdj)/100;
           var precipMM=wd.precip*25.4;
           var isRain=precipMM>=5;
-          var heatThr=parseFloat(document.getElementById('heatThresh').value)||95;
+          var heatThr=WX_SETTINGS.heatThresh;
           var isHeat=wd.tempMax>=heatThr;
 
           /*
@@ -1469,6 +1488,8 @@ function generateSchedule(){
   document.getElementById('noExpMsg').style.display='none';
   document.getElementById('expContent').style.display='';
   generateExport();
+
+  ST._lastGenMs=Math.round(performance.now()-_t0);
 }
 
 function findNextDOW(fromIdx,targetDow){
@@ -1491,6 +1512,7 @@ function renderSchedule(){
   var hasSales=ST.sales.dates.length>0;
   var showRev=SCHED_MODE!=='pieces';
   var showBothDriver=SCHED_MODE==='both';
+  var maxStaffDayVal=parseFloat(document.getElementById('maxStaffDay').value)||120;
 
   var html='<div class="twrap" style="max-height:500px;overflow-y:auto"><table class="dtbl"><thead><tr><th>Date</th><th>Day</th><th>Weather</th><th class="n">Pcs (adj)</th>';
   if(showRev)html+='<th class="n">Rev (adj)</th>';
@@ -1506,7 +1528,7 @@ function renderSchedule(){
 
   ST.sched.forEach(function(day){
     var barPct=Math.round((day.recHours/maxHrs)*100);
-    var barColor=day.recHours>parseFloat(document.getElementById('maxStaffDay').value)*0.9?'var(--err)':day.recHours>parseFloat(document.getElementById('maxStaffDay').value)*0.7?'var(--warn)':'var(--sc)';
+    var barColor=day.recHours>maxStaffDayVal*0.9?'var(--err)':day.recHours>maxStaffDayVal*0.7?'var(--warn)':'var(--sc)';
     var pphColor=day.estPPH>10?'var(--ok)':day.estPPH<6?'var(--err)':'var(--tx)';
 
     html+='<tr'+(day.closed?' class="closed-row"':'')+'><td style="font-weight:500">'+fmtD(day.date)+'</td>';
@@ -1722,6 +1744,130 @@ document.getElementById('copyExpBtn').addEventListener('click',function(){
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(function(){
       var el=document.getElementById('copyExpOk');el.style.display='inline';
+      setTimeout(function(){el.style.display='none';},2000);
+    });
+  }
+});
+
+/* ================================================================
+   DEBUG SNAPSHOT
+   ================================================================ */
+function generateDebugSnapshot(){
+  var snap={};
+  var ts=new Date();
+  snap._meta={generated:ts.toISOString(),userAgent:navigator.userAgent,screenW:window.innerWidth,screenH:window.innerHeight};
+
+  /* Timing */
+  snap.timing={lastScheduleGenMs:ST._lastGenMs||null};
+
+  /* All settings */
+  snap.settings=gatherSettings();
+
+  /* Forecast data summary */
+  var fc=ST.fc;
+  snap.forecast={
+    days:fc.dates.length,
+    dateRange:fc.dates.length>0?[fmtD(fc.dates[0]),fmtD(fc.dates[fc.dates.length-1])]:null,
+    columns:Object.keys(fc.columns),
+    totalPiecesCol:findTotalPiecesCol()||null,
+    totalRevenueCol:findTotalRevenueCol()||null,
+    meta:fc.meta
+  };
+  /* Per-column sums */
+  snap.forecast.columnSums={};
+  Object.keys(fc.columns).forEach(function(col){
+    var s=0;fc.columns[col].forEach(function(v){s+=v;});
+    snap.forecast.columnSums[col]=Math.round(s*100)/100;
+  });
+
+  /* Employee hours summary */
+  snap.hours={
+    days:ST.hr.dates.length,
+    dateRange:ST.hr.dates.length>0?[fmtD(ST.hr.dates[0]),fmtD(ST.hr.dates[ST.hr.dates.length-1])]:null,
+    totalHours:ST.hr.hours.reduce(function(a,b){return a+b;},0),
+    avgPerDay:ST.hr.hours.length>0?(ST.hr.hours.reduce(function(a,b){return a+b;},0)/ST.hr.hours.length):0,
+    thresholdApplied:parseFloat(document.getElementById('hrThreshold').value)||0
+  };
+
+  /* Sales data summary */
+  snap.sales={
+    days:ST.sales.dates.length,
+    dateRange:ST.sales.dates.length>0?[fmtD(ST.sales.dates[0]),fmtD(ST.sales.dates[ST.sales.dates.length-1])]:null,
+    totalPcs:ST.sales.totalPcs.reduce(function(a,b){return a+b;},0),
+    totalRev:ST.sales.totalRev.reduce(function(a,b){return a+b;},0)
+  };
+
+  /* Weather */
+  snap.weather={
+    loaded:ST.weather.loaded,
+    location:ST.weather.location||null,
+    days:ST.weather.daily?ST.weather.daily.length:0,
+    dateRange:ST.weather.daily&&ST.weather.daily.length>0?[ST.weather.daily[0].date,ST.weather.daily[ST.weather.daily.length-1].date]:null,
+    wxDateInputs:{start:document.getElementById('wxStartDate').value,end:document.getElementById('wxEndDate').value},
+    apiServer:document.getElementById('weatherServerSelect').value,
+    cachedWxSettings:JSON.parse(JSON.stringify(WX_SETTINGS))
+  };
+
+  /* Schedule detail — every day */
+  if(ST.sched){
+    snap.schedule={days:ST.sched.length,mode:SCHED_MODE};
+    snap.schedule.detail=ST.sched.map(function(d){
+      var row={
+        date:fmtD(d.date),dow:d.dowName,closed:!!d.closed,
+        basePcs:d.basePcs,baseRev:d.baseRev,
+        weatherAdj:d.weatherAdj,redistIn:d.redistIn,
+        adjustedPcs:Math.round(d.adjustedPcs*100)/100,
+        adjustedRev:Math.round((d.adjustedRev||0)*100)/100,
+        recHours:d.recHours,recStaff:d.recStaff,
+        schedDriver:d.schedDriver,capReason:d.capReason||'',
+        laborCost:d.laborCost,
+        estPPH:Math.round(d.estPPH*100)/100,
+        estSPH:Math.round((d.estSPH||0)*100)/100,
+        actualHrs:d.actualHrs,actualPcs:d.actualPcs,actualRev:d.actualRev,actualPPH:d.actualPPH!==null?Math.round(d.actualPPH*100)/100:null
+      };
+      if(d.catDetail)row.catDetail=d.catDetail;
+      return row;
+    });
+
+    /* Aggregated totals */
+    var open=ST.sched.filter(function(d){return !d.closed;});
+    snap.schedule.totals={
+      openDays:open.length,
+      closedDays:ST.sched.length-open.length,
+      totalRecHours:Math.round(open.reduce(function(s,d){return s+d.recHours;},0)*10)/10,
+      totalLaborCost:Math.round(open.reduce(function(s,d){return s+d.laborCost;},0)),
+      totalAdjPcs:Math.round(open.reduce(function(s,d){return s+d.adjustedPcs;},0)),
+      totalAdjRev:Math.round(open.reduce(function(s,d){return s+(d.adjustedRev||0);},0)),
+      avgRecHoursPerDay:open.length>0?Math.round(open.reduce(function(s,d){return s+d.recHours;},0)/open.length*10)/10:0
+    };
+  }else{
+    snap.schedule=null;
+  }
+
+  /* DOW breakdown */
+  snap.dowConfig={};
+  DOW_N.forEach(function(name,idx){
+    snap.dowConfig[name]={adj:DOW_ADJ[idx]+'%',closed:CLOSED_DAYS[idx]};
+  });
+
+  return snap;
+}
+
+document.getElementById('genDebugBtn').addEventListener('click',function(){
+  var snap=generateDebugSnapshot();
+  var json=JSON.stringify(snap,null,2);
+  var area=document.getElementById('debugArea');
+  area.textContent=json;
+  area.style.display='';
+  document.getElementById('copyDebugBtn').style.display='';
+});
+
+document.getElementById('copyDebugBtn').addEventListener('click',function(){
+  var text=document.getElementById('debugArea').textContent;
+  if(!text)return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){
+      var el=document.getElementById('copyDebugOk');el.style.display='inline';
       setTimeout(function(){el.style.display='none';},2000);
     });
   }
