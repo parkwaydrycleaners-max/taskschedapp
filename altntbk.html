@@ -5813,18 +5813,23 @@ if (dateDue && dateDue.trim() !== '') {
  }
  }
 
+ // Remove old task from its original position (may have been wiped by auto-refresh)
  if (this.originalTaskData) {
- const originalDateKey = this.originalTaskData.dateKey;
- const originalPerson = this.originalTaskData.person;
- 
- if (this.tasks[originalDateKey] && this.tasks[originalDateKey][originalPerson]) {
- const taskIndex = this.tasks[originalDateKey][originalPerson].findIndex(t => t.id === this.editingTaskId);
- if (taskIndex !== -1) {
- this.tasks[originalDateKey][originalPerson].splice(taskIndex, 1);
- }
+ const origDK = this.originalTaskData.dateKey;
+ const origP = this.originalTaskData.person;
+ if (this.tasks[origDK] && this.tasks[origDK][origP]) {
+ const idx = this.tasks[origDK][origP].findIndex(t => t.id === this.editingTaskId);
+ if (idx !== -1) this.tasks[origDK][origP].splice(idx, 1);
  }
  }
 
+ // Also remove from target position in case auto-refresh loaded it there already
+ if (this.tasks[targetDateKey] && this.tasks[targetDateKey][targetPerson]) {
+ const dupeIdx = this.tasks[targetDateKey][targetPerson].findIndex(t => t.id === this.editingTaskId);
+ if (dupeIdx !== -1) this.tasks[targetDateKey][targetPerson].splice(dupeIdx, 1);
+ }
+
+ // Re-add with updated values — guaranteed to be in this.tasks for next render
  this.addTaskToSpecificDate(targetPerson, updatedTask, targetDateKey);
  }
  
@@ -5869,9 +5874,19 @@ if (dateDue && dateDue.trim() !== '') {
  const oldId = task.id;
  task.id = recordId;
 
- // Update the tracked recent task with the Airtable record ID, then clear it
- // since Airtable now has this record and future loads will include it
+ // Clear from recentLocalTasks since Airtable now has this record
  this.recentLocalTasks = this.recentLocalTasks.filter(r => r.task.id !== oldId);
+
+ // CRITICAL: Auto-refresh may have cleared this.tasks while we were
+ // awaiting the Airtable save. Re-add the task if it's been wiped.
+ if (!this.tasks[correctedDateKey]) this.tasks[correctedDateKey] = {};
+ if (!this.tasks[correctedDateKey][targetPerson]) this.tasks[correctedDateKey][targetPerson] = [];
+ const stillExists = this.tasks[correctedDateKey][targetPerson].some(
+ t => t.id === recordId || t.id === oldId
+ );
+ if (!stillExists) {
+ this.tasks[correctedDateKey][targetPerson].push(task);
+ }
 
  this.showToast('✅ Order saved and verified in Airtable!', 'success');
 
@@ -5886,7 +5901,7 @@ if (dateDue && dateDue.trim() !== '') {
  console.error('Failed to create task in Airtable:', error);
  const friendlyMessage = this.getFriendlyErrorMessage(error.message);
  this.showToast(`❌ ${friendlyMessage}`, 'error');
- 
+
  // Remove the task from local state since Airtable save failed
  if (this.tasks[correctedDateKey] && this.tasks[correctedDateKey][targetPerson]) {
  const taskIndex = this.tasks[correctedDateKey][targetPerson].findIndex(t => t.id === task.id);
