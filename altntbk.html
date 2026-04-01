@@ -983,14 +983,24 @@ tr.recon-checked {
                 </div>
 
                 <!-- Created Date Range Filters -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Created Date From:</span>
-                        <input type="date" id="searchCreatedDateFrom" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                <div class="mb-1">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="block text-sm font-medium">Created Date:</span>
+                        <div class="flex space-x-1.5">
+                            <button id="createdDateToday" class="px-2.5 py-0.5 text-xs font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">Today</button>
+                            <button id="createdDateThisWeek" class="px-2.5 py-0.5 text-xs font-medium bg-green-500 text-white rounded hover:bg-green-600 transition-colors">This Week</button>
+                            <button id="createdDateAllTime" class="px-2.5 py-0.5 text-xs font-medium bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors">All Time</button>
+                        </div>
                     </div>
-                    <div>
-                        <span class="block text-sm font-medium mb-2">Created Date To:</span>
-                        <input type="date" id="searchCreatedDateTo" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <span class="block text-xs text-gray-500 mb-1">From:</span>
+                            <input type="date" id="searchCreatedDateFrom" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div>
+                            <span class="block text-xs text-gray-500 mb-1">To:</span>
+                            <input type="date" id="searchCreatedDateTo" class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
                     </div>
                 </div>
 
@@ -4002,6 +4012,9 @@ attachSearchListeners() {
  document.getElementById('searchToday').addEventListener('click', () => this.setSearchDateRange('today'));
  document.getElementById('searchThisWeek').addEventListener('click', () => this.setSearchDateRange('week'));
  document.getElementById('searchAllTime').addEventListener('click', () => this.setSearchDateRange('all'));
+ document.getElementById('createdDateToday').addEventListener('click', () => this.setCreatedDateRange('today'));
+ document.getElementById('createdDateThisWeek').addEventListener('click', () => this.setCreatedDateRange('week'));
+ document.getElementById('createdDateAllTime').addEventListener('click', () => this.setCreatedDateRange('all'));
  document.getElementById('clearSearchFilters').addEventListener('click', () => this.clearSearchFilters());
 
  // Custom Date Range buttons for search
@@ -6787,8 +6800,35 @@ createSearchResultItem(result) {
  
  document.getElementById('searchWorkDateFrom').value = startDate;
  document.getElementById('searchWorkDateTo').value = endDate;
+
+ // Auto-trigger search after setting the range
+ this.performSearch();
  }
- 
+
+ setCreatedDateRange(range) {
+ const today = new Date();
+ let startDate, endDate;
+
+ if (range === 'today') {
+ startDate = endDate = this.dateToLocalDateString(today);
+ } else if (range === 'week') {
+ const startOfWeek = new Date(today);
+ startOfWeek.setDate(today.getDate() - today.getDay());
+ const endOfWeek = new Date(today);
+ endOfWeek.setDate(today.getDate() + (6 - today.getDay()));
+ startDate = this.dateToLocalDateString(startOfWeek);
+ endDate = this.dateToLocalDateString(endOfWeek);
+ } else if (range === 'all') {
+ startDate = endDate = '';
+ }
+
+ document.getElementById('searchCreatedDateFrom').value = startDate;
+ document.getElementById('searchCreatedDateTo').value = endDate;
+
+ // Auto-trigger search after setting the range
+ this.performSearch();
+ }
+
  clearSearchFilters() {
  document.getElementById('searchPersonFilter').value = 'all';
  document.getElementById('searchStatusFilter').value = 'all';
