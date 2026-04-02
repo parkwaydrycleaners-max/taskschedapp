@@ -784,6 +784,9 @@ tr:hover td { background: var(--bg-hover); }
     <a data-screen="pos" onclick="switchScreen('pos')">
       <i class="fa-solid fa-cash-register"></i> POS Import
     </a>
+    <a data-screen="baseline" onclick="switchScreen('baseline')">
+      <i class="fa-solid fa-calendar-check"></i> Annual Baseline
+    </a>
     <a data-screen="history" onclick="switchScreen('history')">
       <i class="fa-solid fa-clock-rotate-left"></i> Historical View
     </a>
@@ -1007,6 +1010,48 @@ tr:hover td { background: var(--bg-hover); }
   </div>
 </section>
 
+<!-- ==================== ANNUAL BASELINE ==================== -->
+<section id="screen-baseline" class="screen">
+  <div class="screen-title">Annual Baseline</div>
+  <div class="screen-subtitle">Enter prior-year annual totals — used for breakeven when fewer than 6 locked months exist</div>
+
+  <div class="top-bar">
+    <div class="top-bar-group">
+      <div class="form-group">
+        <label class="form-label">Year</label>
+        <input type="number" class="form-input" id="baseline-year" placeholder="2025" min="2000" max="2099" style="width:120px; font-family:var(--mono);">
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="loadBaselineYear()"><i class="fa-solid fa-search"></i> Load</button>
+    </div>
+  </div>
+
+  <div id="baseline-content">
+    <div class="card">
+      <div class="card-header"><i class="fa-solid fa-calendar-check"></i> Annual Totals</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Total Revenue</label><input type="text" class="form-input form-input-currency" id="bl-revenue" placeholder="$0.00"></div>
+        <div class="form-group"><label class="form-label">Total Variable Cost</label><input type="text" class="form-input form-input-currency" id="bl-variable" placeholder="$0.00"></div>
+        <div class="form-group"><label class="form-label">Total Labor Cost</label><input type="text" class="form-input form-input-currency" id="bl-labor" placeholder="$0.00"></div>
+        <div class="form-group"><label class="form-label">Total Fixed Cost</label><input type="text" class="form-input form-input-currency" id="bl-fixed" placeholder="$0.00"></div>
+        <div class="form-group"><label class="form-label">Total Debt Service</label><input type="text" class="form-input form-input-currency" id="bl-debt" placeholder="$0.00"></div>
+      </div>
+      <div style="margin-top:20px;">
+        <button class="btn btn-primary" onclick="saveBaseline()"><i class="fa-solid fa-check"></i> Save Baseline</button>
+        <button class="btn btn-danger btn-sm" style="margin-left:8px;" onclick="deleteBaseline()"><i class="fa-solid fa-trash"></i> Delete</button>
+      </div>
+    </div>
+
+    <div id="baseline-averages" class="hidden" style="margin-top:20px;">
+      <div class="card">
+        <div class="card-header"><i class="fa-solid fa-divide"></i> Calculated Monthly Averages (÷ 12)</div>
+        <div class="metric-grid" id="baseline-avg-grid"></div>
+      </div>
+    </div>
+
+    <div id="baseline-list" style="margin-top:20px;"></div>
+  </div>
+</section>
+
 <!-- ==================== HISTORICAL VIEW ==================== -->
 <section id="screen-history" class="screen">
   <div class="screen-title">Historical View</div>
@@ -1026,6 +1071,7 @@ const DB = {
   pos: {},
   pl: {},
   forecast: {},
+  annualBaseline: {},
   categoryOverrides: {}
 };
 let currentScreen = 'dashboard';
@@ -1186,6 +1232,13 @@ function clearForecast() {
 /* ============================================
    CALCULATIONS
    ============================================ */
+function getActiveBaseline() {
+  // Find the most recent annual baseline by year
+  var years = Object.keys(DB.annualBaseline).map(Number).filter(function(y) { return !isNaN(y); }).sort().reverse();
+  if (years.length === 0) return null;
+  return DB.annualBaseline[years[0]];
+}
+
 function calcNormalizedFixedOp() {
   // Average Fixed_Operating_Cost from last 12 Locked months
   var lockedMonths = Object.keys(DB.months)
@@ -1193,14 +1246,29 @@ function calcNormalizedFixedOp() {
     .sort()
     .reverse()
     .slice(0, 12);
-  if (lockedMonths.length === 0) return { value: 0, monthCount: 0 };
+
+  // If fewer than 6 locked months, fall back to Annual Baseline
+  if (lockedMonths.length < 6) {
+    var bl = getActiveBaseline();
+    if (bl && bl.total_fixed_cost > 0) {
+      return {
+        value: Math.round((bl.total_fixed_cost / 12) * 100) / 100,
+        monthCount: lockedMonths.length,
+        source: 'baseline',
+        baselineYear: bl.year
+      };
+    }
+  }
+
+  if (lockedMonths.length === 0) return { value: 0, monthCount: 0, source: 'none' };
   var sum = 0;
   for (var i = 0; i < lockedMonths.length; i++) {
     sum += (DB.pl[lockedMonths[i]].fixed_operating_cost || 0);
   }
   return {
     value: Math.round((sum / lockedMonths.length) * 100) / 100,
-    monthCount: lockedMonths.length
+    monthCount: lockedMonths.length,
+    source: 'trailing'
   };
 }
 
@@ -1216,10 +1284,12 @@ function calcFields(month) {
   const debtService = pl.debt_service || 0;
   const desiredSurplus = m.desired_surplus || 0;
 
-  // Normalized Fixed Operating: average of locked months for breakeven
+  // Normalized Fixed Operating: average of locked months or annual baseline for breakeven
   const normResult = calcNormalizedFixedOp();
   const normalizedFixedOp = normResult.value > 0 ? normResult.value : fixedOp;
   const normMonthCount = normResult.monthCount;
+  const normSource = normResult.source || 'none';
+  const normBaselineYear = normResult.baselineYear || null;
 
   // Effective Revenue/Pieces: forecast overrides POS when > 0
   const forecastRevenue = fc.total_revenue || 0;
@@ -1249,7 +1319,7 @@ function calcFields(month) {
     revenuePerPiece, contributionPerPiece,
     totalRevenue: effectiveRevenue, totalPieces: effectivePieces,
     posRevenue, posPieces, forecastRevenue, forecastPieces, hasForecast,
-    fixedOp, normalizedFixedOp, normMonthCount
+    fixedOp, normalizedFixedOp, normMonthCount, normSource, normBaselineYear
   };
 }
 function getRevenueStatus(totalRevenue, opBE, consBE, targetRev) {
@@ -1310,6 +1380,7 @@ function switchScreen(name) {
   if (name === 'dashboard') renderDashboard();
   if (name === 'wave') renderWaveScreen();
   if (name === 'pos') renderPosScreen();
+  if (name === 'baseline') renderBaselineScreen();
   if (name === 'history') renderHistory();
 }
 
@@ -1472,7 +1543,14 @@ function renderDashboard() {
   html += metricHTML('Debt Service', fmtCurrency((pl || {}).debt_service || 0));
   html += '</div>';
   // Normalized Fixed Operating indicator
-  if (c.normMonthCount > 0) {
+  if (c.normSource === 'baseline') {
+    html += '<div style="margin-top:12px; padding:10px 14px; background:var(--blue-bg); border:1px solid rgba(96,165,250,0.25); border-radius:var(--radius); font-size:0.82rem;">';
+    html += '<i class="fa-solid fa-calendar-check" style="color:var(--blue); margin-right:6px;"></i>';
+    html += '<strong style="color:var(--blue);">Using Annual Baseline for Fixed Costs</strong> ';
+    html += '<span style="font-family:var(--mono); font-weight:600;">' + fmtCurrency(c.normalizedFixedOp) + '/mo</span>';
+    html += ' <span style="color:var(--text-3);">(' + (c.normBaselineYear || '') + ' baseline ÷ 12 — ' + c.normMonthCount + ' locked month' + (c.normMonthCount !== 1 ? 's' : '') + ' &lt; 6 threshold)</span>';
+    html += '</div>';
+  } else if (c.normSource === 'trailing' && c.normMonthCount > 0) {
     html += '<div style="margin-top:12px; padding:10px 14px; background:var(--accent-subtle); border:1px solid var(--accent-muted); border-radius:var(--radius); font-size:0.82rem;">';
     html += '<i class="fa-solid fa-calculator" style="color:var(--accent); margin-right:6px;"></i>';
     html += '<strong style="color:var(--accent);">Normalized Fixed Operating:</strong> ';
@@ -2095,6 +2173,112 @@ function importSelectedPOSMonths() {
 }
 
 /* ============================================
+   ANNUAL BASELINE
+   ============================================ */
+function renderBaselineScreen() {
+  var yearInput = document.getElementById('baseline-year');
+  if (!yearInput.value) {
+    yearInput.value = new Date().getFullYear() - 1;
+  }
+  renderBaselineList();
+  loadBaselineYear();
+}
+
+function loadBaselineYear() {
+  var year = parseInt(document.getElementById('baseline-year').value, 10);
+  if (!year || isNaN(year)) return;
+  var bl = DB.annualBaseline[year];
+  document.getElementById('bl-revenue').value = bl ? bl.total_revenue || '' : '';
+  document.getElementById('bl-variable').value = bl ? bl.total_variable_cost || '' : '';
+  document.getElementById('bl-labor').value = bl ? bl.total_labor_cost || '' : '';
+  document.getElementById('bl-fixed').value = bl ? bl.total_fixed_cost || '' : '';
+  document.getElementById('bl-debt').value = bl ? bl.total_debt_service || '' : '';
+  renderBaselineAverages(bl);
+}
+
+function renderBaselineAverages(bl) {
+  var container = document.getElementById('baseline-averages');
+  var grid = document.getElementById('baseline-avg-grid');
+  if (!bl || !bl.total_revenue) {
+    container.classList.add('hidden');
+    return;
+  }
+  container.classList.remove('hidden');
+  var html = '';
+  html += metricHTML('Avg Monthly Revenue', fmtCurrency(bl.total_revenue / 12));
+  html += metricHTML('Avg Monthly Variable', fmtCurrency(bl.total_variable_cost / 12));
+  html += metricHTML('Avg Monthly Labor', fmtCurrency(bl.total_labor_cost / 12));
+  html += metricHTML('Avg Monthly Fixed', fmtCurrency(bl.total_fixed_cost / 12));
+  html += metricHTML('Avg Monthly Debt', fmtCurrency(bl.total_debt_service / 12));
+  grid.innerHTML = html;
+}
+
+function saveBaseline() {
+  var year = parseInt(document.getElementById('baseline-year').value, 10);
+  if (!year || isNaN(year)) { showToast('Enter a valid year.', 'error'); return; }
+  var bl = {
+    year: year,
+    total_revenue: parseCurrencyStr(document.getElementById('bl-revenue').value),
+    total_variable_cost: parseCurrencyStr(document.getElementById('bl-variable').value),
+    total_labor_cost: parseCurrencyStr(document.getElementById('bl-labor').value),
+    total_fixed_cost: parseCurrencyStr(document.getElementById('bl-fixed').value),
+    total_debt_service: parseCurrencyStr(document.getElementById('bl-debt').value)
+  };
+  DB.annualBaseline[year] = bl;
+  renderBaselineAverages(bl);
+  renderBaselineList();
+  showToast('Annual baseline saved for ' + year + '.');
+}
+
+function deleteBaseline() {
+  var year = parseInt(document.getElementById('baseline-year').value, 10);
+  if (!year || !DB.annualBaseline[year]) { showToast('No baseline to delete for this year.', 'warning'); return; }
+  showModal(
+    'Delete Baseline',
+    'Are you sure you want to delete the ' + year + ' annual baseline?',
+    [
+      { label: 'Cancel', cls: 'btn btn-secondary', value: false },
+      { label: 'Delete', cls: 'btn btn-danger', value: true }
+    ]
+  ).then(function(confirmed) {
+    if (confirmed) {
+      delete DB.annualBaseline[year];
+      loadBaselineYear();
+      renderBaselineList();
+      showToast('Baseline deleted for ' + year + '.');
+    }
+  });
+}
+
+function renderBaselineList() {
+  var el = document.getElementById('baseline-list');
+  var years = Object.keys(DB.annualBaseline).map(Number).filter(function(y) { return !isNaN(y); }).sort().reverse();
+  if (years.length === 0) {
+    el.innerHTML = '<div class="card"><div class="card-header"><i class="fa-solid fa-list"></i> Saved Baselines</div>' +
+      '<p style="color:var(--text-3); font-size:0.85rem;">No annual baselines saved yet.</p></div>';
+    return;
+  }
+  var html = '<div class="card"><div class="card-header"><i class="fa-solid fa-list"></i> Saved Baselines</div>';
+  html += '<div class="table-wrap"><table><thead><tr>';
+  html += '<th>Year</th><th>Revenue</th><th>Variable</th><th>Labor</th><th>Fixed</th><th>Debt</th><th>Avg Fixed/Mo</th>';
+  html += '</tr></thead><tbody>';
+  years.forEach(function(y) {
+    var b = DB.annualBaseline[y];
+    html += '<tr style="cursor:pointer;" onclick="document.getElementById(\'baseline-year\').value=' + y + ';loadBaselineYear();">';
+    html += '<td><strong>' + y + '</strong></td>';
+    html += '<td class="mono">' + fmtCurrency(b.total_revenue) + '</td>';
+    html += '<td class="mono">' + fmtCurrency(b.total_variable_cost) + '</td>';
+    html += '<td class="mono">' + fmtCurrency(b.total_labor_cost) + '</td>';
+    html += '<td class="mono">' + fmtCurrency(b.total_fixed_cost) + '</td>';
+    html += '<td class="mono">' + fmtCurrency(b.total_debt_service) + '</td>';
+    html += '<td class="mono" style="color:var(--accent); font-weight:600;">' + fmtCurrency(b.total_fixed_cost / 12) + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  el.innerHTML = html;
+}
+
+/* ============================================
    HISTORICAL VIEW
    ============================================ */
 function renderHistory() {
@@ -2136,13 +2320,14 @@ function renderHistory() {
    ============================================ */
 function exportData() {
   const data = {
-    version: '1.1',
+    version: '1.2',
     exportDate: new Date().toISOString(),
     appName: 'Financial Control System',
     months: DB.months,
     pos: DB.pos,
     pl: DB.pl,
     forecast: DB.forecast,
+    annualBaseline: DB.annualBaseline,
     categoryOverrides: DB.categoryOverrides
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2170,6 +2355,7 @@ function importData(e) {
       DB.pos = data.pos || {};
       DB.pl = data.pl || {};
       DB.forecast = data.forecast || {};
+      DB.annualBaseline = data.annualBaseline || {};
       DB.categoryOverrides = data.categoryOverrides || {};
       populateMonthSelectors();
       showToast('Data loaded successfully. ' + Object.keys(DB.months).length + ' months imported.');
@@ -2267,6 +2453,9 @@ init();
     </a>
     <a data-screen="pos" onclick="switchScreen('pos')">
       <i class="fa-solid fa-cash-register"></i> POS
+    </a>
+    <a data-screen="baseline" onclick="switchScreen('baseline')">
+      <i class="fa-solid fa-calendar-check"></i> Baseline
     </a>
     <a data-screen="history" onclick="switchScreen('history')">
       <i class="fa-solid fa-clock-rotate-left"></i> History
