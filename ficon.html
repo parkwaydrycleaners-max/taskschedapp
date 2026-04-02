@@ -935,6 +935,7 @@ tr:hover td { background: var(--bg-hover); }
     <div class="tab-nav">
       <button class="tab-btn active" onclick="switchPosTab('csv')">CSV Upload</button>
       <button class="tab-btn" onclick="switchPosTab('manual')">Manual Entry</button>
+      <button class="tab-btn" onclick="switchPosTab('paste')">Paste Report</button>
     </div>
 
     <!-- CSV Tab -->
@@ -974,6 +975,33 @@ tr:hover td { background: var(--bg-hover); }
         </div>
         <div style="margin-top:20px;">
           <button class="btn btn-primary" onclick="savePosManual()"><i class="fa-solid fa-check"></i> Save POS Data</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paste Report Tab -->
+    <div id="pos-tab-paste" class="hidden">
+      <div class="card">
+        <div class="card-header"><i class="fa-solid fa-paste"></i> Paste POS Sales Report</div>
+        <p style="color:var(--text-2); font-size:0.85rem; margin-bottom:12px;">
+          Paste your Royal Western POS <strong>"Sales Report By Category"</strong> below. All months will be detected and aggregated automatically.
+        </p>
+        <textarea class="form-input" id="pos-paste-area" rows="10"
+          placeholder="Paste your Sales Report By Category here..." style="width:100%; font-family:var(--mono); font-size:13px;"></textarea>
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary" onclick="parsePastedPOS()"><i class="fa-solid fa-magnifying-glass"></i> Parse Report</button>
+        </div>
+      </div>
+      <div id="pos-paste-results" class="hidden" style="margin-top:20px;">
+        <div class="card">
+          <div class="card-header"><i class="fa-solid fa-table"></i> Detected Monthly Data</div>
+          <div id="pos-paste-info" class="review-box" style="margin-bottom:12px;"></div>
+          <div class="table-wrap" id="pos-paste-table-wrap" style="max-height:500px; overflow-y:auto;"></div>
+          <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="toggleAllPOSMonths(true)"><i class="fa-solid fa-check-double"></i> Select All</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleAllPOSMonths(false)"><i class="fa-solid fa-xmark"></i> Deselect All</button>
+            <button class="btn btn-primary" onclick="importSelectedPOSMonths()"><i class="fa-solid fa-check"></i> Import Selected Months</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1579,8 +1607,9 @@ function onPosMonthChange() { renderPosScreen(); }
 function switchPosTab(tab) {
   document.getElementById('pos-tab-csv').classList.toggle('hidden', tab !== 'csv');
   document.getElementById('pos-tab-manual').classList.toggle('hidden', tab !== 'manual');
+  document.getElementById('pos-tab-paste').classList.toggle('hidden', tab !== 'paste');
   document.querySelectorAll('#screen-pos .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', (i === 0 && tab === 'csv') || (i === 1 && tab === 'manual'));
+    b.classList.toggle('active', (i === 0 && tab === 'csv') || (i === 1 && tab === 'manual') || (i === 2 && tab === 'paste'));
   });
 }
 function handlePosCSV(e) {
@@ -1696,6 +1725,166 @@ function savePosManual() {
   showToast('POS data saved for ' + getMonthLabel(month) + '.');
   populateMonthSelectors();
   document.getElementById('pos-month').value = month;
+}
+
+/* ============================================
+   POS REPORT PARSER (Royal Western format)
+   ============================================ */
+let parsedPOSMonthlyData = null;
+
+function parsePOSReport(text) {
+  var pageTexts = text.split(/Sales Report By Category/i).filter(function(p) { return p.trim(); });
+  var pages = [];
+  for (var pi = 0; pi < pageTexts.length; pi++) {
+    var lines = pageTexts[pi].split('\n');
+    var pageType = null;
+    var dataLines = [];
+    for (var li = 0; li < lines.length; li++) {
+      var trimmed = lines[li].trim();
+      if (!trimmed) continue;
+      if (!pageType) {
+        if (/^Drop\b/.test(trimmed)) { pageType = 'A'; continue; }
+        if (/^Laund\s*Amt\b/.test(trimmed)) { pageType = 'B'; continue; }
+        if (/^Press\s*Amt\b/.test(trimmed)) { pageType = 'C'; continue; }
+        continue;
+      }
+      if (pageType === 'A') {
+        if (/^\d{4}\/\d{2}\/\d{2}/.test(trimmed)) {
+          dataLines.push(trimmed.split(/\s{2,}/));
+        }
+      } else {
+        if (/^[\d.\-(]/.test(trimmed)) {
+          dataLines.push(trimmed.split(/\s{2,}/));
+        }
+      }
+    }
+    if (pageType && dataLines.length > 0) {
+      pages.push({ type: pageType, data: dataLines });
+    }
+  }
+  var records = [];
+  var idx = 0;
+  while (idx < pages.length) {
+    if (pages[idx].type === 'A') {
+      var pA = pages[idx];
+      var pB = (idx + 1 < pages.length && pages[idx + 1].type === 'B') ? pages[idx + 1] : null;
+      var pC = (idx + 2 < pages.length && pages[idx + 2].type === 'C') ? pages[idx + 2] : null;
+      for (var j = 0; j < pA.data.length; j++) {
+        var a = pA.data[j];
+        var b = pB ? (pB.data[j] || []) : [];
+        var c = pC ? (pC.data[j] || []) : [];
+        var dateStr = a[0] || '';
+        var month = dateStr.substring(0, 7).replace('/', '-');
+        records.push({
+          date: dateStr, month: month,
+          dry_pcs: parseFloat(a[1]) || 0, dry_amt: parseFloat(a[2]) || 0, laund_pcs: parseFloat(a[3]) || 0,
+          laund_amt: parseFloat(b[0]) || 0, alter_pcs: parseFloat(b[1]) || 0, alter_amt: parseFloat(b[2]) || 0, press_pcs: parseFloat(b[3]) || 0,
+          press_amt: parseFloat(c[0]) || 0, dc_amt: parseFloat(c[1]) || 0, total_pcs: parseFloat(c[2]) || 0, total_amt: parseFloat(c[3]) || 0
+        });
+      }
+      idx += 3;
+    } else {
+      idx++;
+    }
+  }
+  var monthlyData = {};
+  for (var ri = 0; ri < records.length; ri++) {
+    var r = records[ri];
+    if (!r.month || r.month.length < 7) continue;
+    if (!monthlyData[r.month]) {
+      monthlyData[r.month] = { total_revenue: 0, total_pieces: 0, dry_revenue: 0, laundry_revenue: 0, alter_revenue: 0, press_revenue: 0, discount_amount: 0, days: 0 };
+    }
+    var md = monthlyData[r.month];
+    md.total_revenue += r.total_amt;
+    md.total_pieces += r.total_pcs;
+    md.dry_revenue += r.dry_amt;
+    md.laundry_revenue += r.laund_amt;
+    md.alter_revenue += r.alter_amt;
+    md.press_revenue += r.press_amt;
+    md.discount_amount += r.dc_amt;
+    md.days++;
+  }
+  return { records: records, monthlyData: monthlyData };
+}
+
+function parsePastedPOS() {
+  var text = document.getElementById('pos-paste-area').value;
+  if (!text.trim()) { showToast('Please paste the report first.', 'warning'); return; }
+  var result = parsePOSReport(text);
+  var monthKeys = Object.keys(result.monthlyData).sort();
+  if (monthKeys.length === 0) {
+    showToast('No data could be parsed. Check the report format.', 'error');
+    return;
+  }
+  parsedPOSMonthlyData = result.monthlyData;
+  document.getElementById('pos-paste-info').innerHTML =
+    '<strong>' + result.records.length + '</strong> daily records found across <strong>' + monthKeys.length +
+    '</strong> months (' + getMonthLabel(monthKeys[0]) + ' \u2013 ' + getMonthLabel(monthKeys[monthKeys.length - 1]) + ')';
+  var thtml = '<table><thead><tr>';
+  thtml += '<th style="width:40px;"><input type="checkbox" checked onchange="toggleAllPOSMonths(this.checked)" id="pos-paste-checkall"></th>';
+  thtml += '<th>Month</th><th>Revenue</th><th>Pieces</th><th>Dry</th><th>Laundry</th><th>Alter</th><th>Press</th><th>Disc.</th><th>Days</th>';
+  thtml += '</tr></thead><tbody>';
+  monthKeys.forEach(function(mk) {
+    var d = result.monthlyData[mk];
+    var locked = DB.months[mk] && DB.months[mk].status === 'Locked';
+    var hasData = !!DB.pos[mk];
+    thtml += '<tr' + (locked ? ' style="opacity:0.5"' : '') + '>';
+    thtml += '<td><input type="checkbox" class="pos-month-check" value="' + mk + '"' + (locked ? ' disabled' : ' checked') + '></td>';
+    thtml += '<td><strong>' + getMonthLabel(mk) + '</strong>';
+    if (locked) thtml += ' <span class="locked-badge-inline"><i class="fa-solid fa-lock"></i></span>';
+    if (hasData) thtml += ' <span style="color:var(--yellow);font-size:0.7rem;font-weight:600;">EXISTING</span>';
+    thtml += '</td>';
+    thtml += '<td class="mono">' + fmtCurrency(d.total_revenue) + '</td>';
+    thtml += '<td class="mono">' + fmtNumber(Math.round(d.total_pieces)) + '</td>';
+    thtml += '<td class="mono">' + fmtCurrency(d.dry_revenue) + '</td>';
+    thtml += '<td class="mono">' + fmtCurrency(d.laundry_revenue) + '</td>';
+    thtml += '<td class="mono">' + fmtCurrency(d.alter_revenue) + '</td>';
+    thtml += '<td class="mono">' + fmtCurrency(d.press_revenue) + '</td>';
+    thtml += '<td class="mono">' + fmtCurrency(d.discount_amount) + '</td>';
+    thtml += '<td class="mono">' + d.days + '</td>';
+    thtml += '</tr>';
+  });
+  thtml += '</tbody></table>';
+  document.getElementById('pos-paste-table-wrap').innerHTML = thtml;
+  document.getElementById('pos-paste-results').classList.remove('hidden');
+  showToast(monthKeys.length + ' months detected successfully.');
+}
+
+function toggleAllPOSMonths(checked) {
+  document.querySelectorAll('.pos-month-check:not(:disabled)').forEach(function(cb) { cb.checked = checked; });
+  var checkAll = document.getElementById('pos-paste-checkall');
+  if (checkAll) checkAll.checked = checked;
+}
+
+function importSelectedPOSMonths() {
+  if (!parsedPOSMonthlyData) return;
+  var checkboxes = document.querySelectorAll('.pos-month-check:checked');
+  if (checkboxes.length === 0) { showToast('No months selected.', 'warning'); return; }
+  var imported = 0, skipped = 0;
+  checkboxes.forEach(function(cb) {
+    var mk = cb.value;
+    if (DB.months[mk] && DB.months[mk].status === 'Locked') { skipped++; return; }
+    if (!DB.months[mk]) DB.months[mk] = { status: 'Draft', desired_surplus: 0, notes: '' };
+    var d = parsedPOSMonthlyData[mk];
+    DB.pos[mk] = {
+      total_revenue: Math.round(d.total_revenue * 100) / 100,
+      total_pieces: Math.round(d.total_pieces),
+      dry_revenue: Math.round(d.dry_revenue * 100) / 100,
+      laundry_revenue: Math.round(d.laundry_revenue * 100) / 100,
+      alter_revenue: Math.round(d.alter_revenue * 100) / 100,
+      press_revenue: Math.round(d.press_revenue * 100) / 100,
+      discount_amount: Math.round(d.discount_amount * 100) / 100
+    };
+    imported++;
+  });
+  var msg = imported + ' month(s) imported successfully.';
+  if (skipped > 0) msg += ' ' + skipped + ' locked month(s) skipped.';
+  showToast(msg);
+  populateMonthSelectors();
+  document.getElementById('pos-paste-results').classList.add('hidden');
+  document.getElementById('pos-paste-area').value = '';
+  parsedPOSMonthlyData = null;
+  if (currentScreen === 'dashboard') renderDashboard();
 }
 
 /* ============================================
