@@ -1025,6 +1025,7 @@ const DB = {
   months: {},
   pos: {},
   pl: {},
+  forecast: {},
   categoryOverrides: {}
 };
 let currentScreen = 'dashboard';
@@ -1121,11 +1122,74 @@ function getSortedMonths() {
 }
 
 /* ============================================
+   FORECAST PARSER
+   ============================================ */
+function parseForecastText(text) {
+  if (!text || !text.trim()) return { total_revenue: 0, total_pieces: 0 };
+  var lines = text.split(/\r?\n/);
+  var totalRevenue = 0;
+  var totalPieces = 0;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    // Skip comment lines starting with #
+    if (!line || line.charAt(0) === '#') continue;
+    // Split by tabs
+    var cols = line.split('\t');
+    // Only process rows that begin with a date in YYYY-MM-DD format
+    if (cols.length < 10 || !/^\d{4}-\d{2}-\d{2}/.test(cols[0])) continue;
+    // Column 9 (index 8) → Total Pieces, Column 10 (index 9) → Total Revenue ($)
+    var pieces = parseFloat(String(cols[8]).replace(/[$,]/g, '')) || 0;
+    var revenue = parseFloat(String(cols[9]).replace(/[$,]/g, '')) || 0;
+    totalPieces += pieces;
+    totalRevenue += revenue;
+  }
+  return {
+    total_revenue: Math.round(totalRevenue * 100) / 100,
+    total_pieces: Math.round(totalPieces)
+  };
+}
+
+function saveForecast() {
+  var month = document.getElementById('dash-month').value;
+  if (!month || !DB.months[month]) { showToast('Select a month first.', 'error'); return; }
+  if (isLocked(month)) { showToast('Month is locked.', 'error'); return; }
+  var rawText = document.getElementById('forecast-paste-area').value;
+  var parsed = parseForecastText(rawText);
+  DB.forecast[month] = {
+    raw_text: rawText,
+    total_revenue: parsed.total_revenue,
+    total_pieces: parsed.total_pieces
+  };
+  if (parsed.total_revenue > 0 || parsed.total_pieces > 0) {
+    showToast('Forecast saved: ' + fmtCurrency(parsed.total_revenue) + ' revenue, ' + fmtNumber(parsed.total_pieces) + ' pieces.');
+  } else if (rawText.trim()) {
+    showToast('Forecast text saved but no valid data rows found.', 'warning');
+  } else {
+    // Cleared forecast
+    delete DB.forecast[month];
+    showToast('Forecast cleared for ' + getMonthLabel(month) + '.');
+  }
+  renderDashboard();
+}
+
+function clearForecast() {
+  var month = document.getElementById('dash-month').value;
+  if (!month) return;
+  if (isLocked(month)) { showToast('Month is locked.', 'error'); return; }
+  delete DB.forecast[month];
+  var ta = document.getElementById('forecast-paste-area');
+  if (ta) ta.value = '';
+  showToast('Forecast cleared for ' + getMonthLabel(month) + '.');
+  renderDashboard();
+}
+
+/* ============================================
    CALCULATIONS
    ============================================ */
 function calcFields(month) {
   const pl = DB.pl[month] || {};
   const pos = DB.pos[month] || {};
+  const fc = DB.forecast[month] || {};
   const m = DB.months[month] || {};
   const revenue = pl.revenue || 0;
   const variableCost = pl.variable_cost || 0;
@@ -1133,24 +1197,33 @@ function calcFields(month) {
   const fixedOp = pl.fixed_operating_cost || 0;
   const debtService = pl.debt_service || 0;
   const desiredSurplus = m.desired_surplus || 0;
-  const totalRevenue = pos.total_revenue || 0;
-  const totalPieces = pos.total_pieces || 0;
+
+  // Effective Revenue/Pieces: forecast overrides POS when > 0
+  const forecastRevenue = fc.total_revenue || 0;
+  const forecastPieces = fc.total_pieces || 0;
+  const posRevenue = pos.total_revenue || 0;
+  const posPieces = pos.total_pieces || 0;
+  const effectiveRevenue = forecastRevenue > 0 ? forecastRevenue : posRevenue;
+  const effectivePieces = forecastPieces > 0 ? forecastPieces : posPieces;
+  const hasForecast = forecastRevenue > 0 || forecastPieces > 0;
 
   const contribution = revenue - variableCost - laborCost;
   const cmRatio = revenue > 0 ? contribution / revenue : 0;
   const operatingBreakeven = cmRatio > 0 ? fixedOp / cmRatio : 0;
   const conservativeBreakeven = cmRatio > 0 ? (fixedOp + debtService) / cmRatio : 0;
   const targetRevenue = cmRatio > 0 ? (fixedOp + desiredSurplus) / cmRatio : 0;
-  const revenueGap = totalRevenue - targetRevenue;
+  const revenueGap = effectiveRevenue - targetRevenue;
   const netOperatingProfit = contribution - fixedOp;
   const cashAfterDebt = netOperatingProfit - debtService;
-  const revenuePerPiece = totalPieces > 0 ? revenue / totalPieces : 0;
-  const contributionPerPiece = totalPieces > 0 ? contribution / totalPieces : 0;
+  const revenuePerPiece = effectivePieces > 0 ? revenue / effectivePieces : 0;
+  const contributionPerPiece = effectivePieces > 0 ? contribution / effectivePieces : 0;
 
   return {
     contribution, cmRatio, operatingBreakeven, conservativeBreakeven,
     targetRevenue, revenueGap, netOperatingProfit, cashAfterDebt,
-    revenuePerPiece, contributionPerPiece, totalRevenue, totalPieces
+    revenuePerPiece, contributionPerPiece,
+    totalRevenue: effectiveRevenue, totalPieces: effectivePieces,
+    posRevenue, posPieces, forecastRevenue, forecastPieces, hasForecast
   };
 }
 function getRevenueStatus(totalRevenue, opBE, consBE, targetRev) {
@@ -1303,6 +1376,7 @@ function renderDashboard() {
 
   const pl = DB.pl[month];
   const pos = DB.pos[month];
+  const fc = DB.forecast[month];
   const c = calcFields(month);
   const st = getRevenueStatus(c.totalRevenue, c.operatingBreakeven, c.conservativeBreakeven, c.targetRevenue);
   const hasData = !!(pl || pos);
@@ -1315,14 +1389,45 @@ function renderDashboard() {
   }
 
   let html = '';
+
+  // Forecast Input Section
+  html += '<div class="section"><div class="card">';
+  html += '<div class="card-header"><i class="fa-solid fa-wand-magic-sparkles"></i> Forecast Input</div>';
+  html += '<p style="color:var(--text-2); font-size:0.82rem; margin-bottom:10px;">Paste tab-separated forecast data. Lines starting with <code style="background:var(--bg-3);padding:2px 6px;border-radius:4px;font-family:var(--mono);font-size:0.78rem;">#</code> are ignored. Rows must start with a <code style="background:var(--bg-3);padding:2px 6px;border-radius:4px;font-family:var(--mono);font-size:0.78rem;">YYYY-MM-DD</code> date. Column 9 = Pieces, Column 10 = Revenue.</p>';
+  html += '<textarea class="form-input" id="forecast-paste-area" rows="5" style="width:100%; font-family:var(--mono); font-size:13px;" placeholder="Paste forecast data here..."' +
+    (locked ? ' disabled' : '') + '>' + escapeHTML((fc && fc.raw_text) || '') + '</textarea>';
+  html += '<div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">';
+  if (!locked) {
+    html += '<button class="btn btn-primary btn-sm" onclick="saveForecast()"><i class="fa-solid fa-check"></i> Parse &amp; Save Forecast</button>';
+    html += '<button class="btn btn-secondary btn-sm" onclick="clearForecast()"><i class="fa-solid fa-xmark"></i> Clear Forecast</button>';
+  }
+  if (c.hasForecast) {
+    html += '<span style="font-size:0.8rem; color:var(--accent); font-weight:600;"><i class="fa-solid fa-circle-check"></i> Forecast active: ' +
+      fmtCurrency(c.forecastRevenue) + ' revenue, ' + fmtNumber(c.forecastPieces) + ' pieces</span>';
+  }
+  html += '</div></div></div>';
+
   // Section A - Revenue Targets
+  var revenueSourceLabel = c.hasForecast ? 'Effective Revenue (Forecast)' : 'Total Revenue (POS)';
   html += '<div class="section">';
   html += '<div class="card"><div class="card-header"><i class="fa-solid fa-bullseye"></i> Revenue Targets</div>';
   html += '<div class="revenue-hero ' + st.cls + '">';
-  html += '<div><div class="revenue-label">Total Revenue (POS)</div>';
+  html += '<div><div class="revenue-label">' + revenueSourceLabel + '</div>';
   html += '<div class="revenue-amount">' + fmtCurrency(c.totalRevenue) + '</div></div>';
   html += '<div class="revenue-status"><span class="status-dot ' + st.color + '"></span> ' + st.label + '</div>';
   html += '</div>';
+  // Forecast section: show when forecast exists
+  if (c.hasForecast) {
+    html += '<div class="metric-grid" style="margin-bottom:14px;">';
+    html += metricHTML('Forecast Revenue', fmtCurrency(c.forecastRevenue));
+    html += metricHTML('Forecast Pieces', fmtNumber(c.forecastPieces));
+    html += metricHTML('POS Revenue', fmtCurrency(c.posRevenue));
+    var forecastGap = c.forecastRevenue - c.targetRevenue;
+    var fgClass = forecastGap >= 0 ? 'positive' : 'negative';
+    html += '<div class="metric"><div class="metric-label">Forecast Gap vs Target</div><div class="metric-value sm ' + fgClass + '">' +
+      (forecastGap >= 0 ? '+' : '') + fmtCurrency(forecastGap) + '</div></div>';
+    html += '</div>';
+  }
   html += '<div class="metric-grid">';
   html += metricHTML('Operating Breakeven', fmtCurrency(c.operatingBreakeven));
   html += metricHTML('Conservative Breakeven', fmtCurrency(c.conservativeBreakeven));
@@ -1964,7 +2069,7 @@ function renderHistory() {
     return;
   }
   let html = '<div class="table-wrap"><table><thead><tr>';
-  html += '<th>Month</th><th>Status</th><th>Revenue (POS)</th><th>Contribution</th>';
+  html += '<th>Month</th><th>Status</th><th>Eff. Revenue</th><th>Contribution</th>';
   html += '<th>CM Ratio</th><th>Op. Breakeven</th><th>Cash After Debt</th>';
   html += '</tr></thead><tbody>';
   months.forEach(m => {
@@ -1975,10 +2080,11 @@ function renderHistory() {
       : '<span class="badge badge-draft" style="font-size:0.68rem;"><i class="fa-solid fa-pen"></i> Draft</span>';
     const st = getRevenueStatus(c.totalRevenue, c.operatingBreakeven, c.conservativeBreakeven, c.targetRevenue);
     const cadClass = c.cashAfterDebt >= 0 ? 'positive' : 'negative';
+    const revLabel = c.hasForecast ? ' <span style="color:var(--accent);font-size:0.65rem;font-weight:600;" title="Forecast active">FC</span>' : '';
     html += '<tr>';
     html += '<td><strong>' + getMonthLabel(m) + '</strong></td>';
     html += '<td>' + statusBadge + '</td>';
-    html += '<td class="mono" style="color:var(--' + st.color + ')">' + fmtCurrency(c.totalRevenue) + '</td>';
+    html += '<td class="mono" style="color:var(--' + st.color + ')">' + fmtCurrency(c.totalRevenue) + revLabel + '</td>';
     html += '<td class="mono">' + fmtCurrency(c.contribution) + '</td>';
     html += '<td class="mono">' + fmtPercent(c.cmRatio) + '</td>';
     html += '<td class="mono">' + fmtCurrency(c.operatingBreakeven) + '</td>';
@@ -1994,12 +2100,13 @@ function renderHistory() {
    ============================================ */
 function exportData() {
   const data = {
-    version: '1.0',
+    version: '1.1',
     exportDate: new Date().toISOString(),
     appName: 'Financial Control System',
     months: DB.months,
     pos: DB.pos,
     pl: DB.pl,
+    forecast: DB.forecast,
     categoryOverrides: DB.categoryOverrides
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2026,6 +2133,7 @@ function importData(e) {
       DB.months = data.months || {};
       DB.pos = data.pos || {};
       DB.pl = data.pl || {};
+      DB.forecast = data.forecast || {};
       DB.categoryOverrides = data.categoryOverrides || {};
       populateMonthSelectors();
       showToast('Data loaded successfully. ' + Object.keys(DB.months).length + ' months imported.');
