@@ -227,10 +227,12 @@ tr.closed-row td{color:var(--tx3)!important;font-style:italic}
 <div class="ctitle"><i class="fa-solid fa-tags"></i> Sales Report By Category <span class="badge badge-ok" style="margin-left:auto;background:var(--bg4);color:var(--tx3)">Optional</span></div>
 <div class="info">Paste your POS <strong>Sales Report By Category</strong> export (the same data PieceCast uses). The fixed-width split-page format is auto-detected. Provides <strong>actual daily pieces &amp; revenue</strong> for true pieces-per-hour productivity analysis when combined with employee hours above.</div>
 <textarea id="salesPaste" class="paste" placeholder="Sales Report By Category&#10;  2022/01 ~ 2026/03&#10;                                      2026.03.07&#10;Drop           Dry Pcs   Dry Amt   Laund Pcs   Laund Amt   Alter Pcs&#10;2022/01/04       287    1488.66        31       88.49        54"></textarea>
-<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
 <button class="btn btn-p" id="parseSalesBtn"><i class="fa-solid fa-bolt"></i> Parse Sales</button>
 <button class="btn btn-clr" id="clearSalesBtn" style="display:none"><i class="fa-solid fa-xmark"></i> Clear</button>
+<label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--tx2);margin-left:auto;cursor:pointer"><input type="checkbox" id="salesIncludeLastDate" style="width:16px;height:16px;accent-color:var(--ac);cursor:pointer"> Include last date</label>
 </div>
+<p class="flbl2" style="margin-top:6px">The last date in the POS report is usually a partial/incomplete day. It is <strong>excluded by default</strong>. Check the box above to include it.</p>
 <div id="salesStatus" style="font-size:.8rem;color:var(--tx3);margin-top:8px"></div>
 </div>
 
@@ -753,7 +755,8 @@ document.getElementById('hrThreshold').addEventListener('input',onHrThresholdCha
    including Total Pcs and Total Amt. The two halves are joined by
    row index (1st left data row ↔ 1st right data row, etc.).
    ================================================================ */
-function parseSalesReport(text){
+function parseSalesReport(text,opts){
+  opts=opts||{};
   var lines=text.split('\n');
 
   /* Collect left-page data rows (contain YYYY/MM/DD dates) and
@@ -825,21 +828,49 @@ function parseSalesReport(text){
   }
 
   if(dates.length<1)return null;
-  return{dates:dates,totalPcs:totalPcs,totalRev:totalRev,pcsMap:pcsMap,revMap:revMap};
+
+  /* Drop last date by default (usually partial/incomplete day from POS) */
+  var droppedDate=null;
+  if(!opts.includeLastDate&&dates.length>1){
+    var lastD=dates.pop();
+    var lastKey=fmtD(lastD);
+    droppedDate=lastKey;
+    totalPcs.pop();
+    totalRev.pop();
+    delete pcsMap[lastKey];
+    delete revMap[lastKey];
+  }
+
+  return{dates:dates,totalPcs:totalPcs,totalRev:totalRev,pcsMap:pcsMap,revMap:revMap,droppedDate:droppedDate};
+}
+
+function parseSalesAndUpdate(){
+  var text=document.getElementById('salesPaste').value.trim();
+  if(!text)return;
+  var inclLast=document.getElementById('salesIncludeLastDate').checked;
+  var parsed=parseSalesReport(text,{includeLastDate:inclLast});
+  if(!parsed||parsed.dates.length<1){showMsg('Could not parse sales data. Paste the full Sales Report By Category export (fixed-width format with Drop/date rows and Total Pcs/Total Amt columns).','error');return;}
+  ST.sales=parsed;
+  var sumPcs=parsed.totalPcs.reduce(function(a,b){return a+b;},0);
+  var sumRev=parsed.totalRev.reduce(function(a,b){return a+b;},0);
+  var msg='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days · '+Math.round(sumPcs).toLocaleString()+' total pcs · $'+Math.round(sumRev).toLocaleString()+' revenue</span>';
+  if(parsed.droppedDate)msg+=' <span style="color:var(--tx3);font-size:.72rem">(last date '+parsed.droppedDate+' excluded)</span>';
+  document.getElementById('salesStatus').innerHTML=msg;
+  document.getElementById('clearSalesBtn').style.display='';
+  checkImportReady();
+  computeActualProductivity();
 }
 
 document.getElementById('parseSalesBtn').addEventListener('click',function(){
   var text=document.getElementById('salesPaste').value.trim();
   if(!text){showMsg('Please paste Sales Report By Category data first.','error');return;}
-  var parsed=parseSalesReport(text);
-  if(!parsed||parsed.dates.length<1){showMsg('Could not parse sales data. Paste the full Sales Report By Category export (fixed-width format with Drop/date rows and Total Pcs/Total Amt columns).','error');return;}
-  ST.sales=parsed;
-  var sumPcs=parsed.totalPcs.reduce(function(a,b){return a+b;},0);
-  var sumRev=parsed.totalRev.reduce(function(a,b){return a+b;},0);
-  document.getElementById('salesStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days · '+Math.round(sumPcs).toLocaleString()+' total pcs · $'+Math.round(sumRev).toLocaleString()+' revenue</span>';
-  document.getElementById('clearSalesBtn').style.display='';
-  checkImportReady();
-  computeActualProductivity();
+  parseSalesAndUpdate();
+});
+
+/* Re-parse when toggling "Include last date" checkbox */
+document.getElementById('salesIncludeLastDate').addEventListener('change',function(){
+  var text=document.getElementById('salesPaste').value.trim();
+  if(text)parseSalesAndUpdate();
 });
 
 document.getElementById('clearSalesBtn').addEventListener('click',function(){
