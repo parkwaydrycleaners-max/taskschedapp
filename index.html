@@ -1,2467 +1,1515 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Financial Control System</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<title>Top Cleaners & Alterations – Intranet</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- LOGIN GUARD (UNCHANGED BEHAVIOR) -->
+<script>
+(function () {
+    if (sessionStorage.getItem("authorized") !== "yes") {
+        window.location.href = "login.html";
+    }
+})();
+</script>
+
 <style>
-/* ============================================
-   CSS VARIABLES & THEME
-   ============================================ */
+/* ==================================================
+   GLOBAL RESET & VARIABLES
+================================================== */
+* { box-sizing: border-box; }
+
 :root {
-  --bg-0: #060a13;
-  --bg-1: #0c1222;
-  --bg-2: #131d30;
-  --bg-3: #1a2740;
-  --bg-hover: #162038;
-  --border: #243049;
-  --border-light: #1c2940;
-  --accent: #34d399;
-  --accent-hover: #6ee7b7;
-  --accent-subtle: rgba(52,211,153,0.07);
-  --accent-muted: rgba(52,211,153,0.18);
-  --text-1: #f1f5f9;
-  --text-2: #94a3b8;
-  --text-3: #64748b;
-  --red: #f87171;
-  --red-bg: rgba(248,113,113,0.1);
-  --orange: #fb923c;
-  --orange-bg: rgba(251,146,60,0.1);
-  --yellow: #fbbf24;
-  --yellow-bg: rgba(251,191,36,0.1);
-  --green: #4ade80;
-  --green-bg: rgba(74,222,128,0.1);
-  --blue: #60a5fa;
-  --blue-bg: rgba(96,165,250,0.1);
-  --sidebar-w: 250px;
-  --topbar-h: 64px;
-  --mobile-nav-h: 64px;
-  --radius: 10px;
-  --radius-lg: 14px;
-  --shadow: 0 2px 12px rgba(0,0,0,0.25);
-  --font: 'Figtree', sans-serif;
-  --mono: 'JetBrains Mono', monospace;
-}
-html.light {
-  --bg-0: #eef2f7;
-  --bg-1: #ffffff;
-  --bg-2: #f6f8fb;
-  --bg-3: #e7ecf2;
-  --bg-hover: #f0f3f8;
-  --border: #d0d7e2;
-  --border-light: #e2e8f0;
-  --accent: #059669;
-  --accent-hover: #047857;
-  --accent-subtle: rgba(5,150,105,0.05);
-  --accent-muted: rgba(5,150,105,0.14);
-  --text-1: #0f172a;
-  --text-2: #475569;
-  --text-3: #94a3b8;
-  --red: #dc2626;
-  --red-bg: rgba(220,38,38,0.08);
-  --orange: #ea580c;
-  --orange-bg: rgba(234,88,12,0.08);
-  --yellow: #ca8a04;
-  --yellow-bg: rgba(202,138,4,0.08);
-  --green: #16a34a;
-  --green-bg: rgba(22,163,74,0.08);
-  --blue: #2563eb;
-  --blue-bg: rgba(37,99,235,0.08);
-  --shadow: 0 2px 12px rgba(0,0,0,0.06);
+    --left-panel-width: 360px;
+    --tile-size: calc(var(--left-panel-width) / 2);
 }
 
-/* ============================================
-   RESET & BASE
-   ============================================ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; -webkit-text-size-adjust: 100%; }
 body {
-  font-family: var(--font);
-  background: var(--bg-0);
-  color: var(--text-1);
-  min-height: 100vh;
-  overflow-x: hidden;
-  line-height: 1.5;
-}
-input, select, textarea, button { font-family: inherit; font-size: 16px; }
-a { color: var(--accent); text-decoration: none; }
-
-/* ============================================
-   LAYOUT
-   ============================================ */
-#app { display: flex; min-height: 100vh; }
-
-/* Sidebar */
-#sidebar {
-  width: var(--sidebar-w);
-  background: var(--bg-1);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0; left: 0; bottom: 0;
-  z-index: 100;
-  transition: transform 0.3s ease;
-}
-.sidebar-brand {
-  padding: 24px 20px 20px;
-  border-bottom: 1px solid var(--border);
-}
-.sidebar-brand h1 {
-  font-size: 1.1rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--accent);
-  line-height: 1.2;
-}
-.sidebar-brand span {
-  display: block;
-  font-size: 0.72rem;
-  color: var(--text-3);
-  font-weight: 500;
-  margin-top: 3px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.sidebar-nav { flex: 1; padding: 12px 10px; }
-.sidebar-nav a {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
-  border-radius: var(--radius);
-  color: var(--text-2);
-  font-size: 0.88rem;
-  font-weight: 500;
-  transition: all 0.15s;
-  cursor: pointer;
-  margin-bottom: 2px;
-}
-.sidebar-nav a:hover { background: var(--bg-hover); color: var(--text-1); }
-.sidebar-nav a.active {
-  background: var(--accent-subtle);
-  color: var(--accent);
-  font-weight: 600;
-}
-.sidebar-nav a i { width: 20px; text-align: center; font-size: 0.92rem; }
-.sidebar-footer {
-  padding: 14px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.sidebar-footer button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-2);
-  color: var(--text-2);
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.sidebar-footer button:hover { background: var(--bg-3); color: var(--text-1); }
-.sidebar-footer button i { width: 18px; text-align: center; }
-
-/* Main Content */
-#main {
-  flex: 1;
-  margin-left: var(--sidebar-w);
-  min-height: 100vh;
-}
-.screen { display: none; padding: 28px; max-width: 1100px; margin: 0 auto; }
-.screen.active { display: block; animation: screenIn 0.35s ease-out; }
-@keyframes screenIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-/* Screen header */
-.screen-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-bottom: 4px;
-}
-.screen-subtitle {
-  color: var(--text-3);
-  font-size: 0.88rem;
-  margin-bottom: 24px;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f7f7f7;
+    color: #222;
 }
 
-/* Mobile bottom nav */
-#mobile-nav {
-  display: none;
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  background: var(--bg-1);
-  border-top: 1px solid var(--border);
-  z-index: 200;
-  padding-bottom: env(safe-area-inset-bottom, 0);
-}
-#mobile-nav .nav-inner {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  height: var(--mobile-nav-h);
-}
-#mobile-nav a {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  color: var(--text-3);
-  font-size: 0.66rem;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 8px;
-  transition: all 0.15s;
-}
-#mobile-nav a.active { color: var(--accent); }
-#mobile-nav a i { font-size: 1.1rem; }
+/* default */
+.element { display: none; }
 
-/* Mobile header */
-#mobile-header {
-  display: none;
-  position: sticky;
-  top: 0;
-  background: var(--bg-1);
-  border-bottom: 1px solid var(--border);
-  z-index: 150;
-  padding: 12px 16px;
-  align-items: center;
-  justify-content: space-between;
+/* mobile override */
+@media (...) {
+  .element { display: block; }
 }
-#mobile-header h1 {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--accent);
+    
+/* ==================================================
+   HEADER
+================================================== */
+.logo-wrap {
+    background: #fff;
+    padding: 16px;
+    border-bottom: 1px solid #ddd;
+    text-align: center;
 }
-#mobile-header button {
-  background: none;
-  border: none;
-  color: var(--text-2);
-  font-size: 1.1rem;
-  cursor: pointer;
-  padding: 6px;
+.logo-wrap img {
+    max-width: 180px;
+    width: 100%;
 }
 
-/* ============================================
-   COMPONENTS
-   ============================================ */
-
-/* Cards */
-.card {
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  animation: cardIn 0.4s ease-out both;
-}
-@keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-.card-header {
-  font-size: 0.76rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-3);
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.card-header i { color: var(--accent); }
-
-/* Metric Cards */
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 14px;
-}
-.metric {
-  background: var(--bg-2);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  padding: 16px;
-  animation: cardIn 0.4s ease-out both;
-}
-.metric-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-3);
-  margin-bottom: 6px;
-}
-.metric-value {
-  font-family: var(--mono);
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: var(--text-1);
-  line-height: 1.2;
-}
-.metric-value.sm { font-size: 1.05rem; }
-.metric-value.positive { color: var(--green); }
-.metric-value.negative { color: var(--red); }
-
-/* Section spacing */
-.section { margin-bottom: 24px; }
-.section:last-child { margin-bottom: 0; }
-
-/* Top Bar */
-.top-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  margin-bottom: 24px;
-}
-.top-bar-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* ==================================================
+   DASHBOARD LAYOUT
+================================================== */
+.dashboard-layout {
+    display: grid;
+    grid-template-columns: var(--left-panel-width) 1fr;
+    gap: 6px;
+    padding: 8px;
+    max-width: 1400px;
+    margin: 0 auto;
+    min-height: calc(200vh - 240px);
 }
 
-/* Forms */
-.form-select, .form-input {
-  padding: 8px 12px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-1);
-  font-size: 16px;
-  font-weight: 500;
-  outline: none;
-  transition: border-color 0.15s;
-  min-height: 40px;
+/* LEFT PANEL */
+.dashboard-left {
+    margin-right: 4px;
 }
-.form-select:focus, .form-input:focus { border-color: var(--accent); }
-.form-select { cursor: pointer; -webkit-appearance: none; appearance: none; padding-right: 30px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
-.form-input-currency {
-  width: 140px;
-  font-family: var(--mono);
+.staff-app-wrapper {
+    height: calc(100vh - 120px);
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
 }
-textarea.form-input {
-  resize: vertical;
-  min-height: 60px;
-  font-size: 14px;
-}
-.form-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 4px;
-}
-.form-group { display: flex; flex-direction: column; gap: 4px; }
-.form-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-}
-.form-row-inline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
+.staff-app-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
 }
 
-/* Buttons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 18px;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.btn-primary { background: var(--accent); color: #0f172a; }
-.btn-primary:hover { background: var(--accent-hover); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-secondary { background: var(--bg-3); color: var(--text-1); border: 1px solid var(--border); }
-.btn-secondary:hover { background: var(--bg-hover); }
-.btn-danger { background: var(--red); color: #fff; }
-.btn-danger:hover { opacity: 0.85; }
-.btn-sm { padding: 6px 12px; font-size: 0.8rem; }
-.btn-icon {
-  width: 38px;
-  height: 38px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: var(--bg-3);
-  border: 1px solid var(--border);
-  color: var(--text-2);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.btn-icon:hover { background: var(--bg-hover); color: var(--text-1); }
-
-/* Badges */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 0.74rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.badge-draft { background: var(--blue-bg); color: var(--blue); }
-.badge-locked { background: var(--orange-bg); color: var(--orange); }
-
-/* Status Colors */
-.status-red { border-left: 4px solid var(--red); }
-.status-orange { border-left: 4px solid var(--orange); }
-.status-yellow { border-left: 4px solid var(--yellow); }
-.status-green { border-left: 4px solid var(--green); }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.status-dot.red { background: var(--red); }
-.status-dot.orange { background: var(--orange); }
-.status-dot.yellow { background: var(--yellow); }
-.status-dot.green { background: var(--green); }
-
-/* Revenue Hero */
-.revenue-hero {
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 14px;
-}
-.revenue-hero.status-red { background: var(--red-bg); border: 1px solid rgba(248,113,113,0.2); }
-.revenue-hero.status-orange { background: var(--orange-bg); border: 1px solid rgba(251,146,60,0.2); }
-.revenue-hero.status-yellow { background: var(--yellow-bg); border: 1px solid rgba(251,191,36,0.2); }
-.revenue-hero.status-green { background: var(--green-bg); border: 1px solid rgba(74,222,128,0.2); }
-.revenue-amount {
-  font-family: var(--mono);
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.1;
-}
-.revenue-hero.status-red .revenue-amount { color: var(--red); }
-.revenue-hero.status-orange .revenue-amount { color: var(--orange); }
-.revenue-hero.status-yellow .revenue-amount { color: var(--yellow); }
-.revenue-hero.status-green .revenue-amount { color: var(--green); }
-.revenue-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-2);
-  margin-bottom: 4px;
-}
-.revenue-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 0.85rem;
+/* RIGHT PANEL */
+.dashboard-right {
+    overflow-y: auto;
 }
 
-/* Drop Zone */
-.drop-zone {
-  border: 2px dashed var(--border);
-  border-radius: var(--radius-lg);
-  padding: 48px 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
-}
-.drop-zone:hover, .drop-zone.drag-over {
-  border-color: var(--accent);
-  background: var(--accent-subtle);
-}
-.drop-zone i { font-size: 2rem; color: var(--text-3); margin-bottom: 12px; display: block; }
-.drop-zone p { color: var(--text-2); font-size: 0.9rem; }
-.drop-zone span { color: var(--accent); font-weight: 600; }
-.drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+/* ==================================================
+   TILE GRID
+================================================== */
+.tile-section { padding: 0; }
 
-/* Tables */
-.table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  -webkit-overflow-scrolling: touch;
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(4, var(--tile-size));
+    gap: 16px;
+    justify-content: start;
 }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-th {
-  background: var(--bg-2);
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-3);
-  padding: 10px 14px;
-  text-align: left;
-  white-space: nowrap;
-  position: sticky;
-  top: 0;
-}
-td {
-  padding: 10px 14px;
-  border-top: 1px solid var(--border-light);
-  white-space: nowrap;
-}
-td.mono { font-family: var(--mono); font-size: 0.82rem; font-weight: 500; }
-tr:hover td { background: var(--bg-hover); }
 
-/* Tab Nav */
-.tab-nav {
-  display: flex;
-  gap: 4px;
-  background: var(--bg-2);
-  padding: 4px;
-  border-radius: var(--radius);
-  margin-bottom: 20px;
+.tile {
+    width: var(--tile-size);
+    height: var(--tile-size);
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    cursor: pointer;
+    text-align: center;
 }
-.tab-btn {
-  flex: 1;
-  padding: 9px 16px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-2);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.tab-btn.active { background: var(--bg-1); color: var(--text-1); box-shadow: var(--shadow); }
 
-/* Mapping Table */
-.mapping-table select {
-  padding: 5px 8px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-1);
-  font-size: 14px;
-  cursor: pointer;
+.tile svg {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 8px;
+    stroke: #0a75ff;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
-.mapping-totals {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
-  margin: 16px 0;
-}
-.mapping-total-item {
-  background: var(--bg-2);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
-  padding: 10px 14px;
-}
-.mapping-total-item .label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3); }
-.mapping-total-item .value { font-family: var(--mono); font-size: 1rem; font-weight: 600; margin-top: 2px; }
 
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text-3);
+.tile:hover {
+    outline: 2px solid #0a75ff;
 }
-.empty-state i { font-size: 2.5rem; margin-bottom: 16px; display: block; opacity: 0.5; }
-.empty-state p { font-size: 0.95rem; margin-bottom: 16px; }
 
-/* Column Mapping */
-.col-map-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
+/* ==================================================
+   TILE GROUP SECTIONS
+================================================== */
+.tile-group {
+    grid-column: 1 / -1;
+    margin-top: 28px;
+}
+.tile-group-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+    padding-left: 4px;
+}
+
+/* ==================================================
+   REVIEW TILES
+================================================== */
+.tile.rating-tile {
+    height: auto;
+    min-height: var(--tile-size);
+    align-items: flex-start;
+    text-align: left;
+}
+.rating-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.rating-header svg {
+    width: 20px;
+    height: 20px;
+}
+.rating-title {
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+.rating-line {
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+.rating-bars {
+    margin-top: 6px;
+    font-size: 1rem;
+}
+
+/* ==================================================
+   MODALS — ORIGINAL BEHAVIOR (DO NOT CHANGE)
+================================================== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.modal-box {
+    background: #fff;
+    width: 100%;
+    max-width: 420px;
+    padding: 16px;
+    border-radius: 12px;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-close-x {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+/* ==================================================
+   SHARED FORM ELEMENTS
+================================================== */
+button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+}
+
+.primary-btn { font-weight: bold; }
+.close-btn { background: #ccc; }
+
+.results-box {
+    margin: 16px 0;
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.final-total {
+    font-size: 1.15rem;
+    font-weight: bold;
+}
+
+.estimate-note {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 4px;
+}
+
+/* ==================================================
+   WEDDING IMAGE — ORIGINAL RULES
+================================================== */
+.dress-type-image {
+    text-align: center;
+    margin-bottom: 12px;
+}
+.dress-type-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+}
+
+/* ==================================================
+   FOOTER
+================================================== */
+.footer {
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 20px 10px;
+    color: #555;
+}
+
+/* ==================================================
+   MOBILE / DESKTOP VISIBILITY RULES (FIXED)
+================================================== */
+
+/* ✅ Default (DESKTOP) */
+.mobile-checklist-btn {
+    display: none;
+}
+
+/* ==================================================
+   MOBILE
+================================================== */
+@media (max-width: 900px) {
+
+    .dashboard-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .staff-app-wrapper {
+        height: 80vh;
+    }
+
+    .tiles {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* ✅ Show checklist button on mobile */
+    .mobile-checklist-btn {
+        display: block;
+        background: #fff;
+        padding: 14px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        font-weight: bold;
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        cursor: pointer;
+    }
+}
+
+/* ==================================================
+   SMALL MOBILE (OPTIONAL)
+================================================== */
+@media (max-width: 600px) {
+    .tiles {
+        grid-template-columns: 1fr;
+    }
+}
+    
+/* ==================================================
+   ✅ ORIGINAL CALCULATOR DESIGN — DO NOT MODIFY
+   Restores plain, readable layout exactly as designed
+================================================== */
+
+#rugModal,
+#rushModal,
+#weddingModal {
+    font-size: 0.9rem;
+}
+
+/* Ensure natural flow */
+#hemModal > *,
+#rugModal > *,
+#rushModal > *,
+#weddingModal > * {
+    display: block;
+}
+
+/* Inputs full width by default */
+#hemModal input,
+#rugModal input,
+#rushModal input,
+#weddingModal input,
+#rugModal select {
+    width: 100%;
+    margin-bottom: 6px;
+}
+
+/* Checkboxes & radios inline like original */
+#hemModal input[type="checkbox"],
+#hemModal input[type="radio"],
+#rugModal input[type="checkbox"],
+#rushModal input[type="checkbox"],
+#weddingModal input[type="checkbox"],
+#weddingModal input[type="radio"] {
+    width: auto;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+/* Labels behave naturally */
+#hemModal label,
+#rugModal label,
+#rushModal label,
+#weddingModal label {
+    display: inline-block;
+    margin-bottom: 4px;
+    cursor: pointer;
+}
+
+/* ==================================================
+   ✅ RUG CLEAN ESTIMATOR — ORIGINAL DESIGN
+   Matches verified production layout EXACTLY
+================================================== */
+
+/* Length × Width on one line */
+#rugModal .rug-dimensions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 10px 0;
+}
+
+/* Inputs are narrow */
+#rugModal .rug-dimensions input {
+    width: 80px;
+    padding: 6px;
+    text-align: center;
+}
+
+/* The × character */
+#rugModal .rug-multiply {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+/* Units dropdown below */
+#rugModal .rug-units {
+    margin-top: 6px;
+    text-align: center;
+}
+
+/* Results below */
+#rugModal .rug-results {
+    margin-top: 10px;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* ==================================================
+   ✅ DRESS HEM ESTIMATOR — ORIGINAL GRID DESIGN
+   Matches verified screenshot EXACTLY
+================================================== */
+
+/* Header + rows use 3-column grid */
+#hemModal .calc-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 70px;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+/* Header row */
+#hemModal .calc-header {
+    font-weight: bold;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+}
+
+/* Qty input */
+#hemModal .qty-input {
+    width: 55px;
+    padding: 6px;
+    text-align: center;
+}
+
+/* Sequins column */
+#hemModal .seq-col {
+    text-align: center;
 }
 
 /* Divider */
-.divider { height: 1px; background: var(--border); margin: 20px 0; }
-
-/* Review Box */
-.review-box {
-  background: var(--accent-subtle);
-  border: 1px solid var(--accent-muted);
-  border-radius: var(--radius);
-  padding: 16px 20px;
-  margin: 16px 0;
+#hemModal hr {
+    margin: 12px 0;
 }
 
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 500;
-  padding: 20px;
-  animation: fadeIn 0.15s ease-out;
-}
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.modal-box {
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 28px;
-  max-width: 420px;
-  width: 100%;
-  animation: modalIn 0.2s ease-out;
-}
-@keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-.modal-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
-.modal-text { color: var(--text-2); font-size: 0.9rem; margin-bottom: 20px; line-height: 1.6; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
-
-/* Toast */
-.toast-container {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 600;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.toast {
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 18px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  box-shadow: var(--shadow);
-  animation: toastIn 0.3s ease-out;
-  max-width: 340px;
-}
-.toast.success { border-left: 3px solid var(--green); }
-.toast.error { border-left: 3px solid var(--red); }
-.toast.warning { border-left: 3px solid var(--yellow); }
-@keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-
-/* Stagger delays */
-.metric:nth-child(1) { animation-delay: 0.04s; }
-.metric:nth-child(2) { animation-delay: 0.08s; }
-.metric:nth-child(3) { animation-delay: 0.12s; }
-.metric:nth-child(4) { animation-delay: 0.16s; }
-.metric:nth-child(5) { animation-delay: 0.20s; }
-.metric:nth-child(6) { animation-delay: 0.24s; }
-
-.hidden { display: none !important; }
-.locked-overlay {
-  position: relative;
-}
-.locked-overlay::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.02);
-  border-radius: inherit;
-  pointer-events: none;
-}
-.locked-badge-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
-  color: var(--orange);
-  font-weight: 600;
+/* Rush + Glitter rows stay simple */
+#hemModal .rush-inline label,
+#hemModal .calc-row label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
-/* Mobile data menu */
-#mobile-data-menu {
-  position: fixed;
-  top: 54px;
-  right: 10px;
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 6px;
-  z-index: 300;
-  box-shadow: var(--shadow);
-  display: none;
+/* Results box */
+#hemModal .results-box {
+    margin-top: 12px;
+    padding: 12px;
+    text-align: center;
 }
-#mobile-data-menu button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 16px;
-  border: none;
-  background: none;
-  color: var(--text-2);
-  font-size: 0.85rem;
-  cursor: pointer;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-#mobile-data-menu button:hover { background: var(--bg-hover); color: var(--text-1); }
 
-/* ============================================
-   RESPONSIVE
-   ============================================ */
-@media (max-width: 768px) {
-  #sidebar { display: none; }
-  #mobile-nav { display: block; }
-  #mobile-header { display: flex; }
-  #main { margin-left: 0; padding-bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px) + 12px); }
-  .screen { padding: 16px; }
-  .top-bar { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px; }
-  .top-bar-group { flex-wrap: wrap; }
-  .revenue-hero { padding: 16px; }
-  .revenue-amount { font-size: 1.5rem; }
-  .metric-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .metric { padding: 12px; }
-  .metric-value { font-size: 1.05rem; }
-  .form-row { grid-template-columns: 1fr; }
-  .col-map-grid { grid-template-columns: 1fr; }
-  .mapping-totals { grid-template-columns: repeat(2, 1fr); }
-  .screen-title { font-size: 1.25rem; }
+/* ==================================================
+   ✅ WEDDING DRESS MODAL — LOCKED TO ORIGINAL DESIGN
+   Matches verified screenshot EXACTLY
+================================================== */
+
+/* Wedding Timing Switch */
+.wedding-timing-switch {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    background: #eef2f6;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
 }
-@media (max-width: 400px) {
-  .metric-grid { grid-template-columns: 1fr; }
-  .mapping-totals { grid-template-columns: 1fr; }
+.wedding-timing-switch label {
+    font-weight: bold;
+    color: #333;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
+/* Helper to hide the preservation option */
+.hidden-option {
+    display: none !important;
+}
+    
+/* Modal container stays default */
+#weddingModal .modal-box {
+    max-width: 420px;
+}
+
+/* Image */
+#weddingModal .dress-type-image {
+    text-align: center;
+    margin-bottom: 10px;
+}
+#weddingModal .dress-type-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+}
+
+/* Section titles — CENTERED */
+#weddingModal .section-title {
+    text-align: center;
+    font-weight: bold;
+    margin: 8px 0 6px;
+}
+
+/* Dress Type radios — ONE ROW */
+#weddingModal .dress-type-options {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    text-align: center;
+    font-size: 0.85rem;
+}
+#weddingModal .dress-type-options label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+/* Train Length — STACKED */
+#weddingModal .option-group label {
+    display: block;
+    margin-bottom: 4px;
+}
+
+/* Details + Optional Services — TWO COLUMNS */
+#weddingModal .checkbox-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+}
+#weddingModal .checkbox-grid label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Results box */
+#weddingModal .results-box {
+    margin: 14px 0;
+    padding: 12px;
+    text-align: center;
+}
+
+/* Buttons */
+#weddingModal button {
+    width: 100%;
+    margin-top: 10px;
+}
+#hemModal .results-box,
+#rushModal .results-box {
+    margin-top: 12px;
+} 
+
+/* ==================================================
+   📱 MOBILE UX — ACCORDION + CHECKLIST MODAL
+================================================== */
+@media (max-width: 900px) {
+
+    /* Hide left embedded checklist */
+    .dashboard-left {
+        display: none;
+    }
+
+    /* Mobile checklist button */
+    .mobile-checklist-btn {
+        background: #fff;
+        padding: 14px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        font-weight: bold;
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        cursor: pointer;
+    }
+
+    /* Tile group headers become accordion triggers */
+    .tile-group-title {
+        cursor: pointer;
+        padding: 10px;
+        background: #f0f0f0;
+        border-radius: 8px;
+        margin-bottom: 6px;
+    }
+
+    /* Collapse tile sections by default */
+    .tile-group .tiles {
+        display: none;
+    }
+
+    /* Expanded section */
+    .tile-group.active .tiles {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+}
+    
 </style>
 </head>
 <body>
-<!-- TOAST CONTAINER -->
-<div class="toast-container" id="toasts"></div>
 
-<!-- MOBILE HEADER -->
-<div id="mobile-header">
-  <h1><i class="fa-solid fa-chart-line"></i> Financial Control</h1>
-  <button id="mobile-data-btn" onclick="toggleMobileDataMenu()"><i class="fa-solid fa-ellipsis-vertical"></i></button>
-</div>
-<div id="mobile-data-menu">
-  <button onclick="exportData(); closeMobileDataMenu()"><i class="fa-solid fa-download"></i> Save Data</button>
-  <button onclick="triggerImport(); closeMobileDataMenu()"><i class="fa-solid fa-upload"></i> Load Data</button>
+<!-- LOGO -->
+<div class="logo-wrap">
+    <img src="https://parkwaydrycleaners-max.github.io/taskschedapp/logo.png"
+         alt="Top Cleaners & Alterations">
 </div>
 
-<div id="app">
-<!-- SIDEBAR -->
-<aside id="sidebar">
-  <div class="sidebar-brand">
-    <h1><i class="fa-solid fa-chart-line"></i> Financial Control</h1>
-    <span>Dry Clean &amp; Alterations</span>
-  </div>
-  <nav class="sidebar-nav" id="sidebar-nav">
-    <a class="active" data-screen="dashboard" onclick="switchScreen('dashboard')">
-      <i class="fa-solid fa-gauge-high"></i> Dashboard
-    </a>
-    <a data-screen="wave" onclick="switchScreen('wave')">
-      <i class="fa-solid fa-file-invoice-dollar"></i> Wave Import
-    </a>
-    <a data-screen="pos" onclick="switchScreen('pos')">
-      <i class="fa-solid fa-cash-register"></i> POS Import
-    </a>
-    <a data-screen="baseline" onclick="switchScreen('baseline')">
-      <i class="fa-solid fa-calendar-check"></i> Annual Baseline
-    </a>
-    <a data-screen="history" onclick="switchScreen('history')">
-      <i class="fa-solid fa-clock-rotate-left"></i> Historical View
-    </a>
-  </nav>
-  <div class="sidebar-footer">
-    <button onclick="exportData()"><i class="fa-solid fa-download"></i> Save Data</button>
-    <button onclick="triggerImport()"><i class="fa-solid fa-upload"></i> Load Data</button>
-    <input type="file" id="import-file" accept=".json" class="hidden" onchange="importData(event)">
-  </div>
-</aside>
+<!-- DASHBOARD -->
+<div class="dashboard-layout">
 
-<!-- MAIN -->
-<main id="main">
-
-<!-- ==================== DASHBOARD ==================== -->
-<section id="screen-dashboard" class="screen active">
-  <div class="screen-title">Dashboard</div>
-  <div class="screen-subtitle">Monthly financial overview and breakeven analysis</div>
-
-  <!-- Top Bar -->
-  <div class="top-bar" id="dash-topbar">
-    <div class="top-bar-group">
-      <select class="form-select" id="dash-month" onchange="onDashMonthChange()">
-        <option value="">Select Month</option>
-      </select>
-      <button class="btn-icon" title="Add Month" onclick="showAddMonthModal()"><i class="fa-solid fa-plus"></i></button>
-      <span id="dash-status-badge"></span>
-    </div>
-    <div class="top-bar-group">
-      <div class="form-group">
-        <label class="form-label">Desired Surplus</label>
-        <input type="text" class="form-input form-input-currency" id="dash-surplus" placeholder="$0.00" oninput="onSurplusChange()" >
-      </div>
-    </div>
-    <div class="top-bar-group">
-      <button class="btn btn-secondary btn-sm" id="dash-lock-btn" onclick="toggleLock()">
-        <i class="fa-solid fa-lock-open"></i> Lock Month
-      </button>
-    </div>
-  </div>
-
-  <!-- Dashboard Content (empty by default) -->
-  <div id="dash-content">
-    <div class="empty-state">
-      <i class="fa-solid fa-chart-line"></i>
-      <p>Select or create a month to view financial data.</p>
-      <button class="btn btn-primary" onclick="showAddMonthModal()"><i class="fa-solid fa-plus"></i> Create First Month</button>
-    </div>
-  </div>
-</section>
-
-<!-- ==================== WAVE IMPORT ==================== -->
-<section id="screen-wave" class="screen">
-  <div class="screen-title">Wave P&L Import</div>
-  <div class="screen-subtitle">Import your Profit &amp; Loss summary from Wave accounting</div>
-
-  <div class="top-bar">
-    <div class="top-bar-group">
-      <select class="form-select" id="wave-month" onchange="onWaveMonthChange()">
-        <option value="">Select Month</option>
-      </select>
-      <button class="btn-icon" title="Add Month" onclick="showAddMonthModal()"><i class="fa-solid fa-plus"></i></button>
-      <span id="wave-status-badge"></span>
-    </div>
-  </div>
-
-  <div id="wave-locked-msg" class="hidden review-box" style="border-color: var(--orange-bg); background: var(--orange-bg);">
-    <i class="fa-solid fa-lock"></i> This month is <strong>locked</strong>. Unlock it from the Dashboard to make changes.
-  </div>
-
-  <div id="wave-content">
-    <!-- Tab Nav -->
-    <div class="tab-nav">
-      <button class="tab-btn active" onclick="switchWaveTab('csv')">CSV Upload</button>
-      <button class="tab-btn" onclick="switchWaveTab('manual')">Manual Entry</button>
-    </div>
-
-    <!-- CSV Tab -->
-    <div id="wave-tab-csv">
-      <div class="drop-zone" id="wave-drop">
-        <i class="fa-solid fa-cloud-arrow-up"></i>
-        <p>Drop your Wave P&L CSV here or <span>browse files</span></p>
-        <input type="file" accept=".csv,.txt" onchange="handleWaveCSV(event)">
-      </div>
-      <div id="wave-csv-step2" class="hidden" style="margin-top:20px;">
-        <h3 style="font-size:0.95rem; font-weight:600; margin-bottom:12px;">Step 1: Select Columns</h3>
-        <div class="form-row-inline" style="margin-bottom:16px;">
-          <div class="form-group">
-            <label class="form-label">Account Name Column</label>
-            <select class="form-select" id="wave-col-name" onchange="updateWaveMapping()"></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Amount Column</label>
-            <select class="form-select" id="wave-col-amount" onchange="updateWaveMapping()"></select>
-          </div>
+    <!-- LEFT: MANAGER CHECKLIST (IFRAME) -->
+    <aside class="dashboard-left">
+        <div class="staff-app-wrapper">
+            <iframe
+                id="staffIframe"
+                src="https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html"
+                title="Manager Checklist"
+                class="staff-app-frame"
+                loading="lazy">
+            </iframe>
         </div>
-        <h3 style="font-size:0.95rem; font-weight:600; margin-bottom:12px;">Step 2: Assign Categories</h3>
-        <div class="table-wrap" id="wave-mapping-table-wrap" style="max-height: 400px; overflow-y: auto;"></div>
-        <h3 style="font-size:0.95rem; font-weight:600; margin:16px 0 8px;">Review Totals</h3>
-        <div class="mapping-totals" id="wave-mapping-totals"></div>
-        <div style="margin-top:16px; display:flex; gap:10px;">
-          <button class="btn btn-primary" onclick="approveWaveCSV()"><i class="fa-solid fa-check"></i> Approve &amp; Save</button>
-          <button class="btn btn-secondary" onclick="resetWaveCSV()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+    </aside>
+
+    <!-- RIGHT: TILE SECTIONS -->
+    <main class="dashboard-right">
+        <div class="tile-section">
+                <!-- MOBILE CHECKLIST ENTRY POINT -->
+                <div class="mobile-checklist-btn" onclick="openModal('staffModal')">
+                    ✅ Manager Checklist
+                </div>
+            <div class="tiles">
+
+                <!-- ===============================
+                     TOOLS
+                =============================== -->
+                <div class="tile-group">
+                    <div class="tile-group-title">Tools</div>
+                    <div class="tiles">
+
+                        <!-- Alterations Scheduler (Desktop) -->
+                        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/altntbk.html','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                <path d="M3 10h18M8 2v4M16 2v4"/>
+                            </svg>
+                            Alterations Scheduler (Desktop)
+                        </div>
+
+                        <!-- Manager Checklist (Tile) -->
+                        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                                <path d="M7 8h10M7 12h10M7 16h6"/>
+                            </svg>
+                            Manager Checklist
+                        </div>
+
+                        <!-- Alterations Scheduler (Mobile) -->
+                        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/mobileindex.html','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="7" y="3" width="10" height="18" rx="2"/>
+                            </svg>
+                            Alterations Scheduler (Mobile)
+                        </div>
+
+                        <!-- Daily Reconciliation -->
+                        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/recon.html','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M3 3v18h18"/>
+                                <path d="M7 14l4-4 4 4 5-5"/>
+                            </svg>
+                            Daily Reconciliation
+                        </div>
+
+                        <!-- Weekly Work Schedule -->
+                        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=0&single=true','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                <path d="M3 10h18"/>
+                            </svg>
+                            Weekly Work Schedule
+                        </div>
+
+                        <!-- Luxury Brands -->
+                        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=150558302&single=true','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M3 12l9 9 9-9-9-9-9 9z"/>
+                                <circle cx="12" cy="12" r="2"/>
+                            </svg>
+                            Luxury Brands
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ===============================
+                     CALCULATORS
+                =============================== -->
+                <div class="tile-group">
+                    <div class="tile-group-title">Calculators</div>
+                    <div class="tiles">
+
+                        <div class="tile" onclick="openModal('hemModal')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M4 4l16 16M20 4L4 20"/>
+                                <circle cx="7" cy="7" r="2"/>
+                                <circle cx="17" cy="17" r="2"/>
+                            </svg>
+                            Dress Hem Estimator
+                        </div>
+
+                        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1035596463&single=true','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                                <path d="M3 10h18M3 14h18M3 18h18"/>
+                            </svg>
+                            Alterations Pricing
+                        </div>
+
+                        <div class="tile" onclick="openModal('rushModal')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M13 2L3 14h7l-1 8 10-12h-7z"/>
+                            </svg>
+                            Capacity‑Based ALT Rush
+                        </div>
+
+                        <div class="tile" onclick="openModal('weddingModal')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M12 2l4 6h-8l4-6z"/>
+                                <path d="M8 8l-3 12h14l-3-12"/>
+                            </svg>
+                            Wedding Dress Clean
+                        </div>
+
+                        <div class="tile" onclick="openModal('rugModal')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="16"/>
+                                <path d="M6 8h12M6 12h12M6 16h8"/>
+                            </svg>
+                            Rug Clean Estimator
+                        </div>
+
+                        <!-- Payroll Calculator -->
+                        <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/payroll.html','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M12 1v22"/>
+                                <path d="M17 5H9a4 4 0 0 0 0 8h6a4 4 0 0 1 0 8H6"/>
+                            </svg>
+                            Payroll Calculator
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <!-- ===============================
+                     COMMUNICATE
+                =============================== -->
+                <div class="tile-group">
+                    <div class="tile-group-title">Communicate</div>
+                    <div class="tiles">
+
+                        <div class="tile" onclick="window.open('https://business.voiply.com/cdrs?domain=tcleanersandalterationsllc35&type=missed','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M22 16.9v3a2 2 0 0 1-2.2 2
+                                         19.8 19.8 0 0 1-8.6-3.1
+                                         19.5 19.5 0 0 1-6-6
+                                         19.8 19.8 0 0 1-3.1-8.7
+                                         A2 2 0 0 1 4.1 2h3"/>
+                            </svg>
+                            Missed Calls
+                        </div>
+
+                        <div class="tile" onclick="openModal('voicemailModal')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="6" width="18" height="12" rx="2"/>
+                                <circle cx="7" cy="12" r="2"/>
+                                <circle cx="17" cy="12" r="2"/>
+                            </svg>
+                            Voicemail
+                        </div>
+
+                          <div class="tile" onclick="window.open('https://mail.google.com/mail/u/0/#inbox','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                <path d="M22 6l-10 7L2 6"/>
+                            </svg>
+                            Gmail Inbox
+                        </div>
+
+                        <div class="tile rating-tile" onclick="window.open('https://biz.yelp.com/leads_center/Eb36giK3cXwlb6Bj9Vs-6w/leads','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9"/>
+                            </svg>
+                            <div class="rating-title">Yelp Inbox</div>
+                            <div class="rating-line">⭐ 4.6 (329 reviews)</div>
+                            <div class="rating-line" style="font-size:0.75rem;color:#666;">
+                                Last checked: Jan 2026
+                            </div>
+                        </div>
+
+                        <div class="tile rating-tile" onclick="window.open('https://business.facebook.com/latest/inbox/all?asset_id=1385716841487687&business_id=155792138923304&selected_item_id=956883540843188&thread_type=WEC_MESSAGE','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M22 12A10 10 0 1010.6 21.8v-6.6H8v-3.2h2.6V9.4
+                                         c0-2.6 1.5-4.1 3.9-4.1
+                                         1.1 0 2.2.2 2.2.2v2.5h-1.3
+                                         c-1.3 0-1.7.8-1.7 1.6v1.9H20l-.5 3.2h-3.3v6.6z"/>
+                            </svg>
+                            <div class="rating-title">Facebook/IG/Whatsapp</div>
+                            <div class="rating-line">⭐ 5.0 (189 recommendations)</div>
+                            <div class="rating-line" style="font-size:0.75rem;color:#666;">
+                                Last checked: Jan 2026
+                            </div>
+                        </div>
+
+                        <div class="tile rating-tile" onclick="window.open('https://www.google.com/search?q=West+Covina+Parkway+Top+Cleaners+and+Alterations&stick=H4sIAAAAAAAA_-NgU1I1qLAwSDZKMU8xNDU1SEwzMza2MqhIMrMwMUg2T042S7EwTDMyWMRqEJ5aXKLgnF-WmZeoEJBYlF2eWKkQkl-g4JyTmpiXWlSskJiXouCYU5JalFiSmZ9XDADG4AQyXAAAAA&hl=en&mat=CegFBc_B0J0VElYBTVDHnlHUx7VRKkheCv4Yql6UJZH5uTa5OyxJVGR9UM9PKYB1GTY-QxfnnGBHz-3s2nx0o205EBM6HcgoQ3DSzXstZ32tw_UEMF6Bye8BOSg6wHObHA&authuser=0#mpd=~1557630576960538088/customers/reviews','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9"/>
+                            </svg>
+                            <div class="rating-title">Google Reviews</div>
+                            <div id="google-rating" class="rating-line">Loading…</div>
+                            <div id="google-bars" class="rating-bars"></div>
+                        </div>
+
+                        <!-- UENI Bookings -->
+                        <div class="tile" onclick="window.open('https://ueni.com/en-us/my-customers/west-covina-parkway-cleaners-and-alterations','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                                <path d="M3 10h18"/>
+                                <path d="M8 2v4M16 2v4"/>
+                            </svg>
+                            UENI Bookings
+                        </div>
+                        
+                        <!-- Directory of Contacts -->
+                        <div class="tile" onclick="window.open('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=1258934891&single=true','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="4" y="4" width="16" height="16"/>
+                                <path d="M8 9h8M8 13h5"/>
+                            </svg>
+                            Directory of Contacts
+                        </div>
+
+                         <!-- WhatsApp Group -->
+                        <div class="tile" onclick="window.open('https://chat.whatsapp.com/BEtrgAPrsvHBT3aN8in1SG','_blank')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M20 12a8 8 0 1 1-3.1-6.3L21 3l-1 5.9A8 8 0 0 1 20 12z"/>
+                            </svg>
+                            WhatsApp Group
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ===============================      BLACK APRON
+            =============================== -->
+            <div class="tile-group">
+                <div class="tile-group-title">Black Apron</div>
+                <div class="tiles">
+            
+                    <!-- PieceCast -->
+                    <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/piececast.html','_blank')">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M3 3v18h18"/>
+                            <path d="M7 14l4-4 4 4 5-5"/>
+                        </svg>
+                        PieceCast
+                    </div>
+            
+                    <!-- StaffCast -->
+                    <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/staffcast.html','_blank')">
+                        <svg viewBox="0 0 24 24">
+                            <rect x="4" y="4" width="16" height="16" rx="2"/>
+                            <path d="M8 9h8M8 13h8M8 17h5"/>
+                        </svg>
+                        StaffCast
+                    </div>
+            
+                    <!-- Bookkeeping (Wave) -->
+                    <div class="tile" onclick="window.open('https://my.waveapps.com/login/','_blank')">
+                        <svg viewBox="0 0 24 24">
+                            <rect x="3" y="3" width="18" height="18"/>
+                            <path d="M8 7V6a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-1M3 18v-7a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Zm8-3.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/>
+                        </svg>
+                        Bookkeeping
+                    </div>
+            
+                    <!-- Financial Control -->
+                    <div class="tile" onclick="window.open('https://parkwaydrycleaners-max.github.io/taskschedapp/ficon.html','_blank')">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2v20"/>
+                            <path d="M17 6H9a4 4 0 0 0 0 8h6a4 4 0 0 1 0 8H6"/>
+                        </svg>
+                        Financial Control Sys
+                    </div>
+            </div>
+</div>
+                
+            </div>
         </div>
-      </div>
-    </div>
+    </main>
 
-    <!-- Manual Tab -->
-    <div id="wave-tab-manual" class="hidden">
-      <div class="card">
-        <div class="card-header"><i class="fa-solid fa-pen"></i> Manual P&L Entry</div>
-        <div class="form-row">
-          <div class="form-group"><label class="form-label">Revenue</label><input type="text" class="form-input form-input-currency" id="wave-m-revenue" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Variable Cost</label><input type="text" class="form-input form-input-currency" id="wave-m-variable" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Labor Cost</label><input type="text" class="form-input form-input-currency" id="wave-m-labor" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Fixed Operating Cost</label><input type="text" class="form-input form-input-currency" id="wave-m-fixed" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Debt Service</label><input type="text" class="form-input form-input-currency" id="wave-m-debt" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Wave Net Profit (Ref)</label><input type="text" class="form-input form-input-currency" id="wave-m-netprofit" placeholder="$0.00"></div>
+</div>
+<!-- ⚠️ WARNING:
+   Calculator modals intentionally use plain HTML flow.
+   DO NOT add grid/flex/centered layout rules here.
+   Doing so WILL break the calculators.
+-->
+<!-- ===============================
+     DRESS HEM ESTIMATOR MODAL
+=============================== -->
+<div id="hemModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-close-x" onclick="closeModal('hemModal')">✕</div>
+        <h2>Dress Hem Estimator</h2>
+
+        <div class="calc-row calc-header">
+            <div>Qty</div>
+            <div>Service</div>
+            <div class="seq-col">Sequins?</div>
         </div>
-        <div style="margin-top:20px;">
-          <button class="btn btn-primary" onclick="saveWaveManual()"><i class="fa-solid fa-check"></i> Save P&L Data</button>
+
+        <div class="calc-row">
+            <input class="qty-input" id="cut1">
+            <div>Cut Hem @ $6.25 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="cut1Seq"></div>
         </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ==================== POS IMPORT ==================== -->
-<section id="screen-pos" class="screen">
-  <div class="screen-title">POS Import</div>
-  <div class="screen-subtitle">Import your monthly summary from Royal Western POS</div>
-
-  <div class="top-bar">
-    <div class="top-bar-group">
-      <select class="form-select" id="pos-month" onchange="onPosMonthChange()">
-        <option value="">Select Month</option>
-      </select>
-      <button class="btn-icon" title="Add Month" onclick="showAddMonthModal()"><i class="fa-solid fa-plus"></i></button>
-      <span id="pos-status-badge"></span>
-    </div>
-  </div>
-
-  <div id="pos-locked-msg" class="hidden review-box" style="border-color: var(--orange-bg); background: var(--orange-bg);">
-    <i class="fa-solid fa-lock"></i> This month is <strong>locked</strong>. Unlock it from the Dashboard to make changes.
-  </div>
-
-  <div id="pos-content">
-    <div class="tab-nav">
-      <button class="tab-btn active" onclick="switchPosTab('csv')">CSV Upload</button>
-      <button class="tab-btn" onclick="switchPosTab('manual')">Manual Entry</button>
-      <button class="tab-btn" onclick="switchPosTab('paste')">Paste Report</button>
-    </div>
-
-    <!-- CSV Tab -->
-    <div id="pos-tab-csv">
-      <div class="drop-zone" id="pos-drop">
-        <i class="fa-solid fa-cloud-arrow-up"></i>
-        <p>Drop your POS summary CSV here or <span>browse files</span></p>
-        <input type="file" accept=".csv,.txt" onchange="handlePosCSV(event)">
-      </div>
-      <div id="pos-csv-step2" class="hidden" style="margin-top:20px;">
-        <h3 style="font-size:0.95rem; font-weight:600; margin-bottom:12px;">Map Columns to Fields</h3>
-        <div class="col-map-grid" id="pos-col-map"></div>
-        <div id="pos-aggregate-info" class="review-box hidden">
-          <strong>Aggregation:</strong> <span id="pos-row-count"></span> rows detected. Amounts will be summed.
+        <div class="calc-row">
+            <input class="qty-input" id="cut2">
+            <div>Cut Hem @ $6.25 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="cut2Seq"></div>
         </div>
-        <h3 style="font-size:0.95rem; font-weight:600; margin:16px 0 8px;">Preview</h3>
-        <div class="mapping-totals" id="pos-preview-totals"></div>
-        <div style="margin-top:16px; display:flex; gap:10px;">
-          <button class="btn btn-primary" onclick="approvePosCSV()"><i class="fa-solid fa-check"></i> Approve &amp; Save</button>
-          <button class="btn btn-secondary" onclick="resetPosCSV()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+
+        <div class="calc-row">
+            <input class="qty-input" id="reg1">
+            <div>Regular Hem @ $12.50 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="reg1Seq"></div>
         </div>
-      </div>
-    </div>
-
-    <!-- Manual Tab -->
-    <div id="pos-tab-manual" class="hidden">
-      <div class="card">
-        <div class="card-header"><i class="fa-solid fa-pen"></i> Manual POS Entry</div>
-        <div class="form-row">
-          <div class="form-group"><label class="form-label">Total Revenue</label><input type="text" class="form-input form-input-currency" id="pos-m-revenue" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Total Pieces</label><input type="text" class="form-input" id="pos-m-pieces" placeholder="0" style="width:140px;font-family:var(--mono);"></div>
-          <div class="form-group"><label class="form-label">Dry Cleaning Revenue</label><input type="text" class="form-input form-input-currency" id="pos-m-dry" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Laundry Revenue</label><input type="text" class="form-input form-input-currency" id="pos-m-laundry" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Alterations Revenue</label><input type="text" class="form-input form-input-currency" id="pos-m-alter" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Press Revenue</label><input type="text" class="form-input form-input-currency" id="pos-m-press" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Discount Amount</label><input type="text" class="form-input form-input-currency" id="pos-m-discount" placeholder="$0.00"></div>
+        <div class="calc-row">
+            <input class="qty-input" id="reg2">
+            <div>Regular Hem @ $12.50 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="reg2Seq"></div>
         </div>
-        <div style="margin-top:20px;">
-          <button class="btn btn-primary" onclick="savePosManual()"><i class="fa-solid fa-check"></i> Save POS Data</button>
+
+        <div class="calc-row">
+            <input class="qty-input" id="horse1">
+            <div>Horsehair Hem @ $25.00 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="horse1Seq"></div>
         </div>
-      </div>
-    </div>
-
-    <!-- Paste Report Tab -->
-    <div id="pos-tab-paste" class="hidden">
-      <div class="card">
-        <div class="card-header"><i class="fa-solid fa-paste"></i> Paste POS Sales Report</div>
-        <p style="color:var(--text-2); font-size:0.85rem; margin-bottom:12px;">
-          Paste your Royal Western POS <strong>"Sales Report By Category"</strong> below. All months will be detected and aggregated automatically.
-        </p>
-        <textarea class="form-input" id="pos-paste-area" rows="10"
-          placeholder="Paste your Sales Report By Category here..." style="width:100%; font-family:var(--mono); font-size:13px;"></textarea>
-        <div style="margin-top:12px;">
-          <button class="btn btn-primary" onclick="parsePastedPOS()"><i class="fa-solid fa-magnifying-glass"></i> Parse Report</button>
+        <div class="calc-row">
+            <input class="qty-input" id="horse2">
+            <div>Horsehair Hem @ $25.00 / yd</div>
+            <div class="seq-col"><input type="checkbox" id="horse2Seq"></div>
         </div>
-      </div>
-      <div id="pos-paste-results" class="hidden" style="margin-top:20px;">
-        <div class="card">
-          <div class="card-header"><i class="fa-solid fa-table"></i> Detected Monthly Data</div>
-          <div id="pos-paste-info" class="review-box" style="margin-bottom:12px;"></div>
-          <div class="table-wrap" id="pos-paste-table-wrap" style="max-height:500px; overflow-y:auto;"></div>
-          <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn btn-secondary btn-sm" onclick="toggleAllPOSMonths(true)"><i class="fa-solid fa-check-double"></i> Select All</button>
-            <button class="btn btn-secondary btn-sm" onclick="toggleAllPOSMonths(false)"><i class="fa-solid fa-xmark"></i> Deselect All</button>
-            <button class="btn btn-primary" onclick="importSelectedPOSMonths()"><i class="fa-solid fa-check"></i> Import Selected Months</button>
-          </div>
+
+        <hr>
+
+        <div class="calc-row">
+            <div></div>
+            <div>Add Glitter (+ $10 flat)</div>
+            <div class="seq-col"><input type="checkbox" id="glitterCheck"></div>
         </div>
-      </div>
+
+        <div class="rush-inline">
+            <label>
+                <input type="checkbox" id="hemRushToggle" onchange="toggleRushDate()">
+                Apply Rush Fee (Over Capacity)
+            </label>
+        </div>
+
+        <div id="hemRushDateWrap" class="rush-date">
+            <label>Work Date in RED</label>
+            <input type="date" id="hemRushDate">
+        </div>
+
+        <button class="primary-btn" onclick="calculateHem()">Calculate</button>
+
+        <div class="results-box">
+            <div id="totalYards">Total Yards: 0.00</div>
+            <div id="hemSubtotal">Subtotal: $0.00</div>
+            <div id="hemRushPercent">Rush %: —</div>
+            <div id="hemRushFee">Rush Fee: $0.00</div>
+            <div id="hemFinalTotal">Total: $0.00</div>
+        </div>
+
+        <button class="close-btn" onclick="closeModal('hemModal')">Close</button>
     </div>
-  </div>
-</section>
-
-<!-- ==================== ANNUAL BASELINE ==================== -->
-<section id="screen-baseline" class="screen">
-  <div class="screen-title">Annual Baseline</div>
-  <div class="screen-subtitle">Enter prior-year annual totals — used for breakeven when fewer than 6 locked months exist</div>
-
-  <div class="top-bar">
-    <div class="top-bar-group">
-      <div class="form-group">
-        <label class="form-label">Year</label>
-        <input type="number" class="form-input" id="baseline-year" placeholder="2025" min="2000" max="2099" style="width:120px; font-family:var(--mono);">
-      </div>
-      <button class="btn btn-secondary btn-sm" onclick="loadBaselineYear()"><i class="fa-solid fa-search"></i> Load</button>
-    </div>
-  </div>
-
-  <div id="baseline-content">
-    <div class="card">
-      <div class="card-header"><i class="fa-solid fa-calendar-check"></i> Annual Totals</div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Total Revenue</label><input type="text" class="form-input form-input-currency" id="bl-revenue" placeholder="$0.00"></div>
-        <div class="form-group"><label class="form-label">Total Variable Cost</label><input type="text" class="form-input form-input-currency" id="bl-variable" placeholder="$0.00"></div>
-        <div class="form-group"><label class="form-label">Total Labor Cost</label><input type="text" class="form-input form-input-currency" id="bl-labor" placeholder="$0.00"></div>
-        <div class="form-group"><label class="form-label">Total Fixed Cost</label><input type="text" class="form-input form-input-currency" id="bl-fixed" placeholder="$0.00"></div>
-        <div class="form-group"><label class="form-label">Total Debt Service</label><input type="text" class="form-input form-input-currency" id="bl-debt" placeholder="$0.00"></div>
-      </div>
-      <div style="margin-top:20px;">
-        <button class="btn btn-primary" onclick="saveBaseline()"><i class="fa-solid fa-check"></i> Save Baseline</button>
-        <button class="btn btn-danger btn-sm" style="margin-left:8px;" onclick="deleteBaseline()"><i class="fa-solid fa-trash"></i> Delete</button>
-      </div>
-    </div>
-
-    <div id="baseline-averages" class="hidden" style="margin-top:20px;">
-      <div class="card">
-        <div class="card-header"><i class="fa-solid fa-divide"></i> Calculated Monthly Averages (÷ 12)</div>
-        <div class="metric-grid" id="baseline-avg-grid"></div>
-      </div>
-    </div>
-
-    <div id="baseline-list" style="margin-top:20px;"></div>
-  </div>
-</section>
-
-<!-- ==================== HISTORICAL VIEW ==================== -->
-<section id="screen-history" class="screen">
-  <div class="screen-title">Historical View</div>
-  <div class="screen-subtitle">Month-over-month financial performance</div>
-  <div id="history-content"></div>
-</section>
-
-</main>
 </div>
 
+<!-- ===============================
+     MANAGER CHECKLIST (MOBILE MODAL)
+=============================== -->
+<div id="staffModal" class="modal-overlay">
+    <div class="modal-box" style="padding:0; max-width:100%; height:100vh;">
+        <div class="modal-close-x" onclick="closeModal('staffModal')">✕</div>
+        <iframe
+            id="staffModalIframe"
+            src="https://parkwaydrycleaners-max.github.io/taskschedapp/staffapp.html"
+            style="width:100%; height:100%; border:none;">
+        </iframe>
+    </div>
+</div>
+    
+<!-- ===============================
+     RUG CLEAN ESTIMATOR MODAL
+=============================== -->
+<div id="rugModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-close-x" onclick="closeModal('rugModal')">✕</div>
+        <h2>Rug Clean Estimator</h2>
+
+        <div class="rug-dimensions">
+            <input class="qty-input" id="rugLength" placeholder="Length">
+            <span class="rug-multiply">×</span>
+            <input class="qty-input" id="rugWidth" placeholder="Width">
+        </div>
+
+        <div class="rug-units">
+            <label>Units:</label>
+            <select id="rugUnit">
+                <option value="ft">Feet</option>
+                <option value="in">Inches</option>
+                <option value="cm">Centimeters</option>
+            </select>
+        </div>
+
+        <div class="rug-results">
+            <div id="rugArea">Area: 0.00 sq ft</div>
+            <div id="rugPrice">Price: $0.00</div>
+        </div>
+
+        <button onclick="calculateRug()">Calculate</button>
+        <button class="close-btn" onclick="closeModal('rugModal')">Close</button>
+    </div>
+</div>
+
+<!-- ===============================
+     RUSH FEE CALCULATOR MODAL
+=============================== -->
+<div id="rushModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-close-x" onclick="closeModal('rushModal')">✕</div>
+        <h2>Rush Fee Calculator</h2>
+
+        <div class="rush-field">
+            <label>Alteration Price ($)</label>
+            <input id="rushBasePrice" type="number" step="0.01">
+        </div>
+
+        <div class="rush-field">
+            <label>Work Date in RED</label>
+            <input id="rushWorkDate" type="date">
+        </div>
+
+        <div class="results-box">
+            <div id="rushDays">Days Until Work: —</div>
+            <div id="rushPercent">Rush %: —</div>
+            <div id="rushFee">Rush Fee: $0.00</div>
+            <div id="rushTotal">Total with Rush: $0.00</div>
+        </div>
+
+        <button onclick="calculateRush()">Calculate</button>
+        <button class="close-btn" onclick="closeModal('rushModal')">Close</button>
+    </div>
+</div>
+
+<!-- ===============================
+     WEDDING DRESS CLEAN MODAL
+=============================== -->
+<div id="weddingModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-close-x" onclick="closeModal('weddingModal')">✕</div>
+        <h2>Wedding Dress Estimate</h2>
+
+        <!-- BEFORE / AFTER SWITCH -->
+        <div class="wedding-timing-switch">
+            <label>
+                <input type="radio" name="weddingTiming" value="after" checked onchange="toggleWeddingTiming()">
+                After Wedding
+            </label>
+            <label>
+                <input type="radio" name="weddingTiming" value="before" onchange="toggleWeddingTiming()">
+                Before Wedding
+            </label>
+        </div>
+
+        <div class="dress-type-image">
+            <img src="images/wedding-dress-types.png" alt="Wedding dress types">
+        </div>
+
+        <div class="estimator-section">
+            <div class="section-title">Dress Type</div>
+            <div class="dress-type-options">
+                <!-- Added onchange to all radios -->
+                <label><input type="radio" name="dressSize" value="100" checked onchange="calculateWedding()"> A-Line</label>
+                <label><input type="radio" name="dressSize" value="85" onchange="calculateWedding()"> Mermaid</label>
+                <label><input type="radio" name="dressSize" value="85" onchange="calculateWedding()"> Empire</label>
+                <label><input type="radio" name="dressSize" value="125" onchange="calculateWedding()"> Ball Gown</label>
+                <label><input type="radio" name="dressSize" value="60" onchange="calculateWedding()"> Sheath</label>
+            </div>
+        </div>
+
+        <div class="estimator-section">
+            <div class="section-title">Train Length</div>
+            <div class="option-group">
+                <!-- Added onchange to all checkboxes -->
+                <label><input type="checkbox" class="train-option" value="25" onchange="calculateWedding()">Short (Chapel)</label>
+                <label><input type="checkbox" class="train-option" value="50" onchange="calculateWedding()">Long (Cathedral)</label>
+                <label><input type="checkbox" class="train-option" value="40" onchange="calculateWedding()">Detachable Skirt</label>
+                <label><input type="checkbox" class="train-option" value="45" onchange="calculateWedding()">Heavy Train</label>
+            </div>
+        </div>
+
+        <div class="estimator-section">
+            <div class="section-title">Details</div>
+            <div class="checkbox-grid">
+                <!-- Added onchange to all checkboxes -->
+                <label><input type="checkbox" class="wedding-addon" value="45" onchange="calculateWedding()"> Heavy lace</label>
+                <label><input type="checkbox" class="wedding-addon" value="45" onchange="calculateWedding()"> Embroidery</label>
+                <label><input type="checkbox" class="wedding-addon" value="65" onchange="calculateWedding()"> Beading / Sequins</label>
+                <label><input type="checkbox" class="wedding-addon" value="30" onchange="calculateWedding()"> Petticoat</label>
+            </div>
+        </div>
+
+        <div class="estimator-section">
+            <div class="section-title">Optional Services</div>
+            <div class="checkbox-grid">
+                <label id="preservationLabel">
+                    <!-- Added onchange -->
+                    <input type="checkbox" class="wedding-addon" id="preservationCheckbox" value="125" onchange="calculateWedding()"> 
+                    Preservation boxing
+                </label>
+                <label><input type="checkbox" class="wedding-addon" value="-40" onchange="calculateWedding()"> Pressing / steaming</label>
+                <label><input type="checkbox" class="wedding-addon" value="25" onchange="calculateWedding()"> Stains (Unguaranteed)</label>
+            </div>
+        </div>
+
+        <div class="results-box">
+            <div id="weddingTotal">Estimated Total: $0.00</div>
+            <div class="estimate-note">Estimate only. Final price confirmed after inspection.</div>
+        </div>
+
+        <!-- Removed the "Calculate" button, kept only Close -->
+        <button class="close-btn" onclick="closeModal('weddingModal')">Close</button>
+    </div>
+</div>
+
+<!-- ===============================
+     VOICEMAIL INSTRUCTIONS MODAL
+=============================== -->
+<div id="voicemailModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-close-x" onclick="closeModal('voicemailModal')">✕</div>
+
+        <h2>Check Voicemail</h2>
+
+        <p><strong>To check the voicemail from the landline:</strong></p>
+
+        <ol style="padding-left: 18px; margin-top: 10px;">
+            <li>
+                Pick up the phone and dial  
+                <strong>*98</strong>
+            </li>
+            <li>
+                Press the <strong>Green</strong> button to call
+            </li>
+            <li>
+                When prompted for a password, enter the PIN and press #:
+                <div style="
+                    background:#f9f9f9;
+                    padding:10px;
+                    border-radius:8px;
+                    text-align:center;
+                    font-size:1.3rem;
+                    font-weight:bold;
+                    margin-top:8px;
+                ">
+                    Voicemail PIN: 1016 # 
+                </div>
+            <li>
+               LISTEN TO THE VOICEMAILS AND CALL THEM BACK!!!!!
+            </li>
+                        <li>
+               Press 4 to delete the Voicemail.
+            </li>
+        <li>
+            Alternative Method: Look at the Gmail for any emails from "PBX"
+        </li>
+             </li>
+        </ol>
+
+        <button class="close-btn" onclick="closeModal('voicemailModal')">
+            Close
+        </button>
+    </div>
+</div>
+    
+<!-- ===============================
+     FOOTER
+=============================== -->
+<div class="footer">
+    <strong>Top Cleaners & Alterations</strong><br>
+    1016 W West Covina Parkway<br>
+    West Covina, CA 91790<br>
+    Phone: (626) 480‑9200<br>
+    <a href="https://626topcleaners.com" target="_blank">626topcleaners.com</a><br><br>
+    Internal Access Only
+</div>
+
+<!-- ===============================
+     ALL JAVASCRIPT
+=============================== -->
 <script>
-/* ============================================
-   STATE
-   ============================================ */
-const DB = {
-  months: {},
-  pos: {},
-  pl: {},
-  forecast: {},
-  annualBaseline: {},
-  categoryOverrides: {}
-};
-let currentScreen = 'dashboard';
+/* ==================================================
+   MODAL OPEN / CLOSE
+================================================== */
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
 
-/* ============================================
-   UTILITIES
-   ============================================ */
-function fmtCurrency(n) {
-  if (n == null || isNaN(n)) return '$0.00';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
-}
-function fmtPercent(r) {
-  if (r == null || isNaN(r)) return '0.0%';
-  return (r * 100).toFixed(1) + '%';
-}
-function fmtNumber(n) {
-  if (n == null || isNaN(n)) return '0';
-  return new Intl.NumberFormat('en-US').format(n);
-}
-function parseCurrencyStr(s) {
-  if (!s) return 0;
-  s = String(s).trim();
-  const neg = s.includes('(') || s.startsWith('-');
-  const cleaned = s.replace(/[$,()%]/g, '').trim();
-  const num = parseFloat(cleaned) || 0;
-  return neg ? -Math.abs(num) : num;
-}
-function parseCSV(text) {
-  const lines = text.split(/\r?\n/);
-  const parseLine = (line) => {
-    const result = [];
-    let cur = '', inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (c === '"') {
-        if (inQ && line[i + 1] === '"') { cur += '"'; i++; } else { inQ = !inQ; }
-      } else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
-      else { cur += c; }
+    el.style.display = "flex";
+
+    if (id === "staffModal") {
+        setTimeout(() => {
+            const iframe = document.getElementById("staffModalIframe");
+            iframe?.contentWindow?.postMessage(
+                "runScrollToFirstIncomplete",
+                "*"
+            );
+        }, 150);
     }
-    result.push(cur.trim());
-    return result;
-  };
-  if (lines.length === 0) return { headers: [], rows: [] };
-  const headers = parseLine(lines[0]);
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    if (!lines[i].trim()) continue;
-    const vals = parseLine(lines[i]);
-    const row = {};
-    headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
-    rows.push(row);
-  }
-  return { headers, rows };
-}
-function autoDetectWaveCategory(name) {
-  const n = (name || '').toLowerCase();
-  if (/^total\s/.test(n) || /\b(gross profit)\b/.test(n)) return 'skip';
-  if (/\b(income|revenue|sales)\b/.test(n) && !/\b(cost|expense|fee|net|gross)\b/.test(n)) return 'revenue';
-  if (/\b(cost of goods|cogs|supplies|materials)\b/.test(n)) return 'variable_cost';
-  if (/\b(processing|merchant|stripe|square|card fee|transaction fee|payment processing)\b/.test(n)) return 'variable_cost';
-  if (/\b(wage|salary|payroll|labor|labour|employee|personnel|staffing)\b/.test(n)) return 'labor_cost';
-  if (/\b(rent|lease|insurance|utilit|phone|internet|subscript|office|depreciation|license|permit|maintenance|operating expense|overhead|advertising|bank.*charge|professional fee|repair|tax|postage|cleaning suppli)\b/.test(n)) return 'fixed_operating_cost';
-  if (/\b(loan|debt|interest|note payable|mortgage|line of credit|financing)\b/.test(n)) return 'debt_service';
-  if (/\b(net income|net profit|net loss|net earnings|net operating)\b/.test(n)) return 'wave_net_profit';
-  return 'unknown';
-}
-function preprocessWaveCSV(text) {
-  const lines = text.split(/\r?\n/);
-  let headerIdx = 0;
-  let maxCols = 0;
-  for (let i = 0; i < Math.min(lines.length, 30); i++) {
-    const line = lines[i];
-    if (!line.trim()) continue;
-    const colCount = (line.match(/,/g) || []).length + 1;
-    if (/accounts?|category|description/i.test(line) && colCount > 1) {
-      headerIdx = i;
-      break;
+
+    if (id === "weddingModal") {
+        calculateWedding();
     }
-    if (colCount > maxCols) {
-      maxCols = colCount;
-      headerIdx = i;
-    }
-  }
-  return lines.slice(headerIdx).join('\n');
-}
-function getMonthLabel(m) {
-  if (!m) return '';
-  const [y, mo] = m.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return months[parseInt(mo, 10) - 1] + ' ' + y;
-}
-function getSortedMonths() {
-  return Object.keys(DB.months).sort().reverse();
 }
 
-/* ============================================
-   FORECAST PARSER
-   ============================================ */
-function parseForecastText(text) {
-  if (!text || !text.trim()) return { total_revenue: 0, total_pieces: 0 };
-  var lines = text.split(/\r?\n/);
-  var totalRevenue = 0;
-  var totalPieces = 0;
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i].trim();
-    // Skip comment lines starting with #
-    if (!line || line.charAt(0) === '#') continue;
-    // Split by tabs
-    var cols = line.split('\t');
-    // Only process rows that begin with a date in YYYY-MM-DD format
-    if (cols.length < 10 || !/^\d{4}-\d{2}-\d{2}/.test(cols[0])) continue;
-    // Column 9 (index 8) → Total Pieces, Column 10 (index 9) → Total Revenue ($)
-    var pieces = parseFloat(String(cols[8]).replace(/[$,]/g, '')) || 0;
-    var revenue = parseFloat(String(cols[9]).replace(/[$,]/g, '')) || 0;
-    totalPieces += pieces;
-    totalRevenue += revenue;
-  }
-  return {
-    total_revenue: Math.round(totalRevenue * 100) / 100,
-    total_pieces: Math.round(totalPieces)
-  };
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
 }
 
-function saveForecast() {
-  var month = document.getElementById('dash-month').value;
-  if (!month || !DB.months[month]) { showToast('Select a month first.', 'error'); return; }
-  if (isLocked(month)) { showToast('Month is locked.', 'error'); return; }
-  var rawText = document.getElementById('forecast-paste-area').value;
-  var parsed = parseForecastText(rawText);
-  DB.forecast[month] = {
-    raw_text: rawText,
-    total_revenue: parsed.total_revenue,
-    total_pieces: parsed.total_pieces
-  };
-  if (parsed.total_revenue > 0 || parsed.total_pieces > 0) {
-    showToast('Forecast saved: ' + fmtCurrency(parsed.total_revenue) + ' revenue, ' + fmtNumber(parsed.total_pieces) + ' pieces.');
-  } else if (rawText.trim()) {
-    showToast('Forecast text saved but no valid data rows found.', 'warning');
-  } else {
-    // Cleared forecast
-    delete DB.forecast[month];
-    showToast('Forecast cleared for ' + getMonthLabel(month) + '.');
-  }
-  renderDashboard();
-}
-
-function clearForecast() {
-  var month = document.getElementById('dash-month').value;
-  if (!month) return;
-  if (isLocked(month)) { showToast('Month is locked.', 'error'); return; }
-  delete DB.forecast[month];
-  var ta = document.getElementById('forecast-paste-area');
-  if (ta) ta.value = '';
-  showToast('Forecast cleared for ' + getMonthLabel(month) + '.');
-  renderDashboard();
-}
-
-/* ============================================
-   CALCULATIONS
-   ============================================ */
-function getActiveBaseline() {
-  // Find the most recent annual baseline by year
-  var years = Object.keys(DB.annualBaseline).map(Number).filter(function(y) { return !isNaN(y); }).sort().reverse();
-  if (years.length === 0) return null;
-  return DB.annualBaseline[years[0]];
-}
-
-function calcNormalizedFixedOp() {
-  // Average Fixed_Operating_Cost from last 12 Locked months
-  var lockedMonths = Object.keys(DB.months)
-    .filter(function(mk) { return DB.months[mk].status === 'Locked' && DB.pl[mk]; })
-    .sort()
-    .reverse()
-    .slice(0, 12);
-
-  // If fewer than 6 locked months, fall back to Annual Baseline
-  if (lockedMonths.length < 6) {
-    var bl = getActiveBaseline();
-    if (bl && bl.total_fixed_cost > 0) {
-      return {
-        value: Math.round((bl.total_fixed_cost / 12) * 100) / 100,
-        monthCount: lockedMonths.length,
-        source: 'baseline',
-        baselineYear: bl.year
-      };
-    }
-  }
-
-  if (lockedMonths.length === 0) return { value: 0, monthCount: 0, source: 'none' };
-  var sum = 0;
-  for (var i = 0; i < lockedMonths.length; i++) {
-    sum += (DB.pl[lockedMonths[i]].fixed_operating_cost || 0);
-  }
-  return {
-    value: Math.round((sum / lockedMonths.length) * 100) / 100,
-    monthCount: lockedMonths.length,
-    source: 'trailing'
-  };
-}
-
-function calcFields(month) {
-  const pl = DB.pl[month] || {};
-  const pos = DB.pos[month] || {};
-  const fc = DB.forecast[month] || {};
-  const m = DB.months[month] || {};
-  const revenue = pl.revenue || 0;
-  const variableCost = pl.variable_cost || 0;
-  const laborCost = pl.labor_cost || 0;
-  const fixedOp = pl.fixed_operating_cost || 0;
-  const debtService = pl.debt_service || 0;
-  const desiredSurplus = m.desired_surplus || 0;
-
-  // Normalized Fixed Operating: average of locked months or annual baseline for breakeven
-  const normResult = calcNormalizedFixedOp();
-  const normalizedFixedOp = normResult.value > 0 ? normResult.value : fixedOp;
-  const normMonthCount = normResult.monthCount;
-  const normSource = normResult.source || 'none';
-  const normBaselineYear = normResult.baselineYear || null;
-
-  // Effective Revenue/Pieces: forecast overrides POS when > 0
-  const forecastRevenue = fc.total_revenue || 0;
-  const forecastPieces = fc.total_pieces || 0;
-  const posRevenue = pos.total_revenue || 0;
-  const posPieces = pos.total_pieces || 0;
-  const effectiveRevenue = forecastRevenue > 0 ? forecastRevenue : posRevenue;
-  const effectivePieces = forecastPieces > 0 ? forecastPieces : posPieces;
-  const hasForecast = forecastRevenue > 0 || forecastPieces > 0;
-
-  const contribution = revenue - variableCost - laborCost;
-  const cmRatio = revenue > 0 ? contribution / revenue : 0;
-  // Operating Breakeven uses Normalized Fixed Operating
-  const operatingBreakeven = cmRatio > 0 ? normalizedFixedOp / cmRatio : 0;
-  const conservativeBreakeven = cmRatio > 0 ? (normalizedFixedOp + debtService) / cmRatio : 0;
-  const targetRevenue = cmRatio > 0 ? (normalizedFixedOp + desiredSurplus) / cmRatio : 0;
-  const revenueGap = effectiveRevenue - targetRevenue;
-  // Actual profit still uses this month's real Fixed Operating Cost
-  const netOperatingProfit = contribution - fixedOp;
-  const cashAfterDebt = netOperatingProfit - debtService;
-  const revenuePerPiece = effectivePieces > 0 ? revenue / effectivePieces : 0;
-  const contributionPerPiece = effectivePieces > 0 ? contribution / effectivePieces : 0;
-
-  return {
-    contribution, cmRatio, operatingBreakeven, conservativeBreakeven,
-    targetRevenue, revenueGap, netOperatingProfit, cashAfterDebt,
-    revenuePerPiece, contributionPerPiece,
-    totalRevenue: effectiveRevenue, totalPieces: effectivePieces,
-    posRevenue, posPieces, forecastRevenue, forecastPieces, hasForecast,
-    fixedOp, normalizedFixedOp, normMonthCount, normSource, normBaselineYear
-  };
-}
-function getRevenueStatus(totalRevenue, opBE, consBE, targetRev) {
-  if (opBE <= 0 && consBE <= 0 && targetRev <= 0) return { cls: 'status-green', label: 'No Data', color: 'green' };
-  if (totalRevenue < opBE) return { cls: 'status-red', label: 'Below Operating BE', color: 'red' };
-  if (totalRevenue < consBE) return { cls: 'status-orange', label: 'Below Conservative BE', color: 'orange' };
-  if (totalRevenue < targetRev) return { cls: 'status-yellow', label: 'Below Target', color: 'yellow' };
-  return { cls: 'status-green', label: 'Above Target', color: 'green' };
-}
-
-/* ============================================
-   TOAST / MODAL
-   ============================================ */
-function showToast(msg, type) {
-  type = type || 'success';
-  const c = document.getElementById('toasts');
-  const t = document.createElement('div');
-  t.className = 'toast ' + type;
-  const icons = { success: 'fa-circle-check', error: 'fa-circle-xmark', warning: 'fa-triangle-exclamation' };
-  t.innerHTML = '<i class="fa-solid ' + (icons[type] || icons.success) + '"></i> ' + msg;
-  c.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 3500);
-}
-function showModal(title, text, actions) {
-  return new Promise((resolve) => {
-    const ov = document.createElement('div');
-    ov.className = 'modal-overlay';
-    const box = document.createElement('div');
-    box.className = 'modal-box';
-    box.innerHTML = '<div class="modal-title">' + title + '</div><div class="modal-text">' + text + '</div>';
-    const actDiv = document.createElement('div');
-    actDiv.className = 'modal-actions';
-    (actions || [{ label: 'OK', cls: 'btn btn-primary', value: true }]).forEach(a => {
-      const btn = document.createElement('button');
-      btn.className = a.cls || 'btn btn-secondary';
-      btn.textContent = a.label;
-      btn.onclick = () => { ov.remove(); resolve(a.value); };
-      actDiv.appendChild(btn);
-    });
-    box.appendChild(actDiv);
-    ov.appendChild(box);
-    ov.addEventListener('click', (e) => { if (e.target === ov) { ov.remove(); resolve(null); } });
-    document.body.appendChild(ov);
-  });
-}
-
-/* ============================================
-   SCREEN SWITCHING
-   ============================================ */
-function switchScreen(name) {
-  currentScreen = name;
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const el = document.getElementById('screen-' + name);
-  if (el) el.classList.add('active');
-  document.querySelectorAll('#sidebar-nav a, #mobile-nav a').forEach(a => {
-    a.classList.toggle('active', a.dataset.screen === name);
-  });
-  if (name === 'dashboard') renderDashboard();
-  if (name === 'wave') renderWaveScreen();
-  if (name === 'pos') renderPosScreen();
-  if (name === 'baseline') renderBaselineScreen();
-  if (name === 'history') renderHistory();
-}
-
-/* ============================================
-   MONTH MANAGEMENT
-   ============================================ */
-function populateMonthSelectors() {
-  const months = getSortedMonths();
-  const selectors = ['dash-month', 'wave-month', 'pos-month'];
-  selectors.forEach(id => {
-    const sel = document.getElementById(id);
-    const curVal = sel.value;
-    sel.innerHTML = '<option value="">Select Month</option>';
-    months.forEach(m => {
-      const opt = document.createElement('option');
-      opt.value = m;
-      opt.textContent = getMonthLabel(m);
-      sel.appendChild(opt);
-    });
-    if (curVal && DB.months[curVal]) sel.value = curVal;
-  });
-}
-function showAddMonthModal() {
-  const ov = document.createElement('div');
-  ov.className = 'modal-overlay';
-  const box = document.createElement('div');
-  box.className = 'modal-box';
-  box.innerHTML = '<div class="modal-title">Add New Month</div>' +
-    '<div class="modal-text">Select the month to add.</div>' +
-    '<div class="form-group" style="margin-bottom:20px;"><input type="month" class="form-input" id="new-month-input" style="width:100%;"></div>' +
-    '<div class="modal-actions">' +
-    '<button class="btn btn-secondary" id="add-month-cancel">Cancel</button>' +
-    '<button class="btn btn-primary" id="add-month-ok"><i class="fa-solid fa-plus"></i> Add</button>' +
-    '</div>';
-  ov.appendChild(box);
-  ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
-  document.body.appendChild(ov);
-  const inp = document.getElementById('new-month-input');
-  const now = new Date();
-  inp.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  document.getElementById('add-month-cancel').onclick = () => ov.remove();
-  document.getElementById('add-month-ok').onclick = () => {
-    const v = inp.value;
-    if (!v) { showToast('Please select a month.', 'error'); return; }
-    if (DB.months[v]) { showToast('Month already exists.', 'warning'); ov.remove(); return; }
-    DB.months[v] = { status: 'Draft', desired_surplus: 0, notes: '' };
-    populateMonthSelectors();
-    document.getElementById('dash-month').value = v;
-    document.getElementById('wave-month').value = v;
-    document.getElementById('pos-month').value = v;
-    showToast('Month ' + getMonthLabel(v) + ' created.');
-    ov.remove();
-    if (currentScreen === 'dashboard') renderDashboard();
-    if (currentScreen === 'wave') renderWaveScreen();
-    if (currentScreen === 'pos') renderPosScreen();
-  };
-}
-function isLocked(month) {
-  return DB.months[month] && DB.months[month].status === 'Locked';
-}
-
-/* ============================================
-   DASHBOARD RENDERING
-   ============================================ */
-function renderDashboard() {
-  const month = document.getElementById('dash-month').value;
-  const content = document.getElementById('dash-content');
-  const surplusInput = document.getElementById('dash-surplus');
-  const lockBtn = document.getElementById('dash-lock-btn');
-  const badge = document.getElementById('dash-status-badge');
-
-  if (!month || !DB.months[month]) {
-    badge.innerHTML = '';
-    lockBtn.innerHTML = '<i class="fa-solid fa-lock-open"></i> Lock Month';
-    surplusInput.value = '';
-    surplusInput.disabled = true;
-    content.innerHTML = '<div class="empty-state"><i class="fa-solid fa-chart-line"></i><p>Select or create a month to view financial data.</p><button class="btn btn-primary" onclick="showAddMonthModal()"><i class="fa-solid fa-plus"></i> Create Month</button></div>';
-    return;
-  }
-  const m = DB.months[month];
-  const locked = m.status === 'Locked';
-  badge.innerHTML = locked
-    ? '<span class="badge badge-locked"><i class="fa-solid fa-lock"></i> Locked</span>'
-    : '<span class="badge badge-draft"><i class="fa-solid fa-pen"></i> Draft</span>';
-  lockBtn.innerHTML = locked
-    ? '<i class="fa-solid fa-lock-open"></i> Unlock'
-    : '<i class="fa-solid fa-lock"></i> Lock Month';
-  surplusInput.disabled = locked;
-  surplusInput.value = m.desired_surplus ? fmtCurrency(m.desired_surplus).replace('$', '') : '';
-
-  const pl = DB.pl[month];
-  const pos = DB.pos[month];
-  const fc = DB.forecast[month];
-  const c = calcFields(month);
-  const st = getRevenueStatus(c.totalRevenue, c.operatingBreakeven, c.conservativeBreakeven, c.targetRevenue);
-  const hasData = !!(pl || pos);
-
-  if (!hasData) {
-    content.innerHTML = '<div class="empty-state"><i class="fa-solid fa-file-circle-plus"></i>' +
-      '<p>No financial data for <strong>' + getMonthLabel(month) + '</strong> yet.</p>' +
-      '<p style="font-size:0.85rem;">Import data from the <a href="#" onclick="switchScreen(\'wave\');return false;">Wave Import</a> or <a href="#" onclick="switchScreen(\'pos\');return false;">POS Import</a> screens.</p></div>';
-    return;
-  }
-
-  let html = '';
-
-  // Forecast Input Section
-  html += '<div class="section"><div class="card">';
-  html += '<div class="card-header"><i class="fa-solid fa-wand-magic-sparkles"></i> Forecast Input</div>';
-  html += '<p style="color:var(--text-2); font-size:0.82rem; margin-bottom:10px;">Paste tab-separated forecast data. Lines starting with <code style="background:var(--bg-3);padding:2px 6px;border-radius:4px;font-family:var(--mono);font-size:0.78rem;">#</code> are ignored. Rows must start with a <code style="background:var(--bg-3);padding:2px 6px;border-radius:4px;font-family:var(--mono);font-size:0.78rem;">YYYY-MM-DD</code> date. Column 9 = Pieces, Column 10 = Revenue.</p>';
-  html += '<textarea class="form-input" id="forecast-paste-area" rows="5" style="width:100%; font-family:var(--mono); font-size:13px;" placeholder="Paste forecast data here..."' +
-    (locked ? ' disabled' : '') + '>' + escapeHTML((fc && fc.raw_text) || '') + '</textarea>';
-  html += '<div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">';
-  if (!locked) {
-    html += '<button class="btn btn-primary btn-sm" onclick="saveForecast()"><i class="fa-solid fa-check"></i> Parse &amp; Save Forecast</button>';
-    html += '<button class="btn btn-secondary btn-sm" onclick="clearForecast()"><i class="fa-solid fa-xmark"></i> Clear Forecast</button>';
-  }
-  if (c.hasForecast) {
-    html += '<span style="font-size:0.8rem; color:var(--accent); font-weight:600;"><i class="fa-solid fa-circle-check"></i> Forecast active: ' +
-      fmtCurrency(c.forecastRevenue) + ' revenue, ' + fmtNumber(c.forecastPieces) + ' pieces</span>';
-  }
-  html += '</div></div></div>';
-
-  // Section A - Revenue Targets
-  var revenueSourceLabel = c.hasForecast ? 'Effective Revenue (Forecast)' : 'Total Revenue (POS)';
-  html += '<div class="section">';
-  html += '<div class="card"><div class="card-header"><i class="fa-solid fa-bullseye"></i> Revenue Targets</div>';
-  html += '<div class="revenue-hero ' + st.cls + '">';
-  html += '<div><div class="revenue-label">' + revenueSourceLabel + '</div>';
-  html += '<div class="revenue-amount">' + fmtCurrency(c.totalRevenue) + '</div></div>';
-  html += '<div class="revenue-status"><span class="status-dot ' + st.color + '"></span> ' + st.label + '</div>';
-  html += '</div>';
-  // Forecast section: show when forecast exists
-  if (c.hasForecast) {
-    html += '<div class="metric-grid" style="margin-bottom:14px;">';
-    html += metricHTML('Forecast Revenue', fmtCurrency(c.forecastRevenue));
-    html += metricHTML('Forecast Pieces', fmtNumber(c.forecastPieces));
-    html += metricHTML('POS Revenue', fmtCurrency(c.posRevenue));
-    var forecastGap = c.forecastRevenue - c.targetRevenue;
-    var fgClass = forecastGap >= 0 ? 'positive' : 'negative';
-    html += '<div class="metric"><div class="metric-label">Forecast Gap vs Target</div><div class="metric-value sm ' + fgClass + '">' +
-      (forecastGap >= 0 ? '+' : '') + fmtCurrency(forecastGap) + '</div></div>';
-    html += '</div>';
-  }
-  html += '<div class="metric-grid">';
-  html += metricHTML('Operating Breakeven', fmtCurrency(c.operatingBreakeven));
-  html += metricHTML('Conservative Breakeven', fmtCurrency(c.conservativeBreakeven));
-  html += metricHTML('Target Revenue', fmtCurrency(c.targetRevenue));
-  const gapClass = c.revenueGap >= 0 ? 'positive' : 'negative';
-  html += '<div class="metric"><div class="metric-label">Revenue Gap</div><div class="metric-value sm ' + gapClass + '">' +
-    (c.revenueGap >= 0 ? '+' : '') + fmtCurrency(c.revenueGap) + '</div></div>';
-  html += '</div></div></div>';
-
-  // Section B - Cost Breakdown
-  html += '<div class="section"><div class="card"><div class="card-header"><i class="fa-solid fa-receipt"></i> Cost Breakdown</div>';
-  html += '<div class="metric-grid">';
-  html += metricHTML('Variable Cost', fmtCurrency((pl || {}).variable_cost || 0));
-  html += metricHTML('Labor Cost', fmtCurrency((pl || {}).labor_cost || 0));
-  html += metricHTML('Fixed Operating Cost', fmtCurrency((pl || {}).fixed_operating_cost || 0));
-  html += metricHTML('Debt Service', fmtCurrency((pl || {}).debt_service || 0));
-  html += '</div>';
-  // Normalized Fixed Operating indicator
-  if (c.normSource === 'baseline') {
-    html += '<div style="margin-top:12px; padding:10px 14px; background:var(--blue-bg); border:1px solid rgba(96,165,250,0.25); border-radius:var(--radius); font-size:0.82rem;">';
-    html += '<i class="fa-solid fa-calendar-check" style="color:var(--blue); margin-right:6px;"></i>';
-    html += '<strong style="color:var(--blue);">Using Annual Baseline for Fixed Costs</strong> ';
-    html += '<span style="font-family:var(--mono); font-weight:600;">' + fmtCurrency(c.normalizedFixedOp) + '/mo</span>';
-    html += ' <span style="color:var(--text-3);">(' + (c.normBaselineYear || '') + ' baseline ÷ 12 — ' + c.normMonthCount + ' locked month' + (c.normMonthCount !== 1 ? 's' : '') + ' &lt; 6 threshold)</span>';
-    html += '</div>';
-  } else if (c.normSource === 'trailing' && c.normMonthCount > 0) {
-    html += '<div style="margin-top:12px; padding:10px 14px; background:var(--accent-subtle); border:1px solid var(--accent-muted); border-radius:var(--radius); font-size:0.82rem;">';
-    html += '<i class="fa-solid fa-calculator" style="color:var(--accent); margin-right:6px;"></i>';
-    html += '<strong style="color:var(--accent);">Normalized Fixed Operating:</strong> ';
-    html += '<span style="font-family:var(--mono); font-weight:600;">' + fmtCurrency(c.normalizedFixedOp) + '</span>';
-    html += ' <span style="color:var(--text-3);">(avg of ' + c.normMonthCount + ' locked month' + (c.normMonthCount !== 1 ? 's' : '') + ' — used for breakeven)</span>';
-    html += '</div>';
-  }
-  html += '</div></div>';
-
-  // Section C - Efficiency Metrics
-  html += '<div class="section"><div class="card"><div class="card-header"><i class="fa-solid fa-gears"></i> Efficiency Metrics</div>';
-  html += '<div class="metric-grid">';
-  html += metricHTML('Revenue / Piece', fmtCurrency(c.revenuePerPiece));
-  html += metricHTML('Contribution / Piece', fmtCurrency(c.contributionPerPiece));
-  html += metricHTML('CM Ratio', fmtPercent(c.cmRatio));
-  html += metricHTML('Total Pieces', fmtNumber(c.totalPieces));
-  html += '</div></div></div>';
-
-  // Section D - Cash View
-  html += '<div class="section"><div class="card"><div class="card-header"><i class="fa-solid fa-coins"></i> Cash View</div>';
-  html += '<div class="metric-grid">';
-  const nopClass = c.netOperatingProfit >= 0 ? 'positive' : 'negative';
-  const cadClass = c.cashAfterDebt >= 0 ? 'positive' : 'negative';
-  html += '<div class="metric"><div class="metric-label">Net Operating Profit</div><div class="metric-value ' + nopClass + '">' + fmtCurrency(c.netOperatingProfit) + '</div></div>';
-  html += '<div class="metric"><div class="metric-label">Cash After Debt</div><div class="metric-value ' + cadClass + '">' + fmtCurrency(c.cashAfterDebt) + '</div></div>';
-  html += metricHTML('Contribution', fmtCurrency(c.contribution));
-  if (pl && pl.wave_net_profit != null) {
-    html += metricHTML('Wave Net Profit (Ref)', fmtCurrency(pl.wave_net_profit));
-  }
-  html += '</div></div></div>';
-
-  // Notes
-  html += '<div class="section"><div class="card"><div class="card-header"><i class="fa-solid fa-note-sticky"></i> Notes</div>';
-  html += '<textarea class="form-input" style="width:100%;" id="dash-notes" placeholder="Add notes for this month..." ' +
-    (locked ? 'disabled' : '') + ' oninput="onNotesChange()">' + (m.notes || '') + '</textarea>';
-  html += '</div></div>';
-
-  content.innerHTML = html;
-}
-function metricHTML(label, value) {
-  return '<div class="metric"><div class="metric-label">' + label + '</div><div class="metric-value sm">' + value + '</div></div>';
-}
-
-/* ============================================
-   DASHBOARD EVENTS
-   ============================================ */
-function onDashMonthChange() { renderDashboard(); }
-function onSurplusChange() {
-  const month = document.getElementById('dash-month').value;
-  if (!month || !DB.months[month] || isLocked(month)) return;
-  DB.months[month].desired_surplus = parseCurrencyStr(document.getElementById('dash-surplus').value);
-  renderDashboard();
-  // Restore focus and cursor
-  const inp = document.getElementById('dash-surplus');
-  if (inp) inp.focus();
-}
-function onNotesChange() {
-  const month = document.getElementById('dash-month').value;
-  if (!month || !DB.months[month]) return;
-  const ta = document.getElementById('dash-notes');
-  if (ta) DB.months[month].notes = ta.value;
-}
-function toggleLock() {
-  const month = document.getElementById('dash-month').value;
-  if (!month || !DB.months[month]) { showToast('Select a month first.', 'warning'); return; }
-  const m = DB.months[month];
-  if (m.status === 'Locked') {
-    m.status = 'Draft';
-    showToast(getMonthLabel(month) + ' unlocked.');
-  } else {
-    m.status = 'Locked';
-    showToast(getMonthLabel(month) + ' locked.');
-  }
-  renderDashboard();
-}
-
-/* ============================================
-   WAVE IMPORT
-   ============================================ */
-let waveCSVData = null;
-let waveCSVMappings = [];
-
-function renderWaveScreen() {
-  const month = document.getElementById('wave-month').value;
-  const badge = document.getElementById('wave-status-badge');
-  const lockedMsg = document.getElementById('wave-locked-msg');
-  const content = document.getElementById('wave-content');
-
-  if (month && DB.months[month]) {
-    const locked = isLocked(month);
-    badge.innerHTML = locked
-      ? '<span class="badge badge-locked"><i class="fa-solid fa-lock"></i> Locked</span>'
-      : '<span class="badge badge-draft"><i class="fa-solid fa-pen"></i> Draft</span>';
-    lockedMsg.classList.toggle('hidden', !locked);
-    content.style.pointerEvents = locked ? 'none' : '';
-    content.style.opacity = locked ? '0.5' : '';
-    // If there's existing data, populate manual entry fields
-    if (DB.pl[month]) {
-      const pl = DB.pl[month];
-      document.getElementById('wave-m-revenue').value = pl.revenue || '';
-      document.getElementById('wave-m-variable').value = pl.variable_cost || '';
-      document.getElementById('wave-m-labor').value = pl.labor_cost || '';
-      document.getElementById('wave-m-fixed').value = pl.fixed_operating_cost || '';
-      document.getElementById('wave-m-debt').value = pl.debt_service || '';
-      document.getElementById('wave-m-netprofit').value = pl.wave_net_profit || '';
-    }
-  } else {
-    badge.innerHTML = '';
-    lockedMsg.classList.add('hidden');
-    content.style.pointerEvents = '';
-    content.style.opacity = '';
-  }
-}
-function onWaveMonthChange() { renderWaveScreen(); }
-function switchWaveTab(tab) {
-  document.getElementById('wave-tab-csv').classList.toggle('hidden', tab !== 'csv');
-  document.getElementById('wave-tab-manual').classList.toggle('hidden', tab !== 'manual');
-  document.querySelectorAll('#screen-wave .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', (i === 0 && tab === 'csv') || (i === 1 && tab === 'manual'));
-  });
-}
-function handleWaveCSV(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    const processedText = preprocessWaveCSV(ev.target.result);
-    waveCSVData = parseCSV(processedText);
-    if (waveCSVData.headers.length === 0 || waveCSVData.rows.length === 0) { showToast('Could not parse CSV. Check file format.', 'error'); return; }
-    // Populate column selectors with readable labels
-    const nameSelect = document.getElementById('wave-col-name');
-    const amtSelect = document.getElementById('wave-col-amount');
-    nameSelect.innerHTML = '';
-    amtSelect.innerHTML = '';
-    waveCSVData.headers.forEach((h, i) => {
-      const label = h.trim() ? escapeHTML(h) : '(Column ' + (i + 1) + ' - empty)';
-      nameSelect.innerHTML += '<option value="' + i + '">' + label + '</option>';
-      amtSelect.innerHTML += '<option value="' + i + '">' + label + '</option>';
-    });
-    // Auto-select columns
-    let nameIdx = 0;
-    let amtIdx = waveCSVData.headers.length - 1;
-    // Find the account name column
-    waveCSVData.headers.forEach((h, i) => {
-      if (/account|name|description|category|item/i.test(h)) nameIdx = i;
-    });
-    // Find the amount column - prefer keyword match, else use last non-name column
-    let foundAmt = false;
-    waveCSVData.headers.forEach((h, i) => {
-      if (/total|amount|balance|value|net/i.test(h) && i !== nameIdx) { amtIdx = i; foundAmt = true; }
-    });
-    if (!foundAmt) {
-      for (let i = waveCSVData.headers.length - 1; i >= 0; i--) {
-        if (i !== nameIdx) { amtIdx = i; break; }
-      }
-    }
-    nameSelect.value = nameIdx;
-    amtSelect.value = amtIdx;
-    document.getElementById('wave-csv-step2').classList.remove('hidden');
-    updateWaveMapping();
-  };
-  reader.readAsText(file);
-}
-function updateWaveMapping() {
-  if (!waveCSVData) return;
-  const nameIdx = parseInt(document.getElementById('wave-col-name').value, 10);
-  const amtIdx = parseInt(document.getElementById('wave-col-amount').value, 10);
-  const headers = waveCSVData.headers;
-
-  waveCSVMappings = [];
-  let currentSection = null;
-  waveCSVData.rows.forEach(row => {
-    const name = (row[headers[nameIdx]] || '').trim();
-    const amt = parseCurrencyStr(row[headers[amtIdx]]);
-    const n = name.toLowerCase().trim();
-    // Detect section headers — these are parent rows, skip them and set context
-    if (/^income$/.test(n)) {
-      currentSection = 'revenue';
-      waveCSVMappings.push({ name, amount: amt, category: 'skip' });
-      return;
-    }
-    if (/^cost of goods sold$/.test(n) || /^cogs$/.test(n)) {
-      currentSection = 'variable_cost';
-      waveCSVMappings.push({ name, amount: amt, category: 'skip' });
-      return;
-    }
-    if (/^operating expenses?$/.test(n)) {
-      currentSection = 'operating';
-      waveCSVMappings.push({ name, amount: amt, category: 'skip' });
-      return;
-    }
-    // Check user-saved category overrides first
-    if (n && DB.categoryOverrides[n]) {
-      waveCSVMappings.push({ name, amount: amt, category: DB.categoryOverrides[n] });
-      return;
-    }
-    // Auto-detect category by keywords
-    let category = autoDetectWaveCategory(name);
-    // Only apply section fallback for truly unrecognized items, not intentional skips
-    if (category === 'unknown' && currentSection) {
-      if (currentSection === 'revenue') category = 'revenue';
-      else if (currentSection === 'variable_cost') category = 'variable_cost';
-      else if (currentSection === 'operating') category = 'fixed_operating_cost';
-    }
-    if (category === 'unknown') category = 'skip';
-    waveCSVMappings.push({ name, amount: amt, category });
-  });
-
-  // Render mapping table
-  const wrap = document.getElementById('wave-mapping-table-wrap');
-  let html = '<table class="mapping-table"><thead><tr><th>Account</th><th>Amount</th><th>Category</th></tr></thead><tbody>';
-  waveCSVMappings.forEach((m, i) => {
-    html += '<tr><td>' + escapeHTML(m.name) + '</td><td class="mono">' + fmtCurrency(m.amount) + '</td>';
-    html += '<td><select onchange="onWaveCategoryChange(' + i + ', this.value)">';
-    const cats = [
-      ['skip', 'Skip'],
-      ['revenue', 'Revenue'],
-      ['variable_cost', 'Variable Cost'],
-      ['labor_cost', 'Labor Cost'],
-      ['fixed_operating_cost', 'Fixed Operating Cost'],
-      ['debt_service', 'Debt Service'],
-      ['wave_net_profit', 'Net Profit (Ref)']
-    ];
-    cats.forEach(([v, l]) => { html += '<option value="' + v + '"' + (m.category === v ? ' selected' : '') + '>' + l + '</option>'; });
-    html += '</select></td></tr>';
-  });
-  html += '</tbody></table>';
-  wrap.innerHTML = html;
-  renderWaveTotals();
-}
-function renderWaveTotals() {
-  const totals = { revenue: 0, variable_cost: 0, labor_cost: 0, fixed_operating_cost: 0, debt_service: 0, wave_net_profit: 0 };
-  waveCSVMappings.forEach(m => {
-    if (m.category !== 'skip' && totals[m.category] !== undefined) {
-      totals[m.category] += m.amount;
-    }
-  });
-  const el = document.getElementById('wave-mapping-totals');
-  const labels = { revenue: 'Revenue', variable_cost: 'Variable Cost', labor_cost: 'Labor Cost', fixed_operating_cost: 'Fixed Operating', debt_service: 'Debt Service', wave_net_profit: 'Net Profit (Ref)' };
-  let html = '';
-  Object.keys(labels).forEach(k => {
-    html += '<div class="mapping-total-item"><div class="label">' + labels[k] + '</div><div class="value">' + fmtCurrency(totals[k]) + '</div></div>';
-  });
-  el.innerHTML = html;
-}
-function onWaveCategoryChange(idx, value) {
-  waveCSVMappings[idx].category = value;
-  const name = waveCSVMappings[idx].name.toLowerCase().trim();
-  if (name) DB.categoryOverrides[name] = value;
-  renderWaveTotals();
-}
-function approveWaveCSV() {
-  const month = document.getElementById('wave-month').value;
-  if (!month) { showToast('Select a month first.', 'error'); return; }
-  if (isLocked(month)) { showToast('Month is locked.', 'error'); return; }
-  if (!DB.months[month]) DB.months[month] = { status: 'Draft', desired_surplus: 0, notes: '' };
-
-  const totals = { revenue: 0, variable_cost: 0, labor_cost: 0, fixed_operating_cost: 0, debt_service: 0, wave_net_profit: 0 };
-  waveCSVMappings.forEach(m => {
-    if (m.category !== 'skip' && totals[m.category] !== undefined) totals[m.category] += m.amount;
-  });
-  DB.pl[month] = totals;
-  showToast('P&L data saved for ' + getMonthLabel(month) + '.');
-  resetWaveCSV();
-  populateMonthSelectors();
-  document.getElementById('wave-month').value = month;
-}
-function resetWaveCSV() {
-  waveCSVData = null;
-  waveCSVMappings = [];
-  document.getElementById('wave-csv-step2').classList.add('hidden');
-  const dropInput = document.querySelector('#wave-drop input[type="file"]');
-  if (dropInput) dropInput.value = '';
-}
-function saveWaveManual() {
-  const month = document.getElementById('wave-month').value;
-  if (!month) { showToast('Select a month first.', 'error'); return; }
-  if (isLocked(month)) { showToast('Month is locked.', 'error'); return; }
-  if (!DB.months[month]) DB.months[month] = { status: 'Draft', desired_surplus: 0, notes: '' };
-  DB.pl[month] = {
-    revenue: parseCurrencyStr(document.getElementById('wave-m-revenue').value),
-    variable_cost: parseCurrencyStr(document.getElementById('wave-m-variable').value),
-    labor_cost: parseCurrencyStr(document.getElementById('wave-m-labor').value),
-    fixed_operating_cost: parseCurrencyStr(document.getElementById('wave-m-fixed').value),
-    debt_service: parseCurrencyStr(document.getElementById('wave-m-debt').value),
-    wave_net_profit: parseCurrencyStr(document.getElementById('wave-m-netprofit').value)
-  };
-  showToast('P&L data saved for ' + getMonthLabel(month) + '.');
-  populateMonthSelectors();
-  document.getElementById('wave-month').value = month;
-}
-
-/* ============================================
-   POS IMPORT
-   ============================================ */
-let posCSVData = null;
-const posFields = [
-  { key: 'total_revenue', label: 'Total Revenue', isCurrency: true },
-  { key: 'total_pieces', label: 'Total Pieces', isCurrency: false },
-  { key: 'dry_revenue', label: 'Dry Cleaning Revenue', isCurrency: true },
-  { key: 'laundry_revenue', label: 'Laundry Revenue', isCurrency: true },
-  { key: 'alter_revenue', label: 'Alterations Revenue', isCurrency: true },
-  { key: 'press_revenue', label: 'Press Revenue', isCurrency: true },
-  { key: 'discount_amount', label: 'Discount Amount', isCurrency: true }
-];
-
-function renderPosScreen() {
-  const month = document.getElementById('pos-month').value;
-  const badge = document.getElementById('pos-status-badge');
-  const lockedMsg = document.getElementById('pos-locked-msg');
-  const content = document.getElementById('pos-content');
-
-  if (month && DB.months[month]) {
-    const locked = isLocked(month);
-    badge.innerHTML = locked
-      ? '<span class="badge badge-locked"><i class="fa-solid fa-lock"></i> Locked</span>'
-      : '<span class="badge badge-draft"><i class="fa-solid fa-pen"></i> Draft</span>';
-    lockedMsg.classList.toggle('hidden', !locked);
-    content.style.pointerEvents = locked ? 'none' : '';
-    content.style.opacity = locked ? '0.5' : '';
-    if (DB.pos[month]) {
-      const pos = DB.pos[month];
-      document.getElementById('pos-m-revenue').value = pos.total_revenue || '';
-      document.getElementById('pos-m-pieces').value = pos.total_pieces || '';
-      document.getElementById('pos-m-dry').value = pos.dry_revenue || '';
-      document.getElementById('pos-m-laundry').value = pos.laundry_revenue || '';
-      document.getElementById('pos-m-alter').value = pos.alter_revenue || '';
-      document.getElementById('pos-m-press').value = pos.press_revenue || '';
-      document.getElementById('pos-m-discount').value = pos.discount_amount || '';
-    }
-  } else {
-    badge.innerHTML = '';
-    lockedMsg.classList.add('hidden');
-    content.style.pointerEvents = '';
-    content.style.opacity = '';
-  }
-}
-function onPosMonthChange() { renderPosScreen(); }
-function switchPosTab(tab) {
-  document.getElementById('pos-tab-csv').classList.toggle('hidden', tab !== 'csv');
-  document.getElementById('pos-tab-manual').classList.toggle('hidden', tab !== 'manual');
-  document.getElementById('pos-tab-paste').classList.toggle('hidden', tab !== 'paste');
-  document.querySelectorAll('#screen-pos .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', (i === 0 && tab === 'csv') || (i === 1 && tab === 'manual') || (i === 2 && tab === 'paste'));
-  });
-}
-function handlePosCSV(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    posCSVData = parseCSV(ev.target.result);
-    if (posCSVData.headers.length === 0) { showToast('Could not parse CSV.', 'error'); return; }
-    // Build column mapping UI
-    const mapDiv = document.getElementById('pos-col-map');
-    let html = '';
-    posFields.forEach(f => {
-      html += '<div class="form-group"><label class="form-label">' + f.label + '</label>';
-      html += '<select class="form-select" id="pos-col-' + f.key + '" onchange="updatePosPreview()">';
-      html += '<option value="-1">-- Not Mapped --</option>';
-      posCSVData.headers.forEach((h, i) => {
-        const sel = autoMapPosCol(h, f.key) ? ' selected' : '';
-        html += '<option value="' + i + '"' + sel + '>' + h + '</option>';
-      });
-      html += '</select></div>';
-    });
-    mapDiv.innerHTML = html;
-    document.getElementById('pos-csv-step2').classList.remove('hidden');
-    document.getElementById('pos-aggregate-info').classList.remove('hidden');
-    document.getElementById('pos-row-count').textContent = posCSVData.rows.length;
-    updatePosPreview();
-  };
-  reader.readAsText(file);
-}
-function autoMapPosCol(header, fieldKey) {
-  const h = header.toLowerCase().replace(/[_\-\s]+/g, '');
-  const maps = {
-    total_revenue: /^(totalrevenue|revenue|total|amount|sales|net)$/,
-    total_pieces: /^(totalpieces|pieces|quantity|count|items|pcs|qty)$/,
-    dry_revenue: /^(drycleaning|dry|drycl|dryrevenue)$/,
-    laundry_revenue: /^(laundry|laundryrevenue|wash)$/,
-    alter_revenue: /^(alter|alteration|alterations|alterrevenue|tailoring)$/,
-    press_revenue: /^(press|pressing|pressrevenue|iron)$/,
-    discount_amount: /^(discount|discounts|discountamount)$/
-  };
-  return maps[fieldKey] ? maps[fieldKey].test(h) : false;
-}
-function updatePosPreview() {
-  if (!posCSVData) return;
-  const headers = posCSVData.headers;
-  const totals = {};
-  posFields.forEach(f => { totals[f.key] = 0; });
-
-  posCSVData.rows.forEach(row => {
-    posFields.forEach(f => {
-      const colIdx = parseInt(document.getElementById('pos-col-' + f.key).value, 10);
-      if (colIdx >= 0 && headers[colIdx]) {
-        const val = f.isCurrency ? parseCurrencyStr(row[headers[colIdx]]) : (parseFloat(String(row[headers[colIdx]]).replace(/[,]/g, '')) || 0);
-        totals[f.key] += val;
-      }
-    });
-  });
-
-  const el = document.getElementById('pos-preview-totals');
-  let html = '';
-  posFields.forEach(f => {
-    const val = f.isCurrency ? fmtCurrency(totals[f.key]) : fmtNumber(totals[f.key]);
-    html += '<div class="mapping-total-item"><div class="label">' + f.label + '</div><div class="value">' + val + '</div></div>';
-  });
-  el.innerHTML = html;
-}
-function approvePosCSV() {
-  const month = document.getElementById('pos-month').value;
-  if (!month) { showToast('Select a month first.', 'error'); return; }
-  if (isLocked(month)) { showToast('Month is locked.', 'error'); return; }
-  if (!DB.months[month]) DB.months[month] = { status: 'Draft', desired_surplus: 0, notes: '' };
-
-  const headers = posCSVData.headers;
-  const totals = {};
-  posFields.forEach(f => { totals[f.key] = 0; });
-  posCSVData.rows.forEach(row => {
-    posFields.forEach(f => {
-      const colIdx = parseInt(document.getElementById('pos-col-' + f.key).value, 10);
-      if (colIdx >= 0 && headers[colIdx]) {
-        const val = f.isCurrency ? parseCurrencyStr(row[headers[colIdx]]) : (parseFloat(String(row[headers[colIdx]]).replace(/[,]/g, '')) || 0);
-        totals[f.key] += val;
-      }
-    });
-  });
-  DB.pos[month] = totals;
-  showToast('POS data saved for ' + getMonthLabel(month) + '.');
-  resetPosCSV();
-  populateMonthSelectors();
-  document.getElementById('pos-month').value = month;
-}
-function resetPosCSV() {
-  posCSVData = null;
-  document.getElementById('pos-csv-step2').classList.add('hidden');
-  document.getElementById('pos-aggregate-info').classList.add('hidden');
-  const dropInput = document.querySelector('#pos-drop input[type="file"]');
-  if (dropInput) dropInput.value = '';
-}
-function savePosManual() {
-  const month = document.getElementById('pos-month').value;
-  if (!month) { showToast('Select a month first.', 'error'); return; }
-  if (isLocked(month)) { showToast('Month is locked.', 'error'); return; }
-  if (!DB.months[month]) DB.months[month] = { status: 'Draft', desired_surplus: 0, notes: '' };
-  DB.pos[month] = {
-    total_revenue: parseCurrencyStr(document.getElementById('pos-m-revenue').value),
-    total_pieces: parseFloat(String(document.getElementById('pos-m-pieces').value).replace(/[,]/g, '')) || 0,
-    dry_revenue: parseCurrencyStr(document.getElementById('pos-m-dry').value),
-    laundry_revenue: parseCurrencyStr(document.getElementById('pos-m-laundry').value),
-    alter_revenue: parseCurrencyStr(document.getElementById('pos-m-alter').value),
-    press_revenue: parseCurrencyStr(document.getElementById('pos-m-press').value),
-    discount_amount: parseCurrencyStr(document.getElementById('pos-m-discount').value)
-  };
-  showToast('POS data saved for ' + getMonthLabel(month) + '.');
-  populateMonthSelectors();
-  document.getElementById('pos-month').value = month;
-}
-
-/* ============================================
-   POS REPORT PARSER (Royal Western format)
-   ============================================ */
-let parsedPOSMonthlyData = null;
-
-function parsePOSReport(text) {
-  var pageTexts = text.split(/Sales Report By Category/i).filter(function(p) { return p.trim(); });
-  var pages = [];
-  for (var pi = 0; pi < pageTexts.length; pi++) {
-    var lines = pageTexts[pi].split('\n');
-    var pageType = null;
-    var dataLines = [];
-    for (var li = 0; li < lines.length; li++) {
-      var trimmed = lines[li].trim();
-      if (!trimmed) continue;
-      if (!pageType) {
-        if (/^Drop\b/.test(trimmed)) { pageType = 'A'; continue; }
-        if (/^Laund\s*Amt\b/.test(trimmed)) { pageType = 'B'; continue; }
-        if (/^Press\s*Amt\b/.test(trimmed)) { pageType = 'C'; continue; }
-        continue;
-      }
-      if (pageType === 'A') {
-        if (/^\d{4}\/\d{2}\/\d{2}/.test(trimmed)) {
-          dataLines.push(trimmed.split(/\s{2,}/));
-        }
-      } else {
-        if (/^[\d.\-(]/.test(trimmed)) {
-          dataLines.push(trimmed.split(/\s{2,}/));
-        }
-      }
-    }
-    if (pageType && dataLines.length > 0) {
-      pages.push({ type: pageType, data: dataLines });
-    }
-  }
-  var records = [];
-  var idx = 0;
-  while (idx < pages.length) {
-    if (pages[idx].type === 'A') {
-      var pA = pages[idx];
-      var pB = (idx + 1 < pages.length && pages[idx + 1].type === 'B') ? pages[idx + 1] : null;
-      var pC = (idx + 2 < pages.length && pages[idx + 2].type === 'C') ? pages[idx + 2] : null;
-      for (var j = 0; j < pA.data.length; j++) {
-        var a = pA.data[j];
-        var b = pB ? (pB.data[j] || []) : [];
-        var c = pC ? (pC.data[j] || []) : [];
-        var dateStr = a[0] || '';
-        var month = dateStr.substring(0, 7).replace('/', '-');
-        records.push({
-          date: dateStr, month: month,
-          dry_pcs: parseFloat(a[1]) || 0, dry_amt: parseFloat(a[2]) || 0, laund_pcs: parseFloat(a[3]) || 0,
-          laund_amt: parseFloat(b[0]) || 0, alter_pcs: parseFloat(b[1]) || 0, alter_amt: parseFloat(b[2]) || 0, press_pcs: parseFloat(b[3]) || 0,
-          press_amt: parseFloat(c[0]) || 0, dc_amt: parseFloat(c[1]) || 0, total_pcs: parseFloat(c[2]) || 0, total_amt: parseFloat(c[3]) || 0
+/* ESC closes any open modal */
+document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+        document.querySelectorAll(".modal-overlay").forEach(m => {
+            m.style.display = "none";
         });
-      }
-      idx += 3;
-    } else {
-      idx++;
     }
-  }
-  var monthlyData = {};
-  for (var ri = 0; ri < records.length; ri++) {
-    var r = records[ri];
-    if (!r.month || r.month.length < 7) continue;
-    if (!monthlyData[r.month]) {
-      monthlyData[r.month] = { total_revenue: 0, total_pieces: 0, dry_revenue: 0, laundry_revenue: 0, alter_revenue: 0, press_revenue: 0, discount_amount: 0, days: 0 };
+});
+
+/* ==================================================
+   CENTRALIZED RUSH LOGIC (ONE SOURCE OF TRUTH)
+================================================== */
+function computeRush(baseAmount, workDateValue) {
+    if (!workDateValue || baseAmount <= 0) {
+        return { days: null, percentLabel: "—", rushFee: 0 };
     }
-    var md = monthlyData[r.month];
-    md.total_revenue += r.total_amt;
-    md.total_pieces += r.total_pcs;
-    md.dry_revenue += r.dry_amt;
-    md.laundry_revenue += r.laund_amt;
-    md.alter_revenue += r.alter_amt;
-    md.press_revenue += r.press_amt;
-    md.discount_amount += r.dc_amt;
-    md.days++;
-  }
-  return { records: records, monthlyData: monthlyData };
-}
 
-function parsePastedPOS() {
-  var text = document.getElementById('pos-paste-area').value;
-  if (!text.trim()) { showToast('Please paste the report first.', 'warning'); return; }
-  var result = parsePOSReport(text);
-  var monthKeys = Object.keys(result.monthlyData).sort();
-  if (monthKeys.length === 0) {
-    showToast('No data could be parsed. Check the report format.', 'error');
-    return;
-  }
-  parsedPOSMonthlyData = result.monthlyData;
-  document.getElementById('pos-paste-info').innerHTML =
-    '<strong>' + result.records.length + '</strong> daily records found across <strong>' + monthKeys.length +
-    '</strong> months (' + getMonthLabel(monthKeys[0]) + ' \u2013 ' + getMonthLabel(monthKeys[monthKeys.length - 1]) + ')';
-  var thtml = '<table><thead><tr>';
-  thtml += '<th style="width:40px;"><input type="checkbox" checked onchange="toggleAllPOSMonths(this.checked)" id="pos-paste-checkall"></th>';
-  thtml += '<th>Month</th><th>Revenue</th><th>Pieces</th><th>Dry</th><th>Laundry</th><th>Alter</th><th>Press</th><th>Disc.</th><th>Days</th>';
-  thtml += '</tr></thead><tbody>';
-  monthKeys.forEach(function(mk) {
-    var d = result.monthlyData[mk];
-    var locked = DB.months[mk] && DB.months[mk].status === 'Locked';
-    var hasData = !!DB.pos[mk];
-    thtml += '<tr' + (locked ? ' style="opacity:0.5"' : '') + '>';
-    thtml += '<td><input type="checkbox" class="pos-month-check" value="' + mk + '"' + (locked ? ' disabled' : ' checked') + '></td>';
-    thtml += '<td><strong>' + getMonthLabel(mk) + '</strong>';
-    if (locked) thtml += ' <span class="locked-badge-inline"><i class="fa-solid fa-lock"></i></span>';
-    if (hasData) thtml += ' <span style="color:var(--yellow);font-size:0.7rem;font-weight:600;">EXISTING</span>';
-    thtml += '</td>';
-    thtml += '<td class="mono">' + fmtCurrency(d.total_revenue) + '</td>';
-    thtml += '<td class="mono">' + fmtNumber(Math.round(d.total_pieces)) + '</td>';
-    thtml += '<td class="mono">' + fmtCurrency(d.dry_revenue) + '</td>';
-    thtml += '<td class="mono">' + fmtCurrency(d.laundry_revenue) + '</td>';
-    thtml += '<td class="mono">' + fmtCurrency(d.alter_revenue) + '</td>';
-    thtml += '<td class="mono">' + fmtCurrency(d.press_revenue) + '</td>';
-    thtml += '<td class="mono">' + fmtCurrency(d.discount_amount) + '</td>';
-    thtml += '<td class="mono">' + d.days + '</td>';
-    thtml += '</tr>';
-  });
-  thtml += '</tbody></table>';
-  document.getElementById('pos-paste-table-wrap').innerHTML = thtml;
-  document.getElementById('pos-paste-results').classList.remove('hidden');
-  showToast(monthKeys.length + ' months detected successfully.');
-}
+    const today = new Date();
+    today.setHours(0,0,0,0);
 
-function toggleAllPOSMonths(checked) {
-  document.querySelectorAll('.pos-month-check:not(:disabled)').forEach(function(cb) { cb.checked = checked; });
-  var checkAll = document.getElementById('pos-paste-checkall');
-  if (checkAll) checkAll.checked = checked;
-}
+    const workDate = new Date(workDateValue);
+    workDate.setHours(0,0,0,0);
 
-function importSelectedPOSMonths() {
-  if (!parsedPOSMonthlyData) return;
-  var checkboxes = document.querySelectorAll('.pos-month-check:checked');
-  if (checkboxes.length === 0) { showToast('No months selected.', 'warning'); return; }
-  var imported = 0, skipped = 0;
-  checkboxes.forEach(function(cb) {
-    var mk = cb.value;
-    if (DB.months[mk] && DB.months[mk].status === 'Locked') { skipped++; return; }
-    if (!DB.months[mk]) DB.months[mk] = { status: 'Draft', desired_surplus: 0, notes: '' };
-    var d = parsedPOSMonthlyData[mk];
-    DB.pos[mk] = {
-      total_revenue: Math.round(d.total_revenue * 100) / 100,
-      total_pieces: Math.round(d.total_pieces),
-      dry_revenue: Math.round(d.dry_revenue * 100) / 100,
-      laundry_revenue: Math.round(d.laundry_revenue * 100) / 100,
-      alter_revenue: Math.round(d.alter_revenue * 100) / 100,
-      press_revenue: Math.round(d.press_revenue * 100) / 100,
-      discount_amount: Math.round(d.discount_amount * 100) / 100
+    let days = Math.round((workDate - today) / 86400000);
+    if (days < 0) days = 0;
+
+    let percent =
+        days <= 1 ? 0.50 :
+        days === 2 ? 0.40 :
+        days === 3 ? 0.30 : 0.20;
+
+    /* $15 flat rule */
+    if (baseAmount === 15) {
+        return { days, percentLabel: "Flat", rushFee: 5 };
+    }
+
+    return {
+        days,
+        percentLabel: Math.round(percent * 100) + "%",
+        rushFee: Math.round(baseAmount * percent * 100) / 100
     };
-    imported++;
-  });
-  var msg = imported + ' month(s) imported successfully.';
-  if (skipped > 0) msg += ' ' + skipped + ' locked month(s) skipped.';
-  showToast(msg);
-  populateMonthSelectors();
-  document.getElementById('pos-paste-results').classList.add('hidden');
-  document.getElementById('pos-paste-area').value = '';
-  parsedPOSMonthlyData = null;
-  if (currentScreen === 'dashboard') renderDashboard();
 }
 
-/* ============================================
-   ANNUAL BASELINE
-   ============================================ */
-function renderBaselineScreen() {
-  var yearInput = document.getElementById('baseline-year');
-  if (!yearInput.value) {
-    yearInput.value = new Date().getFullYear() - 1;
-  }
-  renderBaselineList();
-  loadBaselineYear();
-}
+/* ==================================================
+   RUSH FEE CALCULATOR
+================================================== */
+function calculateRush() {
+    const base = parseFloat(document.getElementById("rushBasePrice").value) || 0;
+    const workDate = document.getElementById("rushWorkDate").value;
 
-function loadBaselineYear() {
-  var year = parseInt(document.getElementById('baseline-year').value, 10);
-  if (!year || isNaN(year)) return;
-  var bl = DB.annualBaseline[year];
-  document.getElementById('bl-revenue').value = bl ? bl.total_revenue || '' : '';
-  document.getElementById('bl-variable').value = bl ? bl.total_variable_cost || '' : '';
-  document.getElementById('bl-labor').value = bl ? bl.total_labor_cost || '' : '';
-  document.getElementById('bl-fixed').value = bl ? bl.total_fixed_cost || '' : '';
-  document.getElementById('bl-debt').value = bl ? bl.total_debt_service || '' : '';
-  renderBaselineAverages(bl);
-}
-
-function renderBaselineAverages(bl) {
-  var container = document.getElementById('baseline-averages');
-  var grid = document.getElementById('baseline-avg-grid');
-  if (!bl || !bl.total_revenue) {
-    container.classList.add('hidden');
-    return;
-  }
-  container.classList.remove('hidden');
-  var html = '';
-  html += metricHTML('Avg Monthly Revenue', fmtCurrency(bl.total_revenue / 12));
-  html += metricHTML('Avg Monthly Variable', fmtCurrency(bl.total_variable_cost / 12));
-  html += metricHTML('Avg Monthly Labor', fmtCurrency(bl.total_labor_cost / 12));
-  html += metricHTML('Avg Monthly Fixed', fmtCurrency(bl.total_fixed_cost / 12));
-  html += metricHTML('Avg Monthly Debt', fmtCurrency(bl.total_debt_service / 12));
-  grid.innerHTML = html;
-}
-
-function saveBaseline() {
-  var year = parseInt(document.getElementById('baseline-year').value, 10);
-  if (!year || isNaN(year)) { showToast('Enter a valid year.', 'error'); return; }
-  var bl = {
-    year: year,
-    total_revenue: parseCurrencyStr(document.getElementById('bl-revenue').value),
-    total_variable_cost: parseCurrencyStr(document.getElementById('bl-variable').value),
-    total_labor_cost: parseCurrencyStr(document.getElementById('bl-labor').value),
-    total_fixed_cost: parseCurrencyStr(document.getElementById('bl-fixed').value),
-    total_debt_service: parseCurrencyStr(document.getElementById('bl-debt').value)
-  };
-  DB.annualBaseline[year] = bl;
-  renderBaselineAverages(bl);
-  renderBaselineList();
-  showToast('Annual baseline saved for ' + year + '.');
-}
-
-function deleteBaseline() {
-  var year = parseInt(document.getElementById('baseline-year').value, 10);
-  if (!year || !DB.annualBaseline[year]) { showToast('No baseline to delete for this year.', 'warning'); return; }
-  showModal(
-    'Delete Baseline',
-    'Are you sure you want to delete the ' + year + ' annual baseline?',
-    [
-      { label: 'Cancel', cls: 'btn btn-secondary', value: false },
-      { label: 'Delete', cls: 'btn btn-danger', value: true }
-    ]
-  ).then(function(confirmed) {
-    if (confirmed) {
-      delete DB.annualBaseline[year];
-      loadBaselineYear();
-      renderBaselineList();
-      showToast('Baseline deleted for ' + year + '.');
+    const result = computeRush(base, workDate);
+    if (result.days === null) {
+        alert("Please enter a valid base price and work date.");
+        return;
     }
-  });
+
+    document.getElementById("rushDays").innerText =
+        "Days Until Work: " + result.days;
+    document.getElementById("rushPercent").innerText =
+        "Rush %: " + result.percentLabel;
+    document.getElementById("rushFee").innerText =
+        "Rush Fee: $" + result.rushFee.toFixed(2);
+    document.getElementById("rushTotal").innerText =
+        "Total with Rush: $" + (base + result.rushFee).toFixed(2);
 }
 
-function renderBaselineList() {
-  var el = document.getElementById('baseline-list');
-  var years = Object.keys(DB.annualBaseline).map(Number).filter(function(y) { return !isNaN(y); }).sort().reverse();
-  if (years.length === 0) {
-    el.innerHTML = '<div class="card"><div class="card-header"><i class="fa-solid fa-list"></i> Saved Baselines</div>' +
-      '<p style="color:var(--text-3); font-size:0.85rem;">No annual baselines saved yet.</p></div>';
-    return;
-  }
-  var html = '<div class="card"><div class="card-header"><i class="fa-solid fa-list"></i> Saved Baselines</div>';
-  html += '<div class="table-wrap"><table><thead><tr>';
-  html += '<th>Year</th><th>Revenue</th><th>Variable</th><th>Labor</th><th>Fixed</th><th>Debt</th><th>Avg Fixed/Mo</th>';
-  html += '</tr></thead><tbody>';
-  years.forEach(function(y) {
-    var b = DB.annualBaseline[y];
-    html += '<tr style="cursor:pointer;" onclick="document.getElementById(\'baseline-year\').value=' + y + ';loadBaselineYear();">';
-    html += '<td><strong>' + y + '</strong></td>';
-    html += '<td class="mono">' + fmtCurrency(b.total_revenue) + '</td>';
-    html += '<td class="mono">' + fmtCurrency(b.total_variable_cost) + '</td>';
-    html += '<td class="mono">' + fmtCurrency(b.total_labor_cost) + '</td>';
-    html += '<td class="mono">' + fmtCurrency(b.total_fixed_cost) + '</td>';
-    html += '<td class="mono">' + fmtCurrency(b.total_debt_service) + '</td>';
-    html += '<td class="mono" style="color:var(--accent); font-weight:600;">' + fmtCurrency(b.total_fixed_cost / 12) + '</td>';
-    html += '</tr>';
-  });
-  html += '</tbody></table></div></div>';
-  el.innerHTML = html;
-}
+/* ==================================================
+   RUG CLEAN ESTIMATOR
+================================================== */
+function calculateRug() {
+    const length = parseFloat(document.getElementById("rugLength").value) || 0;
+    const width  = parseFloat(document.getElementById("rugWidth").value) || 0;
+    const unit   = document.getElementById("rugUnit").value;
 
-/* ============================================
-   HISTORICAL VIEW
-   ============================================ */
-function renderHistory() {
-  const months = getSortedMonths();
-  const el = document.getElementById('history-content');
-  if (months.length === 0) {
-    el.innerHTML = '<div class="empty-state"><i class="fa-solid fa-clock-rotate-left"></i><p>No historical data yet. Import data for at least one month.</p></div>';
-    return;
-  }
-  let html = '<div class="table-wrap"><table><thead><tr>';
-  html += '<th>Month</th><th>Status</th><th>Eff. Revenue</th><th>Contribution</th>';
-  html += '<th>CM Ratio</th><th>Op. Breakeven</th><th>Cash After Debt</th>';
-  html += '</tr></thead><tbody>';
-  months.forEach(m => {
-    const c = calcFields(m);
-    const mData = DB.months[m];
-    const statusBadge = mData.status === 'Locked'
-      ? '<span class="badge badge-locked" style="font-size:0.68rem;"><i class="fa-solid fa-lock"></i> Locked</span>'
-      : '<span class="badge badge-draft" style="font-size:0.68rem;"><i class="fa-solid fa-pen"></i> Draft</span>';
-    const st = getRevenueStatus(c.totalRevenue, c.operatingBreakeven, c.conservativeBreakeven, c.targetRevenue);
-    const cadClass = c.cashAfterDebt >= 0 ? 'positive' : 'negative';
-    const revLabel = c.hasForecast ? ' <span style="color:var(--accent);font-size:0.65rem;font-weight:600;" title="Forecast active">FC</span>' : '';
-    html += '<tr>';
-    html += '<td><strong>' + getMonthLabel(m) + '</strong></td>';
-    html += '<td>' + statusBadge + '</td>';
-    html += '<td class="mono" style="color:var(--' + st.color + ')">' + fmtCurrency(c.totalRevenue) + revLabel + '</td>';
-    html += '<td class="mono">' + fmtCurrency(c.contribution) + '</td>';
-    html += '<td class="mono">' + fmtPercent(c.cmRatio) + '</td>';
-    html += '<td class="mono">' + fmtCurrency(c.operatingBreakeven) + '</td>';
-    html += '<td class="mono ' + cadClass + '">' + fmtCurrency(c.cashAfterDebt) + '</td>';
-    html += '</tr>';
-  });
-  html += '</tbody></table></div>';
-  el.innerHTML = html;
-}
+    let lengthFt = length;
+    let widthFt  = width;
 
-/* ============================================
-   DATA PERSISTENCE (Export / Import JSON)
-   ============================================ */
-function exportData() {
-  const data = {
-    version: '1.2',
-    exportDate: new Date().toISOString(),
-    appName: 'Financial Control System',
-    months: DB.months,
-    pos: DB.pos,
-    pl: DB.pl,
-    forecast: DB.forecast,
-    annualBaseline: DB.annualBaseline,
-    categoryOverrides: DB.categoryOverrides
-  };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'financial-control-data-' + new Date().toISOString().slice(0, 10) + '.json';
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
-  showToast('Data exported successfully.');
-}
-function triggerImport() {
-  document.getElementById('import-file').click();
-}
-function importData(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    try {
-      const data = JSON.parse(ev.target.result);
-      if (!data.months || !data.pos || !data.pl) { showToast('Invalid data file.', 'error'); return; }
-      DB.months = data.months || {};
-      DB.pos = data.pos || {};
-      DB.pl = data.pl || {};
-      DB.forecast = data.forecast || {};
-      DB.annualBaseline = data.annualBaseline || {};
-      DB.categoryOverrides = data.categoryOverrides || {};
-      populateMonthSelectors();
-      showToast('Data loaded successfully. ' + Object.keys(DB.months).length + ' months imported.');
-      if (currentScreen === 'dashboard') renderDashboard();
-      if (currentScreen === 'history') renderHistory();
-    } catch (err) {
-      showToast('Failed to parse data file.', 'error');
+    if (unit === "in") {
+        lengthFt = length / 12;
+        widthFt  = width / 12;
+    } else if (unit === "cm") {
+        lengthFt = length / 30.48;
+        widthFt  = width / 30.48;
     }
-  };
-  reader.readAsText(file);
-  e.target.value = '';
+
+    const areaSqFt = lengthFt * widthFt;
+    const price = areaSqFt * 7.50;
+
+    document.getElementById("rugArea").innerText =
+        "Area: " + areaSqFt.toFixed(2) + " sq ft";
+    document.getElementById("rugPrice").innerText =
+        "Price: $" + price.toFixed(2);
 }
 
-/* ============================================
-   MOBILE MENUS
-   ============================================ */
-function toggleMobileDataMenu() {
-  const menu = document.getElementById('mobile-data-menu');
-  menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-}
-function closeMobileDataMenu() {
-  document.getElementById('mobile-data-menu').style.display = 'none';
+/* ==================================================
+   WEDDING DRESS CLEAN ESTIMATOR
+================================================== */
+function calculateWedding() {
+    let total = 0;
+
+    // Dress type (still radio)
+    const size = document.querySelector('input[name="dressSize"]:checked');
+    if (size) total += parseFloat(size.value);
+
+    // Train lengths (NOW MULTIPLE)
+    const trains = document.querySelectorAll('.train-option:checked');
+    trains.forEach(t => {
+        total += parseFloat(t.value);
+    });
+
+    // Details + Optional Services
+    const addons = document.querySelectorAll('.wedding-addon:checked');
+    addons.forEach(a => {
+        total += parseFloat(a.value);
+    });
+
+    document.getElementById("weddingTotal").innerText =
+        "Estimated Total: $" + total.toFixed(2);
 }
 
-/* ============================================
-   HELPERS
-   ============================================ */
-function escapeHTML(str) {
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
-}
+/* ==================================================
+   WEDDING TIMING LOGIC
+================================================== */
+function toggleWeddingTiming() {
+    const isBefore = document.querySelector('input[name="weddingTiming"][value="before"]').checked;
+    const presLabel = document.getElementById("preservationLabel");
+    const presCheck = document.getElementById("preservationCheckbox");
 
-/* ============================================
-   DRAG AND DROP
-   ============================================ */
-function setupDropZone(id, handler) {
-  const zone = document.getElementById(id);
-  if (!zone) return;
-  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
-  zone.addEventListener('dragleave', () => { zone.classList.remove('drag-over'); });
-  zone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    zone.classList.remove('drag-over');
-    if (e.dataTransfer.files.length > 0) {
-      handler({ target: { files: e.dataTransfer.files } });
-    }
-  });
-}
-
-/* ============================================
-   INITIALIZATION
-   ============================================ */
-function init() {
-  // Dark / Light mode detection
-  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-    document.documentElement.classList.add('light');
-  }
-  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', event => {
-    if (event.matches) {
-      document.documentElement.classList.add('light');
+    if (isBefore) {
+        // Hide the option
+        presLabel.classList.add("hidden-option");
+        // Uncheck it so it doesn't add cost
+        presCheck.checked = false;
     } else {
-      document.documentElement.classList.remove('light');
+        // Show the option
+        presLabel.classList.remove("hidden-option");
     }
-  });
-
-  populateMonthSelectors();
-  renderDashboard();
-
-  // Setup drag-and-drop
-  setupDropZone('wave-drop', handleWaveCSV);
-  setupDropZone('pos-drop', handlePosCSV);
-
-  // Close mobile menu on outside click
-  document.addEventListener('click', (e) => {
-    const menu = document.getElementById('mobile-data-menu');
-    const btn = document.getElementById('mobile-data-btn');
-    if (menu.style.display === 'block' && !menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
-      menu.style.display = 'none';
-    }
-  });
+    
+    // Recalculate immediately so the total updates if we unchecked the box
+    calculateWedding();
 }
 
-init();
-</script>
+/* ==================================================
+   DRESS HEM ESTIMATOR
+================================================== */
+function toggleRushDate() {
+    const wrap = document.getElementById("hemRushDateWrap");
+    wrap.style.display =
+        document.getElementById("hemRushToggle").checked ? "block" : "none";
+}
 
-<!-- MOBILE BOTTOM NAV -->
-<nav id="mobile-nav">
-  <div class="nav-inner">
-    <a class="active" data-screen="dashboard" onclick="switchScreen('dashboard')">
-      <i class="fa-solid fa-gauge-high"></i> Dashboard
-    </a>
-    <a data-screen="wave" onclick="switchScreen('wave')">
-      <i class="fa-solid fa-file-invoice-dollar"></i> Wave
-    </a>
-    <a data-screen="pos" onclick="switchScreen('pos')">
-      <i class="fa-solid fa-cash-register"></i> POS
-    </a>
-    <a data-screen="baseline" onclick="switchScreen('baseline')">
-      <i class="fa-solid fa-calendar-check"></i> Baseline
-    </a>
-    <a data-screen="history" onclick="switchScreen('history')">
-      <i class="fa-solid fa-clock-rotate-left"></i> History
-    </a>
-  </div>
-</nav>
+function calculateHem() {
+    const rows = [
+        ["cut1", 6.25, "cut1Seq"],
+        ["cut2", 6.25, "cut2Seq"],
+        ["reg1", 12.5, "reg1Seq"],
+        ["reg2", 12.5, "reg2Seq"],
+        ["horse1", 25, "horse1Seq"],
+        ["horse2", 25, "horse2Seq"]
+    ];
+
+    let subtotal = 0;
+    let yards = 0;
+
+    rows.forEach(([qty, rate, seq]) => {
+        const y = parseFloat(document.getElementById(qty).value) || 0;
+        yards += y;
+        subtotal += y * rate;
+        if (document.getElementById(seq).checked) {
+            subtotal += y * 5;
+        }
+    });
+
+    if (document.getElementById("glitterCheck").checked) {
+        subtotal += 10;
+    }
+
+    document.getElementById("totalYards").innerText =
+        "Total Yards: " + yards.toFixed(2);
+    document.getElementById("hemSubtotal").innerText =
+        "Subtotal: $" + subtotal.toFixed(2);
+    document.getElementById("hemRushPercent").innerText = "Rush %: —";
+
+    let rushFee = 0;
+
+    if (document.getElementById("hemRushToggle").checked) {
+        const dateVal = document.getElementById("hemRushDate").value;
+        const result = computeRush(subtotal, dateVal);
+
+        if (result.days === null) {
+            alert("Please select a work date for rush.");
+            return;
+        }
+
+        rushFee = result.rushFee;
+        document.getElementById("hemRushPercent").innerText =
+            "Rush %: " + result.percentLabel;
+    }
+
+    document.getElementById("hemRushFee").innerText =
+        "Rush Fee: $" + rushFee.toFixed(2);
+    document.getElementById("hemFinalTotal").innerText =
+        "Total: $" + (subtotal + rushFee).toFixed(2);
+}
+
+/* ==================================================
+   GOOGLE REVIEWS (LIVE)
+================================================== */
+const WORKER_URL = "https://reviews-prioxy.parkwaydrycleaners.workers.dev";
+
+function bars(count, icon) {
+    return icon.repeat(Math.min(20, Math.floor(count)));
+}
+
+function renderBars(pos, neu, neg) {
+    return `
+        <div class="rating-line">Positive: ${pos}</div>${bars(pos/5,"🟩")}
+        <div class="rating-line">Neutral: ${neu}</div>${bars(neu/5,"🟨")}
+        <div class="rating-line">Negative: ${neg}</div>${bars(neg/5,"🟥")}
+    `;
+}
+
+fetch(WORKER_URL + "/google")
+    .then(r => r.json())
+    .then(d => {
+        const t = d.result.user_ratings_total;
+        const r = d.result.rating;
+        const p = Math.round(t * 0.85);
+        const n = Math.round(t * 0.10);
+        const g = t - p - n;
+
+        document.getElementById("google-rating").innerText =
+            `⭐ ${r} (${t})`;
+        document.getElementById("google-bars").innerHTML =
+            renderBars(p, n, g);
+    })
+    .catch(() => {
+        const el = document.getElementById("google-rating");
+        if (el) el.innerText = "Unavailable";
+    });
+
+/* ==================================================
+   MOBILE ACCORDION LOGIC
+================================================== */
+document.addEventListener("DOMContentLoaded", function () {
+    if (matchMedia("(min-width: 901px)").matches) return;
+
+    const groups = document.querySelectorAll(".tile-group");
+
+    groups.forEach(group => {
+        const title = group.querySelector(".tile-group-title");
+        if (!title) return;
+
+        title.addEventListener("click", () => {
+            groups.forEach(g => {
+                if (g !== group) g.classList.remove("active");
+            });
+            group.classList.toggle("active");
+        });
+    });
+});
+    
+</script>
 
 </body>
 </html>
