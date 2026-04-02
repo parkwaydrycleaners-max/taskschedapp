@@ -1024,7 +1024,8 @@ tr:hover td { background: var(--bg-hover); }
 const DB = {
   months: {},
   pos: {},
-  pl: {}
+  pl: {},
+  categoryOverrides: {}
 };
 let currentScreen = 'dashboard';
 
@@ -1088,7 +1089,7 @@ function autoDetectWaveCategory(name) {
   if (/\b(rent|lease|insurance|utilit|phone|internet|subscript|office|depreciation|license|permit|maintenance|operating expense|overhead|advertising|bank.*charge|professional fee|repair|tax|postage|cleaning suppli)\b/.test(n)) return 'fixed_operating_cost';
   if (/\b(loan|debt|interest|note payable|mortgage|line of credit|financing)\b/.test(n)) return 'debt_service';
   if (/\b(net income|net profit|net loss|net earnings|net operating)\b/.test(n)) return 'wave_net_profit';
-  return 'skip';
+  return 'unknown';
 }
 function preprocessWaveCSV(text) {
   const lines = text.split(/\r?\n/);
@@ -1522,14 +1523,20 @@ function updateWaveMapping() {
       waveCSVMappings.push({ name, amount: amt, category: 'skip' });
       return;
     }
+    // Check user-saved category overrides first
+    if (n && DB.categoryOverrides[n]) {
+      waveCSVMappings.push({ name, amount: amt, category: DB.categoryOverrides[n] });
+      return;
+    }
     // Auto-detect category by keywords
     let category = autoDetectWaveCategory(name);
-    // If auto-detect returned 'skip' but we're inside a known section, use section default
-    if (category === 'skip' && currentSection) {
+    // Only apply section fallback for truly unrecognized items, not intentional skips
+    if (category === 'unknown' && currentSection) {
       if (currentSection === 'revenue') category = 'revenue';
       else if (currentSection === 'variable_cost') category = 'variable_cost';
       else if (currentSection === 'operating') category = 'fixed_operating_cost';
     }
+    if (category === 'unknown') category = 'skip';
     waveCSVMappings.push({ name, amount: amt, category });
   });
 
@@ -1538,7 +1545,7 @@ function updateWaveMapping() {
   let html = '<table class="mapping-table"><thead><tr><th>Account</th><th>Amount</th><th>Category</th></tr></thead><tbody>';
   waveCSVMappings.forEach((m, i) => {
     html += '<tr><td>' + escapeHTML(m.name) + '</td><td class="mono">' + fmtCurrency(m.amount) + '</td>';
-    html += '<td><select onchange="waveCSVMappings[' + i + '].category=this.value; renderWaveTotals()">';
+    html += '<td><select onchange="onWaveCategoryChange(' + i + ', this.value)">';
     const cats = [
       ['skip', 'Skip'],
       ['revenue', 'Revenue'],
@@ -1569,6 +1576,12 @@ function renderWaveTotals() {
     html += '<div class="mapping-total-item"><div class="label">' + labels[k] + '</div><div class="value">' + fmtCurrency(totals[k]) + '</div></div>';
   });
   el.innerHTML = html;
+}
+function onWaveCategoryChange(idx, value) {
+  waveCSVMappings[idx].category = value;
+  const name = waveCSVMappings[idx].name.toLowerCase().trim();
+  if (name) DB.categoryOverrides[name] = value;
+  renderWaveTotals();
 }
 function approveWaveCSV() {
   const month = document.getElementById('wave-month').value;
@@ -1986,7 +1999,8 @@ function exportData() {
     appName: 'Financial Control System',
     months: DB.months,
     pos: DB.pos,
-    pl: DB.pl
+    pl: DB.pl,
+    categoryOverrides: DB.categoryOverrides
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -2012,6 +2026,7 @@ function importData(e) {
       DB.months = data.months || {};
       DB.pos = data.pos || {};
       DB.pl = data.pl || {};
+      DB.categoryOverrides = data.categoryOverrides || {};
       populateMonthSelectors();
       showToast('Data loaded successfully. ' + Object.keys(DB.months).length + ' months imported.');
       if (currentScreen === 'dashboard') renderDashboard();
