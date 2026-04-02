@@ -1186,6 +1186,24 @@ function clearForecast() {
 /* ============================================
    CALCULATIONS
    ============================================ */
+function calcNormalizedFixedOp() {
+  // Average Fixed_Operating_Cost from last 12 Locked months
+  var lockedMonths = Object.keys(DB.months)
+    .filter(function(mk) { return DB.months[mk].status === 'Locked' && DB.pl[mk]; })
+    .sort()
+    .reverse()
+    .slice(0, 12);
+  if (lockedMonths.length === 0) return { value: 0, monthCount: 0 };
+  var sum = 0;
+  for (var i = 0; i < lockedMonths.length; i++) {
+    sum += (DB.pl[lockedMonths[i]].fixed_operating_cost || 0);
+  }
+  return {
+    value: Math.round((sum / lockedMonths.length) * 100) / 100,
+    monthCount: lockedMonths.length
+  };
+}
+
 function calcFields(month) {
   const pl = DB.pl[month] || {};
   const pos = DB.pos[month] || {};
@@ -1198,6 +1216,11 @@ function calcFields(month) {
   const debtService = pl.debt_service || 0;
   const desiredSurplus = m.desired_surplus || 0;
 
+  // Normalized Fixed Operating: average of locked months for breakeven
+  const normResult = calcNormalizedFixedOp();
+  const normalizedFixedOp = normResult.value > 0 ? normResult.value : fixedOp;
+  const normMonthCount = normResult.monthCount;
+
   // Effective Revenue/Pieces: forecast overrides POS when > 0
   const forecastRevenue = fc.total_revenue || 0;
   const forecastPieces = fc.total_pieces || 0;
@@ -1209,10 +1232,12 @@ function calcFields(month) {
 
   const contribution = revenue - variableCost - laborCost;
   const cmRatio = revenue > 0 ? contribution / revenue : 0;
-  const operatingBreakeven = cmRatio > 0 ? fixedOp / cmRatio : 0;
-  const conservativeBreakeven = cmRatio > 0 ? (fixedOp + debtService) / cmRatio : 0;
-  const targetRevenue = cmRatio > 0 ? (fixedOp + desiredSurplus) / cmRatio : 0;
+  // Operating Breakeven uses Normalized Fixed Operating
+  const operatingBreakeven = cmRatio > 0 ? normalizedFixedOp / cmRatio : 0;
+  const conservativeBreakeven = cmRatio > 0 ? (normalizedFixedOp + debtService) / cmRatio : 0;
+  const targetRevenue = cmRatio > 0 ? (normalizedFixedOp + desiredSurplus) / cmRatio : 0;
   const revenueGap = effectiveRevenue - targetRevenue;
+  // Actual profit still uses this month's real Fixed Operating Cost
   const netOperatingProfit = contribution - fixedOp;
   const cashAfterDebt = netOperatingProfit - debtService;
   const revenuePerPiece = effectivePieces > 0 ? revenue / effectivePieces : 0;
@@ -1223,7 +1248,8 @@ function calcFields(month) {
     targetRevenue, revenueGap, netOperatingProfit, cashAfterDebt,
     revenuePerPiece, contributionPerPiece,
     totalRevenue: effectiveRevenue, totalPieces: effectivePieces,
-    posRevenue, posPieces, forecastRevenue, forecastPieces, hasForecast
+    posRevenue, posPieces, forecastRevenue, forecastPieces, hasForecast,
+    fixedOp, normalizedFixedOp, normMonthCount
   };
 }
 function getRevenueStatus(totalRevenue, opBE, consBE, targetRev) {
@@ -1444,7 +1470,17 @@ function renderDashboard() {
   html += metricHTML('Labor Cost', fmtCurrency((pl || {}).labor_cost || 0));
   html += metricHTML('Fixed Operating Cost', fmtCurrency((pl || {}).fixed_operating_cost || 0));
   html += metricHTML('Debt Service', fmtCurrency((pl || {}).debt_service || 0));
-  html += '</div></div></div>';
+  html += '</div>';
+  // Normalized Fixed Operating indicator
+  if (c.normMonthCount > 0) {
+    html += '<div style="margin-top:12px; padding:10px 14px; background:var(--accent-subtle); border:1px solid var(--accent-muted); border-radius:var(--radius); font-size:0.82rem;">';
+    html += '<i class="fa-solid fa-calculator" style="color:var(--accent); margin-right:6px;"></i>';
+    html += '<strong style="color:var(--accent);">Normalized Fixed Operating:</strong> ';
+    html += '<span style="font-family:var(--mono); font-weight:600;">' + fmtCurrency(c.normalizedFixedOp) + '</span>';
+    html += ' <span style="color:var(--text-3);">(avg of ' + c.normMonthCount + ' locked month' + (c.normMonthCount !== 1 ? 's' : '') + ' — used for breakeven)</span>';
+    html += '</div>';
+  }
+  html += '</div></div>';
 
   // Section C - Efficiency Metrics
   html += '<div class="section"><div class="card"><div class="card-header"><i class="fa-solid fa-gears"></i> Efficiency Metrics</div>';
