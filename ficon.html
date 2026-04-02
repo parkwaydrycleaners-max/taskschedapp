@@ -897,8 +897,7 @@ tr:hover td { background: var(--bg-hover); }
         <div class="card-header"><i class="fa-solid fa-pen"></i> Manual P&L Entry</div>
         <div class="form-row">
           <div class="form-group"><label class="form-label">Revenue</label><input type="text" class="form-input form-input-currency" id="wave-m-revenue" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">COGS</label><input type="text" class="form-input form-input-currency" id="wave-m-cogs" placeholder="$0.00"></div>
-          <div class="form-group"><label class="form-label">Processing Fees</label><input type="text" class="form-input form-input-currency" id="wave-m-processing" placeholder="$0.00"></div>
+          <div class="form-group"><label class="form-label">Variable Cost</label><input type="text" class="form-input form-input-currency" id="wave-m-variable" placeholder="$0.00"></div>
           <div class="form-group"><label class="form-label">Labor Cost</label><input type="text" class="form-input form-input-currency" id="wave-m-labor" placeholder="$0.00"></div>
           <div class="form-group"><label class="form-label">Fixed Operating Cost</label><input type="text" class="form-input form-input-currency" id="wave-m-fixed" placeholder="$0.00"></div>
           <div class="form-group"><label class="form-label">Debt Service</label><input type="text" class="form-input form-input-currency" id="wave-m-debt" placeholder="$0.00"></div>
@@ -1083,8 +1082,8 @@ function autoDetectWaveCategory(name) {
   const n = (name || '').toLowerCase();
   if (/\b(gross profit|total expense|total income)\b/.test(n)) return 'skip';
   if (/\b(income|revenue|sales)\b/.test(n) && !/\b(cost|expense|fee|net|gross)\b/.test(n)) return 'revenue';
-  if (/\b(cost of goods|cogs|supplies|materials)\b/.test(n)) return 'cogs';
-  if (/\b(processing|merchant|stripe|square|card fee|transaction fee|payment processing)\b/.test(n)) return 'processing_fees';
+  if (/\b(cost of goods|cogs|supplies|materials)\b/.test(n)) return 'variable_cost';
+  if (/\b(processing|merchant|stripe|square|card fee|transaction fee|payment processing)\b/.test(n)) return 'variable_cost';
   if (/\b(wage|salary|payroll|labor|labour|employee|personnel|staffing)\b/.test(n)) return 'labor_cost';
   if (/\b(rent|lease|insurance|utilit|phone|internet|subscript|office|depreciation|license|permit|maintenance|operating expense|overhead|advertising|bank.*charge|professional fee|repair|tax|postage|cleaning suppli)\b/.test(n)) return 'fixed_operating_cost';
   if (/\b(loan|debt|interest|note payable|mortgage|line of credit|financing)\b/.test(n)) return 'debt_service';
@@ -1128,8 +1127,7 @@ function calcFields(month) {
   const pos = DB.pos[month] || {};
   const m = DB.months[month] || {};
   const revenue = pl.revenue || 0;
-  const cogs = pl.cogs || 0;
-  const processingFees = pl.processing_fees || 0;
+  const variableCost = pl.variable_cost || 0;
   const laborCost = pl.labor_cost || 0;
   const fixedOp = pl.fixed_operating_cost || 0;
   const debtService = pl.debt_service || 0;
@@ -1137,7 +1135,7 @@ function calcFields(month) {
   const totalRevenue = pos.total_revenue || 0;
   const totalPieces = pos.total_pieces || 0;
 
-  const contribution = revenue - cogs - processingFees - laborCost;
+  const contribution = revenue - variableCost - laborCost;
   const cmRatio = revenue > 0 ? contribution / revenue : 0;
   const operatingBreakeven = cmRatio > 0 ? fixedOp / cmRatio : 0;
   const conservativeBreakeven = cmRatio > 0 ? (fixedOp + debtService) / cmRatio : 0;
@@ -1336,8 +1334,7 @@ function renderDashboard() {
   // Section B - Cost Breakdown
   html += '<div class="section"><div class="card"><div class="card-header"><i class="fa-solid fa-receipt"></i> Cost Breakdown</div>';
   html += '<div class="metric-grid">';
-  html += metricHTML('COGS', fmtCurrency((pl || {}).cogs || 0));
-  html += metricHTML('Processing Fees', fmtCurrency((pl || {}).processing_fees || 0));
+  html += metricHTML('Variable Cost', fmtCurrency((pl || {}).variable_cost || 0));
   html += metricHTML('Labor Cost', fmtCurrency((pl || {}).labor_cost || 0));
   html += metricHTML('Fixed Operating Cost', fmtCurrency((pl || {}).fixed_operating_cost || 0));
   html += metricHTML('Debt Service', fmtCurrency((pl || {}).debt_service || 0));
@@ -1434,8 +1431,7 @@ function renderWaveScreen() {
     if (DB.pl[month]) {
       const pl = DB.pl[month];
       document.getElementById('wave-m-revenue').value = pl.revenue || '';
-      document.getElementById('wave-m-cogs').value = pl.cogs || '';
-      document.getElementById('wave-m-processing').value = pl.processing_fees || '';
+      document.getElementById('wave-m-variable').value = pl.variable_cost || '';
       document.getElementById('wave-m-labor').value = pl.labor_cost || '';
       document.getElementById('wave-m-fixed').value = pl.fixed_operating_cost || '';
       document.getElementById('wave-m-debt').value = pl.debt_service || '';
@@ -1519,8 +1515,7 @@ function updateWaveMapping() {
     const cats = [
       ['skip', 'Skip'],
       ['revenue', 'Revenue'],
-      ['cogs', 'COGS'],
-      ['processing_fees', 'Processing Fees'],
+      ['variable_cost', 'Variable Cost'],
       ['labor_cost', 'Labor Cost'],
       ['fixed_operating_cost', 'Fixed Operating Cost'],
       ['debt_service', 'Debt Service'],
@@ -1534,14 +1529,14 @@ function updateWaveMapping() {
   renderWaveTotals();
 }
 function renderWaveTotals() {
-  const totals = { revenue: 0, cogs: 0, processing_fees: 0, labor_cost: 0, fixed_operating_cost: 0, debt_service: 0, wave_net_profit: 0 };
+  const totals = { revenue: 0, variable_cost: 0, labor_cost: 0, fixed_operating_cost: 0, debt_service: 0, wave_net_profit: 0 };
   waveCSVMappings.forEach(m => {
     if (m.category !== 'skip' && totals[m.category] !== undefined) {
       totals[m.category] += m.amount;
     }
   });
   const el = document.getElementById('wave-mapping-totals');
-  const labels = { revenue: 'Revenue', cogs: 'COGS', processing_fees: 'Processing Fees', labor_cost: 'Labor Cost', fixed_operating_cost: 'Fixed Operating', debt_service: 'Debt Service', wave_net_profit: 'Net Profit (Ref)' };
+  const labels = { revenue: 'Revenue', variable_cost: 'Variable Cost', labor_cost: 'Labor Cost', fixed_operating_cost: 'Fixed Operating', debt_service: 'Debt Service', wave_net_profit: 'Net Profit (Ref)' };
   let html = '';
   Object.keys(labels).forEach(k => {
     html += '<div class="mapping-total-item"><div class="label">' + labels[k] + '</div><div class="value">' + fmtCurrency(totals[k]) + '</div></div>';
@@ -1554,7 +1549,7 @@ function approveWaveCSV() {
   if (isLocked(month)) { showToast('Month is locked.', 'error'); return; }
   if (!DB.months[month]) DB.months[month] = { status: 'Draft', desired_surplus: 0, notes: '' };
 
-  const totals = { revenue: 0, cogs: 0, processing_fees: 0, labor_cost: 0, fixed_operating_cost: 0, debt_service: 0, wave_net_profit: 0 };
+  const totals = { revenue: 0, variable_cost: 0, labor_cost: 0, fixed_operating_cost: 0, debt_service: 0, wave_net_profit: 0 };
   waveCSVMappings.forEach(m => {
     if (m.category !== 'skip' && totals[m.category] !== undefined) totals[m.category] += m.amount;
   });
@@ -1578,8 +1573,7 @@ function saveWaveManual() {
   if (!DB.months[month]) DB.months[month] = { status: 'Draft', desired_surplus: 0, notes: '' };
   DB.pl[month] = {
     revenue: parseCurrencyStr(document.getElementById('wave-m-revenue').value),
-    cogs: parseCurrencyStr(document.getElementById('wave-m-cogs').value),
-    processing_fees: parseCurrencyStr(document.getElementById('wave-m-processing').value),
+    variable_cost: parseCurrencyStr(document.getElementById('wave-m-variable').value),
     labor_cost: parseCurrencyStr(document.getElementById('wave-m-labor').value),
     fixed_operating_cost: parseCurrencyStr(document.getElementById('wave-m-fixed').value),
     debt_service: parseCurrencyStr(document.getElementById('wave-m-debt').value),
