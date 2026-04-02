@@ -544,7 +544,12 @@ html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50
         Lines starting with <code>#</code> are metadata (parseable apps can skip them). Data is tab-separated.
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-        <label style="font-size:.85rem;font-weight:500">Export scope:</label>
+        <label style="font-size:.85rem;font-weight:500">Horizon:</label>
+        <input type="number" id="exportHorizonInput" class="param-input" style="width:70px;font-size:16px" value="14" min="1" max="180">
+        <label style="font-size:.85rem;font-weight:500">days</label>
+        <button class="btn btn-secondary" id="exportRegenBtn" style="font-size:.82rem">&#x1F504; Regenerate</button>
+        <span style="border-left:1px solid var(--border);height:24px;margin:0 4px"></span>
+        <label style="font-size:.85rem;font-weight:500">Scope:</label>
         <select id="exportScope" class="select-styled" style="font-size:.82rem">
           <option value="selected">All Piece Counts + Total</option>
           <option value="all" selected>All Categories + Revenue + Totals</option>
@@ -5586,6 +5591,9 @@ function doBacktest() {
 function doForecast() {
   var horizon = parseInt(document.getElementById('horizonInput').value) || 14;
   S.forecastHorizon = horizon;
+  // Keep export tab horizon in sync
+  var expHInput = document.getElementById('exportHorizonInput');
+  if (expHInput) expHInput.value = horizon;
 
   var selVal = document.getElementById('forecastSeriesSelect').value;
   S.activeSeries = selVal;
@@ -5663,6 +5671,23 @@ document.getElementById('exportScope').addEventListener('change', function() {
     document.getElementById('exportArea').textContent = generateExport(this.value);
   }
 });
+
+// Sync export horizon with forecast horizon
+document.getElementById('exportRegenBtn').addEventListener('click', function() {
+  var newHorizon = parseInt(document.getElementById('exportHorizonInput').value) || 14;
+  if (newHorizon < 1) newHorizon = 1;
+  if (newHorizon > 180) newHorizon = 180;
+  document.getElementById('exportHorizonInput').value = newHorizon;
+  // Sync the forecast tab's horizon input
+  document.getElementById('horizonInput').value = newHorizon;
+  // Regenerate forecast with new horizon
+  doForecast();
+});
+
+// Keep export horizon input in sync when forecast is generated from forecast tab
+var origDoForecast = doForecast;
+// Sync on export tab load: set export horizon to match current forecast horizon
+document.getElementById('exportHorizonInput').value = S.forecastHorizon || 14;
 
 document.getElementById('forecastSeriesSelect').addEventListener('change', function() {
   S.activeSeries = this.value;
