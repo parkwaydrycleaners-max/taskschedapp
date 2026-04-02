@@ -1081,14 +1081,34 @@ function parseCSV(text) {
 }
 function autoDetectWaveCategory(name) {
   const n = (name || '').toLowerCase();
-  if (/\b(income|revenue|sales)\b/.test(n) && !/\b(cost|expense|fee|net)\b/.test(n)) return 'revenue';
+  if (/\b(gross profit|total expense|total income)\b/.test(n)) return 'skip';
+  if (/\b(income|revenue|sales)\b/.test(n) && !/\b(cost|expense|fee|net|gross)\b/.test(n)) return 'revenue';
   if (/\b(cost of goods|cogs|supplies|materials)\b/.test(n)) return 'cogs';
-  if (/\b(processing|merchant|stripe|square|card fee|transaction fee)\b/.test(n)) return 'processing_fees';
-  if (/\b(wage|salary|payroll|labor|labour|employee)\b/.test(n)) return 'labor_cost';
-  if (/\b(rent|lease|insurance|utilit|phone|internet|subscript|office|depreciation|license|permit|maintenance)\b/.test(n)) return 'fixed_operating_cost';
-  if (/\b(loan|debt|interest|note payable|mortgage|line of credit)\b/.test(n)) return 'debt_service';
-  if (/\b(net income|net profit|net loss|net earnings)\b/.test(n)) return 'wave_net_profit';
+  if (/\b(processing|merchant|stripe|square|card fee|transaction fee|payment processing)\b/.test(n)) return 'processing_fees';
+  if (/\b(wage|salary|payroll|labor|labour|employee|personnel|staffing)\b/.test(n)) return 'labor_cost';
+  if (/\b(rent|lease|insurance|utilit|phone|internet|subscript|office|depreciation|license|permit|maintenance|operating expense|overhead|advertising|bank.*charge|professional fee|repair|tax|postage|cleaning suppli)\b/.test(n)) return 'fixed_operating_cost';
+  if (/\b(loan|debt|interest|note payable|mortgage|line of credit|financing)\b/.test(n)) return 'debt_service';
+  if (/\b(net income|net profit|net loss|net earnings|net operating)\b/.test(n)) return 'wave_net_profit';
   return 'skip';
+}
+function preprocessWaveCSV(text) {
+  const lines = text.split(/\r?\n/);
+  let headerIdx = 0;
+  let maxCols = 0;
+  for (let i = 0; i < Math.min(lines.length, 30); i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const colCount = (line.match(/,/g) || []).length + 1;
+    if (/accounts?|category|description/i.test(line) && colCount > 1) {
+      headerIdx = i;
+      break;
+    }
+    if (colCount > maxCols) {
+      maxCols = colCount;
+      headerIdx = i;
+    }
+  }
+  return lines.slice(headerIdx).join('\n');
 }
 function getMonthLabel(m) {
   if (!m) return '';
@@ -1441,24 +1461,36 @@ function handleWaveCSV(e) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = function(ev) {
-    waveCSVData = parseCSV(ev.target.result);
-    if (waveCSVData.headers.length === 0) { showToast('Could not parse CSV.', 'error'); return; }
-    // Populate column selectors
+    const processedText = preprocessWaveCSV(ev.target.result);
+    waveCSVData = parseCSV(processedText);
+    if (waveCSVData.headers.length === 0 || waveCSVData.rows.length === 0) { showToast('Could not parse CSV. Check file format.', 'error'); return; }
+    // Populate column selectors with readable labels
     const nameSelect = document.getElementById('wave-col-name');
     const amtSelect = document.getElementById('wave-col-amount');
     nameSelect.innerHTML = '';
     amtSelect.innerHTML = '';
     waveCSVData.headers.forEach((h, i) => {
-      nameSelect.innerHTML += '<option value="' + i + '">' + h + '</option>';
-      amtSelect.innerHTML += '<option value="' + i + '">' + h + '</option>';
+      const label = h.trim() ? escapeHTML(h) : '(Column ' + (i + 1) + ' - empty)';
+      nameSelect.innerHTML += '<option value="' + i + '">' + label + '</option>';
+      amtSelect.innerHTML += '<option value="' + i + '">' + label + '</option>';
     });
-    // Auto-select: first text-like column for name, first number-like for amount
-    let nameIdx = 0, amtIdx = waveCSVData.headers.length > 1 ? 1 : 0;
+    // Auto-select columns
+    let nameIdx = 0;
+    let amtIdx = waveCSVData.headers.length - 1;
+    // Find the account name column
     waveCSVData.headers.forEach((h, i) => {
-      const hLow = h.toLowerCase();
-      if (/account|name|description|category|item/.test(hLow)) nameIdx = i;
-      if (/total|amount|balance|value|net/.test(hLow) && i !== nameIdx) amtIdx = i;
+      if (/account|name|description|category|item/i.test(h)) nameIdx = i;
     });
+    // Find the amount column - prefer keyword match, else use last non-name column
+    let foundAmt = false;
+    waveCSVData.headers.forEach((h, i) => {
+      if (/total|amount|balance|value|net/i.test(h) && i !== nameIdx) { amtIdx = i; foundAmt = true; }
+    });
+    if (!foundAmt) {
+      for (let i = waveCSVData.headers.length - 1; i >= 0; i--) {
+        if (i !== nameIdx) { amtIdx = i; break; }
+      }
+    }
     nameSelect.value = nameIdx;
     amtSelect.value = amtIdx;
     document.getElementById('wave-csv-step2').classList.remove('hidden');
