@@ -1080,7 +1080,7 @@ function parseCSV(text) {
 }
 function autoDetectWaveCategory(name) {
   const n = (name || '').toLowerCase();
-  if (/\b(gross profit|total expense|total income)\b/.test(n)) return 'skip';
+  if (/^total\s/.test(n) || /\b(gross profit)\b/.test(n)) return 'skip';
   if (/\b(income|revenue|sales)\b/.test(n) && !/\b(cost|expense|fee|net|gross)\b/.test(n)) return 'revenue';
   if (/\b(cost of goods|cogs|supplies|materials)\b/.test(n)) return 'variable_cost';
   if (/\b(processing|merchant|stripe|square|card fee|transaction fee|payment processing)\b/.test(n)) return 'variable_cost';
@@ -1500,10 +1500,37 @@ function updateWaveMapping() {
   const amtIdx = parseInt(document.getElementById('wave-col-amount').value, 10);
   const headers = waveCSVData.headers;
 
-  waveCSVMappings = waveCSVData.rows.map(row => {
-    const name = row[headers[nameIdx]] || '';
+  waveCSVMappings = [];
+  let currentSection = null;
+  waveCSVData.rows.forEach(row => {
+    const name = (row[headers[nameIdx]] || '').trim();
     const amt = parseCurrencyStr(row[headers[amtIdx]]);
-    return { name, amount: amt, category: autoDetectWaveCategory(name) };
+    const n = name.toLowerCase().trim();
+    // Detect section headers — these are parent rows, skip them and set context
+    if (/^income$/.test(n)) {
+      currentSection = 'revenue';
+      waveCSVMappings.push({ name, amount: amt, category: 'skip' });
+      return;
+    }
+    if (/^cost of goods sold$/.test(n) || /^cogs$/.test(n)) {
+      currentSection = 'variable_cost';
+      waveCSVMappings.push({ name, amount: amt, category: 'skip' });
+      return;
+    }
+    if (/^operating expenses?$/.test(n)) {
+      currentSection = 'operating';
+      waveCSVMappings.push({ name, amount: amt, category: 'skip' });
+      return;
+    }
+    // Auto-detect category by keywords
+    let category = autoDetectWaveCategory(name);
+    // If auto-detect returned 'skip' but we're inside a known section, use section default
+    if (category === 'skip' && currentSection) {
+      if (currentSection === 'revenue') category = 'revenue';
+      else if (currentSection === 'variable_cost') category = 'variable_cost';
+      else if (currentSection === 'operating') category = 'fixed_operating_cost';
+    }
+    waveCSVMappings.push({ name, amount: amt, category });
   });
 
   // Render mapping table
