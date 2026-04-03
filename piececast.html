@@ -500,8 +500,10 @@ html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50
     <div class="card animate-in">
       <div class="card-title"><span class="icon">&#x1F52E;</span> Generate Forecast</div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <label style="font-size:.85rem;font-weight:500">Horizon (days):</label>
-        <input type="number" id="horizonInput" class="param-input" style="width:70px" value="14" min="1" max="180">
+        <label style="font-size:.85rem;font-weight:500">From:</label>
+        <input type="date" id="fcStartDate" class="param-input" style="width:150px;font-size:16px">
+        <label style="font-size:.85rem;font-weight:500">To:</label>
+        <input type="date" id="fcEndDate" class="param-input" style="width:150px;font-size:16px">
         <label style="font-size:.85rem;font-weight:500">Chart series:</label>
         <select id="forecastSeriesSelect" class="select-styled" style="font-size:.82rem"></select>
         <button class="btn btn-primary" id="genForecastBtn">Generate Forecast</button>
@@ -544,9 +546,10 @@ html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50
         Lines starting with <code>#</code> are metadata (parseable apps can skip them). Data is tab-separated.
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-        <label style="font-size:.85rem;font-weight:500">Horizon:</label>
-        <input type="number" id="exportHorizonInput" class="param-input" style="width:70px;font-size:16px" value="14" min="1" max="180">
-        <label style="font-size:.85rem;font-weight:500">days</label>
+        <label style="font-size:.85rem;font-weight:500">From:</label>
+        <input type="date" id="exportStartDate" class="param-input" style="width:150px;font-size:16px">
+        <label style="font-size:.85rem;font-weight:500">To:</label>
+        <input type="date" id="exportEndDate" class="param-input" style="width:150px;font-size:16px">
         <button class="btn btn-secondary" id="exportRegenBtn" style="font-size:.82rem">&#x1F504; Regenerate</button>
         <span style="border-left:1px solid var(--border);height:24px;margin:0 4px"></span>
         <label style="font-size:.85rem;font-weight:500">Scope:</label>
@@ -675,6 +678,8 @@ const S = {
   backtestResults: {},
   forecastResults: null,
   forecastHorizon: 14,
+  forecastStartDate: null,  // Date: display range start
+  forecastEndDate: null,     // Date: display range end
   btChart: null,
   fcChart: null
 };
@@ -4376,36 +4381,42 @@ function renderForecastChart(fcDataOverride, histDaysOverride) {
   const dates = S.series.dates;
   var histDays = histDaysOverride || Math.min(60, data.length);
   const hStart = Math.max(0, data.length - histDays);
+  var dispStart = fr.displayStartIdx || 0;
 
   // Determine the correct forecast data based on active series
-  var fcData;
+  var fcDataFull;
   if (fcDataOverride) {
-    fcData = fcDataOverride;
+    fcDataFull = fcDataOverride;
   } else {
     var seriesKey = S.activeSeries;
     if (seriesKey === '__total_revenue') {
-      fcData = fr.totalRevenue || fr.total;
+      fcDataFull = fr.totalRevenue || fr.total;
     } else if (seriesKey === '__total_pieces') {
-      fcData = fr.total;
+      fcDataFull = fr.total;
     } else {
       var parts = seriesKey.split(':');
       var sType = parts[0];
       var sName = parts.slice(1).join(':');
       if (sType === 'revenue' && fr.revenueCategories && fr.revenueCategories[sName]) {
-        fcData = fr.revenueCategories[sName];
+        fcDataFull = fr.revenueCategories[sName];
       } else if (fr.categories && fr.categories[sName]) {
-        fcData = fr.categories[sName];
+        fcDataFull = fr.categories[sName];
       } else {
-        fcData = fr.total;
+        fcDataFull = fr.total;
       }
     }
   }
 
+  // Slice forecast data to only show the selected date range (skip if override provided)
+  var chartDispStart = fcDataOverride ? 0 : dispStart;
+  var fcData = fcDataOverride ? fcDataFull : fcDataFull.slice(dispStart);
+
   const labels = [];
   for (let i = hStart; i < data.length; i++) labels.push(formatDateShort(dates[i]));
   const lastDate = dates[dates.length - 1];
-  for (let h = 1; h <= fcData.length; h++) {
-    const d = new Date(lastDate); d.setDate(d.getDate() + h);
+  // Chart labels start from the first displayed forecast day
+  for (let h = 0; h < fcData.length; h++) {
+    const d = new Date(lastDate); d.setDate(d.getDate() + chartDispStart + h + 1);
     labels.push(formatDateShort(d));
   }
 
@@ -4502,6 +4513,8 @@ function generateExport(scope) {
   const dates = S.series.dates;
   const lastDate = dates[dates.length - 1];
   const horizon = S.forecastHorizon;
+  var fr = S.forecastResults;
+  var dispStart = (fr && fr.displayStartIdx) ? fr.displayStartIdx : 0;
 
   // Get backtest MAPE info
   const btKey = String(S.backtestWindow);
@@ -4517,12 +4530,14 @@ function generateExport(scope) {
     return S.methods[k].name + ' (' + pct + '%)';
   }).join(', ');
 
+  // Compute display date range
+  var fcStartDate = new Date(lastDate); fcStartDate.setDate(fcStartDate.getDate() + dispStart + 1);
+  var fcEndDate = new Date(lastDate); fcEndDate.setDate(fcEndDate.getDate() + horizon);
+
   let lines = [];
   lines.push('# PIECECAST FORECAST EXPORT');
   lines.push('# Generated: ' + formatDateISO(new Date()));
-  const fcStart = new Date(lastDate); fcStart.setDate(fcStart.getDate() + 1);
-  const fcEnd = new Date(lastDate); fcEnd.setDate(fcEnd.getDate() + horizon);
-  lines.push('# Forecast Period: ' + formatDateISO(fcStart) + ' to ' + formatDateISO(fcEnd));
+  lines.push('# Forecast Period: ' + formatDateISO(fcStartDate) + ' to ' + formatDateISO(fcEndDate));
   lines.push('# Backtest Window: ' + S.backtestWindow + ' days');
   lines.push('# Ensemble WMAPE: ' + ensembleWape + '% | MAPE: ' + ensembleMape + '%');
   if (S.closedDays.length > 0) {
@@ -4547,7 +4562,6 @@ function generateExport(scope) {
   lines.push('#');
 
   // Use cached forecast results if available, otherwise compute fresh
-  var fr = S.forecastResults;
   var catNames = Object.keys(S.series.categories);
   var hasCachedFc = fr && fr.categories && fr.total && fr.horizon === horizon;
 
@@ -4578,7 +4592,8 @@ function generateExport(scope) {
     if (allForecasts['Total Revenue']) colNames.push('Total Revenue ($)');
     lines.push('Date\tDOW\t' + colNames.join('\t'));
 
-    for (var h = 0; h < horizon; h++) {
+    // Only export rows within the selected date range
+    for (var h = dispStart; h < horizon; h++) {
       var d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
       var vals = [];
       for (var vi = 0; vi < catNames.length; vi++) {
@@ -4606,7 +4621,8 @@ function generateExport(scope) {
     headerCols.push('Total Pieces');
     lines.push('Date\tDOW\t' + headerCols.join('\t'));
 
-    for (var ph = 0; ph < horizon; ph++) {
+    // Only export rows within the selected date range
+    for (var ph = dispStart; ph < horizon; ph++) {
       var pd = new Date(lastDate); pd.setDate(pd.getDate() + ph + 1);
       var pvals = [];
       for (var pci = 0; pci < pcNames.length; pci++) {
@@ -5117,6 +5133,7 @@ function renderForecastTable() {
   var tbody = table.querySelector('tbody');
   var lastDate = S.series.dates[S.series.dates.length - 1];
   var horizon = fr.horizon;
+  var dispStart = fr.displayStartIdx || 0;
   var catNames = Object.keys(fr.categories);
 
   // Determine whether we're showing revenue or pieces
@@ -5153,7 +5170,8 @@ function renderForecastTable() {
 
   var bodyHTML = '';
   var flooredCount = 0;
-  for (var h = 0; h < horizon; h++) {
+  // Only render rows within the selected date range (skip indices before displayStartIdx)
+  for (var h = dispStart; h < horizon; h++) {
     var d = new Date(lastDate); d.setDate(d.getDate() + h + 1);
     var dow = d.getDay();
     var closed = isClosedDay(d);
@@ -5582,18 +5600,97 @@ function doBacktest() {
   // Enable forecast tab
   document.getElementById('noDataForecast').style.display = 'none';
   document.getElementById('forecastContent').style.display = '';
+  initForecastDates();
 
   // Show which weight set is active
   var wLabel = getActiveWeightLabel();
   document.getElementById('backtestStatus').textContent = '\u2705 Backtest complete (' + S.backtestWindow + ' days) \u00B7 ' + wLabel + ' weights';
 }
 
+/** Initialize forecast date pickers with sensible defaults */
+function initForecastDates() {
+  if (!S.series || !S.series.dates || S.series.dates.length === 0) return;
+  var lastDate = S.series.dates[S.series.dates.length - 1];
+  var today = new Date(); today.setHours(0,0,0,0);
+  var dayAfterLast = new Date(lastDate); dayAfterLast.setDate(dayAfterLast.getDate() + 1);
+  // Start = max(tomorrow, dayAfterLastData) — never forecast already-past dates
+  var tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  var startDate = dayAfterLast > tomorrow ? dayAfterLast : tomorrow;
+  // End = start + 13 days (14-day window)
+  var endDate = new Date(startDate); endDate.setDate(endDate.getDate() + 13);
+
+  var startStr = formatDateISO(startDate);
+  var endStr = formatDateISO(endDate);
+  var minStr = formatDateISO(dayAfterLast);
+  // Max = 180 days from last data point
+  var maxDate = new Date(lastDate); maxDate.setDate(maxDate.getDate() + 180);
+  var maxStr = formatDateISO(maxDate);
+
+  // Set forecast tab pickers
+  var fcStart = document.getElementById('fcStartDate');
+  var fcEnd = document.getElementById('fcEndDate');
+  fcStart.value = startStr; fcStart.min = minStr; fcStart.max = maxStr;
+  fcEnd.value = endStr; fcEnd.min = minStr; fcEnd.max = maxStr;
+
+  // Set export tab pickers to match
+  var exStart = document.getElementById('exportStartDate');
+  var exEnd = document.getElementById('exportEndDate');
+  exStart.value = startStr; exStart.min = minStr; exStart.max = maxStr;
+  exEnd.value = endStr; exEnd.min = minStr; exEnd.max = maxStr;
+
+  S.forecastStartDate = startDate;
+  S.forecastEndDate = endDate;
+}
+
+/** Helper: calendar days between two Date objects (end - start) */
+function daysBetween(a, b) {
+  var msDay = 86400000;
+  return Math.round((b.getTime() - a.getTime()) / msDay);
+}
+
 function doForecast() {
-  var horizon = parseInt(document.getElementById('horizonInput').value) || 14;
+  var lastDate = S.series.dates[S.series.dates.length - 1];
+
+  // Read date range from pickers
+  var startVal = document.getElementById('fcStartDate').value;
+  var endVal = document.getElementById('fcEndDate').value;
+  if (!startVal || !endVal) {
+    showNotification('Please select both From and To dates.', 'error');
+    return;
+  }
+  var startDate = new Date(startVal + 'T00:00:00');
+  var endDate = new Date(endVal + 'T00:00:00');
+  var dayAfterLast = new Date(lastDate); dayAfterLast.setDate(dayAfterLast.getDate() + 1);
+
+  // Validate
+  if (startDate < dayAfterLast) {
+    startDate = dayAfterLast;
+    document.getElementById('fcStartDate').value = formatDateISO(startDate);
+  }
+  if (endDate < startDate) {
+    endDate = new Date(startDate); endDate.setDate(endDate.getDate() + 13);
+    document.getElementById('fcEndDate').value = formatDateISO(endDate);
+  }
+  var maxHorizon = daysBetween(lastDate, endDate);
+  if (maxHorizon > 180) {
+    maxHorizon = 180;
+    endDate = new Date(lastDate); endDate.setDate(endDate.getDate() + 180);
+    document.getElementById('fcEndDate').value = formatDateISO(endDate);
+  }
+
+  // Internal horizon = full range from lastDataDate+1 through endDate
+  var horizon = maxHorizon;
+  // Display start index = offset from forecast array start (index 0 = lastDate+1)
+  var displayStartIdx = daysBetween(lastDate, startDate) - 1;
+  if (displayStartIdx < 0) displayStartIdx = 0;
+
   S.forecastHorizon = horizon;
-  // Keep export tab horizon in sync
-  var expHInput = document.getElementById('exportHorizonInput');
-  if (expHInput) expHInput.value = horizon;
+  S.forecastStartDate = startDate;
+  S.forecastEndDate = endDate;
+
+  // Sync export tab date pickers
+  document.getElementById('exportStartDate').value = formatDateISO(startDate);
+  document.getElementById('exportEndDate').value = formatDateISO(endDate);
 
   var selVal = document.getElementById('forecastSeriesSelect').value;
   S.activeSeries = selVal;
@@ -5614,7 +5711,6 @@ function doForecast() {
   var totalFc = computeAllMethodEnsemble(S.series.totalPieces, dates, horizon, totalOpt);
 
   // Compute revenue forecasts for each category + total
-  // Uses the same optimized weights (seasonal patterns are similar between pieces & revenue)
   var revenueCategories = {};
   var hasRevenue = false;
   for (var rci = 0; rci < catNames.length; rci++) {
@@ -5647,6 +5743,7 @@ function doForecast() {
     totalRevenue: totalRevFc,
     hasRevenue: hasRevenue,
     horizon: horizon,
+    displayStartIdx: displayStartIdx,
     dowFloors: floorInfo
   };
 
@@ -5655,7 +5752,8 @@ function doForecast() {
   var btKey = String(S.backtestWindow);
   var btResult = S.backtestResults[btKey];
   var mape = btResult && btResult.results.__ensemble ? btResult.results.__ensemble.wape.toFixed(1) + '% WMAPE' : '';
-  document.getElementById('fcBadge').textContent = horizon + '-day forecast \u00B7 ' + mape;
+  var displayDays = horizon - displayStartIdx;
+  document.getElementById('fcBadge').textContent = formatDateISO(startDate) + ' \u2192 ' + formatDateISO(endDate) + ' (' + displayDays + ' days) \u00B7 ' + mape;
 
   renderForecastChart();
   document.getElementById('fcChartCard').style.display = '';
@@ -5672,22 +5770,14 @@ document.getElementById('exportScope').addEventListener('change', function() {
   }
 });
 
-// Sync export horizon with forecast horizon
+// Export tab Regenerate button: sync dates from export pickers → forecast pickers, then regenerate
 document.getElementById('exportRegenBtn').addEventListener('click', function() {
-  var newHorizon = parseInt(document.getElementById('exportHorizonInput').value) || 14;
-  if (newHorizon < 1) newHorizon = 1;
-  if (newHorizon > 180) newHorizon = 180;
-  document.getElementById('exportHorizonInput').value = newHorizon;
-  // Sync the forecast tab's horizon input
-  document.getElementById('horizonInput').value = newHorizon;
-  // Regenerate forecast with new horizon
+  var exStart = document.getElementById('exportStartDate').value;
+  var exEnd = document.getElementById('exportEndDate').value;
+  if (exStart) document.getElementById('fcStartDate').value = exStart;
+  if (exEnd) document.getElementById('fcEndDate').value = exEnd;
   doForecast();
 });
-
-// Keep export horizon input in sync when forecast is generated from forecast tab
-var origDoForecast = doForecast;
-// Sync on export tab load: set export horizon to match current forecast horizon
-document.getElementById('exportHorizonInput').value = S.forecastHorizon || 14;
 
 document.getElementById('forecastSeriesSelect').addEventListener('change', function() {
   S.activeSeries = this.value;
