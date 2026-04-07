@@ -745,33 +745,30 @@
 
 <script>
 (function() {
+  "use strict";
+
   // Dark mode detection
-  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    document.documentElement.classList.add('dark');
+  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    document.documentElement.classList.add("dark");
   }
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(event) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function(event) {
     if (event.matches) {
-      document.documentElement.classList.add('dark');
+      document.documentElement.classList.add("dark");
     } else {
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.remove("dark");
     }
   });
 
   // ============================================================
   // DATA STORE — Single in-memory table: Monthly_Financials
   // ============================================================
-  // Each record: { Month, Status, Actual_Revenue, Actual_Variable,
-  //   Actual_Labor, Actual_Fixed, Actual_Debt, Forecast_Revenue,
-  //   Forecast_Pieces, Desired_Surplus,
-  //   POS_Raw_Report, Forecast_Raw_Report, Wave_Raw_Report }
-
   var store = {};
-  var selectedMonth = '';
+  var selectedMonth = "";
 
   function defaultRecord(month) {
     return {
       Month: month,
-      Status: 'Draft',
+      Status: "Draft",
       Actual_Revenue: 0,
       Actual_Variable: 0,
       Actual_Labor: 0,
@@ -780,9 +777,9 @@
       Forecast_Revenue: 0,
       Forecast_Pieces: 0,
       Desired_Surplus: 0,
-      POS_Raw_Report: '',
-      Forecast_Raw_Report: '',
-      Wave_Raw_Report: ''
+      POS_Raw_Report: "",
+      Forecast_Raw_Report: "",
+      Wave_Raw_Report: ""
     };
   }
 
@@ -797,7 +794,7 @@
   // CALCULATED FIELDS
   // ============================================================
   function calcFields(rec) {
-    var effectiveRevenue = (rec.Status === 'Draft' && rec.Forecast_Revenue > 0)
+    var effectiveRevenue = (rec.Status === "Draft" && rec.Forecast_Revenue > 0)
       ? rec.Forecast_Revenue : rec.Actual_Revenue;
 
     var contribution = effectiveRevenue - rec.Actual_Variable - rec.Actual_Labor;
@@ -829,57 +826,47 @@
   // HELPERS
   // ============================================================
   function fmtCurrency(val) {
-    if (val === 0) return '$0.00';
+    if (val === 0) { return "$0.00"; }
     var neg = val < 0;
     var abs = Math.abs(val);
-    var str = abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return (neg ? '-$' : '$') + str;
+    var str = abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (neg ? "-$" : "$") + str;
   }
 
   function fmtPercent(val) {
-    return (val * 100).toFixed(2) + '%';
+    return (val * 100).toFixed(2) + "%";
   }
 
   function fmtNumber(val) {
-    return val.toLocaleString('en-US');
+    return val.toLocaleString("en-US");
   }
 
   function parseDollar(str) {
-    if (!str) return 0;
-    var cleaned = str.replace(/[$,\s]/g, '');
-    // Handle parenthetical negatives: ($1,234.56)
+    if (!str) { return 0; }
+    var cleaned = str.replace(/[$,\s]/g, "");
     var isNeg = false;
-    if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
+    if (cleaned.charAt(0) === "(" && cleaned.charAt(cleaned.length - 1) === ")") {
       isNeg = true;
       cleaned = cleaned.slice(1, -1);
     }
-    if (cleaned.startsWith('-')) {
+    if (cleaned.charAt(0) === "-") {
       isNeg = true;
       cleaned = cleaned.slice(1);
     }
     var val = parseFloat(cleaned);
-    if (isNaN(val)) return 0;
+    if (isNaN(val)) { return 0; }
     return isNeg ? -val : val;
   }
 
-  function extractNumericTokens(line) {
-    // Match numbers including negative, commas, decimals
-    var matches = line.match(/-?[\d,]+\.?\d*/g);
-    if (!matches) return [];
-    return matches.map(function(m) {
-      return parseFloat(m.replace(/,/g, ''));
-    }).filter(function(n) { return !isNaN(n); });
-  }
-
   function extractDollarAmount(line) {
-    // Try to find a dollar figure in the line
     var match = line.match(/\(?\$[\d,]+\.?\d*\)?/);
     if (match) {
       return parseDollar(match[0]);
     }
-    // Fallback: last number on line
-    var nums = extractNumericTokens(line);
-    if (nums.length > 0) return nums[nums.length - 1];
+    var nums = line.match(/-?[\d,]+\.?\d*/g);
+    if (nums && nums.length > 0) {
+      return parseFloat(nums[nums.length - 1].replace(/,/g, ""));
+    }
     return 0;
   }
 
@@ -887,14 +874,14 @@
   // SECTION TOGGLE
   // ============================================================
   window.toggleSection = function(name) {
-    var body = document.getElementById('body-' + name);
-    var tog = document.getElementById('toggle-' + name);
-    if (body.classList.contains('collapsed')) {
-      body.classList.remove('collapsed');
-      tog.classList.remove('collapsed');
+    var body = document.getElementById("body-" + name);
+    var tog = document.getElementById("toggle-" + name);
+    if (body.classList.contains("collapsed")) {
+      body.classList.remove("collapsed");
+      tog.classList.remove("collapsed");
     } else {
-      body.classList.add('collapsed');
-      tog.classList.add('collapsed');
+      body.classList.add("collapsed");
+      tog.classList.add("collapsed");
     }
   };
 
@@ -904,52 +891,64 @@
   function showStatus(elId, msg, type) {
     var el = document.getElementById(elId);
     el.textContent = msg;
-    el.className = 'status-msg ' + type;
+    el.className = "status-msg " + type;
     setTimeout(function() {
-      el.className = 'status-msg';
+      el.className = "status-msg";
     }, 6000);
   }
 
   // ============================================================
-  // PROCESS POS REPORT
+  // PROCESS POS REPORT — Whitespace-split, last two tokens only
   // ============================================================
   window.processPOS = function() {
-    var raw = document.getElementById('posInput').value;
+    var raw = document.getElementById("posInput").value;
     if (!raw.trim()) {
-      showStatus('posStatus', 'No report data pasted.', 'error');
+      showStatus("posStatus", "No report data pasted.", "error");
       return;
     }
 
-    var lines = raw.split('\n');
-    var monthTotals = {};  // { 'YYYY-MM': { revenue: 0, pieces: 0 } }
+    var lines = raw.split("\n");
+    var monthTotals = {};
     var parsed = 0;
 
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
-      if (!line) continue;
+      if (!line) { continue; }
 
       // Check if line begins with YYYY/MM/DD
-      var dateMatch = line.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
-      if (!dateMatch) continue;
+      if (!/^\d{4}\/\d{2}\/\d{2}/.test(line)) { continue; }
 
-      var month = dateMatch[1] + '-' + dateMatch[2];
-      var nums = extractNumericTokens(line.substring(10));
+      // Extract date from first 10 characters
+      var datePart = line.substring(0, 10);
+      var year = datePart.substring(0, 4);
+      var monthNum = datePart.substring(5, 7);
+      var month = year + "-" + monthNum;
 
-      if (nums.length < 2) continue;
+      // Split entire line by whitespace into tokens
+      var tokens = line.split(/\s+/);
+      if (tokens.length < 3) { continue; }
 
-      var totalRevenue = nums[nums.length - 1];
-      var totalPieces = nums[nums.length - 2];
+      // Last token = Total_Amt (decimal)
+      var rawAmt = tokens[tokens.length - 1].replace(/,/g, "");
+      var totalAmt = parseFloat(rawAmt);
+
+      // Second-to-last token = Total_Pcs (integer)
+      var rawPcs = tokens[tokens.length - 2].replace(/,/g, "");
+      var totalPcs = parseInt(rawPcs, 10);
+
+      // Skip if either value is not a valid number
+      if (isNaN(totalAmt) || isNaN(totalPcs)) { continue; }
 
       if (!monthTotals[month]) {
         monthTotals[month] = { revenue: 0, pieces: 0 };
       }
-      monthTotals[month].revenue += totalRevenue;
-      monthTotals[month].pieces += totalPieces;
+      monthTotals[month].revenue += totalAmt;
+      monthTotals[month].pieces += totalPcs;
       parsed++;
     }
 
     if (parsed === 0) {
-      showStatus('posStatus', 'No valid date lines found in POS report.', 'error');
+      showStatus("posStatus", "No valid date lines found in POS report.", "error");
       return;
     }
 
@@ -960,41 +959,49 @@
       rec.Actual_Revenue = monthTotals[m].revenue;
     }
 
-    document.getElementById('posInput').value = '';
+    document.getElementById("posInput").value = "";
     refreshUI();
-    showStatus('posStatus', 'Processed ' + parsed + ' lines across ' + months.length + ' month(s).', 'success');
+    showStatus("posStatus", "Processed " + parsed + " lines across " + months.length + " month(s).", "success");
   };
 
   // ============================================================
   // PROCESS FORECAST REPORT
   // ============================================================
   window.processForecast = function() {
-    var raw = document.getElementById('forecastInput').value;
+    var raw = document.getElementById("forecastInput").value;
     if (!raw.trim()) {
-      showStatus('forecastStatus', 'No report data pasted.', 'error');
+      showStatus("forecastStatus", "No report data pasted.", "error");
       return;
     }
 
-    var lines = raw.split('\n');
+    var lines = raw.split("\n");
     var monthTotals = {};
     var parsed = 0;
 
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
-      if (!line) continue;
-      if (line.charAt(0) === '#') continue;
+      if (!line) { continue; }
+      if (line.charAt(0) === "#") { continue; }
 
       // Check if line begins with YYYY-MM-DD
       var dateMatch = line.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (!dateMatch) continue;
+      if (!dateMatch) { continue; }
 
-      var month = dateMatch[1] + '-' + dateMatch[2];
-      var nums = extractNumericTokens(line.substring(10));
+      var month = dateMatch[1] + "-" + dateMatch[2];
+      var afterDate = line.substring(10);
+      var nums = afterDate.match(/-?[\d,]+\.?\d*/g);
+      if (!nums) { continue; }
 
-      if (nums.length < 2) continue;
+      var parsedNums = [];
+      for (var n = 0; n < nums.length; n++) {
+        var pv = parseFloat(nums[n].replace(/,/g, ""));
+        if (!isNaN(pv)) { parsedNums.push(pv); }
+      }
 
-      var totalRevenue = nums[nums.length - 1];
-      var totalPieces = nums[nums.length - 2];
+      if (parsedNums.length < 2) { continue; }
+
+      var totalRevenue = parsedNums[parsedNums.length - 1];
+      var totalPieces = parsedNums[parsedNums.length - 2];
 
       if (!monthTotals[month]) {
         monthTotals[month] = { revenue: 0, pieces: 0 };
@@ -1005,7 +1012,7 @@
     }
 
     if (parsed === 0) {
-      showStatus('forecastStatus', 'No valid date lines found in Forecast report.', 'error');
+      showStatus("forecastStatus", "No valid date lines found in Forecast report.", "error");
       return;
     }
 
@@ -1017,22 +1024,22 @@
       rec.Forecast_Pieces = monthTotals[m].pieces;
     }
 
-    document.getElementById('forecastInput').value = '';
+    document.getElementById("forecastInput").value = "";
     refreshUI();
-    showStatus('forecastStatus', 'Processed ' + parsed + ' lines across ' + months.length + ' month(s).', 'success');
+    showStatus("forecastStatus", "Processed " + parsed + " lines across " + months.length + " month(s).", "success");
   };
 
   // ============================================================
   // PROCESS WAVE P&L REPORT
   // ============================================================
   window.processWave = function() {
-    var raw = document.getElementById('waveInput').value;
+    var raw = document.getElementById("waveInput").value;
     if (!raw.trim()) {
-      showStatus('waveStatus', 'No report data pasted.', 'error');
+      showStatus("waveStatus", "No report data pasted.", "error");
       return;
     }
 
-    var lines = raw.split('\n');
+    var lines = raw.split("\n");
 
     var revenue = 0;
     var variable = 0;
@@ -1040,52 +1047,44 @@
     var fixed = 0;
     var debt = 0;
 
-    // Track which section we're in
     var inOperatingExpenses = false;
     var foundData = false;
 
-    // Category keywords for Variable
     var variableKeywords = [
-      'total cost of goods sold',
-      'payment processing fee',
-      'materials and supplies',
-      'selling costs'
+      "total cost of goods sold",
+      "payment processing fee",
+      "materials and supplies",
+      "selling costs"
     ];
 
-    // Category keywords for Labor
     var laborKeywords = [
-      'csr wages',
-      'payroll employer taxes',
-      'payroll gross pay'
+      "csr wages",
+      "payroll employer taxes",
+      "payroll gross pay"
     ];
 
-    // Category keywords for Debt
     var debtKeywords = [
-      'debt service',
-      'loan payable'
+      "debt service",
+      "loan payable"
     ];
 
-    // All known category keywords (to exclude from Fixed catch-all)
-    var allKnown = variableKeywords.concat(laborKeywords).concat(debtKeywords).concat(['total income']);
+    var allKnown = variableKeywords.concat(laborKeywords).concat(debtKeywords).concat(["total income"]);
 
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
-      if (!line) continue;
+      if (!line) { continue; }
       var lower = line.toLowerCase();
 
-      // Detect Operating Expenses section
-      if (lower.indexOf('operating expense') !== -1 || lower.indexOf('operating cost') !== -1) {
+      if (lower.indexOf("operating expense") !== -1 || lower.indexOf("operating cost") !== -1) {
         inOperatingExpenses = true;
       }
 
-      // Total Income
-      if (lower.indexOf('total income') !== -1) {
+      if (lower.indexOf("total income") !== -1) {
         revenue = extractDollarAmount(line);
         foundData = true;
         continue;
       }
 
-      // Variable costs
       var isVariable = false;
       for (var v = 0; v < variableKeywords.length; v++) {
         if (lower.indexOf(variableKeywords[v]) !== -1) {
@@ -1095,9 +1094,8 @@
           break;
         }
       }
-      if (isVariable) continue;
+      if (isVariable) { continue; }
 
-      // Labor costs
       var isLabor = false;
       for (var l = 0; l < laborKeywords.length; l++) {
         if (lower.indexOf(laborKeywords[l]) !== -1) {
@@ -1107,9 +1105,8 @@
           break;
         }
       }
-      if (isLabor) continue;
+      if (isLabor) { continue; }
 
-      // Debt costs
       var isDebt = false;
       for (var d = 0; d < debtKeywords.length; d++) {
         if (lower.indexOf(debtKeywords[d]) !== -1) {
@@ -1119,20 +1116,17 @@
           break;
         }
       }
-      if (isDebt) continue;
+      if (isDebt) { continue; }
 
-      // Fixed: anything else in Operating Expenses with a dollar amount
       if (inOperatingExpenses) {
-        // Skip section headers and totals
-        if (lower.indexOf('total operating') !== -1 ||
-            lower.indexOf('total expense') !== -1 ||
-            lower.indexOf('net income') !== -1 ||
-            lower.indexOf('net profit') !== -1 ||
-            lower.indexOf('gross profit') !== -1) {
+        if (lower.indexOf("total operating") !== -1 ||
+            lower.indexOf("total expense") !== -1 ||
+            lower.indexOf("net income") !== -1 ||
+            lower.indexOf("net profit") !== -1 ||
+            lower.indexOf("gross profit") !== -1) {
           continue;
         }
 
-        // Check if it's a known category line
         var isKnown = false;
         for (var k = 0; k < allKnown.length; k++) {
           if (lower.indexOf(allKnown[k]) !== -1) {
@@ -1140,9 +1134,8 @@
             break;
           }
         }
-        if (isKnown) continue;
+        if (isKnown) { continue; }
 
-        // Check if line has a dollar amount
         var dollarMatch = line.match(/\$[\d,]+\.?\d*/);
         if (dollarMatch) {
           fixed += extractDollarAmount(line);
@@ -1152,11 +1145,10 @@
     }
 
     if (!foundData) {
-      showStatus('waveStatus', 'No recognizable P&L data found.', 'error');
+      showStatus("waveStatus", "No recognizable P&L data found.", "error");
       return;
     }
 
-    // Determine month from date range in report
     var month = detectWaveMonth(raw);
 
     var rec = getOrCreate(month);
@@ -1166,17 +1158,13 @@
     rec.Actual_Fixed = fixed;
     rec.Actual_Debt = debt;
 
-    document.getElementById('waveInput').value = '';
+    document.getElementById("waveInput").value = "";
     selectedMonth = month;
     refreshUI();
-    showStatus('waveStatus', 'Wave P&L processed for ' + month + '.', 'success');
+    showStatus("waveStatus", "Wave P&L processed for " + month + ".", "success");
   };
 
   function detectWaveMonth(raw) {
-    // Look for date ranges like "January 1 - December 31, 2025" or "01/01/2025 - 12/31/2025"
-    // Or "March 1 - March 31, 2025"
-
-    // Try YYYY-MM-DD range
     var isoRange = raw.match(/(\d{4})-(\d{2})-(\d{2})\s*(?:to|-)\s*(\d{4})-(\d{2})-(\d{2})/i);
     if (isoRange) {
       var startMonth = parseInt(isoRange[2], 10);
@@ -1184,12 +1172,11 @@
       var startYear = isoRange[1];
       var endYear = isoRange[4];
       if (startMonth === 1 && endMonth === 12 && startYear === endYear) {
-        return startYear + '-Annual';
+        return startYear + "-Annual";
       }
-      return startYear + '-' + String(startMonth).padStart(2, '0');
+      return startYear + "-" + String(startMonth).padStart(2, "0");
     }
 
-    // Try MM/DD/YYYY range
     var usRange = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s*(?:to|-)\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
     if (usRange) {
       var sM = parseInt(usRange[1], 10);
@@ -1197,14 +1184,13 @@
       var sY = usRange[3];
       var eY = usRange[6];
       if (sM === 1 && eM === 12 && sY === eY) {
-        return sY + '-Annual';
+        return sY + "-Annual";
       }
-      return sY + '-' + String(sM).padStart(2, '0');
+      return sY + "-" + String(sM).padStart(2, "0");
     }
 
-    // Try month name range
-    var monthNames = ['january','february','march','april','may','june',
-      'july','august','september','october','november','december'];
+    var monthNames = ["january","february","march","april","may","june",
+      "july","august","september","october","november","december"];
     var nameRange = raw.match(/([a-zA-Z]+)\s+\d{1,2}\s*[,]?\s*(?:to|-)\s*([a-zA-Z]+)\s+\d{1,2}\s*[,]?\s*(\d{4})/i);
     if (nameRange) {
       var sName = nameRange[1].toLowerCase();
@@ -1213,26 +1199,24 @@
       var sIdx = monthNames.indexOf(sName);
       var eIdx = monthNames.indexOf(eName);
       if (sIdx === 0 && eIdx === 11) {
-        return year + '-Annual';
+        return year + "-Annual";
       }
       if (sIdx >= 0) {
-        return year + '-' + String(sIdx + 1).padStart(2, '0');
+        return year + "-" + String(sIdx + 1).padStart(2, "0");
       }
     }
 
-    // Try single month mention
     var singleMonth = raw.match(/([a-zA-Z]+)\s+(\d{4})/i);
     if (singleMonth) {
       var mName = singleMonth[1].toLowerCase();
       var mIdx = monthNames.indexOf(mName);
       if (mIdx >= 0) {
-        return singleMonth[2] + '-' + String(mIdx + 1).padStart(2, '0');
+        return singleMonth[2] + "-" + String(mIdx + 1).padStart(2, "0");
       }
     }
 
-    // Fallback: prompt-like, use current date
     var now = new Date();
-    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
   }
 
   // ============================================================
@@ -1247,114 +1231,114 @@
   }
 
   function renderMonthSelector() {
-    var sel = document.getElementById('monthSelector');
+    var sel = document.getElementById("monthSelector");
     var months = Object.keys(store).sort();
     var html = '<option value="">— Select —</option>';
     for (var i = 0; i < months.length; i++) {
-      var s = months[i] === selectedMonth ? ' selected' : '';
-      html += '<option value="' + months[i] + '"' + s + '>' + months[i] + '</option>';
+      var s = months[i] === selectedMonth ? " selected" : "";
+      html += '<option value="' + months[i] + '"' + s + '>' + months[i] + "</option>";
     }
     sel.innerHTML = html;
   }
 
   function renderStatusSelector() {
-    var sel = document.getElementById('statusSelector');
+    var sel = document.getElementById("statusSelector");
     if (selectedMonth && store[selectedMonth]) {
       sel.value = store[selectedMonth].Status;
       sel.disabled = false;
     } else {
-      sel.value = 'Draft';
+      sel.value = "Draft";
       sel.disabled = true;
     }
   }
 
   function renderSurplusInput() {
-    var inp = document.getElementById('surplusInput');
+    var inp = document.getElementById("surplusInput");
     if (selectedMonth && store[selectedMonth]) {
       inp.value = store[selectedMonth].Desired_Surplus || 0;
       inp.disabled = false;
     } else {
-      inp.value = '';
+      inp.value = "";
       inp.disabled = true;
     }
   }
 
   function renderResults() {
-    var noData = document.getElementById('noDataMsg');
-    var grid = document.getElementById('resultsGrid');
+    var noData = document.getElementById("noDataMsg");
+    var grid = document.getElementById("resultsGrid");
 
     if (!selectedMonth || !store[selectedMonth]) {
-      noData.style.display = 'block';
-      grid.style.display = 'none';
+      noData.style.display = "block";
+      grid.style.display = "none";
       return;
     }
 
-    noData.style.display = 'none';
-    grid.style.display = 'grid';
+    noData.style.display = "none";
+    grid.style.display = "grid";
 
     var rec = store[selectedMonth];
     var calc = calcFields(rec);
 
     var items = [
-      { label: 'Effective Revenue', value: calc.Effective_Revenue, fmt: 'currency', color: 'neutral' },
-      { label: 'Contribution', value: calc.Contribution, fmt: 'currency', color: calc.Contribution >= 0 ? 'positive' : 'negative' },
-      { label: 'CM Ratio', value: calc.CM_Ratio, fmt: 'percent', color: 'neutral' },
-      { label: 'Operating Breakeven', value: calc.Operating_Breakeven, fmt: 'currency', color: 'neutral' },
-      { label: 'Conservative Breakeven', value: calc.Conservative_Breakeven, fmt: 'currency', color: 'neutral' },
-      { label: 'Target Revenue', value: calc.Target_Revenue, fmt: 'currency', color: 'neutral' },
-      { label: 'Revenue Gap', value: calc.Revenue_Gap, fmt: 'currency', color: calc.Revenue_Gap >= 0 ? 'positive' : 'negative' }
+      { label: "Effective Revenue", value: calc.Effective_Revenue, fmt: "currency", color: "neutral" },
+      { label: "Contribution", value: calc.Contribution, fmt: "currency", color: calc.Contribution >= 0 ? "positive" : "negative" },
+      { label: "CM Ratio", value: calc.CM_Ratio, fmt: "percent", color: "neutral" },
+      { label: "Operating Breakeven", value: calc.Operating_Breakeven, fmt: "currency", color: "neutral" },
+      { label: "Conservative Breakeven", value: calc.Conservative_Breakeven, fmt: "currency", color: "neutral" },
+      { label: "Target Revenue", value: calc.Target_Revenue, fmt: "currency", color: "neutral" },
+      { label: "Revenue Gap", value: calc.Revenue_Gap, fmt: "currency", color: calc.Revenue_Gap >= 0 ? "positive" : "negative" }
     ];
 
-    var html = '';
+    var html = "";
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
       var valStr;
       var hasData = it.value !== 0;
-      if (it.fmt === 'percent') {
-        valStr = hasData ? fmtPercent(it.value) : '—';
+      if (it.fmt === "percent") {
+        valStr = hasData ? fmtPercent(it.value) : "—";
       } else {
-        valStr = hasData ? fmtCurrency(it.value) : '—';
+        valStr = hasData ? fmtCurrency(it.value) : "—";
       }
-      var colorClass = hasData ? it.color : 'empty';
+      var colorClass = hasData ? it.color : "empty";
       html += '<div class="result-card">' +
-        '<div class="result-label">' + it.label + '</div>' +
-        '<div class="result-value ' + colorClass + '">' + valStr + '</div>' +
-        '</div>';
+        '<div class="result-label">' + it.label + "</div>" +
+        '<div class="result-value ' + colorClass + '">' + valStr + "</div>" +
+        "</div>";
     }
     grid.innerHTML = html;
   }
 
   function renderTable() {
-    var tbody = document.getElementById('recordsBody');
-    var noMsg = document.getElementById('noRecordsMsg');
+    var tbody = document.getElementById("recordsBody");
+    var noMsg = document.getElementById("noRecordsMsg");
     var months = Object.keys(store).sort();
 
     if (months.length === 0) {
-      tbody.innerHTML = '';
-      noMsg.style.display = 'block';
+      tbody.innerHTML = "";
+      noMsg.style.display = "block";
       return;
     }
 
-    noMsg.style.display = 'none';
-    var html = '';
+    noMsg.style.display = "none";
+    var html = "";
     for (var i = 0; i < months.length; i++) {
       var m = months[i];
       var rec = store[m];
-      var sel = m === selectedMonth ? ' selected' : '';
-      var tag = rec.Status === 'Locked' ? '<span class="tag-locked">Locked</span>' : '<span class="tag-draft">Draft</span>';
+      var sel = m === selectedMonth ? " selected" : "";
+      var tag = rec.Status === "Locked" ? '<span class="tag-locked">Locked</span>' : '<span class="tag-draft">Draft</span>';
       html += '<tr class="' + sel + '" onclick="selectMonth(\'' + m + '\')" style="cursor:pointer;">' +
-        '<td><strong>' + m + '</strong></td>' +
-        '<td>' + tag + '</td>' +
-        '<td>' + fmtCurrency(rec.Actual_Revenue) + '</td>' +
-        '<td>' + fmtCurrency(rec.Actual_Variable) + '</td>' +
-        '<td>' + fmtCurrency(rec.Actual_Labor) + '</td>' +
-        '<td>' + fmtCurrency(rec.Actual_Fixed) + '</td>' +
-        '<td>' + fmtCurrency(rec.Actual_Debt) + '</td>' +
-        '<td>' + fmtCurrency(rec.Forecast_Revenue) + '</td>' +
-        '<td>' + fmtNumber(rec.Forecast_Pieces) + '</td>' +
-        '<td>' + fmtCurrency(rec.Desired_Surplus) + '</td>' +
+        "<td><strong>" + m + "</strong></td>" +
+        "<td>" + tag + "</td>" +
+        "<td>" + fmtCurrency(rec.Actual_Revenue) + "</td>" +
+        "<td>" + fmtCurrency(rec.Actual_Variable) + "</td>" +
+        "<td>" + fmtCurrency(rec.Actual_Labor) + "</td>" +
+        "<td>" + fmtCurrency(rec.Actual_Fixed) + "</td>" +
+        "<td>" + fmtCurrency(rec.Actual_Debt) + "</td>" +
+        "<td>" + fmtCurrency(rec.Forecast_Revenue) + "</td>" +
+        "<td>" + fmtNumber(rec.Forecast_Pieces) + "</td>" +
+        "<td>" + fmtCurrency(rec.Desired_Surplus) + "</td>" +
         '<td class="record-actions"><button class="btn-icon" onclick="event.stopPropagation(); confirmDelete(\'' + m + '\')">✕</button></td>' +
-        '</tr>';
+        "</tr>";
     }
     tbody.innerHTML = html;
   }
@@ -1376,8 +1360,8 @@
 
   window.updateSurplus = function(val) {
     if (selectedMonth && store[selectedMonth]) {
-      var num = parseFloat(val.replace(/[$,]/g, ''));
-      if (isNaN(num)) num = 0;
+      var num = parseFloat(val.replace(/[$,]/g, ""));
+      if (isNaN(num)) { num = 0; }
       store[selectedMonth].Desired_Surplus = num;
       refreshUI();
     }
@@ -1387,33 +1371,33 @@
   // ADD MONTH MODAL
   // ============================================================
   window.showAddMonthModal = function() {
-    var container = document.getElementById('modalContainer');
+    var container = document.getElementById("modalContainer");
     container.innerHTML = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">' +
       '<div class="modal-box">' +
-      '<h3>Add Month</h3>' +
+      "<h3>Add Month</h3>" +
       '<p>Enter month in YYYY-MM format (e.g. 2025-03):</p>' +
       '<input type="text" id="newMonthInput" placeholder="YYYY-MM" style="width:100%;font-family:var(--font-mono);font-size:16px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);outline:none;margin-bottom:16px;">' +
       '<div class="modal-buttons">' +
       '<button class="modal-btn" onclick="closeModal()">Cancel</button>' +
       '<button class="modal-btn" style="background:var(--accent-bg);color:var(--accent);border-color:var(--accent);" onclick="addMonthFromModal()">Add</button>' +
-      '</div>' +
-      '</div>' +
-      '</div>';
+      "</div>" +
+      "</div>" +
+      "</div>";
     setTimeout(function() {
-      var inp = document.getElementById('newMonthInput');
-      if (inp) inp.focus();
+      var inp = document.getElementById("newMonthInput");
+      if (inp) { inp.focus(); }
     }, 100);
   };
 
   window.addMonthFromModal = function() {
-    var inp = document.getElementById('newMonthInput');
-    var val = inp ? inp.value.trim() : '';
-    if (!val.match(/^\d{4}-(0[1-9]|1[0-2])$/) && !val.match(/^\d{4}-Annual$/)) {
-      inp.style.borderColor = 'var(--red)';
+    var inp = document.getElementById("newMonthInput");
+    var val = inp ? inp.value.trim() : "";
+    if (!(/^\d{4}-(0[1-9]|1[0-2])$/).test(val) && !(/^\d{4}-Annual$/).test(val)) {
+      inp.style.borderColor = "var(--red)";
       return;
     }
     if (store[val]) {
-      inp.style.borderColor = 'var(--red)';
+      inp.style.borderColor = "var(--red)";
       return;
     }
     getOrCreate(val);
@@ -1426,28 +1410,28 @@
   // DELETE CONFIRMATION
   // ============================================================
   window.confirmDelete = function(month) {
-    var container = document.getElementById('modalContainer');
+    var container = document.getElementById("modalContainer");
     container.innerHTML = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">' +
       '<div class="modal-box">' +
-      '<h3>Delete Record</h3>' +
-      '<p>Are you sure you want to delete the record for <strong>' + month + '</strong>? This cannot be undone.</p>' +
+      "<h3>Delete Record</h3>" +
+      "<p>Are you sure you want to delete the record for <strong>" + month + "</strong>? This cannot be undone.</p>" +
       '<div class="modal-buttons">' +
       '<button class="modal-btn" onclick="closeModal()">Cancel</button>' +
-      '<button class="modal-btn danger" onclick="deleteRecord(\'' + month + '\')">Delete</button>' +
-      '</div>' +
-      '</div>' +
-      '</div>';
+      '<button class="modal-btn danger" onclick="deleteRecord(\'' + month + "')\">" + "Delete</button>" +
+      "</div>" +
+      "</div>" +
+      "</div>";
   };
 
   window.deleteRecord = function(month) {
     delete store[month];
-    if (selectedMonth === month) selectedMonth = '';
+    if (selectedMonth === month) { selectedMonth = ""; }
     closeModal();
     refreshUI();
   };
 
   window.closeModal = function() {
-    document.getElementById('modalContainer').innerHTML = '';
+    document.getElementById("modalContainer").innerHTML = "";
   };
 
   // ============================================================
@@ -1455,14 +1439,14 @@
   // ============================================================
   window.exportCSV = function() {
     var months = Object.keys(store).sort();
-    if (months.length === 0) return;
+    if (months.length === 0) { return; }
 
-    var headers = ['Month','Status','Actual_Revenue','Actual_Variable','Actual_Labor',
-      'Actual_Fixed','Actual_Debt','Forecast_Revenue','Forecast_Pieces','Desired_Surplus',
-      'Effective_Revenue','Contribution','CM_Ratio','Operating_Breakeven',
-      'Conservative_Breakeven','Target_Revenue','Revenue_Gap'];
+    var headers = ["Month","Status","Actual_Revenue","Actual_Variable","Actual_Labor",
+      "Actual_Fixed","Actual_Debt","Forecast_Revenue","Forecast_Pieces","Desired_Surplus",
+      "Effective_Revenue","Contribution","CM_Ratio","Operating_Breakeven",
+      "Conservative_Breakeven","Target_Revenue","Revenue_Gap"];
 
-    var rows = [headers.join(',')];
+    var rows = [headers.join(",")];
     for (var i = 0; i < months.length; i++) {
       var rec = store[months[i]];
       var calc = calcFields(rec);
@@ -1476,15 +1460,15 @@
         calc.CM_Ratio.toFixed(4), calc.Operating_Breakeven.toFixed(2),
         calc.Conservative_Breakeven.toFixed(2), calc.Target_Revenue.toFixed(2),
         calc.Revenue_Gap.toFixed(2)
-      ].join(','));
+      ].join(","));
     }
 
-    var csv = rows.join('\n');
-    var blob = new Blob([csv], { type: 'text/csv' });
+    var csv = rows.join("\n");
+    var blob = new Blob([csv], { type: "text/csv" });
     var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
+    var a = document.createElement("a");
     a.href = url;
-    a.download = 'Monthly_Financials.csv';
+    a.download = "Monthly_Financials.csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
