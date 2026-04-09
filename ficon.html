@@ -898,7 +898,7 @@
   }
 
   // ============================================================
-  // PROCESS POS REPORT — Whitespace-split, last two tokens only
+  // PROCESS POS REPORT — Normalized whitespace, last two tokens
   // ============================================================
   window.processPOS = function() {
     var raw = document.getElementById("posInput").value;
@@ -912,38 +912,43 @@
     var parsed = 0;
 
     for (var i = 0; i < lines.length; i++) {
+      // a. Trim whitespace
       var line = lines[i].trim();
       if (!line) { continue; }
 
-      // Check if line begins with YYYY/MM/DD
-      if (!/^\d{4}\/\d{2}\/\d{2}/.test(line)) { continue; }
+      // b. Check if line starts with 4 digits + "/"  (YYYY/)
+      if (!/^\d{4}\//.test(line)) { continue; }
 
-      // Extract date from first 10 characters
-      var datePart = line.substring(0, 10);
-      var year = datePart.substring(0, 4);
-      var monthNum = datePart.substring(5, 7);
-      var month = year + "-" + monthNum;
+      // c. Normalize whitespace: replace all tabs with single space,
+      //    then collapse multiple spaces into single space
+      var normalized = line.replace(/\t/g, " ").replace(/ +/g, " ");
 
-      // Split entire line by whitespace into tokens
-      var tokens = line.split(/\s+/);
+      // d. Split by single space into tokens
+      var tokens = normalized.split(" ");
+
+      // e. Ensure at least 3 tokens
       if (tokens.length < 3) { continue; }
 
-      // Last token = Total_Amt (decimal)
+      // f. Extract: Date = tokens[0], Total_Pcs = tokens[length-2], Total_Amt = tokens[length-1]
+      var datePart = tokens[0];
+      var rawPcs = tokens[tokens.length - 2].replace(/,/g, "");
       var rawAmt = tokens[tokens.length - 1].replace(/,/g, "");
+
+      // g. Convert: Total_Pcs → integer, Total_Amt → decimal
+      var totalPcs = parseInt(rawPcs, 10);
       var totalAmt = parseFloat(rawAmt);
 
-      // Second-to-last token = Total_Pcs (integer)
-      var rawPcs = tokens[tokens.length - 2].replace(/,/g, "");
-      var totalPcs = parseInt(rawPcs, 10);
-
       // Skip if either value is not a valid number
-      if (isNaN(totalAmt) || isNaN(totalPcs)) { continue; }
+      if (isNaN(totalPcs) || isNaN(totalAmt)) { continue; }
 
+      // h. Convert Date YYYY/MM/DD → YYYY-MM
+      var month = datePart.substring(0, 4) + "-" + datePart.substring(5, 7);
+
+      // i. Add to MonthTotals dictionary
       if (!monthTotals[month]) {
-        monthTotals[month] = { revenue: 0, pieces: 0 };
+        monthTotals[month] = { revenue: 0 };
       }
       monthTotals[month].revenue += totalAmt;
-      monthTotals[month].pieces += totalPcs;
       parsed++;
     }
 
@@ -952,6 +957,7 @@
       return;
     }
 
+    // Update or create Monthly_Financials records
     var months = Object.keys(monthTotals);
     for (var j = 0; j < months.length; j++) {
       var m = months[j];
