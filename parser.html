@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ReportRipper — POS Data Parser</title>
+<title>ReportRipper — Financial Data Normalizer</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 <style>
@@ -16,7 +16,8 @@
   --accent2:#0f766e;--accent2-light:#14b8a6;--accent2-bg:rgba(15,118,110,.06);
   --success:#15803d;--success-bg:rgba(21,128,61,.08);
   --error:#b91c1c;--error-bg:rgba(185,28,28,.08);
-  --warning:#a16207;
+  --warning:#a16207;--warning-bg:rgba(161,98,7,.08);
+  --purple:#7c3aed;--purple-bg:rgba(124,58,237,.06);
   --shadow-sm:0 1px 2px rgba(28,25,23,.06);--shadow-md:0 4px 16px rgba(28,25,23,.08);--shadow-lg:0 8px 32px rgba(28,25,23,.12);
   --radius:12px;--radius-sm:8px;--radius-xs:4px;
   --font-body:'DM Sans',system-ui,sans-serif;
@@ -30,7 +31,8 @@ html.dark{
   --accent2:#2dd4bf;--accent2-light:#5eead4;--accent2-bg:rgba(45,212,191,.08);
   --success:#4ade80;--success-bg:rgba(74,222,128,.1);
   --error:#f87171;--error-bg:rgba(248,113,113,.1);
-  --warning:#fbbf24;
+  --warning:#fbbf24;--warning-bg:rgba(251,191,36,.1);
+  --purple:#a78bfa;--purple-bg:rgba(167,139,250,.1);
   --shadow-sm:0 1px 2px rgba(0,0,0,.2);--shadow-md:0 4px 16px rgba(0,0,0,.3);--shadow-lg:0 8px 32px rgba(0,0,0,.4);
 }
 html{font-family:var(--font-body);font-size:16px;line-height:1.55;background:var(--bg-base);color:var(--text-primary)}
@@ -42,13 +44,13 @@ body{min-height:100vh;overflow-x:hidden}
   padding:16px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;
   box-shadow:var(--shadow-sm);
 }
-.app-logo{display:flex;align-items:baseline;gap:4px}
+.app-logo{display:flex;align-items:baseline;gap:4px;flex-shrink:0}
 .app-logo .mark{
-  font-size:1.4rem;font-weight:700;letter-spacing:-.03em;
+  font-size:1.3rem;font-weight:700;letter-spacing:-.03em;
   color:var(--accent);font-family:var(--font-mono);
 }
 .app-logo .mark span{color:var(--accent2)}
-.app-logo .sub{font-size:.72rem;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;font-weight:500;margin-left:6px}
+.app-logo .sub{font-size:.68rem;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;font-weight:500;margin-left:6px}
 .header-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
 
 /* ── Tabs ── */
@@ -57,13 +59,17 @@ body{min-height:100vh;overflow-x:hidden}
   padding:0 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;
 }
 .tab-btn{
-  padding:14px 20px;font-size:.82rem;font-weight:500;color:var(--text-muted);
+  padding:14px 18px;font-size:.8rem;font-weight:500;color:var(--text-muted);
   border:none;background:none;cursor:pointer;white-space:nowrap;
   border-bottom:3px solid transparent;transition:all .2s;font-family:var(--font-body);
-  letter-spacing:.01em;
+  letter-spacing:.01em;display:flex;align-items:center;gap:6px;
 }
 .tab-btn:hover{color:var(--text-primary)}
 .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tab-btn .tab-count{
+  background:var(--accent-bg);color:var(--accent);font-size:.65rem;font-weight:700;
+  padding:1px 6px;border-radius:10px;font-family:var(--font-mono);
+}
 .tab-panel{display:none;padding:20px;max-width:1100px;margin:0 auto}
 .tab-panel.active{display:block}
 
@@ -82,13 +88,20 @@ body{min-height:100vh;overflow-x:hidden}
 
 /* ── Form Controls ── */
 .textarea-paste{
-  width:100%;min-height:220px;padding:14px;border:2px dashed var(--border);
+  width:100%;min-height:180px;padding:14px;border:2px dashed var(--border);
   border-radius:var(--radius-sm);background:var(--bg-surface-alt);color:var(--text-primary);
   font-family:var(--font-mono);font-size:.8rem;resize:vertical;line-height:1.6;
   transition:border-color .2s,box-shadow .2s;
 }
 .textarea-paste:focus{outline:none;border-color:var(--accent);border-style:solid;box-shadow:0 0 0 3px var(--accent-bg)}
 .textarea-paste::placeholder{color:var(--text-muted);font-style:italic}
+
+.input-field{
+  padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--bg-surface);color:var(--text-primary);font-size:16px;font-family:var(--font-body);
+  transition:border-color .2s,box-shadow .2s;
+}
+.input-field:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
 
 .btn{
   display:inline-flex;align-items:center;gap:7px;padding:10px 20px;border-radius:var(--radius-sm);
@@ -101,6 +114,8 @@ body{min-height:100vh;overflow-x:hidden}
 .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
 .btn-accent2{background:var(--accent2);color:#fff;border-color:var(--accent2)}
 .btn-accent2:hover{opacity:.88;transform:translateY(-1px)}
+.btn-purple{background:var(--purple);color:#fff;border-color:var(--purple)}
+.btn-purple:hover{opacity:.88;transform:translateY(-1px)}
 .btn-sm{padding:7px 14px;font-size:.78rem}
 .btn-xs{padding:4px 10px;font-size:.72rem}
 .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
@@ -117,35 +132,8 @@ body{min-height:100vh;overflow-x:hidden}
 .data-table td{padding:8px 12px;border-bottom:1px solid var(--border-light);white-space:nowrap}
 .data-table tr:hover td{background:var(--accent-bg)}
 .data-table .num{text-align:right;font-family:var(--font-mono);font-size:.78rem;font-weight:500}
-
-/* ── Column Mapping ── */
-.col-map{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:14px}
-.col-map-item{
-  background:var(--bg-surface-alt);border:1px solid var(--border-light);border-radius:var(--radius-sm);
-  padding:12px;transition:border-color .2s;
-}
-.col-map-item:hover{border-color:var(--accent)}
-.col-map-item label{display:block;font-weight:600;margin-bottom:6px;color:var(--text-secondary);font-size:.78rem;letter-spacing:.02em}
-.col-map-item select{
-  width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);
-  background:var(--bg-surface);color:var(--text-primary);font-size:16px;font-family:var(--font-body);
-}
-.col-map-item .preview{font-family:var(--font-mono);font-size:.7rem;color:var(--text-muted);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* ── Export Area ── */
-.export-area{
-  width:100%;min-height:280px;padding:14px;border:1px solid var(--border);
-  border-radius:var(--radius-sm);background:var(--bg-surface-alt);color:var(--text-primary);
-  font-family:var(--font-mono);font-size:.75rem;resize:vertical;white-space:pre;
-  overflow:auto;line-height:1.65;
-}
-
-/* ── Badges ── */
-.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;font-family:var(--font-mono)}
-.badge-success{background:var(--success-bg);color:var(--success)}
-.badge-error{background:var(--error-bg);color:var(--error)}
-.badge-info{background:var(--accent-bg);color:var(--accent)}
-.badge-teal{background:var(--accent2-bg);color:var(--accent2)}
+.data-table .filled{color:var(--success);font-weight:600}
+.data-table .empty{color:var(--text-muted);font-style:italic}
 
 /* ── Info Box ── */
 .info-box{
@@ -155,17 +143,14 @@ body{min-height:100vh;overflow-x:hidden}
 .info-box strong{color:var(--text-primary)}
 .info-box code{font-family:var(--font-mono);font-size:.75rem;background:var(--bg-elevated);padding:1px 5px;border-radius:3px}
 
-/* ── Copy Format Selector ── */
-.format-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px}
-.format-card{
-  background:var(--bg-surface-alt);border:2px solid var(--border);border-radius:var(--radius-sm);
-  padding:14px;cursor:pointer;transition:all .2s;text-align:center;
-}
-.format-card:hover{border-color:var(--accent);transform:translateY(-1px)}
-.format-card.active{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 3px var(--accent-bg)}
-.format-card .format-icon{font-size:1.3rem;margin-bottom:6px;color:var(--accent)}
-.format-card .format-name{font-size:.82rem;font-weight:600;margin-bottom:2px}
-.format-card .format-desc{font-size:.68rem;color:var(--text-muted)}
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;font-family:var(--font-mono)}
+.badge-success{background:var(--success-bg);color:var(--success)}
+.badge-error{background:var(--error-bg);color:var(--error)}
+.badge-info{background:var(--accent-bg);color:var(--accent)}
+.badge-teal{background:var(--accent2-bg);color:var(--accent2)}
+.badge-purple{background:var(--purple-bg);color:var(--purple)}
+.badge-warn{background:var(--warning-bg);color:var(--warning)}
 
 /* ── Stats Row ── */
 .stats-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
@@ -177,7 +162,7 @@ body{min-height:100vh;overflow-x:hidden}
 .stat-pill .stat-label{font-size:.65rem;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
 .stat-pill .stat-value{font-size:1.15rem;font-weight:700;font-family:var(--font-mono);color:var(--accent)}
 
-/* ── Toast Notification ── */
+/* ── Toast ── */
 .toast{
   position:fixed;bottom:24px;right:24px;z-index:200;
   background:var(--bg-surface);border:2px solid var(--success);border-radius:var(--radius);
@@ -191,16 +176,75 @@ body{min-height:100vh;overflow-x:hidden}
 .toast.error{border-color:var(--error)}
 .toast.error .toast-icon{color:var(--error)}
 
+/* ── Import Mode Selector ── */
+.mode-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.mode-card{
+  background:var(--bg-surface-alt);border:2px solid var(--border);border-radius:var(--radius);
+  padding:18px 14px;cursor:pointer;transition:all .2s;text-align:center;
+}
+.mode-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+.mode-card.active{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 3px var(--accent-bg)}
+.mode-card .mode-icon{font-size:1.6rem;margin-bottom:8px}
+.mode-card .mode-name{font-size:.82rem;font-weight:700;margin-bottom:3px}
+.mode-card .mode-desc{font-size:.68rem;color:var(--text-muted);line-height:1.4}
+.mode-card.revenue-mode .mode-icon{color:var(--accent2)}
+.mode-card.expenses-mode .mode-icon{color:var(--accent)}
+.mode-card.labor-mode .mode-icon{color:var(--purple)}
+
+/* ── Import Panels ── */
+.import-panel{display:none}
+.import-panel.active{display:block}
+
+/* ── Category Mapping Table ── */
+.cat-map-wrap{max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:10px}
+.cat-map-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.cat-map-table th{
+  background:var(--bg-elevated);color:var(--text-secondary);font-weight:600;
+  padding:8px 12px;text-align:left;white-space:nowrap;border-bottom:2px solid var(--border);
+  position:sticky;top:0;z-index:2;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;
+}
+.cat-map-table td{padding:7px 12px;border-bottom:1px solid var(--border-light)}
+.cat-map-table select{
+  width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-xs);
+  background:var(--bg-surface);color:var(--text-primary);font-size:16px;font-family:var(--font-body);
+}
+.cat-map-table .amt{text-align:right;font-family:var(--font-mono);font-weight:500}
+
+/* ── Allocation Tools ── */
+.allocation-group{
+  background:var(--bg-surface-alt);border:1px solid var(--border-light);border-radius:var(--radius-sm);
+  padding:16px;margin-top:12px;
+}
+.alloc-option{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.alloc-option:last-child{margin-bottom:0}
+.alloc-option input[type="checkbox"]{width:18px;height:18px;cursor:pointer;accent-color:var(--accent);flex-shrink:0}
+.alloc-option label{font-size:.82rem;color:var(--text-secondary);cursor:pointer;line-height:1.4}
+.alloc-option label strong{color:var(--text-primary)}
+
+/* ── Export Area ── */
+.export-area{
+  width:100%;min-height:240px;padding:14px;border:1px solid var(--border);
+  border-radius:var(--radius-sm);background:var(--bg-surface-alt);color:var(--text-primary);
+  font-family:var(--font-mono);font-size:.75rem;resize:vertical;white-space:pre;
+  overflow:auto;line-height:1.65;
+}
+
+/* ── Select ── */
+.select-styled{
+  padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--bg-surface);color:var(--text-primary);font-size:16px;font-family:var(--font-body);
+}
+
 /* ── Responsive ── */
 @media(max-width:640px){
-  .tab-btn{padding:12px 14px;font-size:.78rem}
+  .tab-btn{padding:12px 12px;font-size:.76rem}
   .card{padding:16px}
-  .col-map{grid-template-columns:1fr}
-  .format-grid{grid-template-columns:1fr 1fr}
+  .mode-grid{grid-template-columns:1fr}
   .stats-row{gap:8px}
   .stat-pill{min-width:70px;padding:8px 12px}
   .app-logo .sub{display:none}
   .header-actions .btn span.btn-text{display:none}
+  .app-header{padding:12px 16px}
 }
 
 /* ── Animations ── */
@@ -209,21 +253,17 @@ body{min-height:100vh;overflow-x:hidden}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .parsing-indicator{animation:pulse 1s ease-in-out infinite;color:var(--accent);font-weight:600;font-size:.82rem}
 
-/* ── Checkbox ── */
-.checkbox-label{display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--text-secondary);cursor:pointer;user-select:none}
-.checkbox-label input[type="checkbox"]{width:18px;height:18px;cursor:pointer;accent-color:var(--accent)}
-
-/* ── Select ── */
-.select-styled{
-  padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
-  background:var(--bg-surface);color:var(--text-primary);font-size:16px;font-family:var(--font-body);
-}
-
 /* ── Scrollbar ── */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:var(--bg-base)}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+
+/* ── Filled indicator dot ── */
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.dot-filled{background:var(--success)}
+.dot-empty{background:var(--text-muted);opacity:.4}
+.dot-partial{background:var(--warning)}
 </style>
 </head>
 <body>
@@ -232,149 +272,197 @@ body{min-height:100vh;overflow-x:hidden}
 <header class="app-header">
   <div class="app-logo">
     <div class="mark">Report<span>Ripper</span></div>
-    <div class="sub">POS Data Parser</div>
+    <div class="sub">Financial Data Normalizer</div>
   </div>
   <div class="header-actions">
-    <button class="btn btn-secondary btn-sm" id="sampleBtn"><i class="fa-solid fa-flask"></i> <span class="btn-text">Sample Data</span></button>
-    <button class="btn btn-secondary btn-sm" id="clearAllBtn"><i class="fa-solid fa-trash-can"></i> <span class="btn-text">Clear</span></button>
+    <button class="btn btn-secondary btn-sm" id="clearAllBtn" title="Reset all data"><i class="fa-solid fa-trash-can"></i> <span class="btn-text">Reset</span></button>
   </div>
 </header>
 
 <!-- TAB BAR -->
 <nav class="tab-bar" role="tablist">
-  <button class="tab-btn active" data-tab="paste" role="tab"><i class="fa-solid fa-paste"></i> Paste</button>
-  <button class="tab-btn" data-tab="preview" role="tab"><i class="fa-solid fa-table"></i> Preview</button>
-  <button class="tab-btn" data-tab="export" role="tab"><i class="fa-solid fa-copy"></i> Copy Out</button>
+  <button class="tab-btn active" data-tab="import" role="tab"><i class="fa-solid fa-file-import"></i> Import</button>
+  <button class="tab-btn" data-tab="dashboard" role="tab"><i class="fa-solid fa-table-cells"></i> Dashboard <span class="tab-count" id="monthCount">0</span></button>
+  <button class="tab-btn" data-tab="export" role="tab"><i class="fa-solid fa-file-export"></i> Export</button>
 </nav>
 
-<!-- ═══════════ TAB: PASTE ═══════════ -->
-<section id="tab-paste" class="tab-panel active">
-  <div class="card animate-in">
-    <div class="card-title"><span class="icon"><i class="fa-solid fa-clipboard"></i></span> Paste Your Report</div>
-    <div class="info-box">
-      Paste your <strong>Sales Report By Category</strong> directly from your POS system. The multi-page format (left page with Drop/Dry/Laundry, middle with Alter/Press, right with Totals) is <strong>auto-detected</strong>.
-      <br><br>
-      Also supports <strong>generic</strong> tab-separated and CSV formats with manual column mapping.
-    </div>
-    <textarea id="pasteArea" class="textarea-paste" placeholder="Paste your POS report data here...&#10;&#10;Supports:&#10;  • Sales Report By Category (multi-page POS format)&#10;  • Tab-separated data&#10;  • CSV data&#10;  • Pipe or semicolon delimited"></textarea>
-    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-primary" id="parseBtn"><i class="fa-solid fa-bolt"></i> Parse Report</button>
-      <label class="checkbox-label" style="margin-left:auto">
-        <input type="checkbox" id="includeLastDate"> Include last date (partial day)
-      </label>
-    </div>
-    <div id="parseStatus" style="margin-top:10px;font-size:.82rem;color:var(--text-muted)"></div>
+<!-- ═══════════ TAB: IMPORT ═══════════ -->
+<section id="tab-import" class="tab-panel active">
+
+  <!-- Subtitle -->
+  <div style="text-align:center;margin-bottom:18px" class="animate-in">
+    <div style="font-size:.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;font-weight:500">Revenue + Expenses + Labor &rarr; Monthly Dataset</div>
   </div>
 
-  <!-- Column Mapping (for generic formats) -->
-  <div id="mappingCard" class="card" style="display:none">
-    <div class="card-title"><span class="icon"><i class="fa-solid fa-arrows-left-right"></i></span> Column Mapping</div>
-    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:8px">Assign each column a role. Pick one <strong>Date</strong> column and classify the rest as Pieces, Revenue, or Skip.</p>
-    <div id="colMappings" class="col-map"></div>
-    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-primary" id="loadDataBtn"><i class="fa-solid fa-check"></i> Load Data</button>
-      <span id="mappingStatus" style="font-size:.8rem;color:var(--text-muted)"></span>
+  <!-- Mode Selector -->
+  <div class="mode-grid animate-in">
+    <div class="mode-card revenue-mode active" data-mode="revenue">
+      <div class="mode-icon"><i class="fa-solid fa-chart-line"></i></div>
+      <div class="mode-name">Revenue</div>
+      <div class="mode-desc">PieceCast Monthly CSV</div>
+    </div>
+    <div class="mode-card expenses-mode" data-mode="expenses">
+      <div class="mode-icon"><i class="fa-solid fa-receipt"></i></div>
+      <div class="mode-name">Wave Expenses</div>
+      <div class="mode-desc">Wave Accounting CSV</div>
+    </div>
+    <div class="mode-card labor-mode" data-mode="labor">
+      <div class="mode-icon"><i class="fa-solid fa-user-clock"></i></div>
+      <div class="mode-name">Employee Hours</div>
+      <div class="mode-desc">Date, Employee, Hours CSV</div>
     </div>
   </div>
+
+  <!-- ── REVENUE IMPORT ── -->
+  <div id="panel-revenue" class="import-panel active">
+    <div class="card animate-in">
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-chart-line" style="color:var(--accent2)"></i></span> Import Revenue (PieceCast Monthly CSV)</div>
+      <div class="info-box">
+        Paste monthly revenue data from PieceCast. Expected format:<br>
+        <code>Month,Actual_Revenue</code><br>
+        <code>2025-03,39489.30</code><br>
+        <code>2025-04,41200.00</code><br><br>
+        Each row stores as <strong>NORMALIZED[month].revenue</strong>.
+      </div>
+      <textarea id="revenueArea" class="textarea-paste" placeholder="Month,Actual_Revenue&#10;2025-01,35000.00&#10;2025-02,37500.00&#10;2025-03,39489.30"></textarea>
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-accent2" id="importRevenueBtn"><i class="fa-solid fa-bolt"></i> Import Revenue</button>
+        <button class="btn btn-secondary btn-sm" id="sampleRevenueBtn"><i class="fa-solid fa-flask"></i> Sample</button>
+        <span id="revenueStatus" style="margin-left:auto;font-size:.82rem;color:var(--text-muted)"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── WAVE EXPENSES IMPORT ── -->
+  <div id="panel-expenses" class="import-panel">
+    <div class="card animate-in">
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-receipt" style="color:var(--accent)"></i></span> Import Wave Expenses CSV</div>
+      <div class="info-box">
+        Paste your Wave accounting export CSV. Expects columns including <strong>Transaction Date</strong>, <strong>Category</strong>, and <strong>Amount</strong>.<br><br>
+        Dates are converted to <strong>YYYY-MM</strong>. You map each category to <strong>Variable</strong>, <strong>Fixed</strong>, <strong>Debt</strong>, or <strong>Skip</strong> below.
+      </div>
+      <textarea id="expensesArea" class="textarea-paste" placeholder="Transaction Date,Category,Description,Amount&#10;01/15/2025,Supplies,Cleaning chemicals,245.00&#10;01/15/2025,Rent,Monthly lease,3500.00&#10;01/20/2025,Loan Payment,SBA loan,1200.00"></textarea>
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" id="parseExpensesBtn"><i class="fa-solid fa-magnifying-glass"></i> Detect Categories</button>
+        <button class="btn btn-secondary btn-sm" id="sampleExpensesBtn"><i class="fa-solid fa-flask"></i> Sample</button>
+        <span id="expenseParseStatus" style="margin-left:auto;font-size:.82rem;color:var(--text-muted)"></span>
+      </div>
+    </div>
+
+    <!-- Category Mapping Card (shown after parse) -->
+    <div id="catMappingCard" class="card" style="display:none">
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-tags"></i></span> Map Categories
+        <span class="badge badge-info" id="catCountBadge" style="margin-left:auto"></span>
+      </div>
+      <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:8px">Assign each Wave category to <strong>Variable</strong>, <strong>Fixed</strong>, <strong>Debt</strong>, or <strong>Skip</strong>.</p>
+      <div class="cat-map-wrap">
+        <table class="cat-map-table" id="catMapTable">
+          <thead><tr><th>Category</th><th style="width:100px;text-align:right">Total</th><th style="width:140px">Mapping</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" id="importExpensesBtn"><i class="fa-solid fa-check"></i> Import Expenses</button>
+        <span id="expenseImportStatus" style="font-size:.82rem;color:var(--text-muted)"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LABOR IMPORT ── -->
+  <div id="panel-labor" class="import-panel">
+    <div class="card animate-in">
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-user-clock" style="color:var(--purple)"></i></span> Import Employee Hours</div>
+      <div class="info-box">
+        Paste employee hours data. Expected format:<br>
+        <code>Date,Employee,Hours</code><br>
+        <code>2025-01-05,Maria,8.5</code><br>
+        <code>2025-01-05,James,7.0</code><br><br>
+        Enter an <strong>hourly rate</strong> below. Monthly labor = <strong>total_hours &times; rate</strong>, stored as <strong>NORMALIZED[month].labor</strong>.
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+        <label style="font-size:.82rem;font-weight:600;color:var(--text-secondary)">Hourly Rate ($):</label>
+        <input type="number" id="hourlyRate" class="input-field" style="width:120px" value="15.00" step="0.25" min="0">
+      </div>
+      <textarea id="laborArea" class="textarea-paste" placeholder="Date,Employee,Hours&#10;2025-01-05,Maria,8.5&#10;2025-01-05,James,7.0&#10;2025-01-06,Maria,8.0"></textarea>
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-purple" id="importLaborBtn"><i class="fa-solid fa-bolt"></i> Import Labor</button>
+        <button class="btn btn-secondary btn-sm" id="sampleLaborBtn"><i class="fa-solid fa-flask"></i> Sample</button>
+        <span id="laborStatus" style="margin-left:auto;font-size:.82rem;color:var(--text-muted)"></span>
+      </div>
+    </div>
+  </div>
+
 </section>
 
-<!-- ═══════════ TAB: PREVIEW ═══════════ -->
-<section id="tab-preview" class="tab-panel">
-  <div id="noDataPreview" class="card">
-    <p style="text-align:center;color:var(--text-muted);padding:40px 0;font-size:.9rem"><i class="fa-solid fa-clipboard-question" style="font-size:2rem;display:block;margin-bottom:12px;opacity:.4"></i>Paste and parse a report first to see the data here.</p>
+<!-- ═══════════ TAB: DASHBOARD ═══════════ -->
+<section id="tab-dashboard" class="tab-panel">
+  <div id="noDashData" class="card">
+    <p style="text-align:center;color:var(--text-muted);padding:40px 0;font-size:.9rem"><i class="fa-solid fa-inbox" style="font-size:2rem;display:block;margin-bottom:12px;opacity:.4"></i>No data imported yet. Use the Import tab to load Revenue, Expenses, and Labor data.</p>
   </div>
 
-  <div id="previewContent" style="display:none">
+  <div id="dashContent" style="display:none">
     <!-- Stats -->
-    <div class="stats-row animate-in" id="statsRow"></div>
+    <div class="stats-row animate-in" id="dashStats"></div>
 
-    <!-- Data Table -->
+    <!-- Normalized Data Table -->
     <div class="card animate-in">
       <div class="card-title">
-        <span class="icon"><i class="fa-solid fa-table-cells"></i></span> Parsed Data
-        <span id="dataStats" class="badge badge-info" style="margin-left:auto"></span>
-      </div>
-      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-        <label style="font-size:.82rem;font-weight:500;color:var(--text-secondary)">Show:</label>
-        <select id="viewFilter" class="select-styled" style="font-size:.82rem">
-          <option value="all">All Columns</option>
-          <option value="pieces">Pieces Only</option>
-          <option value="revenue">Revenue Only</option>
-        </select>
-        <label style="font-size:.82rem;font-weight:500;color:var(--text-secondary);margin-left:auto">Rows:</label>
-        <select id="rowLimit" class="select-styled" style="font-size:.82rem">
-          <option value="50">First 50</option>
-          <option value="100">First 100</option>
-          <option value="all" selected>All</option>
-        </select>
+        <span class="icon"><i class="fa-solid fa-table-cells"></i></span> NORMALIZED Monthly Data
+        <span id="dashDataBadge" class="badge badge-info" style="margin-left:auto"></span>
       </div>
       <div class="table-wrap" style="max-height:60vh;overflow-y:auto">
-        <table class="data-table" id="previewTable"><thead></thead><tbody></tbody></table>
+        <table class="data-table" id="dashTable"><thead></thead><tbody></tbody></table>
       </div>
+    </div>
+
+    <!-- Source breakdown -->
+    <div class="card animate-in">
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-layer-group"></i></span> Import Status</div>
+      <div id="importStatusGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px"></div>
     </div>
   </div>
 </section>
 
-<!-- ═══════════ TAB: COPY OUT ═══════════ -->
+<!-- ═══════════ TAB: EXPORT ═══════════ -->
 <section id="tab-export" class="tab-panel">
-  <div id="noDataExport" class="card">
-    <p style="text-align:center;color:var(--text-muted);padding:40px 0;font-size:.9rem"><i class="fa-solid fa-clipboard-question" style="font-size:2rem;display:block;margin-bottom:12px;opacity:.4"></i>Parse a report first, then copy the data out here.</p>
+  <div id="noExportData" class="card">
+    <p style="text-align:center;color:var(--text-muted);padding:40px 0;font-size:.9rem"><i class="fa-solid fa-inbox" style="font-size:2rem;display:block;margin-bottom:12px;opacity:.4"></i>Import data first, then export your normalized dataset here.</p>
   </div>
 
   <div id="exportContent" style="display:none">
-    <!-- Format selector -->
+
+    <!-- Allocation Tools -->
     <div class="card animate-in">
-      <div class="card-title"><span class="icon"><i class="fa-solid fa-file-export"></i></span> Choose Format</div>
-      <div class="format-grid" id="formatGrid">
-        <div class="format-card active" data-format="piececast">
-          <div class="format-icon"><i class="fa-solid fa-chart-line"></i></div>
-          <div class="format-name">PieceCast</div>
-          <div class="format-desc">Tab-separated for PieceCast import</div>
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-sliders"></i></span> Allocation Tools <span class="badge badge-warn" style="margin-left:auto">Optional</span></div>
+      <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:10px">Adjust how annual totals are distributed across months before exporting.</p>
+      <div class="allocation-group">
+        <div class="alloc-option">
+          <input type="checkbox" id="allocExpenses">
+          <label for="allocExpenses"><strong>Spread annual expenses evenly</strong> &mdash; divides each year&rsquo;s total Variable, Fixed, and Debt equally across 12 months</label>
         </div>
-        <div class="format-card" data-format="tab-all">
-          <div class="format-icon"><i class="fa-solid fa-table-columns"></i></div>
-          <div class="format-name">Full Tab-Sep</div>
-          <div class="format-desc">All columns, tab-delimited</div>
+        <div class="alloc-option">
+          <input type="checkbox" id="allocLabor">
+          <label for="allocLabor"><strong>Spread annual labor evenly</strong> &mdash; divides each year&rsquo;s total labor cost equally across 12 months</label>
         </div>
-        <div class="format-card" data-format="csv">
-          <div class="format-icon"><i class="fa-solid fa-file-csv"></i></div>
-          <div class="format-name">CSV</div>
-          <div class="format-desc">Comma-separated values</div>
-        </div>
-        <div class="format-card" data-format="pieces-only">
-          <div class="format-icon"><i class="fa-solid fa-cubes"></i></div>
-          <div class="format-name">Pieces Only</div>
-          <div class="format-desc">Date + piece counts only</div>
-        </div>
-        <div class="format-card" data-format="revenue-only">
-          <div class="format-icon"><i class="fa-solid fa-dollar-sign"></i></div>
-          <div class="format-name">Revenue Only</div>
-          <div class="format-desc">Date + revenue columns only</div>
-        </div>
-        <div class="format-card" data-format="summary">
-          <div class="format-icon"><i class="fa-solid fa-chart-pie"></i></div>
-          <div class="format-name">Daily Summary</div>
-          <div class="format-desc">Date + DOW + total pieces/rev</div>
+        <div class="alloc-option">
+          <input type="checkbox" id="allocProRate">
+          <label for="allocProRate"><strong>Pro-rate by revenue</strong> &mdash; distributes annual totals proportionally to each month&rsquo;s share of annual revenue</label>
         </div>
       </div>
     </div>
 
-    <!-- Date Range Filter -->
+    <!-- Export for FCE -->
     <div class="card animate-in">
-      <div class="card-title"><span class="icon"><i class="fa-solid fa-calendar-days"></i></span> Date Range <span class="badge badge-teal" id="dateRangeBadge" style="margin-left:auto"></span></div>
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <label style="font-size:.82rem;font-weight:500">From:</label>
-        <input type="date" id="exportStartDate" class="select-styled" style="font-size:16px;width:160px">
-        <label style="font-size:.82rem;font-weight:500">To:</label>
-        <input type="date" id="exportEndDate" class="select-styled" style="font-size:16px;width:160px">
-        <button class="btn btn-secondary btn-sm" id="resetDatesBtn"><i class="fa-solid fa-rotate-left"></i> All</button>
-        <button class="btn btn-primary" id="copyExportBtn" style="margin-left:auto"><i class="fa-solid fa-copy"></i> Copy to Clipboard</button>
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-file-csv"></i></span> Export for FCE</div>
+      <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:12px">
+        Generates: <code>Month,Actual_Revenue,Actual_Variable,Actual_Labor,Actual_Fixed,Actual_Debt</code>
+      </p>
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" id="generateExportBtn"><i class="fa-solid fa-gear"></i> Generate Export</button>
+        <button class="btn btn-accent2" id="copyExportBtn"><i class="fa-solid fa-copy"></i> Copy to Clipboard</button>
+        <button class="btn btn-secondary btn-sm" id="downloadExportBtn"><i class="fa-solid fa-download"></i> Download CSV</button>
+        <span id="exportRowCount" class="badge badge-info" style="margin-left:auto"></span>
       </div>
-    </div>
-
-    <!-- Output Preview -->
-    <div class="card animate-in">
-      <div class="card-title"><span class="icon"><i class="fa-solid fa-eye"></i></span> Output Preview <span id="exportRowCount" class="badge badge-info" style="margin-left:auto"></span></div>
       <pre class="export-area" id="exportArea"></pre>
     </div>
   </div>
@@ -388,22 +476,24 @@ body{min-height:100vh;overflow-x:hidden}
 
 <script>
 /* ════════════════════════════════════════════════════════════════════
-   STATE
+   NORMALIZED STORE
    ════════════════════════════════════════════════════════════════════ */
-var STATE = {
-  raw: { headers: [], rows: [] },
-  mappings: { dateCol: -1, columns: [] },
-  series: {
-    dates: [],
-    categories: {},
-    totalPieces: [],
-    totalRevenue: []
-  },
-  dataLoaded: false,
-  exportFormat: 'piececast'
-};
+var NORMALIZED = {};
+/* Structure per month key "YYYY-MM":
+   { revenue: Number|null, variable: Number|null, labor: Number|null,
+     fixed: Number|null, debt: Number|null }
+*/
 
-var DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+/* Track what has been imported */
+var IMPORT_STATE = {
+  revenueMonths: 0,
+  expenseMonths: 0,
+  laborMonths: 0,
+  hourlyRate: 15.00,
+  waveRawRows: [],
+  waveCategoryMap: {},
+  waveCategorySums: {}
+};
 
 /* ════════════════════════════════════════════════════════════════════
    DARK MODE
@@ -425,14 +515,6 @@ function escHtml(s) {
   return div.innerHTML;
 }
 
-function formatDateISO(d) {
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
-
-function formatDateShort(d) {
-  return (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
-}
-
 function showToast(msg, type) {
   var toast = document.getElementById('toast');
   var icon = toast.querySelector('.toast-icon i');
@@ -440,811 +522,721 @@ function showToast(msg, type) {
   toast.className = 'toast' + (type === 'error' ? ' error' : '');
   icon.className = type === 'error' ? 'fa-solid fa-circle-xmark' : 'fa-solid fa-circle-check';
   toast.classList.add('show');
-  setTimeout(function() { toast.classList.remove('show'); }, 2500);
+  setTimeout(function() { toast.classList.remove('show'); }, 2800);
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   DATA PARSING (extracted from PieceCast)
-   ════════════════════════════════════════════════════════════════════ */
-
-function detectDelimiter(text) {
-  var lines = text.trim().split('\n').slice(0, 8);
-  var delims = ['\t', ',', '|', ';'];
-  var best = '\t', bestScore = 0;
-  for (var di = 0; di < delims.length; di++) {
-    var d = delims[di];
-    var counts = lines.map(function(l) { return l.split(d).length; });
-    var mn = Math.min.apply(null, counts);
-    var mx = Math.max.apply(null, counts);
-    if (mn > 1 && mx - mn <= 2) {
-      var avg = counts.reduce(function(a,b){return a+b;}, 0) / counts.length;
-      if (avg > bestScore) { bestScore = avg; best = d; }
-    }
+function ensureMonth(key) {
+  if (!NORMALIZED[key]) {
+    NORMALIZED[key] = { revenue: null, variable: null, labor: null, fixed: null, debt: null };
   }
-  return best;
+}
+
+function formatMoney(v) {
+  if (v == null) return '\u2014';
+  return '$' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function formatMoneyShort(v) {
+  if (v == null) return '\u2014';
+  if (Math.abs(v) >= 1000) return '$' + (v / 1000).toFixed(1) + 'k';
+  return '$' + v.toFixed(0);
 }
 
 function parseDate(s) {
   if (!s) return null;
   s = s.trim();
-  var m, d, y;
   var iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-  if (iso) {
-    y = Number(iso[1]); m = Number(iso[2]); d = Number(iso[3]);
-    return new Date(y, m-1, d);
-  }
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
   var us = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
   if (us) {
-    m = Number(us[1]); d = Number(us[2]); y = Number(us[3]);
+    var y = Number(us[3]);
     if (y < 100) y += 2000;
-    return new Date(y, m-1, d);
-  }
-  var posSlash = s.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
-  if (posSlash) {
-    y = Number(posSlash[1]); m = Number(posSlash[2]); d = Number(posSlash[3]);
-    return new Date(y, m-1, d);
+    return new Date(y, Number(us[1]) - 1, Number(us[2]));
   }
   var obj = new Date(s);
   if (!isNaN(obj.getTime()) && obj.getFullYear() > 1900 && obj.getFullYear() < 2100) return obj;
   return null;
 }
 
+function dateToMonth(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
 function parseNumeric(s) {
   if (s == null || s === '') return NaN;
-  s = String(s).trim().replace(/[$,]/g, '');
+  s = String(s).trim().replace(/[$,()]/g, '');
   if (s === '' || s === '-') return NaN;
   return parseFloat(s);
 }
 
-function parseRawData(text) {
-  var delim = detectDelimiter(text);
-  var lines = text.trim().split('\n').filter(function(l) { return l.trim().length > 0; });
-  if (lines.length < 2) return null;
-
-  var headerIdx = 0;
-  for (var i = 0; i < Math.min(5, lines.length); i++) {
-    var cells = lines[i].split(delim).map(function(c) { return c.trim(); });
-    if (cells.filter(function(c) { return c.length > 0; }).length >= 2) { headerIdx = i; break; }
-  }
-
-  var headers = lines[headerIdx].split(delim).map(function(c) { return c.trim(); });
-  var rows = [];
-  for (var j = headerIdx + 1; j < lines.length; j++) {
-    var rowCells = lines[j].split(delim).map(function(c) { return c.trim(); });
-    if (rowCells.filter(function(c) { return c.length > 0; }).length >= 2) rows.push(rowCells);
-  }
-
-  return { headers: headers, rows: rows };
-}
-
-/* ── POS "Sales Report By Category" format ── */
-function isPOSReport(text) {
-  return text.indexOf('Sales Report By Category') >= 0 && text.indexOf('Drop') >= 0;
-}
-
-function isReportHeaderLine(line) {
-  if (line === '') return true;
-  if (line.indexOf('Sales Report') >= 0) return true;
-  if (/^\d{4}\/\d{2}\s*~/.test(line)) return true;
-  if (/^\d{4}\.\d{2}\.\d{2}$/.test(line)) return true;
-  if (line.indexOf('Drop') >= 0 && line.indexOf('Dry') >= 0) return true;
-  if (line.indexOf('Alter Pcs') >= 0 || line.indexOf('Alter Amt') >= 0) return true;
-  if (line.indexOf('Press Pcs') >= 0 || line.indexOf('Press Amt') >= 0) return true;
-  if (line.indexOf('Total Pcs') >= 0 || line.indexOf('Total Amt') >= 0) return true;
-  if (line.indexOf('DC Amt') >= 0) return true;
-  if (line.indexOf('Laund Amt') >= 0 && line.indexOf('Alter') >= 0) return true;
-  return false;
-}
-
-function parsePOSReport(text) {
-  var lines = text.split('\n');
-
-  var sections = [];
-  var current = [];
-  for (var li = 0; li < lines.length; li++) {
-    if (lines[li].indexOf('Sales Report By Category') >= 0) {
-      if (current.length > 0) sections.push(current);
-      current = [lines[li]];
-    } else {
-      current.push(lines[li]);
+function detectDelimiter(text) {
+  var lines = text.trim().split('\n').slice(0, 8);
+  var delims = ['\t', ',', '|', ';'];
+  var best = ',';
+  var bestScore = 0;
+  for (var di = 0; di < delims.length; di++) {
+    var d = delims[di];
+    var counts = lines.map(function(l) { return l.split(d).length; });
+    var mn = Math.min.apply(null, counts);
+    var mx = Math.max.apply(null, counts);
+    if (mn > 1 && mx - mn <= 2) {
+      var avg = counts.reduce(function(a, b) { return a + b; }, 0) / counts.length;
+      if (avg > bestScore) { bestScore = avg; best = d; }
     }
   }
-  if (current.length > 0) sections.push(current);
+  return best;
+}
 
-  var leftRows = [];
-  var middleRows = [];
-  var rightRows = [];
-
-  for (var si = 0; si < sections.length; si++) {
-    var section = sections[si];
-    var sectionType = null;
-    for (var sl = 0; sl < section.length; sl++) {
-      var t = section[sl].trim();
-      if (t.indexOf('Drop') >= 0 && t.indexOf('Dry') >= 0) { sectionType = 'left'; break; }
-      if (t.indexOf('Alter Pcs') >= 0 || t.indexOf('Alter Amt') >= 0) { sectionType = 'middle'; break; }
-      if (t.indexOf('Total Pcs') >= 0 || t.indexOf('DC Amt') >= 0) { sectionType = 'right'; break; }
-    }
-    if (!sectionType) continue;
-
-    for (var ri = 0; ri < section.length; ri++) {
-      var trimmed = section[ri].trim();
-      if (isReportHeaderLine(trimmed)) continue;
-      var cells = trimmed.split(/\s{2,}/).filter(function(c) { return c.length > 0; });
-      if (cells.length < 2) continue;
-
-      if (sectionType === 'left') {
-        if (/^\d{4}\//.test(cells[0])) leftRows.push(cells);
-      } else if (sectionType === 'middle') {
-        if (/^-?[\d.]/.test(cells[0])) middleRows.push(cells);
+function parseCSVLine(line, delim) {
+  var result = [];
+  var current = '';
+  var inQuotes = false;
+  for (var i = 0; i < line.length; i++) {
+    var c = line[i];
+    if (inQuotes) {
+      if (c === '"' && i + 1 < line.length && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (c === '"') {
+        inQuotes = false;
       } else {
-        if (/^-?[\d.]/.test(cells[0])) rightRows.push(cells);
+        current += c;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === delim) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += c;
       }
     }
   }
-
-  var headers = ['Date', 'Dry Pcs', 'Dry Amt', 'Laund Pcs', 'Laund Amt',
-    'Alter Pcs', 'Alter Amt', 'Press Pcs', 'Press Amt', 'DC Amt', 'Total Pcs', 'Total Amt'];
-
-  var rows = [];
-  for (var rj = 0; rj < leftRows.length; rj++) {
-    var left = leftRows[rj];
-    var middle = rj < middleRows.length ? middleRows[rj] : [];
-    var right = rj < rightRows.length ? rightRows[rj] : [];
-    rows.push(left.concat(middle).concat(right));
-  }
-
-  var includeLastCb = document.getElementById('includeLastDate');
-  var keepLastDate = includeLastCb && includeLastCb.checked;
-  if (rows.length > 0 && !keepLastDate) {
-    var lastDateVal = rows[rows.length - 1][0];
-    for (var rd = rows.length - 1; rd >= 0; rd--) {
-      if (rows[rd][0] === lastDateVal) rows.splice(rd, 1);
-    }
-  }
-
-  var mappings = {
-    dateCol: 0,
-    columns: [
-      { index: 0, type: 'date', name: 'Date' },
-      { index: 1, type: 'pieces', name: 'Dry Cleaning' },
-      { index: 2, type: 'revenue', name: 'Dry Cleaning' },
-      { index: 3, type: 'pieces', name: 'Laundry' },
-      { index: 4, type: 'revenue', name: 'Laundry' },
-      { index: 5, type: 'pieces', name: 'Alterations' },
-      { index: 6, type: 'revenue', name: 'Alterations' },
-      { index: 7, type: 'pieces', name: 'Press' },
-      { index: 8, type: 'revenue', name: 'Press' },
-      { index: 9, type: 'skip', name: 'DC Amt' },
-      { index: 10, type: 'skip', name: 'Total Pcs' },
-      { index: 11, type: 'skip', name: 'Total Amt' }
-    ]
-  };
-
-  return { headers: headers, rows: rows, mappings: mappings };
+  result.push(current.trim());
+  return result;
 }
 
-function autoDetectColumns(headers, rows) {
-  var mappings = [];
-  var dateCol = -1;
-  var sample = rows.slice(0, Math.min(5, rows.length));
-
-  for (var i = 0; i < headers.length; i++) {
-    var vals = sample.map(function(r) { return r[i] || ''; });
-    var dateParsed = vals.filter(function(v) { return parseDate(v) !== null; }).length;
-    var hLow = headers[i].toLowerCase();
-
-    if (dateCol === -1 && (dateParsed >= vals.length * 0.6 || hLow.indexOf('date') >= 0)) {
-      dateCol = i;
-      mappings.push({ index: i, type: 'date', name: headers[i] });
-    } else if (hLow.indexOf('rev') >= 0 || hLow.indexOf('$') >= 0 || hLow.indexOf('sales') >= 0 ||
-               hLow.indexOf('amount') >= 0 || hLow.indexOf('dollar') >= 0 || hLow.indexOf('amt') >= 0) {
-      mappings.push({ index: i, type: 'revenue', name: headers[i].replace(/[$]/g, '').trim() });
-    } else {
-      var numParsed = vals.filter(function(v) { return !isNaN(parseNumeric(v)); }).length;
-      if (numParsed >= vals.length * 0.5) {
-        mappings.push({ index: i, type: 'pieces', name: headers[i] });
-      } else {
-        mappings.push({ index: i, type: 'skip', name: headers[i] });
-      }
-    }
-  }
-
-  return { dateCol: dateCol, columns: mappings };
+function getMonthsSorted() {
+  return Object.keys(NORMALIZED).sort();
 }
 
-function processData() {
-  var dateCol = STATE.mappings.dateCol;
-  var columns = STATE.mappings.columns;
-  if (dateCol < 0) return false;
-
-  var dates = [], categories = {};
-  var pieceCols = columns.filter(function(c) { return c.type === 'pieces'; });
-  var revCols = columns.filter(function(c) { return c.type === 'revenue'; });
-
-  pieceCols.forEach(function(c) { categories[c.name] = { pieces: [], revenue: [] }; });
-  revCols.forEach(function(c) {
-    if (!categories[c.name]) categories[c.name] = { pieces: [], revenue: [] };
-  });
-
-  var dateMap = {};
-  for (var ri = 0; ri < STATE.raw.rows.length; ri++) {
-    var row = STATE.raw.rows[ri];
-    var d = parseDate(row[dateCol]);
-    if (!d) continue;
-    var key = d.toISOString().slice(0, 10);
-    if (dateMap[key]) continue;
-    dateMap[key] = true;
-
-    dates.push(d);
-
-    pieceCols.forEach(function(c) {
-      var v = parseNumeric(row[c.index]);
-      categories[c.name].pieces.push(isNaN(v) ? 0 : v);
-    });
-    revCols.forEach(function(c) {
-      var v = parseNumeric(row[c.index]);
-      if (categories[c.name]) categories[c.name].revenue.push(isNaN(v) ? 0 : v);
-    });
-  }
-
-  // Sort by date
-  var indices = dates.map(function(_, i) { return i; }).sort(function(a, b) { return dates[a] - dates[b]; });
-  STATE.series.dates = indices.map(function(i) { return dates[i]; });
-
-  var sortedCats = {};
-  for (var name in categories) {
-    if (!categories.hasOwnProperty(name)) continue;
-    sortedCats[name] = {
-      pieces: indices.map(function(i) { return categories[name].pieces[i] || 0; }),
-      revenue: indices.map(function(i) { return categories[name].revenue[i] || 0; })
-    };
-  }
-
-  // Merge Press into Dry Cleaning
-  if (sortedCats['Press'] && sortedCats['Dry Cleaning']) {
-    var nMerge = sortedCats['Dry Cleaning'].pieces.length;
-    for (var mi = 0; mi < nMerge; mi++) {
-      sortedCats['Dry Cleaning'].pieces[mi] += sortedCats['Press'].pieces[mi] || 0;
-      sortedCats['Dry Cleaning'].revenue[mi] += sortedCats['Press'].revenue[mi] || 0;
-    }
-    delete sortedCats['Press'];
-  }
-
-  STATE.series.categories = sortedCats;
-
-  // Compute totals
-  var n = STATE.series.dates.length;
-  STATE.series.totalPieces = new Array(n).fill(0);
-  STATE.series.totalRevenue = new Array(n).fill(0);
-  for (var catName in sortedCats) {
-    if (!sortedCats.hasOwnProperty(catName)) continue;
-    for (var ti = 0; ti < n; ti++) {
-      STATE.series.totalPieces[ti] += sortedCats[catName].pieces[ti];
-      STATE.series.totalRevenue[ti] += sortedCats[catName].revenue[ti];
-    }
-  }
-
-  STATE.dataLoaded = true;
-  return true;
+function updateMonthCount() {
+  document.getElementById('monthCount').textContent = String(getMonthsSorted().length);
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   SAMPLE DATA GENERATOR
-   ════════════════════════════════════════════════════════════════════ */
-function generateSampleData() {
-  var startDate = new Date(2025, 0, 1);
-  var endDate = new Date(2026, 2, 1);
-  var rows = ['Date\tDry Cleaning\tLaundry\tAlterations\tHousehold\tTotal Pcs\tTotal Rev'];
-
-  var totalDays = Math.round((endDate - startDate) / 86400000) + 1;
-  for (var dayIdx = 0; dayIdx < totalDays; dayIdx++) {
-    var d = new Date(startDate.getTime() + dayIdx * 86400000);
-    var dow = d.getDay();
-    var dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 86400000);
-
-    var seasonal = 1 + 0.15 * Math.sin((dayOfYear - 60) * 2 * Math.PI / 365) + 0.08 * Math.sin((dayOfYear - 240) * 2 * Math.PI / 365);
-    var dowMult = [0.15, 1.0, 0.95, 0.88, 0.92, 1.05, 0.55][dow];
-
-    var noise = function() { return 0.85 + Math.random() * 0.3; };
-    var dc = Math.round(42 * seasonal * dowMult * noise());
-    var laundry = Math.round(30 * seasonal * dowMult * noise());
-    var alt = Math.round(12 * seasonal * dowMult * noise());
-    var hh = Math.round(7 * seasonal * dowMult * noise());
-    var total = dc + laundry + alt + hh;
-    var rev = (dc * 7.5 + laundry * 4.0 + alt * 14.0 + hh * 8.5) * (0.95 + Math.random() * 0.1);
-
-    var dateStr = (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
-    rows.push(dateStr + '\t' + dc + '\t' + laundry + '\t' + alt + '\t' + hh + '\t' + total + '\t$' + rev.toFixed(2));
-  }
-
-  return rows.join('\n');
-}
-
-/* ════════════════════════════════════════════════════════════════════
-   UI RENDERING
+   TAB SWITCHING
    ════════════════════════════════════════════════════════════════════ */
 function switchTab(tabId) {
   document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tabId); });
   document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'tab-' + tabId); });
+  if (tabId === 'dashboard') renderDashboard();
+  if (tabId === 'export') refreshExportTab();
 }
 
-function renderColumnMappings() {
-  var el = document.getElementById('colMappings');
-  var headers = STATE.raw.headers;
-  var rows = STATE.raw.rows;
-  var detected = autoDetectColumns(headers, rows);
-  STATE.mappings = detected;
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() { switchTab(btn.dataset.tab); });
+});
 
-  el.innerHTML = '';
-  for (var i = 0; i < headers.length; i++) {
-    var col = null;
-    for (var ci = 0; ci < detected.columns.length; ci++) {
-      if (detected.columns[ci].index === i) { col = detected.columns[ci]; break; }
+/* ════════════════════════════════════════════════════════════════════
+   IMPORT MODE SWITCHING
+   ════════════════════════════════════════════════════════════════════ */
+function switchImportMode(mode) {
+  document.querySelectorAll('.mode-card').forEach(function(c) { c.classList.toggle('active', c.dataset.mode === mode); });
+  document.querySelectorAll('.import-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'panel-' + mode); });
+}
+
+document.querySelectorAll('.mode-card').forEach(function(card) {
+  card.addEventListener('click', function() { switchImportMode(card.dataset.mode); });
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   1. REVENUE IMPORT
+   ════════════════════════════════════════════════════════════════════ */
+function importRevenue() {
+  var text = document.getElementById('revenueArea').value.trim();
+  if (!text) { showToast('Paste revenue CSV data first.', 'error'); return; }
+
+  var delim = detectDelimiter(text);
+  var lines = text.split('\n').filter(function(l) { return l.trim().length > 0; });
+  if (lines.length < 2) { showToast('Need header + at least 1 data row.', 'error'); return; }
+
+  var header = parseCSVLine(lines[0], delim);
+  var monthCol = -1;
+  var revCol = -1;
+  for (var h = 0; h < header.length; h++) {
+    var low = header[h].toLowerCase().replace(/[_\s-]/g, '');
+    if (low === 'month' || low === 'date' || low === 'period') monthCol = h;
+    if (low.indexOf('revenue') >= 0 || low.indexOf('actualrevenue') >= 0 || low.indexOf('sales') >= 0) revCol = h;
+  }
+  if (monthCol < 0) monthCol = 0;
+  if (revCol < 0) revCol = header.length > 1 ? 1 : 0;
+
+  var imported = 0;
+  for (var i = 1; i < lines.length; i++) {
+    var cells = parseCSVLine(lines[i], delim);
+    if (cells.length < 2) continue;
+    var monthStr = cells[monthCol].trim();
+    var revVal = parseNumeric(cells[revCol]);
+    if (isNaN(revVal)) continue;
+
+    /* Accept YYYY-MM directly or parse a full date */
+    var mk = null;
+    if (/^\d{4}-\d{2}$/.test(monthStr)) {
+      mk = monthStr;
+    } else {
+      var pd = parseDate(monthStr);
+      if (pd) mk = dateToMonth(pd);
     }
-    if (!col) col = { type: 'skip', name: headers[i] };
-    var sample = rows.slice(0, 3).map(function(r) { return r[i] || ''; }).join(', ');
-    var div = document.createElement('div');
-    div.className = 'col-map-item';
-    div.innerHTML =
-      '<label>' + escHtml(headers[i] || 'Col ' + (i+1)) + '</label>' +
-      '<select data-col="' + i + '" class="col-type-select">' +
-        '<option value="date"' + (col.type === 'date' ? ' selected' : '') + '>Date</option>' +
-        '<option value="pieces"' + (col.type === 'pieces' ? ' selected' : '') + '>Pieces</option>' +
-        '<option value="revenue"' + (col.type === 'revenue' ? ' selected' : '') + '>Revenue</option>' +
-        '<option value="skip"' + (col.type === 'skip' ? ' selected' : '') + '>Skip</option>' +
-      '</select>' +
-      '<div class="preview">' + escHtml(sample) + '</div>';
-    el.appendChild(div);
+    if (!mk) continue;
+
+    ensureMonth(mk);
+    NORMALIZED[mk].revenue = revVal;
+    imported++;
   }
 
-  document.getElementById('mappingCard').style.display = '';
+  IMPORT_STATE.revenueMonths = imported;
+  document.getElementById('revenueStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Imported revenue for <strong>' + imported + '</strong> months</span>';
+  updateMonthCount();
+  showToast('Revenue imported: ' + imported + ' months');
 }
 
-function readColumnMappings() {
-  var selects = document.querySelectorAll('.col-type-select');
-  var columns = [];
-  var dateCol = -1;
-  selects.forEach(function(sel) {
-    var i = parseInt(sel.dataset.col);
-    var type = sel.value;
-    var name = STATE.raw.headers[i] || ('Column ' + (i+1));
-    if (type === 'date') dateCol = i;
-    columns.push({ index: i, type: type, name: name });
+document.getElementById('importRevenueBtn').addEventListener('click', importRevenue);
+
+document.getElementById('sampleRevenueBtn').addEventListener('click', function() {
+  var months = [];
+  var base = 34000;
+  for (var m = 1; m <= 12; m++) {
+    var seasonal = 1 + 0.12 * Math.sin((m - 3) * Math.PI / 6);
+    var val = base * seasonal + (Math.random() - 0.5) * 3000;
+    months.push('2025-' + String(m).padStart(2, '0') + ',' + val.toFixed(2));
+  }
+  document.getElementById('revenueArea').value = 'Month,Actual_Revenue\n' + months.join('\n');
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   2. WAVE EXPENSES IMPORT
+   ════════════════════════════════════════════════════════════════════ */
+var CATEGORY_GUESSES = {
+  'supplies': 'Variable', 'cleaning': 'Variable', 'chemical': 'Variable', 'packaging': 'Variable',
+  'delivery': 'Variable', 'shipping': 'Variable', 'commission': 'Variable',
+  'cost of goods': 'Variable', 'materials': 'Variable',
+  'rent': 'Fixed', 'lease': 'Fixed', 'insurance': 'Fixed', 'utility': 'Fixed', 'utilities': 'Fixed',
+  'phone': 'Fixed', 'internet': 'Fixed', 'software': 'Fixed', 'subscription': 'Fixed',
+  'depreciation': 'Fixed', 'salary': 'Fixed', 'payroll': 'Fixed', 'tax': 'Fixed',
+  'accounting': 'Fixed', 'legal': 'Fixed', 'license': 'Fixed', 'permit': 'Fixed',
+  'advertising': 'Fixed', 'marketing': 'Fixed',
+  'loan': 'Debt', 'debt': 'Debt', 'interest': 'Debt', 'credit': 'Debt',
+  'mortgage': 'Debt', 'note payable': 'Debt', 'sba': 'Debt', 'financing': 'Debt'
+};
+
+function guessCategory(catName) {
+  var low = catName.toLowerCase();
+  for (var key in CATEGORY_GUESSES) {
+    if (CATEGORY_GUESSES.hasOwnProperty(key) && low.indexOf(key) >= 0) {
+      return CATEGORY_GUESSES[key];
+    }
+  }
+  return 'Variable';
+}
+
+function parseExpensesCSV() {
+  var text = document.getElementById('expensesArea').value.trim();
+  if (!text) { showToast('Paste Wave expenses CSV first.', 'error'); return; }
+
+  var delim = detectDelimiter(text);
+  var lines = text.split('\n').filter(function(l) { return l.trim().length > 0; });
+  if (lines.length < 2) { showToast('Need header + data rows.', 'error'); return; }
+
+  var header = parseCSVLine(lines[0], delim);
+
+  /* Detect column indices */
+  var dateCol = -1, catCol = -1, amtCol = -1;
+  for (var h = 0; h < header.length; h++) {
+    var low = header[h].toLowerCase().replace(/[_\s-]/g, '');
+    if (low.indexOf('date') >= 0 || low === 'transactiondate') dateCol = h;
+    if (low === 'category' || low === 'account' || low === 'accountname' || low === 'type') catCol = h;
+    if (low === 'amount' || low === 'total' || low === 'debit' || low.indexOf('amount') >= 0) amtCol = h;
+  }
+  /* Fallback */
+  if (dateCol < 0) dateCol = 0;
+  if (catCol < 0) catCol = Math.min(1, header.length - 1);
+  if (amtCol < 0) amtCol = header.length - 1;
+
+  /* Parse rows */
+  var rows = [];
+  var categorySums = {};
+  for (var i = 1; i < lines.length; i++) {
+    var cells = parseCSVLine(lines[i], delim);
+    if (cells.length < Math.max(dateCol, catCol, amtCol) + 1) continue;
+
+    var dateStr = cells[dateCol];
+    var cat = cells[catCol].trim();
+    var amt = parseNumeric(cells[amtCol]);
+
+    if (!cat || isNaN(amt)) continue;
+    var d = parseDate(dateStr);
+    if (!d) continue;
+    var mk = dateToMonth(d);
+
+    rows.push({ month: mk, category: cat, amount: Math.abs(amt) });
+
+    if (!categorySums[cat]) categorySums[cat] = 0;
+    categorySums[cat] += Math.abs(amt);
+  }
+
+  if (rows.length === 0) {
+    showToast('Could not parse any expense rows.', 'error');
+    return;
+  }
+
+  IMPORT_STATE.waveRawRows = rows;
+  IMPORT_STATE.waveCategorySums = categorySums;
+
+  /* Auto-guess mappings */
+  var catNames = Object.keys(categorySums).sort(function(a, b) { return categorySums[b] - categorySums[a]; });
+  IMPORT_STATE.waveCategoryMap = {};
+  for (var ci = 0; ci < catNames.length; ci++) {
+    IMPORT_STATE.waveCategoryMap[catNames[ci]] = guessCategory(catNames[ci]);
+  }
+
+  /* Render category mapping table */
+  renderCategoryMapping(catNames, categorySums);
+
+  document.getElementById('catMappingCard').style.display = '';
+  document.getElementById('catCountBadge').textContent = catNames.length + ' categories · ' + rows.length + ' rows';
+  document.getElementById('expenseParseStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Parsed ' + rows.length + ' rows across ' + catNames.length + ' categories</span>';
+}
+
+function renderCategoryMapping(catNames, categorySums) {
+  var tbody = document.querySelector('#catMapTable tbody');
+  tbody.innerHTML = '';
+  for (var i = 0; i < catNames.length; i++) {
+    var cn = catNames[i];
+    var guess = IMPORT_STATE.waveCategoryMap[cn] || 'Variable';
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + escHtml(cn) + '</td>' +
+      '<td class="amt">$' + categorySums[cn].toFixed(2) + '</td>' +
+      '<td><select class="wave-cat-select" data-cat="' + escHtml(cn) + '">' +
+        '<option value="Variable"' + (guess === 'Variable' ? ' selected' : '') + '>Variable</option>' +
+        '<option value="Fixed"' + (guess === 'Fixed' ? ' selected' : '') + '>Fixed</option>' +
+        '<option value="Debt"' + (guess === 'Debt' ? ' selected' : '') + '>Debt</option>' +
+        '<option value="Skip"' + (guess === 'Skip' ? ' selected' : '') + '>Skip</option>' +
+      '</select></td>';
+    tbody.appendChild(tr);
+  }
+}
+
+function importExpenses() {
+  /* Read user-selected mappings from the table */
+  document.querySelectorAll('.wave-cat-select').forEach(function(sel) {
+    IMPORT_STATE.waveCategoryMap[sel.dataset.cat] = sel.value;
   });
-  STATE.mappings = { dateCol: dateCol, columns: columns };
-  return dateCol >= 0;
+
+  var rows = IMPORT_STATE.waveRawRows;
+  var monthsAffected = {};
+
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var mapping = IMPORT_STATE.waveCategoryMap[row.category];
+    if (!mapping || mapping === 'Skip') continue;
+
+    var mk = row.month;
+    ensureMonth(mk);
+
+    var field = mapping.toLowerCase();
+    if (NORMALIZED[mk][field] == null) NORMALIZED[mk][field] = 0;
+    NORMALIZED[mk][field] += row.amount;
+    monthsAffected[mk] = true;
+  }
+
+  var mc = Object.keys(monthsAffected).length;
+  IMPORT_STATE.expenseMonths = mc;
+  document.getElementById('expenseImportStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Imported expenses across <strong>' + mc + '</strong> months</span>';
+  updateMonthCount();
+  showToast('Expenses imported: ' + mc + ' months');
 }
 
-function renderStats() {
-  var row = document.getElementById('statsRow');
-  var dates = STATE.series.dates;
-  var catNames = Object.keys(STATE.series.categories);
-  var n = dates.length;
+document.getElementById('parseExpensesBtn').addEventListener('click', parseExpensesCSV);
+document.getElementById('importExpensesBtn').addEventListener('click', importExpenses);
 
-  var totalPcs = STATE.series.totalPieces.reduce(function(a,b){return a+b;}, 0);
-  var totalRev = STATE.series.totalRevenue.reduce(function(a,b){return a+b;}, 0);
-  var avgDaily = n > 0 ? Math.round(totalPcs / n) : 0;
-  var hasRevenue = totalRev > 0;
-
-  var firstDate = n > 0 ? formatDateShort(dates[0]) : '-';
-  var lastDate = n > 0 ? formatDateShort(dates[n-1]) : '-';
-
-  var html = '';
-  html += '<div class="stat-pill"><span class="stat-label">Days</span><span class="stat-value">' + n + '</span></div>';
-  html += '<div class="stat-pill"><span class="stat-label">Categories</span><span class="stat-value">' + catNames.length + '</span></div>';
-  html += '<div class="stat-pill"><span class="stat-label">Avg Daily</span><span class="stat-value">' + avgDaily + '</span></div>';
-  html += '<div class="stat-pill"><span class="stat-label">Total Pcs</span><span class="stat-value">' + totalPcs.toLocaleString() + '</span></div>';
-  if (hasRevenue) {
-    html += '<div class="stat-pill"><span class="stat-label">Total Rev</span><span class="stat-value">$' + Math.round(totalRev).toLocaleString() + '</span></div>';
-  }
-  html += '<div class="stat-pill"><span class="stat-label">From</span><span class="stat-value" style="font-size:.82rem">' + firstDate + '</span></div>';
-  html += '<div class="stat-pill"><span class="stat-label">To</span><span class="stat-value" style="font-size:.82rem">' + lastDate + '</span></div>';
-
-  row.innerHTML = html;
-}
-
-function renderDataPreview() {
-  var table = document.getElementById('previewTable');
-  var thead = table.querySelector('thead');
-  var tbody = table.querySelector('tbody');
-  var dates = STATE.series.dates;
-  var cats = STATE.series.categories;
-  var catNames = Object.keys(cats);
-  var filter = document.getElementById('viewFilter').value;
-  var rowLimit = document.getElementById('rowLimit').value;
-  var maxRows = rowLimit === 'all' ? dates.length : parseInt(rowLimit);
-
-  var hasRevenue = STATE.series.totalRevenue.some(function(v) { return v > 0; });
-
-  var headerHTML = '<tr><th>Date</th><th>DOW</th>';
-  for (var hi = 0; hi < catNames.length; hi++) {
-    if (filter === 'all' || filter === 'pieces') {
-      headerHTML += '<th class="num">' + escHtml(catNames[hi]) + ' Pcs</th>';
-    }
-    if ((filter === 'all' || filter === 'revenue') && hasRevenue) {
-      headerHTML += '<th class="num">' + escHtml(catNames[hi]) + ' $</th>';
-    }
-  }
-  if (filter === 'all' || filter === 'pieces') {
-    headerHTML += '<th class="num" style="font-weight:700;color:var(--accent)">Total Pcs</th>';
-  }
-  if ((filter === 'all' || filter === 'revenue') && hasRevenue) {
-    headerHTML += '<th class="num" style="font-weight:700;color:var(--accent)">Total $</th>';
-  }
-  headerHTML += '</tr>';
-  thead.innerHTML = headerHTML;
-
-  var bodyHTML = '';
-  var showRows = Math.min(dates.length, maxRows);
-  for (var i = 0; i < showRows; i++) {
-    bodyHTML += '<tr><td>' + formatDateShort(dates[i]) + '</td><td>' + DOW_NAMES[dates[i].getDay()] + '</td>';
-    for (var ci = 0; ci < catNames.length; ci++) {
-      var cn = catNames[ci];
-      if (filter === 'all' || filter === 'pieces') {
-        bodyHTML += '<td class="num">' + Math.round(cats[cn].pieces[i]) + '</td>';
+document.getElementById('sampleExpensesBtn').addEventListener('click', function() {
+  var cats = [
+    ['Supplies', 'Variable'], ['Delivery Fuel', 'Variable'],
+    ['Rent', 'Fixed'], ['Utilities', 'Fixed'], ['Insurance', 'Fixed'],
+    ['Phone & Internet', 'Fixed'], ['SBA Loan Payment', 'Debt']
+  ];
+  var lines = ['Transaction Date,Category,Description,Amount'];
+  for (var m = 1; m <= 12; m++) {
+    for (var ci = 0; ci < cats.length; ci++) {
+      var base;
+      switch (cats[ci][0]) {
+        case 'Supplies': base = 800 + Math.random() * 400; break;
+        case 'Delivery Fuel': base = 300 + Math.random() * 200; break;
+        case 'Rent': base = 3500; break;
+        case 'Utilities': base = 450 + Math.random() * 150; break;
+        case 'Insurance': base = 680; break;
+        case 'Phone & Internet': base = 189; break;
+        case 'SBA Loan Payment': base = 1200; break;
+        default: base = 500;
       }
-      if ((filter === 'all' || filter === 'revenue') && hasRevenue) {
-        bodyHTML += '<td class="num">$' + cats[cn].revenue[i].toFixed(2) + '</td>';
+      var day = Math.floor(Math.random() * 26) + 1;
+      var dateStr = String(m).padStart(2, '0') + '/' + String(day).padStart(2, '0') + '/2025';
+      lines.push(dateStr + ',' + cats[ci][0] + ',' + cats[ci][0] + ' expense,' + base.toFixed(2));
+    }
+  }
+  document.getElementById('expensesArea').value = lines.join('\n');
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   3. LABOR IMPORT
+   ════════════════════════════════════════════════════════════════════ */
+function importLabor() {
+  var text = document.getElementById('laborArea').value.trim();
+  if (!text) { showToast('Paste employee hours CSV first.', 'error'); return; }
+
+  var rate = parseFloat(document.getElementById('hourlyRate').value);
+  if (isNaN(rate) || rate <= 0) { showToast('Enter a valid hourly rate.', 'error'); return; }
+  IMPORT_STATE.hourlyRate = rate;
+
+  var delim = detectDelimiter(text);
+  var lines = text.split('\n').filter(function(l) { return l.trim().length > 0; });
+  if (lines.length < 2) { showToast('Need header + data rows.', 'error'); return; }
+
+  var header = parseCSVLine(lines[0], delim);
+  var dateCol = -1, hoursCol = -1;
+  for (var h = 0; h < header.length; h++) {
+    var low = header[h].toLowerCase().replace(/[_\s-]/g, '');
+    if (low.indexOf('date') >= 0) dateCol = h;
+    if (low === 'hours' || low === 'hoursworked' || low === 'totalhours') hoursCol = h;
+  }
+  if (dateCol < 0) dateCol = 0;
+  if (hoursCol < 0) hoursCol = header.length - 1;
+
+  /* Aggregate hours by month */
+  var monthlyHours = {};
+  var totalRows = 0;
+  for (var i = 1; i < lines.length; i++) {
+    var cells = parseCSVLine(lines[i], delim);
+    if (cells.length < Math.max(dateCol, hoursCol) + 1) continue;
+    var d = parseDate(cells[dateCol]);
+    var hrs = parseNumeric(cells[hoursCol]);
+    if (!d || isNaN(hrs)) continue;
+    var mk = dateToMonth(d);
+    if (!monthlyHours[mk]) monthlyHours[mk] = 0;
+    monthlyHours[mk] += hrs;
+    totalRows++;
+  }
+
+  var monthKeys = Object.keys(monthlyHours);
+  if (monthKeys.length === 0) {
+    showToast('Could not parse any labor rows.', 'error');
+    return;
+  }
+
+  for (var mi = 0; mi < monthKeys.length; mi++) {
+    var mk2 = monthKeys[mi];
+    ensureMonth(mk2);
+    NORMALIZED[mk2].labor = monthlyHours[mk2] * rate;
+  }
+
+  IMPORT_STATE.laborMonths = monthKeys.length;
+  document.getElementById('laborStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Imported ' + totalRows + ' rows &rarr; <strong>' + monthKeys.length + '</strong> months at $' + rate.toFixed(2) + '/hr</span>';
+  updateMonthCount();
+  showToast('Labor imported: ' + monthKeys.length + ' months');
+}
+
+document.getElementById('importLaborBtn').addEventListener('click', importLabor);
+
+document.getElementById('sampleLaborBtn').addEventListener('click', function() {
+  var employees = ['Maria', 'James', 'Linda', 'Carlos'];
+  var lines = ['Date,Employee,Hours'];
+  for (var m = 1; m <= 12; m++) {
+    for (var ei = 0; ei < employees.length; ei++) {
+      var daysWorked = 18 + Math.floor(Math.random() * 6);
+      for (var d = 0; d < daysWorked; d++) {
+        var day = Math.floor(Math.random() * 28) + 1;
+        var hrs = 6 + Math.random() * 3;
+        var dateStr = '2025-' + String(m).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        lines.push(dateStr + ',' + employees[ei] + ',' + hrs.toFixed(1));
       }
     }
-    if (filter === 'all' || filter === 'pieces') {
-      bodyHTML += '<td class="num" style="font-weight:700">' + Math.round(STATE.series.totalPieces[i]) + '</td>';
-    }
-    if ((filter === 'all' || filter === 'revenue') && hasRevenue) {
-      bodyHTML += '<td class="num" style="font-weight:700">$' + STATE.series.totalRevenue[i].toFixed(2) + '</td>';
-    }
-    bodyHTML += '</tr>';
   }
-  if (dates.length > showRows) {
-    var colSpan = 2 + catNames.length * (filter === 'all' ? (hasRevenue ? 2 : 1) : 1) + (filter === 'all' ? (hasRevenue ? 2 : 1) : 1);
-    bodyHTML += '<tr><td colspan="' + colSpan + '" style="text-align:center;color:var(--text-muted);padding:12px;font-style:italic">... and ' + (dates.length - showRows) + ' more rows</td></tr>';
-  }
-  tbody.innerHTML = bodyHTML;
+  document.getElementById('laborArea').value = lines.join('\n');
+});
 
-  document.getElementById('dataStats').textContent = dates.length + ' days \u00B7 ' + catNames.length + ' categories';
+/* ════════════════════════════════════════════════════════════════════
+   DASHBOARD
+   ════════════════════════════════════════════════════════════════════ */
+function renderDashboard() {
+  var months = getMonthsSorted();
+  if (months.length === 0) {
+    document.getElementById('noDashData').style.display = '';
+    document.getElementById('dashContent').style.display = 'none';
+    return;
+  }
+  document.getElementById('noDashData').style.display = 'none';
+  document.getElementById('dashContent').style.display = '';
+
+  /* Stats */
+  var totals = { revenue: 0, variable: 0, labor: 0, fixed: 0, debt: 0 };
+  var counts = { revenue: 0, variable: 0, labor: 0, fixed: 0, debt: 0 };
+  for (var mi = 0; mi < months.length; mi++) {
+    var row = NORMALIZED[months[mi]];
+    var fields = ['revenue', 'variable', 'labor', 'fixed', 'debt'];
+    for (var fi = 0; fi < fields.length; fi++) {
+      if (row[fields[fi]] != null) {
+        totals[fields[fi]] += row[fields[fi]];
+        counts[fields[fi]]++;
+      }
+    }
+  }
+
+  var statsHtml = '';
+  statsHtml += '<div class="stat-pill"><span class="stat-label">Months</span><span class="stat-value">' + months.length + '</span></div>';
+  statsHtml += '<div class="stat-pill"><span class="stat-label">Revenue</span><span class="stat-value" style="color:var(--accent2)">' + formatMoneyShort(totals.revenue) + '</span></div>';
+  statsHtml += '<div class="stat-pill"><span class="stat-label">Variable</span><span class="stat-value" style="color:var(--accent)">' + formatMoneyShort(totals.variable) + '</span></div>';
+  statsHtml += '<div class="stat-pill"><span class="stat-label">Labor</span><span class="stat-value" style="color:var(--purple)">' + formatMoneyShort(totals.labor) + '</span></div>';
+  statsHtml += '<div class="stat-pill"><span class="stat-label">Fixed</span><span class="stat-value">' + formatMoneyShort(totals.fixed) + '</span></div>';
+  statsHtml += '<div class="stat-pill"><span class="stat-label">Debt</span><span class="stat-value" style="color:var(--error)">' + formatMoneyShort(totals.debt) + '</span></div>';
+  document.getElementById('dashStats').innerHTML = statsHtml;
+
+  /* Table */
+  var thead = document.querySelector('#dashTable thead');
+  var tbody = document.querySelector('#dashTable tbody');
+
+  thead.innerHTML = '<tr><th>Month</th><th class="num">Revenue</th><th class="num">Variable</th><th class="num">Labor</th><th class="num">Fixed</th><th class="num">Debt</th></tr>';
+
+  var bodyHtml = '';
+  for (var j = 0; j < months.length; j++) {
+    var r = NORMALIZED[months[j]];
+    bodyHtml += '<tr>';
+    bodyHtml += '<td style="font-weight:600;font-family:var(--font-mono)">' + months[j] + '</td>';
+    bodyHtml += buildValueCell(r.revenue);
+    bodyHtml += buildValueCell(r.variable);
+    bodyHtml += buildValueCell(r.labor);
+    bodyHtml += buildValueCell(r.fixed);
+    bodyHtml += buildValueCell(r.debt);
+    bodyHtml += '</tr>';
+  }
+  tbody.innerHTML = bodyHtml;
+
+  document.getElementById('dashDataBadge').textContent = months.length + ' months';
+
+  /* Import status cards */
+  var isg = document.getElementById('importStatusGrid');
+  isg.innerHTML =
+    buildStatusCard('Revenue', IMPORT_STATE.revenueMonths, 'fa-chart-line', 'var(--accent2)') +
+    buildStatusCard('Expenses', IMPORT_STATE.expenseMonths, 'fa-receipt', 'var(--accent)') +
+    buildStatusCard('Labor', IMPORT_STATE.laborMonths, 'fa-user-clock', 'var(--purple)');
 }
 
-function initExportDates() {
-  var dates = STATE.series.dates;
-  if (dates.length === 0) return;
-  var first = dates[0];
-  var last = dates[dates.length - 1];
-  var startEl = document.getElementById('exportStartDate');
-  var endEl = document.getElementById('exportEndDate');
-  startEl.value = formatDateISO(first);
-  endEl.value = formatDateISO(last);
-  startEl.min = formatDateISO(first);
-  startEl.max = formatDateISO(last);
-  endEl.min = formatDateISO(first);
-  endEl.max = formatDateISO(last);
-  updateDateRangeBadge();
+function buildValueCell(val) {
+  if (val == null) return '<td class="num empty">\u2014</td>';
+  return '<td class="num filled">' + formatMoney(val) + '</td>';
 }
 
-function updateDateRangeBadge() {
-  var startVal = document.getElementById('exportStartDate').value;
-  var endVal = document.getElementById('exportEndDate').value;
-  if (!startVal || !endVal) return;
-  var start = new Date(startVal + 'T00:00:00');
-  var end = new Date(endVal + 'T00:00:00');
-  var days = Math.round((end - start) / 86400000) + 1;
-  document.getElementById('dateRangeBadge').textContent = days + ' days selected';
+function buildStatusCard(name, count, icon, color) {
+  var statusClass = count > 0 ? 'badge-success' : 'badge-error';
+  var statusText = count > 0 ? count + ' months' : 'Not imported';
+  return '<div style="background:var(--bg-surface-alt);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:14px;display:flex;align-items:center;gap:10px">' +
+    '<i class="fa-solid ' + icon + '" style="font-size:1.2rem;color:' + color + '"></i>' +
+    '<div><div style="font-weight:600;font-size:.82rem">' + name + '</div>' +
+    '<span class="badge ' + statusClass + '">' + statusText + '</span></div></div>';
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   EXPORT GENERATION
+   EXPORT
    ════════════════════════════════════════════════════════════════════ */
-function generateExportText() {
-  var format = STATE.exportFormat;
-  var dates = STATE.series.dates;
-  var cats = STATE.series.categories;
-  var catNames = Object.keys(cats);
-  var hasRevenue = STATE.series.totalRevenue.some(function(v) { return v > 0; });
+function refreshExportTab() {
+  var months = getMonthsSorted();
+  if (months.length === 0) {
+    document.getElementById('noExportData').style.display = '';
+    document.getElementById('exportContent').style.display = 'none';
+  } else {
+    document.getElementById('noExportData').style.display = 'none';
+    document.getElementById('exportContent').style.display = '';
+    generateExport();
+  }
+}
 
-  // Apply date range filter
-  var startVal = document.getElementById('exportStartDate').value;
-  var endVal = document.getElementById('exportEndDate').value;
-  var startDate = startVal ? new Date(startVal + 'T00:00:00') : dates[0];
-  var endDate = endVal ? new Date(endVal + 'T00:00:00') : dates[dates.length - 1];
+function buildAllocatedData() {
+  var months = getMonthsSorted();
+  if (months.length === 0) return [];
 
-  var filteredIndices = [];
-  for (var fi = 0; fi < dates.length; fi++) {
-    if (dates[fi] >= startDate && dates[fi] <= endDate) {
-      filteredIndices.push(fi);
-    }
+  var allocExpenses = document.getElementById('allocExpenses').checked;
+  var allocLabor = document.getElementById('allocLabor').checked;
+  var allocProRate = document.getElementById('allocProRate').checked;
+
+  /* Deep copy NORMALIZED data */
+  var data = [];
+  for (var i = 0; i < months.length; i++) {
+    var r = NORMALIZED[months[i]];
+    data.push({
+      month: months[i],
+      revenue: r.revenue != null ? r.revenue : 0,
+      variable: r.variable != null ? r.variable : 0,
+      labor: r.labor != null ? r.labor : 0,
+      fixed: r.fixed != null ? r.fixed : 0,
+      debt: r.debt != null ? r.debt : 0
+    });
   }
 
-  var delim = (format === 'csv') ? ',' : '\t';
-  var lines = [];
-  var rowCount = 0;
+  /* Group by year */
+  if (allocExpenses || allocLabor || allocProRate) {
+    var years = {};
+    for (var j = 0; j < data.length; j++) {
+      var yr = data[j].month.slice(0, 4);
+      if (!years[yr]) years[yr] = [];
+      years[yr].push(j);
+    }
 
-  if (format === 'piececast') {
-    // PieceCast-compatible: Date, DOW, each category pieces, each category revenue, Total Pcs, Total Rev
-    var header = ['Date', 'DOW'];
-    for (var pi = 0; pi < catNames.length; pi++) {
-      header.push(catNames[pi] + ' Pcs');
-      if (hasRevenue) header.push(catNames[pi] + ' Rev');
-    }
-    header.push('Total Pcs');
-    if (hasRevenue) header.push('Total Rev');
-    lines.push(header.join(delim));
+    for (var year in years) {
+      if (!years.hasOwnProperty(year)) continue;
+      var indices = years[year];
+      var yearN = indices.length;
 
-    for (var pj = 0; pj < filteredIndices.length; pj++) {
-      var idx = filteredIndices[pj];
-      var row = [formatDateShort(dates[idx]), DOW_NAMES[dates[idx].getDay()]];
-      for (var pk = 0; pk < catNames.length; pk++) {
-        row.push(String(Math.round(cats[catNames[pk]].pieces[idx])));
-        if (hasRevenue) row.push(cats[catNames[pk]].revenue[idx].toFixed(2));
-      }
-      row.push(String(Math.round(STATE.series.totalPieces[idx])));
-      if (hasRevenue) row.push(STATE.series.totalRevenue[idx].toFixed(2));
-      lines.push(row.join(delim));
-      rowCount++;
-    }
-  } else if (format === 'tab-all' || format === 'csv') {
-    // Full data: Date, DOW, all pieces, all revenue, totals
-    var header2 = ['Date', 'DOW'];
-    for (var ai = 0; ai < catNames.length; ai++) {
-      header2.push(catNames[ai] + ' Pcs');
-    }
-    if (hasRevenue) {
-      for (var aj = 0; aj < catNames.length; aj++) {
-        header2.push(catNames[aj] + ' Rev');
-      }
-    }
-    header2.push('Total Pcs');
-    if (hasRevenue) header2.push('Total Rev');
-    lines.push(header2.join(delim));
-
-    for (var ak = 0; ak < filteredIndices.length; ak++) {
-      var idx2 = filteredIndices[ak];
-      var row2 = [formatDateShort(dates[idx2]), DOW_NAMES[dates[idx2].getDay()]];
-      for (var al = 0; al < catNames.length; al++) {
-        row2.push(String(Math.round(cats[catNames[al]].pieces[idx2])));
-      }
-      if (hasRevenue) {
-        for (var am = 0; am < catNames.length; am++) {
-          row2.push(cats[catNames[am]].revenue[idx2].toFixed(2));
+      if (allocProRate) {
+        /* Pro-rate by revenue */
+        var totalRev = 0;
+        for (var ri = 0; ri < indices.length; ri++) totalRev += data[indices[ri]].revenue;
+        if (totalRev > 0) {
+          var yearTotals = { variable: 0, labor: 0, fixed: 0, debt: 0 };
+          var fields = ['variable', 'labor', 'fixed', 'debt'];
+          for (var ti = 0; ti < indices.length; ti++) {
+            for (var f1 = 0; f1 < fields.length; f1++) {
+              yearTotals[fields[f1]] += data[indices[ti]][fields[f1]];
+            }
+          }
+          for (var pi = 0; pi < indices.length; pi++) {
+            var share = data[indices[pi]].revenue / totalRev;
+            for (var f2 = 0; f2 < fields.length; f2++) {
+              if (f2 < 3 || allocExpenses) {
+                data[indices[pi]][fields[f2]] = yearTotals[fields[f2]] * share;
+              }
+            }
+          }
+        }
+      } else {
+        if (allocExpenses) {
+          var expFields = ['variable', 'fixed', 'debt'];
+          for (var ef = 0; ef < expFields.length; ef++) {
+            var total = 0;
+            for (var e1 = 0; e1 < indices.length; e1++) total += data[indices[e1]][expFields[ef]];
+            var even = total / yearN;
+            for (var e2 = 0; e2 < indices.length; e2++) data[indices[e2]][expFields[ef]] = even;
+          }
+        }
+        if (allocLabor) {
+          var laborTotal = 0;
+          for (var l1 = 0; l1 < indices.length; l1++) laborTotal += data[indices[l1]].labor;
+          var laborEven = laborTotal / yearN;
+          for (var l2 = 0; l2 < indices.length; l2++) data[indices[l2]].labor = laborEven;
         }
       }
-      row2.push(String(Math.round(STATE.series.totalPieces[idx2])));
-      if (hasRevenue) row2.push(STATE.series.totalRevenue[idx2].toFixed(2));
-      lines.push(row2.join(delim));
-      rowCount++;
-    }
-  } else if (format === 'pieces-only') {
-    var header3 = ['Date', 'DOW'];
-    for (var bi = 0; bi < catNames.length; bi++) {
-      header3.push(catNames[bi]);
-    }
-    header3.push('Total');
-    lines.push(header3.join(delim));
-
-    for (var bj = 0; bj < filteredIndices.length; bj++) {
-      var idx3 = filteredIndices[bj];
-      var row3 = [formatDateShort(dates[idx3]), DOW_NAMES[dates[idx3].getDay()]];
-      for (var bk = 0; bk < catNames.length; bk++) {
-        row3.push(String(Math.round(cats[catNames[bk]].pieces[idx3])));
-      }
-      row3.push(String(Math.round(STATE.series.totalPieces[idx3])));
-      lines.push(row3.join(delim));
-      rowCount++;
-    }
-  } else if (format === 'revenue-only') {
-    if (!hasRevenue) {
-      return { text: '(No revenue data found in this report)', rows: 0 };
-    }
-    var header4 = ['Date', 'DOW'];
-    for (var ci2 = 0; ci2 < catNames.length; ci2++) {
-      header4.push(catNames[ci2]);
-    }
-    header4.push('Total');
-    lines.push(header4.join(delim));
-
-    for (var cj = 0; cj < filteredIndices.length; cj++) {
-      var idx4 = filteredIndices[cj];
-      var row4 = [formatDateShort(dates[idx4]), DOW_NAMES[dates[idx4].getDay()]];
-      for (var ck = 0; ck < catNames.length; ck++) {
-        row4.push(cats[catNames[ck]].revenue[idx4].toFixed(2));
-      }
-      row4.push(STATE.series.totalRevenue[idx4].toFixed(2));
-      lines.push(row4.join(delim));
-      rowCount++;
-    }
-  } else if (format === 'summary') {
-    var header5 = ['Date', 'DOW', 'Total Pieces'];
-    if (hasRevenue) header5.push('Total Revenue');
-    lines.push(header5.join(delim));
-
-    for (var di = 0; di < filteredIndices.length; di++) {
-      var idx5 = filteredIndices[di];
-      var row5 = [formatDateShort(dates[idx5]), DOW_NAMES[dates[idx5].getDay()], String(Math.round(STATE.series.totalPieces[idx5]))];
-      if (hasRevenue) row5.push(STATE.series.totalRevenue[idx5].toFixed(2));
-      lines.push(row5.join(delim));
-      rowCount++;
     }
   }
 
-  return { text: lines.join('\n'), rows: rowCount };
+  return data;
 }
 
-function updateExportArea() {
-  if (!STATE.dataLoaded) return;
-  var result = generateExportText();
-  document.getElementById('exportArea').textContent = result.text;
-  document.getElementById('exportRowCount').textContent = result.rows + ' data rows';
+function generateExport() {
+  var data = buildAllocatedData();
+  if (data.length === 0) {
+    document.getElementById('exportArea').textContent = '(No data to export)';
+    document.getElementById('exportRowCount').textContent = '0 rows';
+    return;
+  }
+
+  var lines = ['Month,Actual_Revenue,Actual_Variable,Actual_Labor,Actual_Fixed,Actual_Debt'];
+  for (var i = 0; i < data.length; i++) {
+    var d = data[i];
+    lines.push(d.month + ',' + d.revenue.toFixed(2) + ',' + d.variable.toFixed(2) + ',' + d.labor.toFixed(2) + ',' + d.fixed.toFixed(2) + ',' + d.debt.toFixed(2));
+  }
+
+  document.getElementById('exportArea').textContent = lines.join('\n');
+  document.getElementById('exportRowCount').textContent = data.length + ' months';
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   EVENT HANDLERS
-   ════════════════════════════════════════════════════════════════════ */
+document.getElementById('generateExportBtn').addEventListener('click', generateExport);
 
-// Tab switching
-document.querySelectorAll('.tab-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    switchTab(btn.dataset.tab);
-    if (btn.dataset.tab === 'export' && STATE.dataLoaded) {
-      updateExportArea();
-    }
-  });
-});
-
-// Parse button
-document.getElementById('parseBtn').addEventListener('click', function() {
-  var text = document.getElementById('pasteArea').value.trim();
-  if (!text) {
-    showToast('Please paste your report data first.', 'error');
-    return;
-  }
-
-  var statusEl = document.getElementById('parseStatus');
-
-  if (isPOSReport(text)) {
-    statusEl.innerHTML = '<span class="parsing-indicator"><i class="fa-solid fa-spinner fa-spin"></i> Parsing POS format...</span>';
-
-    setTimeout(function() {
-      var result = parsePOSReport(text);
-      if (!result || result.rows.length < 2) {
-        statusEl.innerHTML = '<span style="color:var(--error)"><i class="fa-solid fa-circle-xmark"></i> Could not parse POS report. Found ' + (result ? result.rows.length : 0) + ' data rows.</span>';
-        return;
-      }
-      STATE.raw = { headers: result.headers, rows: result.rows };
-      STATE.mappings = result.mappings;
-      document.getElementById('mappingCard').style.display = 'none';
-
-      if (!processData()) {
-        statusEl.innerHTML = '<span style="color:var(--error)"><i class="fa-solid fa-circle-xmark"></i> Failed to process data.</span>';
-        return;
-      }
-
-      var lastDayMsg = (document.getElementById('includeLastDate').checked) ? 'last day included' : 'last day excluded';
-      statusEl.innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Auto-detected <strong>Sales Report By Category</strong> format. ' +
-        STATE.series.dates.length + ' days \u00B7 ' +
-        Object.keys(STATE.series.categories).length + ' categories (' + lastDayMsg + ', Press merged into Dry Cleaning)</span>';
-
-      onDataLoaded();
-    }, 50);
-  } else {
-    // Generic format — show column mapping
-    var parsed = parseRawData(text);
-    if (!parsed || parsed.rows.length < 2) {
-      statusEl.innerHTML = '<span style="color:var(--error)"><i class="fa-solid fa-circle-xmark"></i> Could not parse data. Need at least a header + 2 data rows.</span>';
-      return;
-    }
-    STATE.raw = parsed;
-    statusEl.innerHTML = '<span style="color:var(--accent)"><i class="fa-solid fa-circle-info"></i> Detected ' + parsed.headers.length + ' columns, ' + parsed.rows.length + ' rows. Map columns below.</span>';
-    renderColumnMappings();
-  }
-});
-
-// Load Data (from column mapping)
-document.getElementById('loadDataBtn').addEventListener('click', function() {
-  if (!readColumnMappings()) {
-    showToast('Please assign one column as "Date".', 'error');
-    return;
-  }
-  var piecesCols = STATE.mappings.columns.filter(function(c) { return c.type === 'pieces'; });
-  if (piecesCols.length === 0) {
-    showToast('Assign at least one column as "Pieces".', 'error');
-    return;
-  }
-  if (!processData()) {
-    showToast('Failed to process data. Check your date column.', 'error');
-    return;
-  }
-  if (STATE.series.dates.length < 2) {
-    showToast('Need at least 2 days of data.', 'error');
-    return;
-  }
-
-  document.getElementById('mappingStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Loaded ' + STATE.series.dates.length + ' days across ' + Object.keys(STATE.series.categories).length + ' categories</span>';
-  onDataLoaded();
-});
-
-function onDataLoaded() {
-  // Show preview tab content
-  document.getElementById('noDataPreview').style.display = 'none';
-  document.getElementById('previewContent').style.display = '';
-  renderStats();
-  renderDataPreview();
-
-  // Show export tab content
-  document.getElementById('noDataExport').style.display = 'none';
-  document.getElementById('exportContent').style.display = '';
-  initExportDates();
-  updateExportArea();
-
-  // Auto-switch to preview tab
-  switchTab('preview');
-}
-
-// Sample data
-document.getElementById('sampleBtn').addEventListener('click', function() {
-  document.getElementById('pasteArea').value = generateSampleData();
-  var parsed = parseRawData(document.getElementById('pasteArea').value);
-  STATE.raw = parsed;
-  document.getElementById('parseStatus').innerHTML = '<span style="color:var(--accent)"><i class="fa-solid fa-circle-info"></i> Sample data loaded. Map columns below or click Parse Report.</span>';
-  renderColumnMappings();
-});
-
-// Clear
-document.getElementById('clearAllBtn').addEventListener('click', function() {
-  document.getElementById('pasteArea').value = '';
-  document.getElementById('mappingCard').style.display = 'none';
-  document.getElementById('parseStatus').textContent = '';
-  document.getElementById('noDataPreview').style.display = '';
-  document.getElementById('previewContent').style.display = 'none';
-  document.getElementById('noDataExport').style.display = '';
-  document.getElementById('exportContent').style.display = 'none';
-  STATE.dataLoaded = false;
-  STATE.raw = { headers: [], rows: [] };
-  STATE.series = { dates: [], categories: {}, totalPieces: [], totalRevenue: [] };
-  switchTab('paste');
-});
-
-// Preview filters
-document.getElementById('viewFilter').addEventListener('change', function() {
-  if (STATE.dataLoaded) renderDataPreview();
-});
-document.getElementById('rowLimit').addEventListener('change', function() {
-  if (STATE.dataLoaded) renderDataPreview();
-});
-
-// Format selector
-document.querySelectorAll('.format-card').forEach(function(card) {
-  card.addEventListener('click', function() {
-    document.querySelectorAll('.format-card').forEach(function(c) { c.classList.remove('active'); });
-    card.classList.add('active');
-    STATE.exportFormat = card.dataset.format;
-    updateExportArea();
-  });
-});
-
-// Date range
-document.getElementById('exportStartDate').addEventListener('change', function() {
-  updateDateRangeBadge();
-  updateExportArea();
-});
-document.getElementById('exportEndDate').addEventListener('change', function() {
-  updateDateRangeBadge();
-  updateExportArea();
-});
-document.getElementById('resetDatesBtn').addEventListener('click', function() {
-  initExportDates();
-  updateExportArea();
-});
-
-// Copy to clipboard
 document.getElementById('copyExportBtn').addEventListener('click', function() {
   var text = document.getElementById('exportArea').textContent;
-  if (!text) {
+  if (!text || text === '(No data to export)') {
     showToast('Nothing to copy.', 'error');
     return;
   }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(function() {
-      showToast('Copied ' + STATE.exportFormat + ' data to clipboard!');
+      showToast('FCE export copied to clipboard!');
     });
   }
+});
+
+document.getElementById('downloadExportBtn').addEventListener('click', function() {
+  var text = document.getElementById('exportArea').textContent;
+  if (!text || text === '(No data to export)') {
+    showToast('Nothing to download.', 'error');
+    return;
+  }
+  var blob = new Blob([text], { type: 'text/csv' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'normalized_fce_export.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV downloaded!');
+});
+
+/* Re-generate when allocation options change */
+document.getElementById('allocExpenses').addEventListener('change', generateExport);
+document.getElementById('allocLabor').addEventListener('change', generateExport);
+document.getElementById('allocProRate').addEventListener('change', function() {
+  /* Pro-rate is mutually exclusive with individual allocation options */
+  if (this.checked) {
+    document.getElementById('allocExpenses').checked = false;
+    document.getElementById('allocLabor').checked = false;
+  }
+  generateExport();
+});
+document.getElementById('allocExpenses').addEventListener('change', function() {
+  if (this.checked) document.getElementById('allocProRate').checked = false;
+});
+document.getElementById('allocLabor').addEventListener('change', function() {
+  if (this.checked) document.getElementById('allocProRate').checked = false;
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   CLEAR ALL
+   ════════════════════════════════════════════════════════════════════ */
+document.getElementById('clearAllBtn').addEventListener('click', function() {
+  NORMALIZED = {};
+  IMPORT_STATE = {
+    revenueMonths: 0, expenseMonths: 0, laborMonths: 0,
+    hourlyRate: 15.00, waveRawRows: [], waveCategoryMap: {}, waveCategorySums: {}
+  };
+  document.getElementById('revenueArea').value = '';
+  document.getElementById('expensesArea').value = '';
+  document.getElementById('laborArea').value = '';
+  document.getElementById('revenueStatus').textContent = '';
+  document.getElementById('expenseParseStatus').textContent = '';
+  document.getElementById('expenseImportStatus').textContent = '';
+  document.getElementById('laborStatus').textContent = '';
+  document.getElementById('catMappingCard').style.display = 'none';
+  document.getElementById('hourlyRate').value = '15.00';
+  document.getElementById('exportArea').textContent = '';
+  document.getElementById('allocExpenses').checked = false;
+  document.getElementById('allocLabor').checked = false;
+  document.getElementById('allocProRate').checked = false;
+  updateMonthCount();
+  renderDashboard();
+  switchTab('import');
+  showToast('All data cleared.');
 });
 </script>
 </body>
