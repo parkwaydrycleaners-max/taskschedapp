@@ -558,6 +558,7 @@ html.dark @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.3)}50
           <option value="all" selected>All Categories + Revenue + Totals</option>
         </select>
         <button class="btn btn-primary" id="copyExportBtn">&#x1F4CB; Copy to Clipboard</button>
+        <button class="btn btn-accent" id="exportMonthlyRevBtn">&#x1F4CA; Export Monthly Revenue (FCE)</button>
         <span id="copyStatus" style="font-size:.8rem;color:var(--success);display:none">Copied!</span>
       </div>
       <pre class="export-area" id="exportArea"></pre>
@@ -4636,6 +4637,44 @@ function generateExport(scope) {
   return lines.join('\n');
 }
 
+function generateMonthlyRevenueCSV() {
+  if (!S.series || !S.series.dates || S.series.dates.length === 0) {
+    showNotification('No data loaded.', 'error');
+    return;
+  }
+
+  var dates = S.series.dates;
+  var revenue = S.series.totalRevenue;
+
+  var monthTotals = {};
+
+  for (var i = 0; i < dates.length; i++) {
+    var d = dates[i];
+    var monthKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+
+    if (!monthTotals[monthKey]) {
+      monthTotals[monthKey] = 0;
+    }
+
+    monthTotals[monthKey] += revenue[i] || 0;
+  }
+
+  var months = Object.keys(monthTotals).sort();
+
+  var lines = [];
+  lines.push('Month,Actual_Revenue');
+
+  for (var mi = 0; mi < months.length; mi++) {
+    lines.push(months[mi] + ',' + monthTotals[months[mi]].toFixed(2));
+  }
+
+  var csvText = lines.join('\n');
+
+  navigator.clipboard.writeText(csvText).then(function() {
+    showNotification('Monthly revenue CSV copied to clipboard.', 'success');
+  });
+}
+
 /**
  * Compute ensemble forecast for a series.
  * @param {number[]} seriesData - Historical data array
@@ -5538,6 +5577,10 @@ document.getElementById('copyExportBtn').addEventListener('click', () => {
       setTimeout(() => { st.style.display = 'none'; }, 2000);
     });
   }
+});
+
+document.getElementById('exportMonthlyRevBtn').addEventListener('click', function() {
+  generateMonthlyRevenueCSV();
 });
 
 /* Map current active series to its per-category optimized weight set */
