@@ -671,6 +671,16 @@
     </div>
     <div class="section-body" id="body-pos">
       <textarea id="posInput" placeholder="Paste your POS Sales report here..."></textarea>
+      <div style="display:flex;gap:18px;align-items:center;margin-top:10px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);cursor:pointer;user-select:none;">
+          <input type="checkbox" id="posIncludeLastDay" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;">
+          Include last day
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);cursor:pointer;user-select:none;">
+          <input type="checkbox" id="posIncludeLastMonth" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;">
+          Include last month
+        </label>
+      </div>
       <button class="btn-process btn-pos" onclick="processPOS()">▸ Process POS</button>
       <div class="status-msg" id="posStatus"></div>
     </div>
@@ -907,67 +917,96 @@
       return;
     }
 
-    var lines = raw.split("\n");
-    var monthTotals = {};
-    var parsed = 0;
+    var excludeLastDay = !document.getElementById("posIncludeLastDay").checked;
+    var excludeLastMonth = !document.getElementById("posIncludeLastMonth").checked;
 
+    var lines = raw.split("\n");
+
+    // First pass: collect all valid rows into an array
+    var rows = [];
     for (var i = 0; i < lines.length; i++) {
-      // a. Trim whitespace
       var line = lines[i].trim();
       if (!line) { continue; }
-
-      // b. Check if line starts with 4 digits + "/"  (YYYY/)
       if (!/^\d{4}\//.test(line)) { continue; }
 
-      // c. Normalize whitespace: replace all tabs with single space,
-      //    then collapse multiple spaces into single space
       var normalized = line.replace(/\t/g, " ").replace(/ +/g, " ");
-
-      // d. Split by single space into tokens
       var tokens = normalized.split(" ");
-
-      // e. Ensure at least 3 tokens
       if (tokens.length < 3) { continue; }
 
-      // f. Extract: Date = tokens[0], Total_Pcs = tokens[length-2], Total_Amt = tokens[length-1]
       var datePart = tokens[0];
       var rawPcs = tokens[tokens.length - 2].replace(/,/g, "");
       var rawAmt = tokens[tokens.length - 1].replace(/,/g, "");
 
-      // g. Convert: Total_Pcs → integer, Total_Amt → decimal
       var totalPcs = parseInt(rawPcs, 10);
       var totalAmt = parseFloat(rawAmt);
-
-      // Skip if either value is not a valid number
       if (isNaN(totalPcs) || isNaN(totalAmt)) { continue; }
 
-      // h. Convert Date YYYY/MM/DD → YYYY-MM
       var month = datePart.substring(0, 4) + "-" + datePart.substring(5, 7);
 
-      // i. Add to MonthTotals dictionary
-      if (!monthTotals[month]) {
-        monthTotals[month] = { revenue: 0 };
-      }
-      monthTotals[month].revenue += totalAmt;
-      parsed++;
+      rows.push({ date: datePart, month: month, amt: totalAmt });
     }
 
-    if (parsed === 0) {
+    if (rows.length === 0) {
       showStatus("posStatus", "No valid date lines found in POS report.", "error");
       return;
     }
 
-    // Update or create Monthly_Financials records
+    // Determine last day and last month to potentially exclude
+    var allDates = [];
+    var allMonths = [];
+    for (var r = 0; r < rows.length; r++) {
+      allDates.push(rows[r].date);
+      allMonths.push(rows[r].month);
+    }
+    allDates.sort();
+    allMonths.sort();
+    var lastDate = allDates[allDates.length - 1];
+    var lastMonth = allMonths[allMonths.length - 1];
+
+    // Second pass: aggregate, applying exclusions
+    var monthTotals = {};
+    var parsed = 0;
+    var skippedDay = 0;
+    var skippedMonth = 0;
+
+    for (var j = 0; j < rows.length; j++) {
+      var row = rows[j];
+
+      if (excludeLastDay && row.date === lastDate) {
+        skippedDay++;
+        continue;
+      }
+      if (excludeLastMonth && row.month === lastMonth) {
+        skippedMonth++;
+        continue;
+      }
+
+      if (!monthTotals[row.month]) {
+        monthTotals[row.month] = { revenue: 0 };
+      }
+      monthTotals[row.month].revenue += row.amt;
+      parsed++;
+    }
+
+    if (parsed === 0) {
+      showStatus("posStatus", "All lines excluded by filters. Nothing to process.", "error");
+      return;
+    }
+
     var months = Object.keys(monthTotals);
-    for (var j = 0; j < months.length; j++) {
-      var m = months[j];
+    for (var k = 0; k < months.length; k++) {
+      var m = months[k];
       var rec = getOrCreate(m);
       rec.Actual_Revenue = monthTotals[m].revenue;
     }
 
     document.getElementById("posInput").value = "";
     refreshUI();
-    showStatus("posStatus", "Processed " + parsed + " lines across " + months.length + " month(s).", "success");
+
+    var msg = "Processed " + parsed + " lines across " + months.length + " month(s).";
+    if (skippedDay > 0) { msg += " Excluded last day (" + lastDate + "): " + skippedDay + " row(s)."; }
+    if (skippedMonth > 0) { msg += " Excluded last month (" + lastMonth + "): " + skippedMonth + " row(s)."; }
+    showStatus("posStatus", msg, "success");
   };
 
   // ============================================================
