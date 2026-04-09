@@ -917,7 +917,7 @@
       return;
     }
 
-    // Reset existing revenue
+    // Reset revenue
     for (var key in store) {
       if (store.hasOwnProperty(key)) {
         store[key].Actual_Revenue = 0;
@@ -932,52 +932,48 @@
       var line = lines[i].trim();
       if (!line) { continue; }
 
-      // 1. Detect date line
+      // Detect date
       var dateMatch = line.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
       if (dateMatch) {
         currentMonth = dateMatch[1] + "-" + dateMatch[2];
         continue;
       }
 
-      // 2. Detect totals line (must have currentMonth already)
-      if (currentMonth) {
+      if (!currentMonth) { continue; }
 
-        // Extract all numeric values in this line
-        var nums = line.match(/[\d,]+\.\d+|[\d,]+/g);
-        if (!nums || nums.length < 2) { continue; }
+      // Remove any leading whitespace
+      var cleanedLine = line.trim();
 
-        // Convert numeric tokens
-        var parsedNums = [];
-        for (var n = 0; n < nums.length; n++) {
-          var val = parseFloat(nums[n].replace(/,/g, ""));
-          if (!isNaN(val)) { parsedNums.push(val); }
+      // Extract numeric tokens
+      var nums = cleanedLine.match(/[\d,]+\.\d+|[\d,]+/g);
+      if (!nums || nums.length < 2) { continue; }
+
+      var parsedNums = [];
+      for (var n = 0; n < nums.length; n++) {
+        var val = parseFloat(nums[n].replace(/,/g, ""));
+        if (!isNaN(val)) { parsedNums.push(val); }
+      }
+
+      if (parsedNums.length < 2) { continue; }
+
+      // The daily total revenue is always the LAST numeric value
+      var totalRevenue = parsedNums[parsedNums.length - 1];
+
+      // Only accept realistic revenue values
+      if (totalRevenue > 100) {
+        if (!store[currentMonth]) {
+          store[currentMonth] = defaultRecord(currentMonth);
         }
 
-        if (parsedNums.length < 2) { continue; }
-
-        // Heuristic:
-        // The daily total revenue is usually the largest value in the row.
-        var totalRevenue = Math.max.apply(null, parsedNums);
-
-        // Only treat it as daily revenue if it is reasonably large
-        if (totalRevenue > 100) {
-
-          if (!store[currentMonth]) {
-            store[currentMonth] = defaultRecord(currentMonth);
-          }
-
-          store[currentMonth].Actual_Revenue += totalRevenue;
-          processed++;
-
-          // Reset month so we do not double-count
-          currentMonth = null;
-        }
+        store[currentMonth].Actual_Revenue += totalRevenue;
+        processed++;
+        currentMonth = null; // prevent double counting
       }
     }
 
     document.getElementById("posInput").value = "";
     refreshUI();
-    showStatus("posStatus", "POS report processed. Days counted: " + processed, "success");
+    showStatus("posStatus", "POS processed. Days counted: " + processed, "success");
   };
 
   // ============================================================
