@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReportRipper — POS Data Parser</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-base:#f4f1eb;--bg-surface:#fffdf8;--bg-surface-alt:#f8f5ee;--bg-elevated:#eae6dc;
+  --text-primary:#1c1917;--text-secondary:#57534e;--text-muted:#a8a29e;
+  --border:#d6d3cd;--border-light:#e7e5e0;
+  --accent:#b45309;--accent-light:#d97706;--accent-bg:rgba(180,83,9,.06);
+  --accent2:#0f766e;--accent2-light:#14b8a6;--accent2-bg:rgba(15,118,110,.06);
+  --success:#15803d;--success-bg:rgba(21,128,61,.08);
+  --error:#b91c1c;--error-bg:rgba(185,28,28,.08);
+  --warning:#a16207;
+  --shadow-sm:0 1px 2px rgba(28,25,23,.06);--shadow-md:0 4px 16px rgba(28,25,23,.08);--shadow-lg:0 8px 32px rgba(28,25,23,.12);
+  --radius:12px;--radius-sm:8px;--radius-xs:4px;
+  --font-body:'DM Sans',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+}
+html.dark{
+  --bg-base:#121110;--bg-surface:#1c1a17;--bg-surface-alt:#242220;--bg-elevated:#2e2b27;
+  --text-primary:#e7e5e4;--text-secondary:#a8a29e;--text-muted:#78716c;
+  --border:#3b3733;--border-light:#2e2b27;
+  --accent:#f59e0b;--accent-light:#fbbf24;--accent-bg:rgba(245,158,11,.08);
+  --accent2:#2dd4bf;--accent2-light:#5eead4;--accent2-bg:rgba(45,212,191,.08);
+  --success:#4ade80;--success-bg:rgba(74,222,128,.1);
+  --error:#f87171;--error-bg:rgba(248,113,113,.1);
+  --warning:#fbbf24;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.2);--shadow-md:0 4px 16px rgba(0,0,0,.3);--shadow-lg:0 8px 32px rgba(0,0,0,.4);
+}
+html{font-family:var(--font-body);font-size:16px;line-height:1.55;background:var(--bg-base);color:var(--text-primary)}
+body{min-height:100vh;overflow-x:hidden}
+
+/* ── Header ── */
+.app-header{
+  background:var(--bg-surface);border-bottom:2px solid var(--border);
+  padding:16px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;
+  box-shadow:var(--shadow-sm);
+}
+.app-logo{display:flex;align-items:baseline;gap:4px}
+.app-logo .mark{
+  font-size:1.4rem;font-weight:700;letter-spacing:-.03em;
+  color:var(--accent);font-family:var(--font-mono);
+}
+.app-logo .mark span{color:var(--accent2)}
+.app-logo .sub{font-size:.72rem;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;font-weight:500;margin-left:6px}
+.header-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+/* ── Tabs ── */
+.tab-bar{
+  display:flex;gap:0;background:var(--bg-surface);border-bottom:1px solid var(--border);
+  padding:0 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+}
+.tab-btn{
+  padding:14px 20px;font-size:.82rem;font-weight:500;color:var(--text-muted);
+  border:none;background:none;cursor:pointer;white-space:nowrap;
+  border-bottom:3px solid transparent;transition:all .2s;font-family:var(--font-body);
+  letter-spacing:.01em;
+}
+.tab-btn:hover{color:var(--text-primary)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tab-panel{display:none;padding:20px;max-width:1100px;margin:0 auto}
+.tab-panel.active{display:block}
+
+/* ── Cards ── */
+.card{
+  background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px;margin-bottom:18px;box-shadow:var(--shadow-sm);
+  transition:box-shadow .2s;
+}
+.card:hover{box-shadow:var(--shadow-md)}
+.card-title{
+  font-size:.9rem;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:10px;
+  letter-spacing:-.01em;
+}
+.card-title .icon{font-size:1rem;color:var(--accent);width:20px;text-align:center}
+
+/* ── Form Controls ── */
+.textarea-paste{
+  width:100%;min-height:220px;padding:14px;border:2px dashed var(--border);
+  border-radius:var(--radius-sm);background:var(--bg-surface-alt);color:var(--text-primary);
+  font-family:var(--font-mono);font-size:.8rem;resize:vertical;line-height:1.6;
+  transition:border-color .2s,box-shadow .2s;
+}
+.textarea-paste:focus{outline:none;border-color:var(--accent);border-style:solid;box-shadow:0 0 0 3px var(--accent-bg)}
+.textarea-paste::placeholder{color:var(--text-muted);font-style:italic}
+
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:10px 20px;border-radius:var(--radius-sm);
+  font-weight:600;font-size:.82rem;border:2px solid transparent;cursor:pointer;
+  transition:all .15s;font-family:var(--font-body);letter-spacing:.01em;
+}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{opacity:.88;transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.btn-secondary{background:var(--bg-elevated);color:var(--text-primary);border-color:var(--border)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn-accent2{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+.btn-accent2:hover{opacity:.88;transform:translateY(-1px)}
+.btn-sm{padding:7px 14px;font-size:.78rem}
+.btn-xs{padding:4px 10px;font-size:.72rem}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* ── Data Tables ── */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:var(--radius-sm)}
+.data-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.data-table th{
+  background:var(--bg-elevated);color:var(--text-secondary);font-weight:600;
+  padding:10px 12px;text-align:left;white-space:nowrap;border-bottom:2px solid var(--border);
+  position:sticky;top:0;z-index:2;font-family:var(--font-mono);font-size:.72rem;
+  text-transform:uppercase;letter-spacing:.05em;
+}
+.data-table td{padding:8px 12px;border-bottom:1px solid var(--border-light);white-space:nowrap}
+.data-table tr:hover td{background:var(--accent-bg)}
+.data-table .num{text-align:right;font-family:var(--font-mono);font-size:.78rem;font-weight:500}
+
+/* ── Column Mapping ── */
+.col-map{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:14px}
+.col-map-item{
+  background:var(--bg-surface-alt);border:1px solid var(--border-light);border-radius:var(--radius-sm);
+  padding:12px;transition:border-color .2s;
+}
+.col-map-item:hover{border-color:var(--accent)}
+.col-map-item label{display:block;font-weight:600;margin-bottom:6px;color:var(--text-secondary);font-size:.78rem;letter-spacing:.02em}
+.col-map-item select{
+  width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);
+  background:var(--bg-surface);color:var(--text-primary);font-size:16px;font-family:var(--font-body);
+}
+.col-map-item .preview{font-family:var(--font-mono);font-size:.7rem;color:var(--text-muted);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Export Area ── */
+.export-area{
+  width:100%;min-height:280px;padding:14px;border:1px solid var(--border);
+  border-radius:var(--radius-sm);background:var(--bg-surface-alt);color:var(--text-primary);
+  font-family:var(--font-mono);font-size:.75rem;resize:vertical;white-space:pre;
+  overflow:auto;line-height:1.65;
+}
+
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;font-family:var(--font-mono)}
+.badge-success{background:var(--success-bg);color:var(--success)}
+.badge-error{background:var(--error-bg);color:var(--error)}
+.badge-info{background:var(--accent-bg);color:var(--accent)}
+.badge-teal{background:var(--accent2-bg);color:var(--accent2)}
+
+/* ── Info Box ── */
+.info-box{
+  background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--radius-sm);
+  padding:14px 16px;font-size:.8rem;color:var(--text-secondary);margin-bottom:16px;line-height:1.7;
+}
+.info-box strong{color:var(--text-primary)}
+.info-box code{font-family:var(--font-mono);font-size:.75rem;background:var(--bg-elevated);padding:1px 5px;border-radius:3px}
+
+/* ── Copy Format Selector ── */
+.format-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px}
+.format-card{
+  background:var(--bg-surface-alt);border:2px solid var(--border);border-radius:var(--radius-sm);
+  padding:14px;cursor:pointer;transition:all .2s;text-align:center;
+}
+.format-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.format-card.active{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 3px var(--accent-bg)}
+.format-card .format-icon{font-size:1.3rem;margin-bottom:6px;color:var(--accent)}
+.format-card .format-name{font-size:.82rem;font-weight:600;margin-bottom:2px}
+.format-card .format-desc{font-size:.68rem;color:var(--text-muted)}
+
+/* ── Stats Row ── */
+.stats-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.stat-pill{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:10px 18px;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--bg-surface-alt);min-width:90px;
+}
+.stat-pill .stat-label{font-size:.65rem;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
+.stat-pill .stat-value{font-size:1.15rem;font-weight:700;font-family:var(--font-mono);color:var(--accent)}
+
+/* ── Toast Notification ── */
+.toast{
+  position:fixed;bottom:24px;right:24px;z-index:200;
+  background:var(--bg-surface);border:2px solid var(--success);border-radius:var(--radius);
+  padding:14px 20px;box-shadow:var(--shadow-lg);
+  display:flex;align-items:center;gap:10px;font-size:.85rem;font-weight:500;
+  transform:translateY(120%);opacity:0;transition:all .35s cubic-bezier(.34,1.56,.64,1);
+  max-width:360px;
+}
+.toast.show{transform:translateY(0);opacity:1}
+.toast .toast-icon{font-size:1.1rem;color:var(--success)}
+.toast.error{border-color:var(--error)}
+.toast.error .toast-icon{color:var(--error)}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .tab-btn{padding:12px 14px;font-size:.78rem}
+  .card{padding:16px}
+  .col-map{grid-template-columns:1fr}
+  .format-grid{grid-template-columns:1fr 1fr}
+  .stats-row{gap:8px}
+  .stat-pill{min-width:70px;padding:8px 12px}
+  .app-logo .sub{display:none}
+  .header-actions .btn span.btn-text{display:none}
+}
+
+/* ── Animations ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.animate-in{animation:fadeUp .35s ease-out}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.parsing-indicator{animation:pulse 1s ease-in-out infinite;color:var(--accent);font-weight:600;font-size:.82rem}
+
+/* ── Checkbox ── */
+.checkbox-label{display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--text-secondary);cursor:pointer;user-select:none}
+.checkbox-label input[type="checkbox"]{width:18px;height:18px;cursor:pointer;accent-color:var(--accent)}
+
+/* ── Select ── */
+.select-styled{
+  padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--bg-surface);color:var(--text-primary);font-size:16px;font-family:var(--font-body);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg-base)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header">
+  <div class="app-logo">
+    <div class="mark">Report<span>Ripper</span></div>
+    <div class="sub">POS Data Parser</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-secondary btn-sm" id="sampleBtn"><i class="fa-solid fa-flask"></i> <span class="btn-text">Sample Data</span></button>
+    <button class="btn btn-secondary btn-sm" id="clearAllBtn"><i class="fa-solid fa-trash-can"></i> <span class="btn-text">Clear</span></button>
+  </div>
+</header>
+
+<!-- TAB BAR -->
+<nav class="tab-bar" role="tablist">
+  <button class="tab-btn active" data-tab="paste" role="tab"><i class="fa-solid fa-paste"></i> Paste</button>
+  <button class="tab-btn" data-tab="preview" role="tab"><i class="fa-solid fa-table"></i> Preview</button>
+  <button class="tab-btn" data-tab="export" role="tab"><i class="fa-solid fa-copy"></i> Copy Out</button>
+</nav>
+
+<!-- ═══════════ TAB: PASTE ═══════════ -->
+<section id="tab-paste" class="tab-panel active">
+  <div class="card animate-in">
+    <div class="card-title"><span class="icon"><i class="fa-solid fa-clipboard"></i></span> Paste Your Report</div>
+    <div class="info-box">
+      Paste your <strong>Sales Report By Category</strong> directly from your POS system. The multi-page format (left page with Drop/Dry/Laundry, middle with Alter/Press, right with Totals) is <strong>auto-detected</strong>.
+      <br><br>
+      Also supports <strong>generic</strong> tab-separated and CSV formats with manual column mapping.
+    </div>
+    <textarea id="pasteArea" class="textarea-paste" placeholder="Paste your POS report data here...&#10;&#10;Supports:&#10;  • Sales Report By Category (multi-page POS format)&#10;  • Tab-separated data&#10;  • CSV data&#10;  • Pipe or semicolon delimited"></textarea>
+    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-primary" id="parseBtn"><i class="fa-solid fa-bolt"></i> Parse Report</button>
+      <label class="checkbox-label" style="margin-left:auto">
+        <input type="checkbox" id="includeLastDate"> Include last date (partial day)
+      </label>
+    </div>
+    <div id="parseStatus" style="margin-top:10px;font-size:.82rem;color:var(--text-muted)"></div>
+  </div>
+
+  <!-- Column Mapping (for generic formats) -->
+  <div id="mappingCard" class="card" style="display:none">
+    <div class="card-title"><span class="icon"><i class="fa-solid fa-arrows-left-right"></i></span> Column Mapping</div>
+    <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:8px">Assign each column a role. Pick one <strong>Date</strong> column and classify the rest as Pieces, Revenue, or Skip.</p>
+    <div id="colMappings" class="col-map"></div>
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-primary" id="loadDataBtn"><i class="fa-solid fa-check"></i> Load Data</button>
+      <span id="mappingStatus" style="font-size:.8rem;color:var(--text-muted)"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ TAB: PREVIEW ═══════════ -->
+<section id="tab-preview" class="tab-panel">
+  <div id="noDataPreview" class="card">
+    <p style="text-align:center;color:var(--text-muted);padding:40px 0;font-size:.9rem"><i class="fa-solid fa-clipboard-question" style="font-size:2rem;display:block;margin-bottom:12px;opacity:.4"></i>Paste and parse a report first to see the data here.</p>
+  </div>
+
+  <div id="previewContent" style="display:none">
+    <!-- Stats -->
+    <div class="stats-row animate-in" id="statsRow"></div>
+
+    <!-- Data Table -->
+    <div class="card animate-in">
+      <div class="card-title">
+        <span class="icon"><i class="fa-solid fa-table-cells"></i></span> Parsed Data
+        <span id="dataStats" class="badge badge-info" style="margin-left:auto"></span>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:.82rem;font-weight:500;color:var(--text-secondary)">Show:</label>
+        <select id="viewFilter" class="select-styled" style="font-size:.82rem">
+          <option value="all">All Columns</option>
+          <option value="pieces">Pieces Only</option>
+          <option value="revenue">Revenue Only</option>
+        </select>
+        <label style="font-size:.82rem;font-weight:500;color:var(--text-secondary);margin-left:auto">Rows:</label>
+        <select id="rowLimit" class="select-styled" style="font-size:.82rem">
+          <option value="50">First 50</option>
+          <option value="100">First 100</option>
+          <option value="all" selected>All</option>
+        </select>
+      </div>
+      <div class="table-wrap" style="max-height:60vh;overflow-y:auto">
+        <table class="data-table" id="previewTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ TAB: COPY OUT ═══════════ -->
+<section id="tab-export" class="tab-panel">
+  <div id="noDataExport" class="card">
+    <p style="text-align:center;color:var(--text-muted);padding:40px 0;font-size:.9rem"><i class="fa-solid fa-clipboard-question" style="font-size:2rem;display:block;margin-bottom:12px;opacity:.4"></i>Parse a report first, then copy the data out here.</p>
+  </div>
+
+  <div id="exportContent" style="display:none">
+    <!-- Format selector -->
+    <div class="card animate-in">
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-file-export"></i></span> Choose Format</div>
+      <div class="format-grid" id="formatGrid">
+        <div class="format-card active" data-format="piececast">
+          <div class="format-icon"><i class="fa-solid fa-chart-line"></i></div>
+          <div class="format-name">PieceCast</div>
+          <div class="format-desc">Tab-separated for PieceCast import</div>
+        </div>
+        <div class="format-card" data-format="tab-all">
+          <div class="format-icon"><i class="fa-solid fa-table-columns"></i></div>
+          <div class="format-name">Full Tab-Sep</div>
+          <div class="format-desc">All columns, tab-delimited</div>
+        </div>
+        <div class="format-card" data-format="csv">
+          <div class="format-icon"><i class="fa-solid fa-file-csv"></i></div>
+          <div class="format-name">CSV</div>
+          <div class="format-desc">Comma-separated values</div>
+        </div>
+        <div class="format-card" data-format="pieces-only">
+          <div class="format-icon"><i class="fa-solid fa-cubes"></i></div>
+          <div class="format-name">Pieces Only</div>
+          <div class="format-desc">Date + piece counts only</div>
+        </div>
+        <div class="format-card" data-format="revenue-only">
+          <div class="format-icon"><i class="fa-solid fa-dollar-sign"></i></div>
+          <div class="format-name">Revenue Only</div>
+          <div class="format-desc">Date + revenue columns only</div>
+        </div>
+        <div class="format-card" data-format="summary">
+          <div class="format-icon"><i class="fa-solid fa-chart-pie"></i></div>
+          <div class="format-name">Daily Summary</div>
+          <div class="format-desc">Date + DOW + total pieces/rev</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Date Range Filter -->
+    <div class="card animate-in">
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-calendar-days"></i></span> Date Range <span class="badge badge-teal" id="dateRangeBadge" style="margin-left:auto"></span></div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:.82rem;font-weight:500">From:</label>
+        <input type="date" id="exportStartDate" class="select-styled" style="font-size:16px;width:160px">
+        <label style="font-size:.82rem;font-weight:500">To:</label>
+        <input type="date" id="exportEndDate" class="select-styled" style="font-size:16px;width:160px">
+        <button class="btn btn-secondary btn-sm" id="resetDatesBtn"><i class="fa-solid fa-rotate-left"></i> All</button>
+        <button class="btn btn-primary" id="copyExportBtn" style="margin-left:auto"><i class="fa-solid fa-copy"></i> Copy to Clipboard</button>
+      </div>
+    </div>
+
+    <!-- Output Preview -->
+    <div class="card animate-in">
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-eye"></i></span> Output Preview <span id="exportRowCount" class="badge badge-info" style="margin-left:auto"></span></div>
+      <pre class="export-area" id="exportArea"></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span class="toast-icon"><i class="fa-solid fa-circle-check"></i></span>
+  <span id="toastText">Copied!</span>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   STATE
+   ════════════════════════════════════════════════════════════════════ */
+var STATE = {
+  raw: { headers: [], rows: [] },
+  mappings: { dateCol: -1, columns: [] },
+  series: {
+    dates: [],
+    categories: {},
+    totalPieces: [],
+    totalRevenue: []
+  },
+  dataLoaded: false,
+  exportFormat: 'piececast'
+};
+
+var DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+/* ════════════════════════════════════════════════════════════════════
+   DARK MODE
+   ════════════════════════════════════════════════════════════════════ */
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  document.documentElement.classList.add('dark');
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+  if (e.matches) { document.documentElement.classList.add('dark'); }
+  else { document.documentElement.classList.remove('dark'); }
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   UTILITY
+   ════════════════════════════════════════════════════════════════════ */
+function escHtml(s) {
+  var div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function formatDateISO(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function formatDateShort(d) {
+  return (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+}
+
+function showToast(msg, type) {
+  var toast = document.getElementById('toast');
+  var icon = toast.querySelector('.toast-icon i');
+  document.getElementById('toastText').textContent = msg;
+  toast.className = 'toast' + (type === 'error' ? ' error' : '');
+  icon.className = type === 'error' ? 'fa-solid fa-circle-xmark' : 'fa-solid fa-circle-check';
+  toast.classList.add('show');
+  setTimeout(function() { toast.classList.remove('show'); }, 2500);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   DATA PARSING (extracted from PieceCast)
+   ════════════════════════════════════════════════════════════════════ */
+
+function detectDelimiter(text) {
+  var lines = text.trim().split('\n').slice(0, 8);
+  var delims = ['\t', ',', '|', ';'];
+  var best = '\t', bestScore = 0;
+  for (var di = 0; di < delims.length; di++) {
+    var d = delims[di];
+    var counts = lines.map(function(l) { return l.split(d).length; });
+    var mn = Math.min.apply(null, counts);
+    var mx = Math.max.apply(null, counts);
+    if (mn > 1 && mx - mn <= 2) {
+      var avg = counts.reduce(function(a,b){return a+b;}, 0) / counts.length;
+      if (avg > bestScore) { bestScore = avg; best = d; }
+    }
+  }
+  return best;
+}
+
+function parseDate(s) {
+  if (!s) return null;
+  s = s.trim();
+  var m, d, y;
+  var iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (iso) {
+    y = Number(iso[1]); m = Number(iso[2]); d = Number(iso[3]);
+    return new Date(y, m-1, d);
+  }
+  var us = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+  if (us) {
+    m = Number(us[1]); d = Number(us[2]); y = Number(us[3]);
+    if (y < 100) y += 2000;
+    return new Date(y, m-1, d);
+  }
+  var posSlash = s.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (posSlash) {
+    y = Number(posSlash[1]); m = Number(posSlash[2]); d = Number(posSlash[3]);
+    return new Date(y, m-1, d);
+  }
+  var obj = new Date(s);
+  if (!isNaN(obj.getTime()) && obj.getFullYear() > 1900 && obj.getFullYear() < 2100) return obj;
+  return null;
+}
+
+function parseNumeric(s) {
+  if (s == null || s === '') return NaN;
+  s = String(s).trim().replace(/[$,]/g, '');
+  if (s === '' || s === '-') return NaN;
+  return parseFloat(s);
+}
+
+function parseRawData(text) {
+  var delim = detectDelimiter(text);
+  var lines = text.trim().split('\n').filter(function(l) { return l.trim().length > 0; });
+  if (lines.length < 2) return null;
+
+  var headerIdx = 0;
+  for (var i = 0; i < Math.min(5, lines.length); i++) {
+    var cells = lines[i].split(delim).map(function(c) { return c.trim(); });
+    if (cells.filter(function(c) { return c.length > 0; }).length >= 2) { headerIdx = i; break; }
+  }
+
+  var headers = lines[headerIdx].split(delim).map(function(c) { return c.trim(); });
+  var rows = [];
+  for (var j = headerIdx + 1; j < lines.length; j++) {
+    var rowCells = lines[j].split(delim).map(function(c) { return c.trim(); });
+    if (rowCells.filter(function(c) { return c.length > 0; }).length >= 2) rows.push(rowCells);
+  }
+
+  return { headers: headers, rows: rows };
+}
+
+/* ── POS "Sales Report By Category" format ── */
+function isPOSReport(text) {
+  return text.indexOf('Sales Report By Category') >= 0 && text.indexOf('Drop') >= 0;
+}
+
+function isReportHeaderLine(line) {
+  if (line === '') return true;
+  if (line.indexOf('Sales Report') >= 0) return true;
+  if (/^\d{4}\/\d{2}\s*~/.test(line)) return true;
+  if (/^\d{4}\.\d{2}\.\d{2}$/.test(line)) return true;
+  if (line.indexOf('Drop') >= 0 && line.indexOf('Dry') >= 0) return true;
+  if (line.indexOf('Alter Pcs') >= 0 || line.indexOf('Alter Amt') >= 0) return true;
+  if (line.indexOf('Press Pcs') >= 0 || line.indexOf('Press Amt') >= 0) return true;
+  if (line.indexOf('Total Pcs') >= 0 || line.indexOf('Total Amt') >= 0) return true;
+  if (line.indexOf('DC Amt') >= 0) return true;
+  if (line.indexOf('Laund Amt') >= 0 && line.indexOf('Alter') >= 0) return true;
+  return false;
+}
+
+function parsePOSReport(text) {
+  var lines = text.split('\n');
+
+  var sections = [];
+  var current = [];
+  for (var li = 0; li < lines.length; li++) {
+    if (lines[li].indexOf('Sales Report By Category') >= 0) {
+      if (current.length > 0) sections.push(current);
+      current = [lines[li]];
+    } else {
+      current.push(lines[li]);
+    }
+  }
+  if (current.length > 0) sections.push(current);
+
+  var leftRows = [];
+  var middleRows = [];
+  var rightRows = [];
+
+  for (var si = 0; si < sections.length; si++) {
+    var section = sections[si];
+    var sectionType = null;
+    for (var sl = 0; sl < section.length; sl++) {
+      var t = section[sl].trim();
+      if (t.indexOf('Drop') >= 0 && t.indexOf('Dry') >= 0) { sectionType = 'left'; break; }
+      if (t.indexOf('Alter Pcs') >= 0 || t.indexOf('Alter Amt') >= 0) { sectionType = 'middle'; break; }
+      if (t.indexOf('Total Pcs') >= 0 || t.indexOf('DC Amt') >= 0) { sectionType = 'right'; break; }
+    }
+    if (!sectionType) continue;
+
+    for (var ri = 0; ri < section.length; ri++) {
+      var trimmed = section[ri].trim();
+      if (isReportHeaderLine(trimmed)) continue;
+      var cells = trimmed.split(/\s{2,}/).filter(function(c) { return c.length > 0; });
+      if (cells.length < 2) continue;
+
+      if (sectionType === 'left') {
+        if (/^\d{4}\//.test(cells[0])) leftRows.push(cells);
+      } else if (sectionType === 'middle') {
+        if (/^-?[\d.]/.test(cells[0])) middleRows.push(cells);
+      } else {
+        if (/^-?[\d.]/.test(cells[0])) rightRows.push(cells);
+      }
+    }
+  }
+
+  var headers = ['Date', 'Dry Pcs', 'Dry Amt', 'Laund Pcs', 'Laund Amt',
+    'Alter Pcs', 'Alter Amt', 'Press Pcs', 'Press Amt', 'DC Amt', 'Total Pcs', 'Total Amt'];
+
+  var rows = [];
+  for (var rj = 0; rj < leftRows.length; rj++) {
+    var left = leftRows[rj];
+    var middle = rj < middleRows.length ? middleRows[rj] : [];
+    var right = rj < rightRows.length ? rightRows[rj] : [];
+    rows.push(left.concat(middle).concat(right));
+  }
+
+  var includeLastCb = document.getElementById('includeLastDate');
+  var keepLastDate = includeLastCb && includeLastCb.checked;
+  if (rows.length > 0 && !keepLastDate) {
+    var lastDateVal = rows[rows.length - 1][0];
+    for (var rd = rows.length - 1; rd >= 0; rd--) {
+      if (rows[rd][0] === lastDateVal) rows.splice(rd, 1);
+    }
+  }
+
+  var mappings = {
+    dateCol: 0,
+    columns: [
+      { index: 0, type: 'date', name: 'Date' },
+      { index: 1, type: 'pieces', name: 'Dry Cleaning' },
+      { index: 2, type: 'revenue', name: 'Dry Cleaning' },
+      { index: 3, type: 'pieces', name: 'Laundry' },
+      { index: 4, type: 'revenue', name: 'Laundry' },
+      { index: 5, type: 'pieces', name: 'Alterations' },
+      { index: 6, type: 'revenue', name: 'Alterations' },
+      { index: 7, type: 'pieces', name: 'Press' },
+      { index: 8, type: 'revenue', name: 'Press' },
+      { index: 9, type: 'skip', name: 'DC Amt' },
+      { index: 10, type: 'skip', name: 'Total Pcs' },
+      { index: 11, type: 'skip', name: 'Total Amt' }
+    ]
+  };
+
+  return { headers: headers, rows: rows, mappings: mappings };
+}
+
+function autoDetectColumns(headers, rows) {
+  var mappings = [];
+  var dateCol = -1;
+  var sample = rows.slice(0, Math.min(5, rows.length));
+
+  for (var i = 0; i < headers.length; i++) {
+    var vals = sample.map(function(r) { return r[i] || ''; });
+    var dateParsed = vals.filter(function(v) { return parseDate(v) !== null; }).length;
+    var hLow = headers[i].toLowerCase();
+
+    if (dateCol === -1 && (dateParsed >= vals.length * 0.6 || hLow.indexOf('date') >= 0)) {
+      dateCol = i;
+      mappings.push({ index: i, type: 'date', name: headers[i] });
+    } else if (hLow.indexOf('rev') >= 0 || hLow.indexOf('$') >= 0 || hLow.indexOf('sales') >= 0 ||
+               hLow.indexOf('amount') >= 0 || hLow.indexOf('dollar') >= 0 || hLow.indexOf('amt') >= 0) {
+      mappings.push({ index: i, type: 'revenue', name: headers[i].replace(/[$]/g, '').trim() });
+    } else {
+      var numParsed = vals.filter(function(v) { return !isNaN(parseNumeric(v)); }).length;
+      if (numParsed >= vals.length * 0.5) {
+        mappings.push({ index: i, type: 'pieces', name: headers[i] });
+      } else {
+        mappings.push({ index: i, type: 'skip', name: headers[i] });
+      }
+    }
+  }
+
+  return { dateCol: dateCol, columns: mappings };
+}
+
+function processData() {
+  var dateCol = STATE.mappings.dateCol;
+  var columns = STATE.mappings.columns;
+  if (dateCol < 0) return false;
+
+  var dates = [], categories = {};
+  var pieceCols = columns.filter(function(c) { return c.type === 'pieces'; });
+  var revCols = columns.filter(function(c) { return c.type === 'revenue'; });
+
+  pieceCols.forEach(function(c) { categories[c.name] = { pieces: [], revenue: [] }; });
+  revCols.forEach(function(c) {
+    if (!categories[c.name]) categories[c.name] = { pieces: [], revenue: [] };
+  });
+
+  var dateMap = {};
+  for (var ri = 0; ri < STATE.raw.rows.length; ri++) {
+    var row = STATE.raw.rows[ri];
+    var d = parseDate(row[dateCol]);
+    if (!d) continue;
+    var key = d.toISOString().slice(0, 10);
+    if (dateMap[key]) continue;
+    dateMap[key] = true;
+
+    dates.push(d);
+
+    pieceCols.forEach(function(c) {
+      var v = parseNumeric(row[c.index]);
+      categories[c.name].pieces.push(isNaN(v) ? 0 : v);
+    });
+    revCols.forEach(function(c) {
+      var v = parseNumeric(row[c.index]);
+      if (categories[c.name]) categories[c.name].revenue.push(isNaN(v) ? 0 : v);
+    });
+  }
+
+  // Sort by date
+  var indices = dates.map(function(_, i) { return i; }).sort(function(a, b) { return dates[a] - dates[b]; });
+  STATE.series.dates = indices.map(function(i) { return dates[i]; });
+
+  var sortedCats = {};
+  for (var name in categories) {
+    if (!categories.hasOwnProperty(name)) continue;
+    sortedCats[name] = {
+      pieces: indices.map(function(i) { return categories[name].pieces[i] || 0; }),
+      revenue: indices.map(function(i) { return categories[name].revenue[i] || 0; })
+    };
+  }
+
+  // Merge Press into Dry Cleaning
+  if (sortedCats['Press'] && sortedCats['Dry Cleaning']) {
+    var nMerge = sortedCats['Dry Cleaning'].pieces.length;
+    for (var mi = 0; mi < nMerge; mi++) {
+      sortedCats['Dry Cleaning'].pieces[mi] += sortedCats['Press'].pieces[mi] || 0;
+      sortedCats['Dry Cleaning'].revenue[mi] += sortedCats['Press'].revenue[mi] || 0;
+    }
+    delete sortedCats['Press'];
+  }
+
+  STATE.series.categories = sortedCats;
+
+  // Compute totals
+  var n = STATE.series.dates.length;
+  STATE.series.totalPieces = new Array(n).fill(0);
+  STATE.series.totalRevenue = new Array(n).fill(0);
+  for (var catName in sortedCats) {
+    if (!sortedCats.hasOwnProperty(catName)) continue;
+    for (var ti = 0; ti < n; ti++) {
+      STATE.series.totalPieces[ti] += sortedCats[catName].pieces[ti];
+      STATE.series.totalRevenue[ti] += sortedCats[catName].revenue[ti];
+    }
+  }
+
+  STATE.dataLoaded = true;
+  return true;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SAMPLE DATA GENERATOR
+   ════════════════════════════════════════════════════════════════════ */
+function generateSampleData() {
+  var startDate = new Date(2025, 0, 1);
+  var endDate = new Date(2026, 2, 1);
+  var rows = ['Date\tDry Cleaning\tLaundry\tAlterations\tHousehold\tTotal Pcs\tTotal Rev'];
+
+  var totalDays = Math.round((endDate - startDate) / 86400000) + 1;
+  for (var dayIdx = 0; dayIdx < totalDays; dayIdx++) {
+    var d = new Date(startDate.getTime() + dayIdx * 86400000);
+    var dow = d.getDay();
+    var dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 86400000);
+
+    var seasonal = 1 + 0.15 * Math.sin((dayOfYear - 60) * 2 * Math.PI / 365) + 0.08 * Math.sin((dayOfYear - 240) * 2 * Math.PI / 365);
+    var dowMult = [0.15, 1.0, 0.95, 0.88, 0.92, 1.05, 0.55][dow];
+
+    var noise = function() { return 0.85 + Math.random() * 0.3; };
+    var dc = Math.round(42 * seasonal * dowMult * noise());
+    var laundry = Math.round(30 * seasonal * dowMult * noise());
+    var alt = Math.round(12 * seasonal * dowMult * noise());
+    var hh = Math.round(7 * seasonal * dowMult * noise());
+    var total = dc + laundry + alt + hh;
+    var rev = (dc * 7.5 + laundry * 4.0 + alt * 14.0 + hh * 8.5) * (0.95 + Math.random() * 0.1);
+
+    var dateStr = (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+    rows.push(dateStr + '\t' + dc + '\t' + laundry + '\t' + alt + '\t' + hh + '\t' + total + '\t$' + rev.toFixed(2));
+  }
+
+  return rows.join('\n');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   UI RENDERING
+   ════════════════════════════════════════════════════════════════════ */
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tabId); });
+  document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'tab-' + tabId); });
+}
+
+function renderColumnMappings() {
+  var el = document.getElementById('colMappings');
+  var headers = STATE.raw.headers;
+  var rows = STATE.raw.rows;
+  var detected = autoDetectColumns(headers, rows);
+  STATE.mappings = detected;
+
+  el.innerHTML = '';
+  for (var i = 0; i < headers.length; i++) {
+    var col = null;
+    for (var ci = 0; ci < detected.columns.length; ci++) {
+      if (detected.columns[ci].index === i) { col = detected.columns[ci]; break; }
+    }
+    if (!col) col = { type: 'skip', name: headers[i] };
+    var sample = rows.slice(0, 3).map(function(r) { return r[i] || ''; }).join(', ');
+    var div = document.createElement('div');
+    div.className = 'col-map-item';
+    div.innerHTML =
+      '<label>' + escHtml(headers[i] || 'Col ' + (i+1)) + '</label>' +
+      '<select data-col="' + i + '" class="col-type-select">' +
+        '<option value="date"' + (col.type === 'date' ? ' selected' : '') + '>Date</option>' +
+        '<option value="pieces"' + (col.type === 'pieces' ? ' selected' : '') + '>Pieces</option>' +
+        '<option value="revenue"' + (col.type === 'revenue' ? ' selected' : '') + '>Revenue</option>' +
+        '<option value="skip"' + (col.type === 'skip' ? ' selected' : '') + '>Skip</option>' +
+      '</select>' +
+      '<div class="preview">' + escHtml(sample) + '</div>';
+    el.appendChild(div);
+  }
+
+  document.getElementById('mappingCard').style.display = '';
+}
+
+function readColumnMappings() {
+  var selects = document.querySelectorAll('.col-type-select');
+  var columns = [];
+  var dateCol = -1;
+  selects.forEach(function(sel) {
+    var i = parseInt(sel.dataset.col);
+    var type = sel.value;
+    var name = STATE.raw.headers[i] || ('Column ' + (i+1));
+    if (type === 'date') dateCol = i;
+    columns.push({ index: i, type: type, name: name });
+  });
+  STATE.mappings = { dateCol: dateCol, columns: columns };
+  return dateCol >= 0;
+}
+
+function renderStats() {
+  var row = document.getElementById('statsRow');
+  var dates = STATE.series.dates;
+  var catNames = Object.keys(STATE.series.categories);
+  var n = dates.length;
+
+  var totalPcs = STATE.series.totalPieces.reduce(function(a,b){return a+b;}, 0);
+  var totalRev = STATE.series.totalRevenue.reduce(function(a,b){return a+b;}, 0);
+  var avgDaily = n > 0 ? Math.round(totalPcs / n) : 0;
+  var hasRevenue = totalRev > 0;
+
+  var firstDate = n > 0 ? formatDateShort(dates[0]) : '-';
+  var lastDate = n > 0 ? formatDateShort(dates[n-1]) : '-';
+
+  var html = '';
+  html += '<div class="stat-pill"><span class="stat-label">Days</span><span class="stat-value">' + n + '</span></div>';
+  html += '<div class="stat-pill"><span class="stat-label">Categories</span><span class="stat-value">' + catNames.length + '</span></div>';
+  html += '<div class="stat-pill"><span class="stat-label">Avg Daily</span><span class="stat-value">' + avgDaily + '</span></div>';
+  html += '<div class="stat-pill"><span class="stat-label">Total Pcs</span><span class="stat-value">' + totalPcs.toLocaleString() + '</span></div>';
+  if (hasRevenue) {
+    html += '<div class="stat-pill"><span class="stat-label">Total Rev</span><span class="stat-value">$' + Math.round(totalRev).toLocaleString() + '</span></div>';
+  }
+  html += '<div class="stat-pill"><span class="stat-label">From</span><span class="stat-value" style="font-size:.82rem">' + firstDate + '</span></div>';
+  html += '<div class="stat-pill"><span class="stat-label">To</span><span class="stat-value" style="font-size:.82rem">' + lastDate + '</span></div>';
+
+  row.innerHTML = html;
+}
+
+function renderDataPreview() {
+  var table = document.getElementById('previewTable');
+  var thead = table.querySelector('thead');
+  var tbody = table.querySelector('tbody');
+  var dates = STATE.series.dates;
+  var cats = STATE.series.categories;
+  var catNames = Object.keys(cats);
+  var filter = document.getElementById('viewFilter').value;
+  var rowLimit = document.getElementById('rowLimit').value;
+  var maxRows = rowLimit === 'all' ? dates.length : parseInt(rowLimit);
+
+  var hasRevenue = STATE.series.totalRevenue.some(function(v) { return v > 0; });
+
+  var headerHTML = '<tr><th>Date</th><th>DOW</th>';
+  for (var hi = 0; hi < catNames.length; hi++) {
+    if (filter === 'all' || filter === 'pieces') {
+      headerHTML += '<th class="num">' + escHtml(catNames[hi]) + ' Pcs</th>';
+    }
+    if ((filter === 'all' || filter === 'revenue') && hasRevenue) {
+      headerHTML += '<th class="num">' + escHtml(catNames[hi]) + ' $</th>';
+    }
+  }
+  if (filter === 'all' || filter === 'pieces') {
+    headerHTML += '<th class="num" style="font-weight:700;color:var(--accent)">Total Pcs</th>';
+  }
+  if ((filter === 'all' || filter === 'revenue') && hasRevenue) {
+    headerHTML += '<th class="num" style="font-weight:700;color:var(--accent)">Total $</th>';
+  }
+  headerHTML += '</tr>';
+  thead.innerHTML = headerHTML;
+
+  var bodyHTML = '';
+  var showRows = Math.min(dates.length, maxRows);
+  for (var i = 0; i < showRows; i++) {
+    bodyHTML += '<tr><td>' + formatDateShort(dates[i]) + '</td><td>' + DOW_NAMES[dates[i].getDay()] + '</td>';
+    for (var ci = 0; ci < catNames.length; ci++) {
+      var cn = catNames[ci];
+      if (filter === 'all' || filter === 'pieces') {
+        bodyHTML += '<td class="num">' + Math.round(cats[cn].pieces[i]) + '</td>';
+      }
+      if ((filter === 'all' || filter === 'revenue') && hasRevenue) {
+        bodyHTML += '<td class="num">$' + cats[cn].revenue[i].toFixed(2) + '</td>';
+      }
+    }
+    if (filter === 'all' || filter === 'pieces') {
+      bodyHTML += '<td class="num" style="font-weight:700">' + Math.round(STATE.series.totalPieces[i]) + '</td>';
+    }
+    if ((filter === 'all' || filter === 'revenue') && hasRevenue) {
+      bodyHTML += '<td class="num" style="font-weight:700">$' + STATE.series.totalRevenue[i].toFixed(2) + '</td>';
+    }
+    bodyHTML += '</tr>';
+  }
+  if (dates.length > showRows) {
+    var colSpan = 2 + catNames.length * (filter === 'all' ? (hasRevenue ? 2 : 1) : 1) + (filter === 'all' ? (hasRevenue ? 2 : 1) : 1);
+    bodyHTML += '<tr><td colspan="' + colSpan + '" style="text-align:center;color:var(--text-muted);padding:12px;font-style:italic">... and ' + (dates.length - showRows) + ' more rows</td></tr>';
+  }
+  tbody.innerHTML = bodyHTML;
+
+  document.getElementById('dataStats').textContent = dates.length + ' days \u00B7 ' + catNames.length + ' categories';
+}
+
+function initExportDates() {
+  var dates = STATE.series.dates;
+  if (dates.length === 0) return;
+  var first = dates[0];
+  var last = dates[dates.length - 1];
+  var startEl = document.getElementById('exportStartDate');
+  var endEl = document.getElementById('exportEndDate');
+  startEl.value = formatDateISO(first);
+  endEl.value = formatDateISO(last);
+  startEl.min = formatDateISO(first);
+  startEl.max = formatDateISO(last);
+  endEl.min = formatDateISO(first);
+  endEl.max = formatDateISO(last);
+  updateDateRangeBadge();
+}
+
+function updateDateRangeBadge() {
+  var startVal = document.getElementById('exportStartDate').value;
+  var endVal = document.getElementById('exportEndDate').value;
+  if (!startVal || !endVal) return;
+  var start = new Date(startVal + 'T00:00:00');
+  var end = new Date(endVal + 'T00:00:00');
+  var days = Math.round((end - start) / 86400000) + 1;
+  document.getElementById('dateRangeBadge').textContent = days + ' days selected';
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   EXPORT GENERATION
+   ════════════════════════════════════════════════════════════════════ */
+function generateExportText() {
+  var format = STATE.exportFormat;
+  var dates = STATE.series.dates;
+  var cats = STATE.series.categories;
+  var catNames = Object.keys(cats);
+  var hasRevenue = STATE.series.totalRevenue.some(function(v) { return v > 0; });
+
+  // Apply date range filter
+  var startVal = document.getElementById('exportStartDate').value;
+  var endVal = document.getElementById('exportEndDate').value;
+  var startDate = startVal ? new Date(startVal + 'T00:00:00') : dates[0];
+  var endDate = endVal ? new Date(endVal + 'T00:00:00') : dates[dates.length - 1];
+
+  var filteredIndices = [];
+  for (var fi = 0; fi < dates.length; fi++) {
+    if (dates[fi] >= startDate && dates[fi] <= endDate) {
+      filteredIndices.push(fi);
+    }
+  }
+
+  var delim = (format === 'csv') ? ',' : '\t';
+  var lines = [];
+  var rowCount = 0;
+
+  if (format === 'piececast') {
+    // PieceCast-compatible: Date, DOW, each category pieces, each category revenue, Total Pcs, Total Rev
+    var header = ['Date', 'DOW'];
+    for (var pi = 0; pi < catNames.length; pi++) {
+      header.push(catNames[pi] + ' Pcs');
+      if (hasRevenue) header.push(catNames[pi] + ' Rev');
+    }
+    header.push('Total Pcs');
+    if (hasRevenue) header.push('Total Rev');
+    lines.push(header.join(delim));
+
+    for (var pj = 0; pj < filteredIndices.length; pj++) {
+      var idx = filteredIndices[pj];
+      var row = [formatDateShort(dates[idx]), DOW_NAMES[dates[idx].getDay()]];
+      for (var pk = 0; pk < catNames.length; pk++) {
+        row.push(String(Math.round(cats[catNames[pk]].pieces[idx])));
+        if (hasRevenue) row.push(cats[catNames[pk]].revenue[idx].toFixed(2));
+      }
+      row.push(String(Math.round(STATE.series.totalPieces[idx])));
+      if (hasRevenue) row.push(STATE.series.totalRevenue[idx].toFixed(2));
+      lines.push(row.join(delim));
+      rowCount++;
+    }
+  } else if (format === 'tab-all' || format === 'csv') {
+    // Full data: Date, DOW, all pieces, all revenue, totals
+    var header2 = ['Date', 'DOW'];
+    for (var ai = 0; ai < catNames.length; ai++) {
+      header2.push(catNames[ai] + ' Pcs');
+    }
+    if (hasRevenue) {
+      for (var aj = 0; aj < catNames.length; aj++) {
+        header2.push(catNames[aj] + ' Rev');
+      }
+    }
+    header2.push('Total Pcs');
+    if (hasRevenue) header2.push('Total Rev');
+    lines.push(header2.join(delim));
+
+    for (var ak = 0; ak < filteredIndices.length; ak++) {
+      var idx2 = filteredIndices[ak];
+      var row2 = [formatDateShort(dates[idx2]), DOW_NAMES[dates[idx2].getDay()]];
+      for (var al = 0; al < catNames.length; al++) {
+        row2.push(String(Math.round(cats[catNames[al]].pieces[idx2])));
+      }
+      if (hasRevenue) {
+        for (var am = 0; am < catNames.length; am++) {
+          row2.push(cats[catNames[am]].revenue[idx2].toFixed(2));
+        }
+      }
+      row2.push(String(Math.round(STATE.series.totalPieces[idx2])));
+      if (hasRevenue) row2.push(STATE.series.totalRevenue[idx2].toFixed(2));
+      lines.push(row2.join(delim));
+      rowCount++;
+    }
+  } else if (format === 'pieces-only') {
+    var header3 = ['Date', 'DOW'];
+    for (var bi = 0; bi < catNames.length; bi++) {
+      header3.push(catNames[bi]);
+    }
+    header3.push('Total');
+    lines.push(header3.join(delim));
+
+    for (var bj = 0; bj < filteredIndices.length; bj++) {
+      var idx3 = filteredIndices[bj];
+      var row3 = [formatDateShort(dates[idx3]), DOW_NAMES[dates[idx3].getDay()]];
+      for (var bk = 0; bk < catNames.length; bk++) {
+        row3.push(String(Math.round(cats[catNames[bk]].pieces[idx3])));
+      }
+      row3.push(String(Math.round(STATE.series.totalPieces[idx3])));
+      lines.push(row3.join(delim));
+      rowCount++;
+    }
+  } else if (format === 'revenue-only') {
+    if (!hasRevenue) {
+      return { text: '(No revenue data found in this report)', rows: 0 };
+    }
+    var header4 = ['Date', 'DOW'];
+    for (var ci2 = 0; ci2 < catNames.length; ci2++) {
+      header4.push(catNames[ci2]);
+    }
+    header4.push('Total');
+    lines.push(header4.join(delim));
+
+    for (var cj = 0; cj < filteredIndices.length; cj++) {
+      var idx4 = filteredIndices[cj];
+      var row4 = [formatDateShort(dates[idx4]), DOW_NAMES[dates[idx4].getDay()]];
+      for (var ck = 0; ck < catNames.length; ck++) {
+        row4.push(cats[catNames[ck]].revenue[idx4].toFixed(2));
+      }
+      row4.push(STATE.series.totalRevenue[idx4].toFixed(2));
+      lines.push(row4.join(delim));
+      rowCount++;
+    }
+  } else if (format === 'summary') {
+    var header5 = ['Date', 'DOW', 'Total Pieces'];
+    if (hasRevenue) header5.push('Total Revenue');
+    lines.push(header5.join(delim));
+
+    for (var di = 0; di < filteredIndices.length; di++) {
+      var idx5 = filteredIndices[di];
+      var row5 = [formatDateShort(dates[idx5]), DOW_NAMES[dates[idx5].getDay()], String(Math.round(STATE.series.totalPieces[idx5]))];
+      if (hasRevenue) row5.push(STATE.series.totalRevenue[idx5].toFixed(2));
+      lines.push(row5.join(delim));
+      rowCount++;
+    }
+  }
+
+  return { text: lines.join('\n'), rows: rowCount };
+}
+
+function updateExportArea() {
+  if (!STATE.dataLoaded) return;
+  var result = generateExportText();
+  document.getElementById('exportArea').textContent = result.text;
+  document.getElementById('exportRowCount').textContent = result.rows + ' data rows';
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   EVENT HANDLERS
+   ════════════════════════════════════════════════════════════════════ */
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    switchTab(btn.dataset.tab);
+    if (btn.dataset.tab === 'export' && STATE.dataLoaded) {
+      updateExportArea();
+    }
+  });
+});
+
+// Parse button
+document.getElementById('parseBtn').addEventListener('click', function() {
+  var text = document.getElementById('pasteArea').value.trim();
+  if (!text) {
+    showToast('Please paste your report data first.', 'error');
+    return;
+  }
+
+  var statusEl = document.getElementById('parseStatus');
+
+  if (isPOSReport(text)) {
+    statusEl.innerHTML = '<span class="parsing-indicator"><i class="fa-solid fa-spinner fa-spin"></i> Parsing POS format...</span>';
+
+    setTimeout(function() {
+      var result = parsePOSReport(text);
+      if (!result || result.rows.length < 2) {
+        statusEl.innerHTML = '<span style="color:var(--error)"><i class="fa-solid fa-circle-xmark"></i> Could not parse POS report. Found ' + (result ? result.rows.length : 0) + ' data rows.</span>';
+        return;
+      }
+      STATE.raw = { headers: result.headers, rows: result.rows };
+      STATE.mappings = result.mappings;
+      document.getElementById('mappingCard').style.display = 'none';
+
+      if (!processData()) {
+        statusEl.innerHTML = '<span style="color:var(--error)"><i class="fa-solid fa-circle-xmark"></i> Failed to process data.</span>';
+        return;
+      }
+
+      var lastDayMsg = (document.getElementById('includeLastDate').checked) ? 'last day included' : 'last day excluded';
+      statusEl.innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Auto-detected <strong>Sales Report By Category</strong> format. ' +
+        STATE.series.dates.length + ' days \u00B7 ' +
+        Object.keys(STATE.series.categories).length + ' categories (' + lastDayMsg + ', Press merged into Dry Cleaning)</span>';
+
+      onDataLoaded();
+    }, 50);
+  } else {
+    // Generic format — show column mapping
+    var parsed = parseRawData(text);
+    if (!parsed || parsed.rows.length < 2) {
+      statusEl.innerHTML = '<span style="color:var(--error)"><i class="fa-solid fa-circle-xmark"></i> Could not parse data. Need at least a header + 2 data rows.</span>';
+      return;
+    }
+    STATE.raw = parsed;
+    statusEl.innerHTML = '<span style="color:var(--accent)"><i class="fa-solid fa-circle-info"></i> Detected ' + parsed.headers.length + ' columns, ' + parsed.rows.length + ' rows. Map columns below.</span>';
+    renderColumnMappings();
+  }
+});
+
+// Load Data (from column mapping)
+document.getElementById('loadDataBtn').addEventListener('click', function() {
+  if (!readColumnMappings()) {
+    showToast('Please assign one column as "Date".', 'error');
+    return;
+  }
+  var piecesCols = STATE.mappings.columns.filter(function(c) { return c.type === 'pieces'; });
+  if (piecesCols.length === 0) {
+    showToast('Assign at least one column as "Pieces".', 'error');
+    return;
+  }
+  if (!processData()) {
+    showToast('Failed to process data. Check your date column.', 'error');
+    return;
+  }
+  if (STATE.series.dates.length < 2) {
+    showToast('Need at least 2 days of data.', 'error');
+    return;
+  }
+
+  document.getElementById('mappingStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Loaded ' + STATE.series.dates.length + ' days across ' + Object.keys(STATE.series.categories).length + ' categories</span>';
+  onDataLoaded();
+});
+
+function onDataLoaded() {
+  // Show preview tab content
+  document.getElementById('noDataPreview').style.display = 'none';
+  document.getElementById('previewContent').style.display = '';
+  renderStats();
+  renderDataPreview();
+
+  // Show export tab content
+  document.getElementById('noDataExport').style.display = 'none';
+  document.getElementById('exportContent').style.display = '';
+  initExportDates();
+  updateExportArea();
+
+  // Auto-switch to preview tab
+  switchTab('preview');
+}
+
+// Sample data
+document.getElementById('sampleBtn').addEventListener('click', function() {
+  document.getElementById('pasteArea').value = generateSampleData();
+  var parsed = parseRawData(document.getElementById('pasteArea').value);
+  STATE.raw = parsed;
+  document.getElementById('parseStatus').innerHTML = '<span style="color:var(--accent)"><i class="fa-solid fa-circle-info"></i> Sample data loaded. Map columns below or click Parse Report.</span>';
+  renderColumnMappings();
+});
+
+// Clear
+document.getElementById('clearAllBtn').addEventListener('click', function() {
+  document.getElementById('pasteArea').value = '';
+  document.getElementById('mappingCard').style.display = 'none';
+  document.getElementById('parseStatus').textContent = '';
+  document.getElementById('noDataPreview').style.display = '';
+  document.getElementById('previewContent').style.display = 'none';
+  document.getElementById('noDataExport').style.display = '';
+  document.getElementById('exportContent').style.display = 'none';
+  STATE.dataLoaded = false;
+  STATE.raw = { headers: [], rows: [] };
+  STATE.series = { dates: [], categories: {}, totalPieces: [], totalRevenue: [] };
+  switchTab('paste');
+});
+
+// Preview filters
+document.getElementById('viewFilter').addEventListener('change', function() {
+  if (STATE.dataLoaded) renderDataPreview();
+});
+document.getElementById('rowLimit').addEventListener('change', function() {
+  if (STATE.dataLoaded) renderDataPreview();
+});
+
+// Format selector
+document.querySelectorAll('.format-card').forEach(function(card) {
+  card.addEventListener('click', function() {
+    document.querySelectorAll('.format-card').forEach(function(c) { c.classList.remove('active'); });
+    card.classList.add('active');
+    STATE.exportFormat = card.dataset.format;
+    updateExportArea();
+  });
+});
+
+// Date range
+document.getElementById('exportStartDate').addEventListener('change', function() {
+  updateDateRangeBadge();
+  updateExportArea();
+});
+document.getElementById('exportEndDate').addEventListener('change', function() {
+  updateDateRangeBadge();
+  updateExportArea();
+});
+document.getElementById('resetDatesBtn').addEventListener('click', function() {
+  initExportDates();
+  updateExportArea();
+});
+
+// Copy to clipboard
+document.getElementById('copyExportBtn').addEventListener('click', function() {
+  var text = document.getElementById('exportArea').textContent;
+  if (!text) {
+    showToast('Nothing to copy.', 'error');
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      showToast('Copied ' + STATE.exportFormat + ' data to clipboard!');
+    });
+  }
+});
+</script>
+</body>
+</html>
