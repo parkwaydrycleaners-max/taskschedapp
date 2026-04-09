@@ -917,7 +917,7 @@
       return;
     }
 
-    // Reset revenue
+    // Reset existing revenue
     for (var key in store) {
       if (store.hasOwnProperty(key)) {
         store[key].Actual_Revenue = 0;
@@ -925,48 +925,59 @@
     }
 
     var lines = raw.split("\n");
-    var inTotalsSection = false;
+    var currentMonth = null;
+    var processed = 0;
 
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
       if (!line) { continue; }
 
-      // Detect the header that precedes totals
-      if (line.indexOf("Total Pcs") !== -1 && line.indexOf("Total Amt") !== -1) {
-        inTotalsSection = true;
+      // 1. Detect date line
+      var dateMatch = line.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
+      if (dateMatch) {
+        currentMonth = dateMatch[1] + "-" + dateMatch[2];
         continue;
       }
 
-      if (!inTotalsSection) { continue; }
+      // 2. Detect totals line (must have currentMonth already)
+      if (currentMonth) {
 
-      // Only process rows that start with numbers (not headers)
-      if (!/^\d+/.test(line)) { continue; }
+        // Extract all numeric values in this line
+        var nums = line.match(/[\d,]+\.\d+|[\d,]+/g);
+        if (!nums || nums.length < 2) { continue; }
 
-      var normalized = line.replace(/\t/g, " ").replace(/ +/g, " ");
-      var tokens = normalized.split(" ");
+        // Convert numeric tokens
+        var parsedNums = [];
+        for (var n = 0; n < nums.length; n++) {
+          var val = parseFloat(nums[n].replace(/,/g, ""));
+          if (!isNaN(val)) { parsedNums.push(val); }
+        }
 
-      if (tokens.length < 2) { continue; }
+        if (parsedNums.length < 2) { continue; }
 
-      var totalAmt = parseFloat(tokens[tokens.length - 1].replace(/,/g, ""));
+        // Heuristic:
+        // The daily total revenue is usually the largest value in the row.
+        var totalRevenue = Math.max.apply(null, parsedNums);
 
-      if (isNaN(totalAmt)) { continue; }
+        // Only treat it as daily revenue if it is reasonably large
+        if (totalRevenue > 100) {
 
-      var dateMatch = raw.match(/(\d{4}\/\d{2}\/\d{2})/);
-      if (!dateMatch) { continue; }
+          if (!store[currentMonth]) {
+            store[currentMonth] = defaultRecord(currentMonth);
+          }
 
-      var datePart = dateMatch[1];
-      var month = datePart.substring(0, 4) + "-" + datePart.substring(5, 7);
+          store[currentMonth].Actual_Revenue += totalRevenue;
+          processed++;
 
-      if (!store[month]) {
-        store[month] = defaultRecord(month);
+          // Reset month so we do not double-count
+          currentMonth = null;
+        }
       }
-
-      store[month].Actual_Revenue += totalAmt;
     }
 
     document.getElementById("posInput").value = "";
     refreshUI();
-    showStatus("posStatus", "POS totals processed from correct section.", "success");
+    showStatus("posStatus", "POS report processed. Days counted: " + processed, "success");
   };
 
   // ============================================================
