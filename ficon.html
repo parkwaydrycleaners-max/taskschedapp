@@ -908,72 +908,70 @@
   }
 
   // ============================================================
-  // PROCESS POS REPORT — Normalized whitespace, last two tokens
+  // PROCESS POS — Monthly CSV Importer
   // ============================================================
   window.processPOS = function() {
     var raw = document.getElementById("posInput").value;
+
     if (!raw.trim()) {
-      showStatus("posStatus", "No report data pasted.", "error");
+      showStatus("posStatus", "No CSV pasted.", "error");
       return;
     }
 
-    // Reset revenue
+    var lines = raw.trim().split("\n");
+
+    if (lines.length < 2) {
+      showStatus("posStatus", "Invalid CSV format.", "error");
+      return;
+    }
+
+    // Reset all existing revenue
     for (var key in store) {
       if (store.hasOwnProperty(key)) {
         store[key].Actual_Revenue = 0;
       }
     }
 
-    var lines = raw.split("\n");
-    var currentMonth = null;
-    var processed = 0;
+    var includeLastMonth = document.getElementById("posIncludeLastMonth")
+      ? document.getElementById("posIncludeLastMonth").checked
+      : true;
 
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim();
-      if (!line) { continue; }
+    // Collect months first to determine the last one
+    var months = [];
 
-      // Detect date
-      var dateMatch = line.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
-      if (dateMatch) {
-        currentMonth = dateMatch[1] + "-" + dateMatch[2];
-        continue;
+    for (var i = 1; i < lines.length; i++) {
+      var parts = lines[i].split(",");
+      if (parts.length !== 2) { continue; }
+      var month = parts[0].trim();
+      if (month) { months.push(month); }
+    }
+
+    months.sort();
+    var lastMonth = months.length > 0 ? months[months.length - 1] : null;
+
+    // Process rows
+    for (var j = 1; j < lines.length; j++) {
+      var parts2 = lines[j].split(",");
+      if (parts2.length !== 2) { continue; }
+
+      var m = parts2[0].trim();
+      var revenue = parseFloat(parts2[1]);
+
+      if (!m || isNaN(revenue)) { continue; }
+
+      // Exclude last month if checkbox is unchecked
+      if (!includeLastMonth && m === lastMonth) { continue; }
+
+      if (!store[m]) {
+        store[m] = defaultRecord(m);
       }
 
-      if (!currentMonth) { continue; }
-
-      // Remove any leading whitespace
-      var cleanedLine = line.trim();
-
-      // Extract numeric tokens
-      var nums = cleanedLine.match(/[\d,]+\.\d+|[\d,]+/g);
-      if (!nums || nums.length < 2) { continue; }
-
-      var parsedNums = [];
-      for (var n = 0; n < nums.length; n++) {
-        var val = parseFloat(nums[n].replace(/,/g, ""));
-        if (!isNaN(val)) { parsedNums.push(val); }
-      }
-
-      if (parsedNums.length < 2) { continue; }
-
-      // The daily total revenue is always the LAST numeric value
-      var totalRevenue = parsedNums[parsedNums.length - 1];
-
-      // Only accept realistic revenue values
-      if (totalRevenue > 100) {
-        if (!store[currentMonth]) {
-          store[currentMonth] = defaultRecord(currentMonth);
-        }
-
-        store[currentMonth].Actual_Revenue += totalRevenue;
-        processed++;
-        currentMonth = null; // prevent double counting
-      }
+      store[m].Actual_Revenue = revenue;
     }
 
     document.getElementById("posInput").value = "";
     refreshUI();
-    showStatus("posStatus", "POS processed. Days counted: " + processed, "success");
+    showStatus("posStatus", "Monthly revenue imported successfully.", "success");
   };
 
   // ============================================================
