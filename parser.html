@@ -1384,7 +1384,15 @@ function parseExpensesCSV() {
   IMPORT_STATE.waveCategorySums = categorySums;
 
   /* Auto-guess mappings */
-  var catNames = Object.keys(categorySums).sort(function(a, b) { return categorySums[b] - categorySums[a]; });
+  /* Preserve report order for readability */
+  var catNames = [];
+  var catSeen = {};
+  for (var oi = 0; oi < accounts.length; oi++) {
+    if (!catSeen[accounts[oi].name]) {
+      catNames.push(accounts[oi].name);
+      catSeen[accounts[oi].name] = true;
+    }
+  }
   IMPORT_STATE.waveCategoryMap = {};
   for (var ci = 0; ci < catNames.length; ci++) {
     var matchingAcct = null;
