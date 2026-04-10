@@ -385,10 +385,10 @@ body{min-height:100vh;overflow-x:hidden}
     <div class="card animate-in">
       <div class="card-title"><span class="icon"><i class="fa-solid fa-receipt" style="color:var(--accent)"></i></span> Import Wave Expenses CSV</div>
       <div class="info-box">
-        Paste your Wave accounting export CSV. Expects columns including <strong>Transaction Date</strong>, <strong>Category</strong>, and <strong>Amount</strong>.<br><br>
-        Dates are converted to <strong>YYYY-MM</strong>. You map each category to <strong>Variable</strong>, <strong>Fixed</strong>, <strong>Debt</strong>, or <strong>Skip</strong> below.
+        Paste your <strong>Wave Profit &amp; Loss</strong> export (CSV). The report header is auto-detected for the date range, and each account row is parsed with its annual total.<br><br>
+        Categories are auto-guessed by section (Income &rarr; Skip, COGS &rarr; Variable, Operating Expenses &rarr; context). You map each to <strong>Variable</strong>, <strong>Fixed</strong>, <strong>Labor</strong>, <strong>Debt</strong>, or <strong>Skip</strong>.
       </div>
-      <textarea id="expensesArea" class="textarea-paste" placeholder="Transaction Date,Category,Description,Amount&#10;01/15/2025,Supplies,Cleaning chemicals,245.00&#10;01/15/2025,Rent,Monthly lease,3500.00&#10;01/20/2025,Loan Payment,SBA loan,1200.00"></textarea>
+      <textarea id="expensesArea" class="textarea-paste" placeholder="Profit and Loss&#10;Your Company Name&#10;Date Range: 2025-01-01 to 2025-12-31&#10;Report Type: Cash Basis (Paid)&#10;&quot;&quot;&#10;ACCOUNT NUMBER,ACCOUNTS,&quot;Jan 01, 2025 to Dec 31, 2025&quot;&#10;,Income,&#10;,Sales,&quot;$431,334.94&quot;&#10;,Total Income,&quot;$460,183.21&quot;&#10;..."></textarea>
       <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-primary" id="parseExpensesBtn"><i class="fa-solid fa-magnifying-glass"></i> Detect Categories</button>
         <button class="btn btn-secondary btn-sm" id="sampleExpensesBtn"><i class="fa-solid fa-flask"></i> Sample</button>
@@ -401,7 +401,7 @@ body{min-height:100vh;overflow-x:hidden}
       <div class="card-title"><span class="icon"><i class="fa-solid fa-tags"></i></span> Map Categories
         <span class="badge badge-info" id="catCountBadge" style="margin-left:auto"></span>
       </div>
-      <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:8px">Assign each Wave category to <strong>Variable</strong>, <strong>Fixed</strong>, <strong>Debt</strong>, or <strong>Skip</strong>.</p>
+      <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:8px">Assign each Wave category to <strong>Variable</strong>, <strong>Fixed</strong>, <strong>Labor</strong>, <strong>Debt</strong>, or <strong>Skip</strong>. Annual totals are split evenly across the date range months.</p>
       <div class="cat-map-wrap">
         <table class="cat-map-table" id="catMapTable">
           <thead><tr><th>Category</th><th style="width:100px;text-align:right">Total</th><th style="width:140px">Mapping</th></tr></thead>
@@ -539,7 +539,8 @@ var IMPORT_STATE = {
   hourlyRate: 15.00,
   waveRawRows: [],
   waveCategoryMap: {},
-  waveCategorySums: {}
+  waveCategorySums: {},
+  waveDateRange: null  /* { start: 'YYYY-MM', end: 'YYYY-MM', months: ['YYYY-MM', ...] } */
 };
 
 /* POS parser state */
@@ -1210,115 +1211,220 @@ document.getElementById('samplePOSBtn').addEventListener('click', function() {
 });
 
 /* ════════════════════════════════════════════════════════════════════
-   2. WAVE EXPENSES IMPORT
+   2. WAVE P&L EXPENSES IMPORT
    ════════════════════════════════════════════════════════════════════ */
-var CATEGORY_GUESSES = {
-  'supplies': 'Variable', 'cleaning': 'Variable', 'chemical': 'Variable', 'packaging': 'Variable',
-  'delivery': 'Variable', 'shipping': 'Variable', 'commission': 'Variable',
-  'cost of goods': 'Variable', 'materials': 'Variable',
-  'rent': 'Fixed', 'lease': 'Fixed', 'insurance': 'Fixed', 'utility': 'Fixed', 'utilities': 'Fixed',
-  'phone': 'Fixed', 'internet': 'Fixed', 'software': 'Fixed', 'subscription': 'Fixed',
-  'depreciation': 'Fixed', 'salary': 'Fixed', 'payroll': 'Fixed', 'tax': 'Fixed',
-  'accounting': 'Fixed', 'legal': 'Fixed', 'license': 'Fixed', 'permit': 'Fixed',
-  'advertising': 'Fixed', 'marketing': 'Fixed',
-  'loan': 'Debt', 'debt': 'Debt', 'interest': 'Debt', 'credit': 'Debt',
-  'mortgage': 'Debt', 'note payable': 'Debt', 'sba': 'Debt', 'financing': 'Debt'
+
+/* ── Keyword-based category guessing, section-aware ── */
+var WAVE_KEYWORDS = {
+  labor: ['csr wage', 'wages', 'payroll', 'employee wage', 'staff wage', 'hourly labor'],
+  debt:  ['debt service', 'loan payable', 'loan payment', 'eidl', 'credit card debt',
+          'note payable', 'sba', 'financing', 'mortgage', 'interest expense'],
+  variable: ['dry clean', 'laundry', 'alterations', 'supplies', 'chemical', 'packaging',
+             'delivery', 'shipping', 'commission', 'materials', 'cost of goods',
+             'cleaning supply', 'hanger', 'poly', 'solvent', 'detergent', 'spotting'],
+  fixed: ['rent', 'lease', 'insurance', 'utilit', 'phone', 'internet', 'software',
+          'subscription', 'depreciation', 'salary', 'tax', 'accounting', 'legal',
+          'license', 'permit', 'advertising', 'promotion', 'marketing', 'office',
+          'repair', 'maintenance', 'security', 'alarm', 'trash', 'waste',
+          'dues', 'membership', 'bank fee', 'bank charge', 'merchant fee',
+          'processing fee', 'pos fee', 'credit card fee', 'square fee']
 };
 
-function guessCategory(catName) {
-  var low = catName.toLowerCase();
-  for (var key in CATEGORY_GUESSES) {
-    if (CATEGORY_GUESSES.hasOwnProperty(key) && low.indexOf(key) >= 0) {
-      return CATEGORY_GUESSES[key];
+function guessCategoryBySection(accountName, section) {
+  /* Income → always Skip */
+  if (section === 'Income') return 'Skip';
+  /* COGS → Variable */
+  if (section === 'Cost of Goods Sold') return 'Variable';
+
+  /* Operating Expenses: keyword-match with priority order */
+  var low = accountName.toLowerCase();
+  var priorities = ['labor', 'debt', 'variable', 'fixed'];
+  for (var p = 0; p < priorities.length; p++) {
+    var kws = WAVE_KEYWORDS[priorities[p]];
+    for (var k = 0; k < kws.length; k++) {
+      if (low.indexOf(kws[k]) >= 0) {
+        return priorities[p].charAt(0).toUpperCase() + priorities[p].slice(1);
+      }
     }
   }
-  return 'Variable';
+  /* Default for OpEx: Fixed */
+  return 'Fixed';
 }
 
+/* ── Parse a Wave P&L amount string like "$431,334.94" or "-$1,099.88" ── */
+function parseWaveAmount(s) {
+  if (!s || typeof s !== 'string') return NaN;
+  s = s.trim().replace(/^["']|["']$/g, '');
+  if (s === '' || s === '-') return NaN;
+  var neg = false;
+  if (s.charAt(0) === '-') { neg = true; s = s.substring(1); }
+  s = s.replace(/[$,]/g, '');
+  var v = parseFloat(s);
+  if (isNaN(v)) return NaN;
+  return neg ? -v : v;
+}
+
+/* ── Build array of month keys between two YYYY-MM strings (inclusive) ── */
+function buildMonthRange(startKey, endKey) {
+  var months = [];
+  var parts = startKey.split('-');
+  var y = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  var eParts = endKey.split('-');
+  var ey = parseInt(eParts[0], 10);
+  var em = parseInt(eParts[1], 10);
+  while (y < ey || (y === ey && m <= em)) {
+    months.push(y + '-' + String(m).padStart(2, '0'));
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+  return months;
+}
+
+/* ── Main P&L parser ── */
 function parseExpensesCSV() {
   var text = document.getElementById('expensesArea').value.trim();
-  if (!text) { showToast('Paste Wave expenses CSV first.', 'error'); return; }
+  if (!text) { showToast('Paste Wave P&L export first.', 'error'); return; }
 
-  var delim = detectDelimiter(text);
-  var lines = text.split('\n').filter(function(l) { return l.trim().length > 0; });
-  if (lines.length < 2) { showToast('Need header + data rows.', 'error'); return; }
+  var rawLines = text.split('\n');
 
-  var header = parseCSVLine(lines[0], delim);
-
-  /* Detect column indices */
-  var dateCol = -1, catCol = -1, amtCol = -1;
-  for (var h = 0; h < header.length; h++) {
-    var low = header[h].toLowerCase().replace(/[_\s-]/g, '');
-    if (low.indexOf('date') >= 0 || low === 'transactiondate') dateCol = h;
-    if (low === 'category' || low === 'account' || low === 'accountname' || low === 'type') catCol = h;
-    if (low === 'amount' || low === 'total' || low === 'debit' || low.indexOf('amount') >= 0) amtCol = h;
-  }
-  /* Fallback */
-  if (dateCol < 0) dateCol = 0;
-  if (catCol < 0) catCol = Math.min(1, header.length - 1);
-  if (amtCol < 0) amtCol = header.length - 1;
-
-  /* Parse rows */
-  var rows = [];
-  var categorySums = {};
-  for (var i = 1; i < lines.length; i++) {
-    var cells = parseCSVLine(lines[i], delim);
-    if (cells.length < Math.max(dateCol, catCol, amtCol) + 1) continue;
-
-    var dateStr = cells[dateCol];
-    var cat = cells[catCol].trim();
-    var amt = parseNumeric(cells[amtCol]);
-
-    if (!cat || isNaN(amt)) continue;
-    var d = parseDate(dateStr);
-    if (!d) continue;
-    var mk = dateToMonth(d);
-
-    rows.push({ month: mk, category: cat, amount: Math.abs(amt) });
-
-    if (!categorySums[cat]) categorySums[cat] = 0;
-    categorySums[cat] += Math.abs(amt);
+  /* 1. Extract date range from header (e.g. "Date Range: 2025-01-01 to 2025-12-31") */
+  var dateRange = null;
+  for (var hi = 0; hi < Math.min(rawLines.length, 10); hi++) {
+    var drMatch = rawLines[hi].match(/Date\s*Range[:\s]*(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})/i);
+    if (drMatch) {
+      var startKey = drMatch[1].substring(0, 7); /* YYYY-MM */
+      var endKey = drMatch[2].substring(0, 7);
+      var monthList = buildMonthRange(startKey, endKey);
+      dateRange = { start: startKey, end: endKey, months: monthList };
+      break;
+    }
   }
 
-  if (rows.length === 0) {
-    showToast('Could not parse any expense rows.', 'error');
+  if (!dateRange || dateRange.months.length === 0) {
+    showToast('Could not find "Date Range: YYYY-MM-DD to YYYY-MM-DD" in the header.', 'error');
+    return;
+  }
+  IMPORT_STATE.waveDateRange = dateRange;
+
+  /* 2. Find the column header row ("ACCOUNT NUMBER,ACCOUNTS,...") */
+  var dataStartIdx = -1;
+  for (var si = 0; si < rawLines.length; si++) {
+    if (rawLines[si].toUpperCase().indexOf('ACCOUNT') >= 0 &&
+        rawLines[si].toUpperCase().indexOf('ACCOUNTS') >= 0) {
+      dataStartIdx = si + 1;
+      break;
+    }
+  }
+  if (dataStartIdx < 0) {
+    showToast('Could not find "ACCOUNT NUMBER,ACCOUNTS,..." header row.', 'error');
     return;
   }
 
-  IMPORT_STATE.waveRawRows = rows;
+  /* 3. Walk rows: track current section, skip totals/summaries, collect account data */
+  var currentSection = '';
+  var accounts = [];     /* { name, amount, section } */
+  var categorySums = {};
+
+  /* Rows to skip by exact (trimmed) account name */
+  var SKIP_NAMES = ['gross profit', 'net profit', 'net income', 'net loss'];
+
+  for (var ri = dataStartIdx; ri < rawLines.length; ri++) {
+    var raw = rawLines[ri].trim();
+    /* Skip empty lines and bare "" */
+    if (!raw || raw === '""' || raw === "''") continue;
+
+    var cells = parseCSVLine(raw, ',');
+    /* Normalize: ensure at least 3 cells */
+    while (cells.length < 3) cells.push('');
+
+    var acctNum = cells[0].trim().replace(/^["']|["']$/g, '');
+    var acctName = cells[1].trim().replace(/^["']|["']$/g, '');
+    var amtStr = cells[2].trim().replace(/^["']|["']$/g, '');
+
+    /* Detect section headers: col3 is empty and name is a known section */
+    var nameLow = acctName.toLowerCase();
+    if ((!amtStr || amtStr === '') &&
+        (nameLow === 'income' || nameLow === 'cost of goods sold' || nameLow === 'operating expenses')) {
+      currentSection = acctName;
+      continue;
+    }
+
+    /* Skip total rows */
+    if (nameLow.indexOf('total ') === 0 || nameLow === 'total') continue;
+    /* Skip summary rows */
+    if (SKIP_NAMES.indexOf(nameLow) >= 0) continue;
+    /* Skip if no amount */
+    var amt = parseWaveAmount(amtStr);
+    if (isNaN(amt) || amt === 0) continue;
+    /* Skip if no account name */
+    if (!acctName) continue;
+
+    /* Build a combined display name: if acctNum has meaningful text (not just digits), prepend it */
+    var displayName = acctName;
+    if (acctNum && !/^\d+$/.test(acctNum) && acctNum !== acctName) {
+      displayName = acctNum + ' / ' + acctName;
+    }
+
+    accounts.push({
+      name: displayName,
+      amount: Math.abs(amt),
+      section: currentSection || 'Operating Expenses'
+    });
+
+    if (!categorySums[displayName]) categorySums[displayName] = 0;
+    categorySums[displayName] += Math.abs(amt);
+  }
+
+  if (accounts.length === 0) {
+    showToast('Could not parse any account rows from the P&L.', 'error');
+    return;
+  }
+
+  /* Store parsed data */
+  IMPORT_STATE.waveRawRows = accounts;
   IMPORT_STATE.waveCategorySums = categorySums;
 
   /* Auto-guess mappings */
   var catNames = Object.keys(categorySums).sort(function(a, b) { return categorySums[b] - categorySums[a]; });
   IMPORT_STATE.waveCategoryMap = {};
   for (var ci = 0; ci < catNames.length; ci++) {
-    IMPORT_STATE.waveCategoryMap[catNames[ci]] = guessCategory(catNames[ci]);
+    var matchingAcct = null;
+    for (var ai = 0; ai < accounts.length; ai++) {
+      if (accounts[ai].name === catNames[ci]) { matchingAcct = accounts[ai]; break; }
+    }
+    var section = matchingAcct ? matchingAcct.section : 'Operating Expenses';
+    IMPORT_STATE.waveCategoryMap[catNames[ci]] = guessCategoryBySection(catNames[ci], section);
   }
 
   /* Render category mapping table */
   renderCategoryMapping(catNames, categorySums);
 
   document.getElementById('catMappingCard').style.display = '';
-  document.getElementById('catCountBadge').textContent = catNames.length + ' categories · ' + rows.length + ' rows';
-  document.getElementById('expenseParseStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Parsed ' + rows.length + ' rows across ' + catNames.length + ' categories</span>';
+  document.getElementById('catCountBadge').textContent = catNames.length + ' accounts · ' + dateRange.months.length + ' months';
+  document.getElementById('expenseParseStatus').innerHTML =
+    '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Parsed ' +
+    accounts.length + ' accounts &middot; ' + dateRange.start + ' to ' + dateRange.end +
+    ' (' + dateRange.months.length + ' mo)</span>';
 }
 
 function renderCategoryMapping(catNames, categorySums) {
   var tbody = document.querySelector('#catMapTable tbody');
   tbody.innerHTML = '';
+  var options = ['Variable', 'Fixed', 'Labor', 'Debt', 'Skip'];
   for (var i = 0; i < catNames.length; i++) {
     var cn = catNames[i];
-    var guess = IMPORT_STATE.waveCategoryMap[cn] || 'Variable';
+    var guess = IMPORT_STATE.waveCategoryMap[cn] || 'Fixed';
     var tr = document.createElement('tr');
+    var optionsHtml = '';
+    for (var oi = 0; oi < options.length; oi++) {
+      optionsHtml += '<option value="' + options[oi] + '"' +
+        (guess === options[oi] ? ' selected' : '') + '>' + options[oi] + '</option>';
+    }
     tr.innerHTML =
       '<td>' + escHtml(cn) + '</td>' +
       '<td class="amt">$' + categorySums[cn].toFixed(2) + '</td>' +
-      '<td><select class="wave-cat-select" data-cat="' + escHtml(cn) + '">' +
-        '<option value="Variable"' + (guess === 'Variable' ? ' selected' : '') + '>Variable</option>' +
-        '<option value="Fixed"' + (guess === 'Fixed' ? ' selected' : '') + '>Fixed</option>' +
-        '<option value="Debt"' + (guess === 'Debt' ? ' selected' : '') + '>Debt</option>' +
-        '<option value="Skip"' + (guess === 'Skip' ? ' selected' : '') + '>Skip</option>' +
-      '</select></td>';
+      '<td><select class="wave-cat-select" data-cat="' + escHtml(cn) + '">' + optionsHtml + '</select></td>';
     tbody.appendChild(tr);
   }
 }
@@ -1329,26 +1435,67 @@ function importExpenses() {
     IMPORT_STATE.waveCategoryMap[sel.dataset.cat] = sel.value;
   });
 
-  var rows = IMPORT_STATE.waveRawRows;
+  var dateRange = IMPORT_STATE.waveDateRange;
+  if (!dateRange || !dateRange.months.length) {
+    showToast('No date range detected. Re-parse the P&L first.', 'error');
+    return;
+  }
+
+  var monthCount = dateRange.months.length;
+  var accounts = IMPORT_STATE.waveRawRows;
   var monthsAffected = {};
 
-  for (var i = 0; i < rows.length; i++) {
-    var row = rows[i];
-    var mapping = IMPORT_STATE.waveCategoryMap[row.category];
+  /* First clear existing expense data in affected months so re-import is clean */
+  for (var mi = 0; mi < dateRange.months.length; mi++) {
+    var mk = dateRange.months[mi];
+    ensureMonth(mk);
+    NORMALIZED[mk].variable = null;
+    NORMALIZED[mk].fixed = null;
+    NORMALIZED[mk].debt = null;
+    /* Labor from Wave only — don't wipe labor from Labor import */
+  }
+
+  /* Track Wave-sourced labor separately so it doesn't conflict with Labor import */
+  var waveLaborByMonth = {};
+
+  for (var i = 0; i < accounts.length; i++) {
+    var acct = accounts[i];
+    var mapping = IMPORT_STATE.waveCategoryMap[acct.name];
     if (!mapping || mapping === 'Skip') continue;
 
-    var mk = row.month;
-    ensureMonth(mk);
+    /* Divide annual total evenly across months */
+    var perMonth = acct.amount / monthCount;
 
-    var field = mapping.toLowerCase();
-    if (NORMALIZED[mk][field] == null) NORMALIZED[mk][field] = 0;
-    NORMALIZED[mk][field] += row.amount;
-    monthsAffected[mk] = true;
+    for (var mi2 = 0; mi2 < dateRange.months.length; mi2++) {
+      var mKey = dateRange.months[mi2];
+      ensureMonth(mKey);
+      monthsAffected[mKey] = true;
+
+      var field = mapping.toLowerCase();
+      if (field === 'labor') {
+        /* Accumulate Wave-sourced labor separately */
+        if (!waveLaborByMonth[mKey]) waveLaborByMonth[mKey] = 0;
+        waveLaborByMonth[mKey] += perMonth;
+      } else {
+        if (NORMALIZED[mKey][field] == null) NORMALIZED[mKey][field] = 0;
+        NORMALIZED[mKey][field] += perMonth;
+      }
+    }
+  }
+
+  /* Apply Wave labor: adds to any existing labor (from Labor import) */
+  for (var lk in waveLaborByMonth) {
+    if (waveLaborByMonth.hasOwnProperty(lk)) {
+      ensureMonth(lk);
+      if (NORMALIZED[lk].labor == null) NORMALIZED[lk].labor = 0;
+      NORMALIZED[lk].labor += waveLaborByMonth[lk];
+    }
   }
 
   var mc = Object.keys(monthsAffected).length;
   IMPORT_STATE.expenseMonths = mc;
-  document.getElementById('expenseImportStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Imported expenses across <strong>' + mc + '</strong> months</span>';
+  document.getElementById('expenseImportStatus').innerHTML =
+    '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Imported expenses across <strong>' + mc + '</strong> months (' + dateRange.start + ' to ' + dateRange.end + ')</span>';
   updateMonthCount();
   showToast('Expenses imported: ' + mc + ' months');
 }
@@ -1357,31 +1504,47 @@ document.getElementById('parseExpensesBtn').addEventListener('click', parseExpen
 document.getElementById('importExpensesBtn').addEventListener('click', importExpenses);
 
 document.getElementById('sampleExpensesBtn').addEventListener('click', function() {
-  var cats = [
-    ['Supplies', 'Variable'], ['Delivery Fuel', 'Variable'],
-    ['Rent', 'Fixed'], ['Utilities', 'Fixed'], ['Insurance', 'Fixed'],
-    ['Phone & Internet', 'Fixed'], ['SBA Loan Payment', 'Debt']
+  var sample = [
+    'Profit and Loss',
+    'Top Cleaners and Alterations LLC',
+    'Date Range: 2025-01-01 to 2025-12-31',
+    'Report Type: Cash Basis (Paid)',
+    '""',
+    'ACCOUNT NUMBER,ACCOUNTS,"Jan 01, 2025 to Dec 31, 2025"',
+    ',Income,',
+    ',1 - Sales 1099K,"$431,334.94"',
+    ',2 - Sales Credit Card,"$24,783.27"',
+    ',3 - Sales Alterations,"$4,065.00"',
+    ',Total Income,"$460,183.21"',
+    '""',
+    ',Cost of Goods Sold,',
+    ',37 - Dry Clean 2 COL DCX,"$53,796.14"',
+    ',38 - Laundry 1 Col LX,"$44,502.70"',
+    ',39 - Alterations COG,"$15,840.27"',
+    ',40 - Supplies - hangers/poly,"$12,845.32"',
+    ',Total Cost of Goods Sold,"$126,984.43"',
+    '""',
+    ',Gross Profit,"$333,198.78"',
+    '""',
+    ',Operating Expenses,',
+    ',08 - Advertising & Promotion,$29.00',
+    ',09 - Bank Service Charges,"$1,234.56"',
+    ',12 - Insurance - General,"$9,817.27"',
+    ',14 - Rent,"$52,800.00"',
+    ',15 - Utilities,"$7,209.46"',
+    ',17 - Phone & Internet,"$2,268.00"',
+    ',19 - Repairs & Maintenance,"$3,456.78"',
+    ',22 - POS / CC Processing Fee,"$8,234.12"',
+    ',26 - CSR Wages,"$83,274.97"',
+    ',30 - Payroll Tax Expense,"$6,370.42"',
+    ',32 - Office Supplies,$412.89',
+    'EIDL/Credit Card Debt,Debt Service ,"$21,615.95"',
+    ',Loan Payable,"$4,340.00"',
+    ',Total Operating Expenses,"$201,063.42"',
+    '""',
+    ',Net Profit,"$132,135.36"'
   ];
-  var lines = ['Transaction Date,Category,Description,Amount'];
-  for (var m = 1; m <= 12; m++) {
-    for (var ci = 0; ci < cats.length; ci++) {
-      var base;
-      switch (cats[ci][0]) {
-        case 'Supplies': base = 800 + Math.random() * 400; break;
-        case 'Delivery Fuel': base = 300 + Math.random() * 200; break;
-        case 'Rent': base = 3500; break;
-        case 'Utilities': base = 450 + Math.random() * 150; break;
-        case 'Insurance': base = 680; break;
-        case 'Phone & Internet': base = 189; break;
-        case 'SBA Loan Payment': base = 1200; break;
-        default: base = 500;
-      }
-      var day = Math.floor(Math.random() * 26) + 1;
-      var dateStr = String(m).padStart(2, '0') + '/' + String(day).padStart(2, '0') + '/2025';
-      lines.push(dateStr + ',' + cats[ci][0] + ',' + cats[ci][0] + ' expense,' + base.toFixed(2));
-    }
-  }
-  document.getElementById('expensesArea').value = lines.join('\n');
+  document.getElementById('expensesArea').value = sample.join('\n');
 });
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1712,7 +1875,8 @@ document.getElementById('clearAllBtn').addEventListener('click', function() {
   NORMALIZED = {};
   IMPORT_STATE = {
     revenueMonths: 0, expenseMonths: 0, laborMonths: 0,
-    hourlyRate: 15.00, waveRawRows: [], waveCategoryMap: {}, waveCategorySums: {}
+    hourlyRate: 15.00, waveRawRows: [], waveCategoryMap: {}, waveCategorySums: {},
+    waveDateRange: null
   };
   STATE = {
     raw: { headers: [], rows: [] },
