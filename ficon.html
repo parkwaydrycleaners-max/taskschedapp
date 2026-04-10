@@ -7,16 +7,15 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-primary: #F4F1EC;
-    --bg-secondary: #FFFFFF;
-    --bg-card: #FAFAF8;
+    --bg: #F4F1EC;
+    --surface: #FFFFFF;
+    --surface-alt: #FAFAF8;
     --border: #D6D0C4;
     --border-light: #E8E3DA;
-    --text-primary: #1A1814;
-    --text-secondary: #6B6459;
-    --text-muted: #9C9488;
+    --text: #1A1814;
+    --text2: #6B6459;
+    --muted: #9C9488;
     --accent: #B8860B;
-    --accent-light: #DAA520;
     --accent-bg: rgba(184,134,11,0.08);
     --green: #2E7D32;
     --green-bg: rgba(46,125,50,0.08);
@@ -24,25 +23,21 @@
     --red-bg: rgba(198,40,40,0.08);
     --blue: #1565C0;
     --blue-bg: rgba(21,101,192,0.08);
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+    --shadow: 0 1px 3px rgba(0,0,0,0.05);
     --radius: 10px;
-    --radius-sm: 6px;
-    --font-sans: 'DM Sans', sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
+    --mono: "JetBrains Mono", monospace;
+    --sans: "DM Sans", sans-serif;
   }
-
   html.dark {
-    --bg-primary: #141210;
-    --bg-secondary: #1E1C18;
-    --bg-card: #252320;
+    --bg: #141210;
+    --surface: #1E1C18;
+    --surface-alt: #252320;
     --border: #3A3630;
     --border-light: #2E2A24;
-    --text-primary: #EDE8E0;
-    --text-secondary: #A09888;
-    --text-muted: #6B6459;
+    --text: #EDE8E0;
+    --text2: #A09888;
+    --muted: #6B6459;
     --accent: #DAA520;
-    --accent-light: #E8B84A;
     --accent-bg: rgba(218,165,32,0.1);
     --green: #66BB6A;
     --green-bg: rgba(102,187,106,0.1);
@@ -50,1445 +45,571 @@
     --red-bg: rgba(239,83,80,0.1);
     --blue: #42A5F5;
     --blue-bg: rgba(66,165,245,0.1);
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+    --shadow: 0 1px 3px rgba(0,0,0,0.25);
   }
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
 
-  body {
-    font-family: var(--font-sans);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    line-height: 1.5;
-    min-height: 100vh;
-  }
-
-  .app-header {
-    background: var(--bg-secondary);
+  .header {
+    background: var(--surface);
     border-bottom: 1px solid var(--border);
     padding: 16px 20px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: var(--shadow-sm);
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: var(--shadow);
   }
-
-  .header-content {
-    max-width: 900px;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
+  .header-inner {
+    max-width: 960px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
   }
+  .logo { font-family: var(--mono); font-size: 16px; font-weight: 700; color: var(--accent); }
+  .logo span { color: var(--muted); font-weight: 400; }
+  .logo-sub { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; display: block; margin-top: 2px; }
 
-  .app-title {
-    font-family: var(--font-mono);
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--accent);
-    letter-spacing: -0.5px;
+  .surplus-control { display: flex; align-items: center; gap: 8px; }
+  .surplus-control label { font-family: var(--mono); font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+  .surplus-input {
+    font-family: var(--mono); font-size: 14px; width: 120px; padding: 7px 12px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface-alt); color: var(--text); outline: none;
   }
+  .surplus-input:focus { border-color: var(--accent); }
 
-  .app-subtitle {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-weight: 400;
-    display: block;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-top: 2px;
+  .wrap { max-width: 960px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border-light);
+    border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
   }
-
-  .header-controls {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--border-light);
+    background: var(--surface-alt); cursor: pointer; user-select: none;
   }
-
-  .control-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .card-head:hover { background: var(--accent-bg); }
+  .card-title {
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;
   }
-
-  .control-label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  select, input[type="text"] {
-    font-family: var(--font-mono);
-    font-size: 14px;
-    padding: 7px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-card);
-    color: var(--text-primary);
-    outline: none;
-    transition: border-color 0.2s;
-    min-width: 0;
-  }
-
-  select:focus, input[type="text"]:focus {
-    border-color: var(--accent);
-  }
-
-  .main-content {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .section-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
-    animation: fadeIn 0.4s ease;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border-light);
-    background: var(--bg-card);
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.2s;
-  }
-
-  .section-header:hover {
-    background: var(--accent-bg);
-  }
-
-  .section-title {
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .section-icon {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .section-icon.wave { background: var(--blue); }
-  .section-icon.pos { background: var(--green); }
-  .section-icon.forecast { background: var(--accent); }
-  .section-icon.results { background: var(--red); }
-
-  .section-toggle {
-    font-size: 11px;
-    color: var(--text-muted);
-    transition: transform 0.3s;
-  }
-
-  .section-toggle.collapsed { transform: rotate(-90deg); }
-
-  .section-body {
-    padding: 16px 18px;
-    transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
-    overflow: hidden;
-  }
-
-  .section-body.collapsed {
-    max-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    opacity: 0;
-  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-green { background: var(--green); }
+  .dot-blue { background: var(--blue); }
+  .dot-gold { background: var(--accent); }
+  .dot-red { background: var(--red); }
+  .chevron { font-size: 11px; color: var(--muted); transition: transform 0.3s; }
+  .chevron.shut { transform: rotate(-90deg); }
+  .card-body { padding: 16px 18px; overflow: hidden; transition: max-height 0.3s, padding 0.3s, opacity 0.3s; }
+  .card-body.shut { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
 
   textarea {
-    width: 100%;
-    min-height: 120px;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    line-height: 1.6;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-card);
-    color: var(--text-primary);
-    resize: vertical;
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%; min-height: 110px; font-family: var(--mono); font-size: 13px;
+    line-height: 1.6; padding: 12px 14px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--surface-alt); color: var(--text);
+    resize: vertical; outline: none;
   }
+  textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+  textarea::placeholder { color: var(--muted); font-style: italic; }
 
-  textarea:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-bg);
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px;
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase; border: none;
+    border-radius: 6px; cursor: pointer; transition: all 0.2s;
   }
-
-  textarea::placeholder {
-    color: var(--text-muted);
-    font-style: italic;
+  .btn:active { transform: scale(0.97); }
+  .btn-green { background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
+  .btn-green:hover { background: var(--green); color: #fff; }
+  .btn-blue { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue); }
+  .btn-blue:hover { background: var(--blue); color: #fff; }
+  .btn-gold { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent); }
+  .btn-gold:hover { background: var(--accent); color: #fff; }
+  .btn-sm {
+    padding: 7px 14px; font-family: var(--mono); font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--surface-alt); color: var(--text2); cursor: pointer;
   }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
 
-  .btn-process {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 12px;
-    padding: 10px 20px;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: all 0.2s;
+  .check-label {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 12px; color: var(--text2); cursor: pointer; user-select: none;
   }
+  .check-label input { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; }
 
-  .btn-wave {
-    background: var(--blue-bg);
-    color: var(--blue);
-    border: 1px solid var(--blue);
+  .msg {
+    margin-top: 10px; font-size: 12px; font-family: var(--mono);
+    padding: 8px 12px; border-radius: 6px; display: none;
   }
-  .btn-wave:hover { background: var(--blue); color: #fff; }
+  .msg.ok { display: block; background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
+  .msg.err { display: block; background: var(--red-bg); color: var(--red); border: 1px solid var(--red); }
 
-  .btn-pos {
-    background: var(--green-bg);
-    color: var(--green);
-    border: 1px solid var(--green);
+  .empty { text-align: center; padding: 32px 20px; color: var(--muted); font-style: italic; font-size: 14px; }
+
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--border-light); border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--mono); white-space: nowrap; }
+  thead th {
+    background: var(--surface-alt); padding: 10px 12px; text-align: right;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--muted); border-bottom: 2px solid var(--border); position: sticky; top: 0;
   }
-  .btn-pos:hover { background: var(--green); color: #fff; }
+  thead th:first-child { text-align: left; }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border-light); text-align: right; color: var(--text); }
+  tbody td:first-child { text-align: left; font-weight: 700; }
+  tbody tr:hover { background: var(--accent-bg); }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  .blu { color: var(--blue); }
+  .dim { color: var(--muted); }
+  .sep { border-left: 2px solid var(--border); }
 
-  .btn-forecast {
-    background: var(--accent-bg);
-    color: var(--accent);
-    border: 1px solid var(--accent);
+  .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: var(--surface-alt); border: 1px solid var(--border-light); border-radius: 6px; padding: 14px 16px; }
+  .stat-card:hover { border-color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+  .stat-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 4px; }
+  .stat-val { font-family: var(--mono); font-size: 20px; font-weight: 700; }
+
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center; z-index: 1000;
   }
-  .btn-forecast:hover { background: var(--accent); color: #fff; }
-
-  .btn-process:active {
-    transform: scale(0.97);
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px; max-width: 360px; width: 90%; box-shadow: var(--shadow);
   }
-
-  .btn-process:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .status-msg {
-    margin-top: 10px;
-    font-size: 12px;
-    font-family: var(--font-mono);
-    padding: 8px 12px;
-    border-radius: var(--radius-sm);
-    display: none;
-  }
-
-  .status-msg.success {
-    display: block;
-    background: var(--green-bg);
-    color: var(--green);
-    border: 1px solid var(--green);
-  }
-
-  .status-msg.error {
-    display: block;
-    background: var(--red-bg);
-    color: var(--red);
-    border: 1px solid var(--red);
-  }
-
-  .results-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 12px;
-  }
-
-  .result-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-sm);
-    padding: 14px 16px;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-
-  .result-card:hover {
-    border-color: var(--accent);
-    box-shadow: var(--shadow-md);
-  }
-
-  .result-label {
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--text-muted);
-    margin-bottom: 6px;
-  }
-
-  .result-value {
-    font-family: var(--font-mono);
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text-primary);
-  }
-
-  .result-value.positive { color: var(--green); }
-  .result-value.negative { color: var(--red); }
-  .result-value.neutral { color: var(--blue); }
-  .result-value.empty { color: var(--text-muted); font-size: 14px; }
-
-  .data-table-wrap {
-    overflow-x: auto;
-    margin-top: 16px;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-sm);
-  }
-
-  .data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-    font-family: var(--font-mono);
-    white-space: nowrap;
-  }
-
-  .data-table thead th {
-    background: var(--bg-card);
-    padding: 10px 14px;
-    text-align: left;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
-    border-bottom: 2px solid var(--border);
-    position: sticky;
-    top: 0;
-  }
-
-  .data-table tbody td {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border-light);
-    color: var(--text-primary);
-  }
-
-  .data-table tbody tr:hover {
-    background: var(--accent-bg);
-  }
-
-  .data-table tbody tr.selected {
-    background: var(--accent-bg);
-    border-left: 3px solid var(--accent);
-  }
-
-  .tag-draft {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    background: var(--accent-bg);
-    color: var(--accent);
-  }
-
-  .tag-locked {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    background: var(--red-bg);
-    color: var(--red);
-  }
-
-  .desired-surplus-input {
-    font-family: var(--font-mono);
-    font-size: 14px;
-    width: 120px;
-    padding: 7px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-card);
-    color: var(--text-primary);
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .desired-surplus-input:focus { border-color: var(--accent); }
-
-  .no-data {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text-muted);
-    font-style: italic;
-    font-size: 14px;
-  }
-
-  .record-actions {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-  }
-
-  .btn-icon {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 4px 8px;
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--text-secondary);
-    transition: all 0.2s;
-    font-family: var(--font-mono);
-  }
-
-  .btn-icon:hover {
-    border-color: var(--red);
-    color: var(--red);
-    background: var(--red-bg);
-  }
-
-  .btn-add-month {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
-    background: var(--bg-card);
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-add-month:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-bg);
-  }
-
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    animation: fadeInOverlay 0.2s ease;
-  }
-
-  @keyframes fadeInOverlay {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  .modal-box {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 24px;
-    max-width: 380px;
-    width: 90%;
-    box-shadow: var(--shadow-md);
-  }
-
-  .modal-box h3 {
-    font-family: var(--font-mono);
-    font-size: 14px;
-    margin-bottom: 12px;
-    color: var(--text-primary);
-  }
-
-  .modal-box p {
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin-bottom: 16px;
-  }
-
-  .modal-buttons {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-  }
-
+  .modal h3 { font-family: var(--mono); font-size: 14px; margin-bottom: 12px; }
+  .modal p { font-size: 13px; color: var(--text2); margin-bottom: 16px; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
   .modal-btn {
-    padding: 8px 16px;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    transition: all 0.2s;
+    padding: 8px 16px; font-family: var(--mono); font-size: 12px; font-weight: 600;
+    border-radius: 6px; cursor: pointer; border: 1px solid var(--border);
+    background: var(--surface-alt); color: var(--text2);
   }
-
   .modal-btn:hover { background: var(--border-light); }
+  .modal-btn.dng { background: var(--red-bg); color: var(--red); border-color: var(--red); }
+  .modal-btn.dng:hover { background: var(--red); color: #fff; }
 
-  .modal-btn.danger {
-    background: var(--red-bg);
-    color: var(--red);
-    border-color: var(--red);
+  @media(max-width:600px) {
+    .header-inner { flex-direction: column; align-items: flex-start; }
+    .results-grid { grid-template-columns: 1fr 1fr; }
+    .wrap { padding: 12px; gap: 12px; }
+    .stat-val { font-size: 16px; }
   }
-
-  .modal-btn.danger:hover {
-    background: var(--red);
-    color: #fff;
-  }
-
-  .export-bar {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-
-  .btn-export {
-    padding: 7px 14px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-export:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-bg);
-  }
-
-  @media (max-width: 600px) {
-    .header-content {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    .results-grid {
-      grid-template-columns: 1fr 1fr;
-    }
-    .main-content {
-      padding: 12px;
-      gap: 12px;
-    }
-    .result-value {
-      font-size: 16px;
-    }
-  }
-
-  @media (max-width: 400px) {
-    .results-grid {
-      grid-template-columns: 1fr;
-    }
-  }
+  @media(max-width:400px) { .results-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 
-<header class="app-header">
-  <div class="header-content">
+<header class="header">
+  <div class="header-inner">
     <div>
-      <div class="app-title">FCE <span style="color:var(--text-muted);font-weight:400;">v1.0</span></div>
-      <span class="app-subtitle">Financial Control Engine</span>
+      <div class="logo">FCE <span>v2.0</span></div>
+      <span class="logo-sub">Monthly Breakeven Calculator</span>
     </div>
-    <div class="header-controls">
-      <div class="control-group">
-        <span class="control-label">Month</span>
-        <select id="monthSelector" onchange="selectMonth(this.value)">
-          <option value="">— Select —</option>
-        </select>
-      </div>
-      <div class="control-group">
-        <span class="control-label">Status</span>
-        <select id="statusSelector" onchange="updateStatus(this.value)">
-          <option value="Draft">Draft</option>
-          <option value="Locked">Locked</option>
-        </select>
-      </div>
-      <div class="control-group">
-        <span class="control-label">Surplus</span>
-        <input type="text" class="desired-surplus-input" id="surplusInput" placeholder="0.00" onchange="updateSurplus(this.value)">
-      </div>
+    <div class="surplus-control">
+      <label for="surplusInput">Desired Surplus $</label>
+      <input type="text" class="surplus-input" id="surplusInput" placeholder="0" value="0" onchange="onSurplusChange()">
     </div>
   </div>
 </header>
 
-<main class="main-content">
+<main class="wrap">
 
-  <!-- Wave P&L Section -->
-  <div class="section-card" style="animation-delay:0.05s">
-    <div class="section-header" onclick="toggleSection('wave')">
-      <span class="section-title"><span class="section-icon wave"></span>Wave P&L Report</span>
-      <span class="section-toggle" id="toggle-wave">▼</span>
+  <!-- Import Revenue -->
+  <div class="card">
+    <div class="card-head" onclick="toggle('rev')">
+      <span class="card-title"><span class="dot dot-green"></span>Import Revenue CSV</span>
+      <span class="chevron" id="chev-rev">&#9660;</span>
     </div>
-    <div class="section-body" id="body-wave">
-      <textarea id="waveInput" placeholder="Paste your Wave Profit & Loss report here..."></textarea>
-      <button class="btn-process btn-wave" onclick="processWave()">▸ Process Wave</button>
-      <div class="status-msg" id="waveStatus"></div>
-    </div>
-  </div>
-
-  <!-- POS Section -->
-  <div class="section-card" style="animation-delay:0.1s">
-    <div class="section-header" onclick="toggleSection('pos')">
-      <span class="section-title"><span class="section-icon pos"></span>POS Sales Report</span>
-      <span class="section-toggle" id="toggle-pos">▼</span>
-    </div>
-    <div class="section-body" id="body-pos">
-      <textarea id="posInput" placeholder="Paste your POS Sales report here..."></textarea>
-      <div style="display:flex;gap:18px;align-items:center;margin-top:10px;flex-wrap:wrap;">
-        <label style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);cursor:pointer;user-select:none;">
-          <input type="checkbox" id="posIncludeLastDay" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;">
-          Include last day
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);cursor:pointer;user-select:none;">
-          <input type="checkbox" id="posIncludeLastMonth" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;">
-          Include last month
+    <div class="card-body" id="body-rev">
+      <textarea id="revInput" placeholder="Month,Actual_Revenue&#10;2025-01,34203.00&#10;2025-02,30751.37&#10;..."></textarea>
+      <div class="row">
+        <label class="check-label">
+          <input type="checkbox" id="includeLastMonth">
+          Include last month (incomplete)
         </label>
       </div>
-      <button class="btn-process btn-pos" onclick="processPOS()">▸ Process POS</button>
-      <div class="status-msg" id="posStatus"></div>
-    </div>
-  </div>
-
-  <!-- Forecast Section -->
-  <div class="section-card" style="animation-delay:0.15s">
-    <div class="section-header" onclick="toggleSection('forecast')">
-      <span class="section-title"><span class="section-icon forecast"></span>PieceCast Forecast Report</span>
-      <span class="section-toggle" id="toggle-forecast">▼</span>
-    </div>
-    <div class="section-body" id="body-forecast">
-      <textarea id="forecastInput" placeholder="Paste your PieceCast Forecast report here..."></textarea>
-      <button class="btn-process btn-forecast" onclick="processForecast()">▸ Process Forecast</button>
-      <div class="status-msg" id="forecastStatus"></div>
-    </div>
-  </div>
-
-  <!-- Financial Results -->
-  <div class="section-card" style="animation-delay:0.2s">
-    <div class="section-header" onclick="toggleSection('results')">
-      <span class="section-title"><span class="section-icon results"></span>Financial Results</span>
-      <span class="section-toggle" id="toggle-results">▼</span>
-    </div>
-    <div class="section-body" id="body-results">
-      <div id="resultsContent">
-        <div class="no-data" id="noDataMsg">Select or create a month to view financial results.</div>
-        <div class="results-grid" id="resultsGrid" style="display:none;"></div>
+      <div class="row">
+        <button class="btn btn-green" onclick="importRevenue()">&#9654; Import Revenue</button>
       </div>
+      <div class="msg" id="revMsg"></div>
     </div>
   </div>
 
-  <!-- All Records Table -->
-  <div class="section-card" style="animation-delay:0.25s">
-    <div class="section-header" onclick="toggleSection('table')">
-      <span class="section-title"><span class="section-icon" style="background:var(--text-muted)"></span>Monthly Financials Table</span>
-      <span class="section-toggle" id="toggle-table">▼</span>
+  <!-- Import Costs -->
+  <div class="card">
+    <div class="card-head" onclick="toggle('cost')">
+      <span class="card-title"><span class="dot dot-blue"></span>Import Costs CSV</span>
+      <span class="chevron" id="chev-cost">&#9660;</span>
     </div>
-    <div class="section-body" id="body-table">
-      <div class="export-bar" style="margin-bottom:12px;">
-        <button class="btn-add-month" onclick="showAddMonthModal()">+ Add Month</button>
-        <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+    <div class="card-body" id="body-cost">
+      <textarea id="costInput" placeholder="Month,Variable,Labor,Fixed,Debt&#10;2025-Annual,111037.27,173135.14,106843.13,25956.00&#10;or monthly rows..."></textarea>
+      <div class="row">
+        <button class="btn btn-blue" onclick="importCosts()">&#9654; Import Costs</button>
       </div>
-      <div class="data-table-wrap">
-        <table class="data-table" id="recordsTable">
+      <div class="msg" id="costMsg"></div>
+    </div>
+  </div>
+
+  <!-- Breakeven Results -->
+  <div class="card">
+    <div class="card-head" onclick="toggle('out')">
+      <span class="card-title"><span class="dot dot-gold"></span>Breakeven Results</span>
+      <span class="chevron" id="chev-out">&#9660;</span>
+    </div>
+    <div class="card-body" id="body-out">
+      <div id="monthPicker" style="margin-bottom:14px;">
+        <div class="row" style="margin-top:0;">
+          <label class="check-label" style="font-weight:600;color:var(--text);">Month</label>
+          <select id="monthSelect" onchange="renderResults()" style="font-family:var(--mono);font-size:14px;padding:7px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface-alt);color:var(--text);outline:none;">
+            <option value="">-- all months --</option>
+          </select>
+        </div>
+      </div>
+      <div id="statsGrid" class="results-grid" style="display:none;"></div>
+      <div class="row" style="margin-top:0;margin-bottom:12px;">
+        <button class="btn-sm" onclick="exportCSV()">Export CSV</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
           <thead>
             <tr>
               <th>Month</th>
-              <th>Status</th>
-              <th>Act. Revenue</th>
-              <th>Act. Variable</th>
-              <th>Act. Labor</th>
-              <th>Act. Fixed</th>
-              <th>Act. Debt</th>
-              <th>Fcst. Revenue</th>
-              <th>Fcst. Pieces</th>
-              <th>Surplus</th>
-              <th></th>
+              <th>Revenue</th>
+              <th>Variable</th>
+              <th>Labor</th>
+              <th>Fixed</th>
+              <th>Debt</th>
+              <th class="sep">Contribution</th>
+              <th>CM %</th>
+              <th>Op. BE</th>
+              <th>Cons. BE</th>
+              <th>Target</th>
+              <th>Gap</th>
             </tr>
           </thead>
-          <tbody id="recordsBody"></tbody>
+          <tbody id="tblBody"></tbody>
         </table>
       </div>
-      <div class="no-data" id="noRecordsMsg">No records yet. Process a report or add a month manually.</div>
+      <div class="empty" id="emptyMsg">Import revenue and costs to see breakeven results.</div>
     </div>
   </div>
 
 </main>
-
-<!-- Modal container -->
-<div id="modalContainer"></div>
+<div id="modalBox"></div>
 
 <script>
 (function() {
   "use strict";
 
-  // Dark mode detection
+  /* ---- Dark mode ---- */
   if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
     document.documentElement.classList.add("dark");
   }
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function(event) {
-    if (event.matches) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function(e) {
+    document.documentElement.classList.toggle("dark", e.matches);
   });
 
-  // ============================================================
-  // DATA STORE — Single in-memory table: Monthly_Financials
-  // ============================================================
+  /* ============================================================
+     DATA STORE  —  one flat object keyed by month string
+     ============================================================ */
   var store = {};
-  var selectedMonth = "";
+  var desiredSurplus = 0;
 
-  function defaultRecord(month) {
+  function blank(month) {
     return {
       Month: month,
-      Status: "Draft",
-      Actual_Revenue: 0,
-      Actual_Variable: 0,
-      Actual_Labor: 0,
-      Actual_Fixed: 0,
-      Actual_Debt: 0,
-      Forecast_Revenue: 0,
-      Forecast_Pieces: 0,
-      Desired_Surplus: 0,
-      POS_Raw_Report: "",
-      Forecast_Raw_Report: "",
-      Wave_Raw_Report: ""
+      Revenue: 0,
+      Variable: 0,
+      Labor: 0,
+      Fixed: 0,
+      Debt: 0
     };
   }
 
-  function getOrCreate(month) {
-    if (!store[month]) {
-      store[month] = defaultRecord(month);
-    }
-    return store[month];
+  function ensure(m) {
+    if (!store[m]) { store[m] = blank(m); }
+    return store[m];
   }
 
-  // ============================================================
-  // CALCULATED FIELDS
-  // ============================================================
-  function calcFields(rec) {
-    var effectiveRevenue = (rec.Status === "Draft" && rec.Forecast_Revenue > 0)
-      ? rec.Forecast_Revenue : rec.Actual_Revenue;
-
-    var contribution = effectiveRevenue - rec.Actual_Variable - rec.Actual_Labor;
-
-    var cmRatio = effectiveRevenue > 0 ? contribution / effectiveRevenue : 0;
-
-    var operatingBreakeven = cmRatio > 0 ? rec.Actual_Fixed / cmRatio : 0;
-
-    var conservativeBreakeven = cmRatio > 0
-      ? (rec.Actual_Fixed + rec.Actual_Debt) / cmRatio : 0;
-
-    var targetRevenue = cmRatio > 0
-      ? (rec.Actual_Fixed + rec.Desired_Surplus) / cmRatio : 0;
-
-    var revenueGap = effectiveRevenue - targetRevenue;
-
-    return {
-      Effective_Revenue: effectiveRevenue,
-      Contribution: contribution,
-      CM_Ratio: cmRatio,
-      Operating_Breakeven: operatingBreakeven,
-      Conservative_Breakeven: conservativeBreakeven,
-      Target_Revenue: targetRevenue,
-      Revenue_Gap: revenueGap
-    };
+  /* ---- Breakeven math ---- */
+  function calc(r) {
+    var rev = r.Revenue;
+    var contrib = rev - r.Variable - r.Labor;
+    var cm = rev > 0 ? contrib / rev : 0;
+    var opBE = cm > 0 ? r.Fixed / cm : 0;
+    var workerBE = cm > 0 ? (r.Fixed + r.Debt) / cm : 0;
+    var target = cm > 0 ? (r.Fixed + desiredSurplus) / cm : 0;
+    var gap = rev - target;
+    return { Contribution: contrib, CM: cm, OpBE: opBE, ConsBE: workerBE, Target: target, Gap: gap };
   }
 
-  // ============================================================
-  // HELPERS
-  // ============================================================
-  function fmtCurrency(val) {
-    if (val === 0) { return "$0.00"; }
-    var neg = val < 0;
-    var abs = Math.abs(val);
-    var str = abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return (neg ? "-$" : "$") + str;
+  /* ---- Format helpers ---- */
+  function $(v) {
+    if (v === 0) { return "$0"; }
+    var neg = v < 0;
+    var s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (neg ? "-$" : "$") + s;
+  }
+  function pct(v) { return (v * 100).toFixed(1) + "%"; }
+
+  /* ---- Status helper ---- */
+  function msg(id, txt, ok) {
+    var el = document.getElementById(id);
+    el.textContent = txt;
+    el.className = "msg " + (ok ? "ok" : "err");
+    setTimeout(function() { el.className = "msg"; }, 6000);
   }
 
-  function fmtPercent(val) {
-    return (val * 100).toFixed(2) + "%";
-  }
-
-  function fmtNumber(val) {
-    return val.toLocaleString("en-US");
-  }
-
-  function parseDollar(str) {
-    if (!str) { return 0; }
-    var cleaned = str.replace(/[$,\s]/g, "");
-    var isNeg = false;
-    if (cleaned.charAt(0) === "(" && cleaned.charAt(cleaned.length - 1) === ")") {
-      isNeg = true;
-      cleaned = cleaned.slice(1, -1);
-    }
-    if (cleaned.charAt(0) === "-") {
-      isNeg = true;
-      cleaned = cleaned.slice(1);
-    }
-    var val = parseFloat(cleaned);
-    if (isNaN(val)) { return 0; }
-    return isNeg ? -val : val;
-  }
-
-  function extractDollarAmount(line) {
-    var match = line.match(/\(?\$[\d,]+\.?\d*\)?/);
-    if (match) {
-      return parseDollar(match[0]);
-    }
-    var nums = line.match(/-?[\d,]+\.?\d*/g);
-    if (nums && nums.length > 0) {
-      return parseFloat(nums[nums.length - 1].replace(/,/g, ""));
-    }
-    return 0;
-  }
-
-  // ============================================================
-  // SECTION TOGGLE
-  // ============================================================
-  window.toggleSection = function(name) {
-    var body = document.getElementById("body-" + name);
-    var tog = document.getElementById("toggle-" + name);
-    if (body.classList.contains("collapsed")) {
-      body.classList.remove("collapsed");
-      tog.classList.remove("collapsed");
-    } else {
-      body.classList.add("collapsed");
-      tog.classList.add("collapsed");
-    }
+  /* ---- Toggle sections ---- */
+  window.toggle = function(name) {
+    var b = document.getElementById("body-" + name);
+    var c = document.getElementById("chev-" + name);
+    b.classList.toggle("shut");
+    c.classList.toggle("shut");
   };
 
-  // ============================================================
-  // STATUS MESSAGES
-  // ============================================================
-  function showStatus(elId, msg, type) {
-    var el = document.getElementById(elId);
-    el.textContent = msg;
-    el.className = "status-msg " + type;
-    setTimeout(function() {
-      el.className = "status-msg";
-    }, 6000);
-  }
-
-  // ============================================================
-  // PROCESS POS — Monthly CSV Importer
-  // ============================================================
-  window.processPOS = function() {
-    var raw = document.getElementById("posInput").value;
-
-    if (!raw.trim()) {
-      showStatus("posStatus", "No CSV pasted.", "error");
-      return;
-    }
+  /* ============================================================
+     IMPORT REVENUE  —  CSV:  Month,Actual_Revenue
+     ============================================================ */
+  window.importRevenue = function() {
+    var raw = document.getElementById("revInput").value;
+    if (!raw.trim()) { msg("revMsg", "Paste a CSV first.", false); return; }
 
     var lines = raw.trim().split("\n");
+    if (lines.length < 2) { msg("revMsg", "Need a header row + data rows.", false); return; }
 
-    if (lines.length < 2) {
-      showStatus("posStatus", "Invalid CSV format.", "error");
-      return;
+    // Clear existing revenue
+    for (var k in store) {
+      if (store.hasOwnProperty(k)) { store[k].Revenue = 0; }
     }
 
-    // Reset all existing revenue
-    for (var key in store) {
-      if (store.hasOwnProperty(key)) {
-        store[key].Actual_Revenue = 0;
+    var includeLastMonth = document.getElementById("includeLastMonth").checked;
+
+    // Collect all months to find the last one
+    var allMonths = [];
+    for (var a = 1; a < lines.length; a++) {
+      var p = lines[a].split(",");
+      if (p.length >= 2 && p[0].trim()) { allMonths.push(p[0].trim()); }
+    }
+    allMonths.sort();
+    var lastMonth = allMonths.length > 0 ? allMonths[allMonths.length - 1] : null;
+
+    var count = 0;
+    for (var i = 1; i < lines.length; i++) {
+      var parts = lines[i].split(",");
+      if (parts.length < 2) { continue; }
+      var m = parts[0].trim();
+      var rev = parseFloat(parts[1]);
+      if (!m || isNaN(rev)) { continue; }
+      if (!includeLastMonth && m === lastMonth) { continue; }
+      ensure(m).Revenue = rev;
+      count++;
+    }
+
+    document.getElementById("revInput").value = "";
+    renderAll();
+    msg("revMsg", "Imported " + count + " month(s) of revenue." + (!includeLastMonth && lastMonth ? " Excluded " + lastMonth + "." : ""), true);
+  };
+
+  /* ============================================================
+     IMPORT COSTS  —  CSV:  Month,Variable,Labor,Fixed,Debt
+     Supports "YYYY-Annual" rows → auto-allocates / 12
+     ============================================================ */
+  window.importCosts = function() {
+    var raw = document.getElementById("costInput").value;
+    if (!raw.trim()) { msg("costMsg", "Paste a CSV first.", false); return; }
+
+    var lines = raw.trim().split("\n");
+    if (lines.length < 2) { msg("costMsg", "Need a header row + data rows.", false); return; }
+
+    // Clear existing costs
+    for (var k in store) {
+      if (store.hasOwnProperty(k)) {
+        store[k].Variable = 0;
+        store[k].Labor = 0;
+        store[k].Fixed = 0;
+        store[k].Debt = 0;
       }
     }
 
-    var includeLastMonth = document.getElementById("posIncludeLastMonth")
-      ? document.getElementById("posIncludeLastMonth").checked
-      : true;
-
-    // Collect months first to determine the last one
-    var months = [];
+    var annualRows = [];
+    var count = 0;
 
     for (var i = 1; i < lines.length; i++) {
       var parts = lines[i].split(",");
-      if (parts.length !== 2) { continue; }
-      var month = parts[0].trim();
-      if (month) { months.push(month); }
-    }
+      if (parts.length < 5) { continue; }
+      var m = parts[0].trim();
+      var v = parseFloat(parts[1]) || 0;
+      var l = parseFloat(parts[2]) || 0;
+      var f = parseFloat(parts[3]) || 0;
+      var d = parseFloat(parts[4]) || 0;
+      if (!m) { continue; }
 
-    months.sort();
-    var lastMonth = months.length > 0 ? months[months.length - 1] : null;
-
-    // Process rows
-    for (var j = 1; j < lines.length; j++) {
-      var parts2 = lines[j].split(",");
-      if (parts2.length !== 2) { continue; }
-
-      var m = parts2[0].trim();
-      var revenue = parseFloat(parts2[1]);
-
-      if (!m || isNaN(revenue)) { continue; }
-
-      // Exclude last month if checkbox is unchecked
-      if (!includeLastMonth && m === lastMonth) { continue; }
-
-      if (!store[m]) {
-        store[m] = defaultRecord(m);
+      if (m.indexOf("Annual") !== -1) {
+        annualRows.push({ year: m.split("-")[0], v: v, l: l, f: f, d: d });
+      } else {
+        var rec = ensure(m);
+        rec.Variable = v;
+        rec.Labor = l;
+        rec.Fixed = f;
+        rec.Debt = d;
       }
-
-      store[m].Actual_Revenue = revenue;
+      count++;
     }
 
-    document.getElementById("posInput").value = "";
-    refreshUI();
-    showStatus("posStatus", "Monthly revenue imported successfully.", "success");
+    // Auto-allocate annual rows across existing monthly records
+    for (var j = 0; j < annualRows.length; j++) {
+      var ar = annualRows[j];
+      var monthlyKeys = Object.keys(store).filter(function(key) {
+        return key.startsWith(ar.year + "-") && key.indexOf("Annual") === -1;
+      });
+      if (monthlyKeys.length === 0) { continue; }
+      var vp = ar.v / 12;
+      var lp = ar.l / 12;
+      var fp = ar.f / 12;
+      var dp = ar.d / 12;
+      for (var mk = 0; mk < monthlyKeys.length; mk++) {
+        store[monthlyKeys[mk]].Variable = vp;
+        store[monthlyKeys[mk]].Labor = lp;
+        store[monthlyKeys[mk]].Fixed = fp;
+        store[monthlyKeys[mk]].Debt = dp;
+      }
+    }
+
+    document.getElementById("costInput").value = "";
+    renderAll();
+    var extra = annualRows.length > 0 ? " Annual costs allocated /12 to monthly rows." : "";
+    msg("costMsg", "Imported costs." + extra, true);
   };
 
-  // ============================================================
-  // PROCESS FORECAST REPORT
-  // ============================================================
-  window.processForecast = function() {
-    var raw = document.getElementById("forecastInput").value;
-    if (!raw.trim()) {
-      showStatus("forecastStatus", "No report data pasted.", "error");
-      return;
-    }
-
-    var lines = raw.split("\n");
-    var monthTotals = {};
-    var parsed = 0;
-
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim();
-      if (!line) { continue; }
-      if (line.charAt(0) === "#") { continue; }
-
-      // Check if line begins with YYYY-MM-DD
-      var dateMatch = line.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (!dateMatch) { continue; }
-
-      var month = dateMatch[1] + "-" + dateMatch[2];
-      var afterDate = line.substring(10);
-      var nums = afterDate.match(/-?[\d,]+\.?\d*/g);
-      if (!nums) { continue; }
-
-      var parsedNums = [];
-      for (var n = 0; n < nums.length; n++) {
-        var pv = parseFloat(nums[n].replace(/,/g, ""));
-        if (!isNaN(pv)) { parsedNums.push(pv); }
-      }
-
-      if (parsedNums.length < 2) { continue; }
-
-      var totalRevenue = parsedNums[parsedNums.length - 1];
-      var totalPieces = parsedNums[parsedNums.length - 2];
-
-      if (!monthTotals[month]) {
-        monthTotals[month] = { revenue: 0, pieces: 0 };
-      }
-      monthTotals[month].revenue += totalRevenue;
-      monthTotals[month].pieces += totalPieces;
-      parsed++;
-    }
-
-    if (parsed === 0) {
-      showStatus("forecastStatus", "No valid date lines found in Forecast report.", "error");
-      return;
-    }
-
-    var months = Object.keys(monthTotals);
-    for (var j = 0; j < months.length; j++) {
-      var m = months[j];
-      var rec = getOrCreate(m);
-      rec.Forecast_Revenue = monthTotals[m].revenue;
-      rec.Forecast_Pieces = monthTotals[m].pieces;
-    }
-
-    document.getElementById("forecastInput").value = "";
-    refreshUI();
-    showStatus("forecastStatus", "Processed " + parsed + " lines across " + months.length + " month(s).", "success");
+  /* ---- Surplus ---- */
+  window.onSurplusChange = function() {
+    var v = parseFloat(document.getElementById("surplusInput").value.replace(/[$,]/g, ""));
+    desiredSurplus = isNaN(v) ? 0 : v;
+    renderAll();
   };
 
-  // ============================================================
-  // PROCESS WAVE P&L REPORT
-  // ============================================================
-  window.processWave = function() {
-    var raw = document.getElementById("waveInput").value;
-    if (!raw.trim()) {
-      showStatus("waveStatus", "No report data pasted.", "error");
-      return;
-    }
-
-    var lines = raw.split("\n");
-
-    var revenue = 0;
-    var variable = 0;
-    var labor = 0;
-    var fixed = 0;
-    var debt = 0;
-
-    var inOperatingExpenses = false;
-    var foundData = false;
-
-    var variableKeywords = [
-      "total cost of goods sold",
-      "payment processing fee",
-      "materials and supplies",
-      "selling costs"
-    ];
-
-    var laborKeywords = [
-      "csr wages",
-      "payroll employer taxes",
-      "payroll gross pay"
-    ];
-
-    var debtKeywords = [
-      "debt service",
-      "loan payable"
-    ];
-
-    var allKnown = variableKeywords.concat(laborKeywords).concat(debtKeywords).concat(["total income"]);
-
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim();
-      if (!line) { continue; }
-      var lower = line.toLowerCase();
-
-      if (lower.indexOf("operating expense") !== -1 || lower.indexOf("operating cost") !== -1) {
-        inOperatingExpenses = true;
-      }
-
-      if (lower.indexOf("total income") !== -1) {
-        revenue = extractDollarAmount(line);
-        foundData = true;
-        continue;
-      }
-
-      var isVariable = false;
-      for (var v = 0; v < variableKeywords.length; v++) {
-        if (lower.indexOf(variableKeywords[v]) !== -1) {
-          variable += extractDollarAmount(line);
-          isVariable = true;
-          foundData = true;
-          break;
-        }
-      }
-      if (isVariable) { continue; }
-
-      var isLabor = false;
-      for (var l = 0; l < laborKeywords.length; l++) {
-        if (lower.indexOf(laborKeywords[l]) !== -1) {
-          labor += extractDollarAmount(line);
-          isLabor = true;
-          foundData = true;
-          break;
-        }
-      }
-      if (isLabor) { continue; }
-
-      var isDebt = false;
-      for (var d = 0; d < debtKeywords.length; d++) {
-        if (lower.indexOf(debtKeywords[d]) !== -1) {
-          debt += extractDollarAmount(line);
-          isDebt = true;
-          foundData = true;
-          break;
-        }
-      }
-      if (isDebt) { continue; }
-
-      if (inOperatingExpenses) {
-        if (lower.indexOf("total operating") !== -1 ||
-            lower.indexOf("total expense") !== -1 ||
-            lower.indexOf("net income") !== -1 ||
-            lower.indexOf("net profit") !== -1 ||
-            lower.indexOf("gross profit") !== -1) {
-          continue;
-        }
-
-        var isKnown = false;
-        for (var k = 0; k < allKnown.length; k++) {
-          if (lower.indexOf(allKnown[k]) !== -1) {
-            isKnown = true;
-            break;
-          }
-        }
-        if (isKnown) { continue; }
-
-        var dollarMatch = line.match(/\$[\d,]+\.?\d*/);
-        if (dollarMatch) {
-          fixed += extractDollarAmount(line);
-          foundData = true;
-        }
-      }
-    }
-
-    if (!foundData) {
-      showStatus("waveStatus", "No recognizable P&L data found.", "error");
-      return;
-    }
-
-    var month = detectWaveMonth(raw);
-
-    var rec = getOrCreate(month);
-    rec.Actual_Revenue = revenue;
-    rec.Actual_Variable = variable;
-    rec.Actual_Labor = labor;
-    rec.Actual_Fixed = fixed;
-    rec.Actual_Debt = debt;
-
-    document.getElementById("waveInput").value = "";
-    selectedMonth = month;
-    refreshUI();
-    showStatus("waveStatus", "Wave P&L processed for " + month + ".", "success");
-  };
-
-  function detectWaveMonth(raw) {
-    var isoRange = raw.match(/(\d{4})-(\d{2})-(\d{2})\s*(?:to|-)\s*(\d{4})-(\d{2})-(\d{2})/i);
-    if (isoRange) {
-      var startMonth = parseInt(isoRange[2], 10);
-      var endMonth = parseInt(isoRange[5], 10);
-      var startYear = isoRange[1];
-      var endYear = isoRange[4];
-      if (startMonth === 1 && endMonth === 12 && startYear === endYear) {
-        return startYear + "-Annual";
-      }
-      return startYear + "-" + String(startMonth).padStart(2, "0");
-    }
-
-    var usRange = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s*(?:to|-)\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
-    if (usRange) {
-      var sM = parseInt(usRange[1], 10);
-      var eM = parseInt(usRange[4], 10);
-      var sY = usRange[3];
-      var eY = usRange[6];
-      if (sM === 1 && eM === 12 && sY === eY) {
-        return sY + "-Annual";
-      }
-      return sY + "-" + String(sM).padStart(2, "0");
-    }
-
-    var monthNames = ["january","february","march","april","may","june",
-      "july","august","september","october","november","december"];
-    var nameRange = raw.match(/([a-zA-Z]+)\s+\d{1,2}\s*[,]?\s*(?:to|-)\s*([a-zA-Z]+)\s+\d{1,2}\s*[,]?\s*(\d{4})/i);
-    if (nameRange) {
-      var sName = nameRange[1].toLowerCase();
-      var eName = nameRange[2].toLowerCase();
-      var year = nameRange[3];
-      var sIdx = monthNames.indexOf(sName);
-      var eIdx = monthNames.indexOf(eName);
-      if (sIdx === 0 && eIdx === 11) {
-        return year + "-Annual";
-      }
-      if (sIdx >= 0) {
-        return year + "-" + String(sIdx + 1).padStart(2, "0");
-      }
-    }
-
-    var singleMonth = raw.match(/([a-zA-Z]+)\s+(\d{4})/i);
-    if (singleMonth) {
-      var mName = singleMonth[1].toLowerCase();
-      var mIdx = monthNames.indexOf(mName);
-      if (mIdx >= 0) {
-        return singleMonth[2] + "-" + String(mIdx + 1).padStart(2, "0");
-      }
-    }
-
-    var now = new Date();
-    return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
-  }
-
-  // ============================================================
-  // UI RENDERING
-  // ============================================================
-  function refreshUI() {
-    renderMonthSelector();
-    renderStatusSelector();
-    renderSurplusInput();
+  /* ============================================================
+     RENDER
+     ============================================================ */
+  function renderAll() {
+    renderMonthSelect();
     renderResults();
-    renderTable();
   }
 
-  function renderMonthSelector() {
-    var sel = document.getElementById("monthSelector");
-    var months = Object.keys(store).sort();
-    var html = '<option value="">— Select —</option>';
+  function sortedMonths() {
+    return Object.keys(store).filter(function(k) { return k.indexOf("Annual") === -1; }).sort();
+  }
+
+  function renderMonthSelect() {
+    var sel = document.getElementById("monthSelect");
+    var cur = sel.value;
+    var months = sortedMonths();
+    var html = '<option value="">-- all months --</option>';
     for (var i = 0; i < months.length; i++) {
-      var s = months[i] === selectedMonth ? " selected" : "";
-      html += '<option value="' + months[i] + '"' + s + '>' + months[i] + "</option>";
+      var s = months[i] === cur ? " selected" : "";
+      html += '<option value="' + months[i] + '"' + s + '>' + months[i] + '</option>';
     }
     sel.innerHTML = html;
   }
 
-  function renderStatusSelector() {
-    var sel = document.getElementById("statusSelector");
-    if (selectedMonth && store[selectedMonth]) {
-      sel.value = store[selectedMonth].Status;
-      sel.disabled = false;
-    } else {
-      sel.value = "Draft";
-      sel.disabled = true;
-    }
-  }
-
-  function renderSurplusInput() {
-    var inp = document.getElementById("surplusInput");
-    if (selectedMonth && store[selectedMonth]) {
-      inp.value = store[selectedMonth].Desired_Surplus || 0;
-      inp.disabled = false;
-    } else {
-      inp.value = "";
-      inp.disabled = true;
-    }
-  }
-
-  function renderResults() {
-    var noData = document.getElementById("noDataMsg");
-    var grid = document.getElementById("resultsGrid");
-
-    if (!selectedMonth || !store[selectedMonth]) {
-      noData.style.display = "block";
-      grid.style.display = "none";
-      return;
-    }
-
-    noData.style.display = "none";
-    grid.style.display = "grid";
-
-    var rec = store[selectedMonth];
-    var calc = calcFields(rec);
-
-    var items = [
-      { label: "Effective Revenue", value: calc.Effective_Revenue, fmt: "currency", color: "neutral" },
-      { label: "Contribution", value: calc.Contribution, fmt: "currency", color: calc.Contribution >= 0 ? "positive" : "negative" },
-      { label: "CM Ratio", value: calc.CM_Ratio, fmt: "percent", color: "neutral" },
-      { label: "Operating Breakeven", value: calc.Operating_Breakeven, fmt: "currency", color: "neutral" },
-      { label: "Conservative Breakeven", value: calc.Conservative_Breakeven, fmt: "currency", color: "neutral" },
-      { label: "Target Revenue", value: calc.Target_Revenue, fmt: "currency", color: "neutral" },
-      { label: "Revenue Gap", value: calc.Revenue_Gap, fmt: "currency", color: calc.Revenue_Gap >= 0 ? "positive" : "negative" }
-    ];
-
-    var html = "";
-    for (var i = 0; i < items.length; i++) {
-      var it = items[i];
-      var valStr;
-      var hasData = it.value !== 0;
-      if (it.fmt === "percent") {
-        valStr = hasData ? fmtPercent(it.value) : "—";
-      } else {
-        valStr = hasData ? fmtCurrency(it.value) : "—";
-      }
-      var colorClass = hasData ? it.color : "empty";
-      html += '<div class="result-card">' +
-        '<div class="result-label">' + it.label + "</div>" +
-        '<div class="result-value ' + colorClass + '">' + valStr + "</div>" +
-        "</div>";
-    }
-    grid.innerHTML = html;
-  }
-
-  function renderTable() {
-    var tbody = document.getElementById("recordsBody");
-    var noMsg = document.getElementById("noRecordsMsg");
-    var months = Object.keys(store).sort();
+  window.renderResults = function() {
+    var months = sortedMonths();
+    var tbody = document.getElementById("tblBody");
+    var emptyEl = document.getElementById("emptyMsg");
+    var statsGrid = document.getElementById("statsGrid");
+    var chosen = document.getElementById("monthSelect").value;
 
     if (months.length === 0) {
       tbody.innerHTML = "";
-      noMsg.style.display = "block";
+      emptyEl.style.display = "block";
+      statsGrid.style.display = "none";
       return;
     }
+    emptyEl.style.display = "none";
 
-    noMsg.style.display = "none";
+    // If a specific month is selected, show stat cards
+    if (chosen && store[chosen]) {
+      var r = store[chosen];
+      var c = calc(r);
+      statsGrid.style.display = "grid";
+      var cards = [
+        { label: "Revenue", val: $(r.Revenue), cls: "blu" },
+        { label: "Contribution", val: $(c.Contribution), cls: c.Contribution >= 0 ? "pos" : "neg" },
+        { label: "CM Ratio", val: pct(c.CM), cls: "blu" },
+        { label: "Operating BE", val: $(c.OpBE), cls: "blu" },
+        { label: "Conservative BE", val: $(c.ConsBE), cls: "blu" },
+        { label: "Target Revenue", val: $(c.Target), cls: "blu" },
+        { label: "Revenue Gap", val: $(c.Gap), cls: c.Gap >= 0 ? "pos" : "neg" }
+      ];
+      var sh = "";
+      for (var s = 0; s < cards.length; s++) {
+        sh += '<div class="stat-card"><div class="stat-label">' + cards[s].label + '</div><div class="stat-val ' + cards[s].cls + '">' + cards[s].val + '</div></div>';
+      }
+      statsGrid.innerHTML = sh;
+    } else {
+      statsGrid.style.display = "none";
+    }
+
+    // Table
     var html = "";
     for (var i = 0; i < months.length; i++) {
       var m = months[i];
-      var rec = store[m];
-      var sel = m === selectedMonth ? " selected" : "";
-      var tag = rec.Status === "Locked" ? '<span class="tag-locked">Locked</span>' : '<span class="tag-draft">Draft</span>';
-      html += '<tr class="' + sel + '" onclick="selectMonth(\'' + m + '\')" style="cursor:pointer;">' +
-        "<td><strong>" + m + "</strong></td>" +
-        "<td>" + tag + "</td>" +
-        "<td>" + fmtCurrency(rec.Actual_Revenue) + "</td>" +
-        "<td>" + fmtCurrency(rec.Actual_Variable) + "</td>" +
-        "<td>" + fmtCurrency(rec.Actual_Labor) + "</td>" +
-        "<td>" + fmtCurrency(rec.Actual_Fixed) + "</td>" +
-        "<td>" + fmtCurrency(rec.Actual_Debt) + "</td>" +
-        "<td>" + fmtCurrency(rec.Forecast_Revenue) + "</td>" +
-        "<td>" + fmtNumber(rec.Forecast_Pieces) + "</td>" +
-        "<td>" + fmtCurrency(rec.Desired_Surplus) + "</td>" +
-        '<td class="record-actions"><button class="btn-icon" onclick="event.stopPropagation(); confirmDelete(\'' + m + '\')">✕</button></td>' +
+      if (chosen && m !== chosen) { continue; }
+      var row = store[m];
+      var cc = calc(row);
+      var gapCls = cc.Gap >= 0 ? "pos" : "neg";
+      var contCls = cc.Contribution >= 0 ? "pos" : "neg";
+      html += "<tr>" +
+        "<td>" + m + "</td>" +
+        "<td>" + $(row.Revenue) + "</td>" +
+        "<td>" + $(row.Variable) + "</td>" +
+        "<td>" + $(row.Labor) + "</td>" +
+        "<td>" + $(row.Fixed) + "</td>" +
+        "<td>" + $(row.Debt) + "</td>" +
+        '<td class="sep ' + contCls + '">' + $(cc.Contribution) + "</td>" +
+        "<td>" + pct(cc.CM) + "</td>" +
+        '<td class="blu">' + $(cc.OpBE) + "</td>" +
+        '<td class="blu">' + $(cc.ConsBE) + "</td>" +
+        "<td>" + $(cc.Target) + "</td>" +
+        '<td class="' + gapCls + '">' + $(cc.Gap) + "</td>" +
         "</tr>";
     }
     tbody.innerHTML = html;
-  }
-
-  // ============================================================
-  // INTERACTIVE CONTROLS
-  // ============================================================
-  window.selectMonth = function(m) {
-    selectedMonth = m;
-    refreshUI();
   };
 
-  window.updateStatus = function(val) {
-    if (selectedMonth && store[selectedMonth]) {
-      store[selectedMonth].Status = val;
-      refreshUI();
-    }
-  };
-
-  window.updateSurplus = function(val) {
-    if (selectedMonth && store[selectedMonth]) {
-      var num = parseFloat(val.replace(/[$,]/g, ""));
-      if (isNaN(num)) { num = 0; }
-      store[selectedMonth].Desired_Surplus = num;
-      refreshUI();
-    }
-  };
-
-  // ============================================================
-  // ADD MONTH MODAL
-  // ============================================================
-  window.showAddMonthModal = function() {
-    var container = document.getElementById("modalContainer");
-    container.innerHTML = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">' +
-      '<div class="modal-box">' +
-      "<h3>Add Month</h3>" +
-      '<p>Enter month in YYYY-MM format (e.g. 2025-03):</p>' +
-      '<input type="text" id="newMonthInput" placeholder="YYYY-MM" style="width:100%;font-family:var(--font-mono);font-size:16px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);outline:none;margin-bottom:16px;">' +
-      '<div class="modal-buttons">' +
-      '<button class="modal-btn" onclick="closeModal()">Cancel</button>' +
-      '<button class="modal-btn" style="background:var(--accent-bg);color:var(--accent);border-color:var(--accent);" onclick="addMonthFromModal()">Add</button>' +
-      "</div>" +
-      "</div>" +
-      "</div>";
-    setTimeout(function() {
-      var inp = document.getElementById("newMonthInput");
-      if (inp) { inp.focus(); }
-    }, 100);
-  };
-
-  window.addMonthFromModal = function() {
-    var inp = document.getElementById("newMonthInput");
-    var val = inp ? inp.value.trim() : "";
-    if (!(/^\d{4}-(0[1-9]|1[0-2])$/).test(val) && !(/^\d{4}-Annual$/).test(val)) {
-      inp.style.borderColor = "var(--red)";
-      return;
-    }
-    if (store[val]) {
-      inp.style.borderColor = "var(--red)";
-      return;
-    }
-    getOrCreate(val);
-    selectedMonth = val;
-    closeModal();
-    refreshUI();
-  };
-
-  // ============================================================
-  // DELETE CONFIRMATION
-  // ============================================================
-  window.confirmDelete = function(month) {
-    var container = document.getElementById("modalContainer");
-    container.innerHTML = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">' +
-      '<div class="modal-box">' +
-      "<h3>Delete Record</h3>" +
-      "<p>Are you sure you want to delete the record for <strong>" + month + "</strong>? This cannot be undone.</p>" +
-      '<div class="modal-buttons">' +
-      '<button class="modal-btn" onclick="closeModal()">Cancel</button>' +
-      '<button class="modal-btn danger" onclick="deleteRecord(\'' + month + "')\">" + "Delete</button>" +
-      "</div>" +
-      "</div>" +
-      "</div>";
-  };
-
-  window.deleteRecord = function(month) {
-    delete store[month];
-    if (selectedMonth === month) { selectedMonth = ""; }
-    closeModal();
-    refreshUI();
-  };
-
-  window.closeModal = function() {
-    document.getElementById("modalContainer").innerHTML = "";
-  };
-
-  // ============================================================
-  // EXPORT CSV
-  // ============================================================
+  /* ============================================================
+     EXPORT CSV
+     ============================================================ */
   window.exportCSV = function() {
-    var months = Object.keys(store).sort();
+    var months = sortedMonths();
     if (months.length === 0) { return; }
-
-    var headers = ["Month","Status","Actual_Revenue","Actual_Variable","Actual_Labor",
-      "Actual_Fixed","Actual_Debt","Forecast_Revenue","Forecast_Pieces","Desired_Surplus",
-      "Effective_Revenue","Contribution","CM_Ratio","Operating_Breakeven",
-      "Conservative_Breakeven","Target_Revenue","Revenue_Gap"];
-
+    var headers = ["Month","Revenue","Variable","Labor","Fixed","Debt","Contribution","CM_Ratio","Op_Breakeven","Cons_Breakeven","Target_Revenue","Revenue_Gap"];
     var rows = [headers.join(",")];
     for (var i = 0; i < months.length; i++) {
-      var rec = store[months[i]];
-      var calc = calcFields(rec);
+      var r = store[months[i]];
+      var c = calc(r);
       rows.push([
-        rec.Month, rec.Status,
-        rec.Actual_Revenue.toFixed(2), rec.Actual_Variable.toFixed(2),
-        rec.Actual_Labor.toFixed(2), rec.Actual_Fixed.toFixed(2),
-        rec.Actual_Debt.toFixed(2), rec.Forecast_Revenue.toFixed(2),
-        rec.Forecast_Pieces, rec.Desired_Surplus.toFixed(2),
-        calc.Effective_Revenue.toFixed(2), calc.Contribution.toFixed(2),
-        calc.CM_Ratio.toFixed(4), calc.Operating_Breakeven.toFixed(2),
-        calc.Conservative_Breakeven.toFixed(2), calc.Target_Revenue.toFixed(2),
-        calc.Revenue_Gap.toFixed(2)
+        r.Month, r.Revenue.toFixed(2), r.Variable.toFixed(2), r.Labor.toFixed(2),
+        r.Fixed.toFixed(2), r.Debt.toFixed(2), c.Contribution.toFixed(2),
+        c.CM.toFixed(4), c.OpBE.toFixed(2), c.ConsBE.toFixed(2),
+        c.Target.toFixed(2), c.Gap.toFixed(2)
       ].join(","));
     }
-
-    var csv = rows.join("\n");
-    var blob = new Blob([csv], { type: "text/csv" });
+    var blob = new Blob([rows.join("\n")], { type: "text/csv" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    a.download = "Monthly_Financials.csv";
+    a.download = "FCE_Breakeven.csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
-  // ============================================================
-  // INIT
-  // ============================================================
-  refreshUI();
+  /* ---- Init ---- */
+  renderAll();
 })();
 </script>
 </body>
