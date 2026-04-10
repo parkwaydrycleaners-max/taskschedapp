@@ -420,17 +420,15 @@ body{min-height:100vh;overflow-x:hidden}
     <div class="card animate-in">
       <div class="card-title"><span class="icon"><i class="fa-solid fa-user-clock" style="color:var(--purple)"></i></span> Import Employee Hours</div>
       <div class="info-box">
-        Paste employee hours data. Expected format:<br>
-        <code>Date,Employee,Hours</code><br>
-        <code>2025-01-05,Maria,8.5</code><br>
-        <code>2025-01-05,James,7.0</code><br><br>
-        Enter an <strong>hourly rate</strong> below. Monthly labor = <strong>total_hours &times; rate</strong>, stored as <strong>NORMALIZED[month].labor</strong>.
+        Paste a <strong>POS employee timesheet report</strong> (fixed-width format with <code>=====</code> separators).<br>
+        Columns detected: <strong>ID, Emp Last, Emp First, Date, Time In, Time Out, Total Hrs, Total Mins</strong>.<br><br>
+        Hours are computed as <strong>Total Hrs + Total Mins/60</strong>, aggregated by month, then multiplied by the <strong>hourly rate</strong> below &rarr; <strong>NORMALIZED[month].labor</strong>.
       </div>
       <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <label style="font-size:.82rem;font-weight:600;color:var(--text-secondary)">Hourly Rate ($):</label>
         <input type="number" id="hourlyRate" class="input-field" style="width:120px" value="15.00" step="0.25" min="0">
       </div>
-      <textarea id="laborArea" class="textarea-paste" placeholder="Date,Employee,Hours&#10;2025-01-05,Maria,8.5&#10;2025-01-05,James,7.0&#10;2025-01-06,Maria,8.0"></textarea>
+      <textarea id="laborArea" class="textarea-paste" placeholder="===========================&#10;   ID  Emp Last   Emp First  Date       Time In            Time Out           Total Hrs  Total Mins&#10;===========================&#10; 3093  L          Rosel      4/1/2025   04/01/25 08:24 AM  04/01/25 01:20 PM   4          56"></textarea>
       <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-purple" id="importLaborBtn"><i class="fa-solid fa-bolt"></i> Import Labor</button>
         <button class="btn btn-secondary btn-sm" id="sampleLaborBtn"><i class="fa-solid fa-flask"></i> Sample</button>
@@ -1548,80 +1546,201 @@ document.getElementById('sampleExpensesBtn').addEventListener('click', function(
 });
 
 /* ════════════════════════════════════════════════════════════════════
-   3. LABOR IMPORT
+   3. LABOR IMPORT — Fixed-Width Timesheet Report Parser
    ════════════════════════════════════════════════════════════════════ */
+
+function parseTimesheetReport(text) {
+  var lines = text.split('\n');
+
+  /* 1. Find header line containing "Total Hrs" and "Total Mins" */
+  var headerIdx = -1;
+  var headerLine = '';
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i].indexOf('Total Hrs') >= 0 && lines[i].indexOf('Total Mins') >= 0) {
+      headerIdx = i;
+      headerLine = lines[i];
+      break;
+    }
+  }
+  if (headerIdx < 0) return null;
+
+  /* 2. Get column start positions from header */
+  var posDate = headerLine.indexOf('Date');
+  var posTimeIn = headerLine.indexOf('Time In');
+  var posTotalHrs = headerLine.indexOf('Total Hrs');
+  var posTotalMins = headerLine.indexOf('Total Mins');
+  var posEmpLast = headerLine.indexOf('Emp Last');
+  var posEmpFirst = headerLine.indexOf('Emp First');
+
+  if (posDate < 0 || posTotalHrs < 0 || posTotalMins < 0) return null;
+
+  /* 3. Parse data rows */
+  var entries = [];
+  var employees = {};
+
+  for (var ri = headerIdx + 1; ri < lines.length; ri++) {
+    var line = lines[ri];
+    /* Skip blank lines and separator lines */
+    if (!line.trim() || /^[\s=]+$/.test(line)) continue;
+
+    /* Extract fields by column position */
+    var dateStr = (posTimeIn > posDate)
+      ? line.substring(posDate, posTimeIn).trim()
+      : line.substring(posDate, posDate + 12).trim();
+
+    var hrsStr = line.substring(posTotalHrs, posTotalMins).trim();
+    var minsStr = line.substring(posTotalMins).trim();
+
+    /* Employee name */
+    var empFirst = '';
+    var empLast = '';
+    if (posEmpFirst >= 0 && posDate > posEmpFirst) {
+      empFirst = line.substring(posEmpFirst, posDate).trim();
+    }
+    if (posEmpLast >= 0 && posEmpFirst > posEmpLast) {
+      empLast = line.substring(posEmpLast, posEmpFirst).trim();
+    }
+    var empName = empFirst || 'Unknown';
+    if (empLast) empName = empFirst + ' ' + empLast;
+
+    /* Parse date */
+    var d = parseDate(dateStr);
+    if (!d) continue;
+
+    /* Parse hours + minutes */
+    var hrs = parseInt(hrsStr, 10);
+    var mins = parseInt(minsStr, 10);
+    if (isNaN(hrs)) hrs = 0;
+    if (isNaN(mins)) mins = 0;
+    var totalHours = hrs + mins / 60;
+
+    /* Skip zero-time entries (clock errors) */
+    if (totalHours <= 0) continue;
+
+    var mk = dateToMonth(d);
+    entries.push({ employee: empName, month: mk, hours: totalHours });
+
+    if (!employees[empName]) employees[empName] = 0;
+    employees[empName] += totalHours;
+  }
+
+  return { entries: entries, employees: employees };
+}
+
 function importLabor() {
   var text = document.getElementById('laborArea').value.trim();
-  if (!text) { showToast('Paste employee hours CSV first.', 'error'); return; }
+  if (!text) { showToast('Paste employee hours report first.', 'error'); return; }
 
   var rate = parseFloat(document.getElementById('hourlyRate').value);
   if (isNaN(rate) || rate <= 0) { showToast('Enter a valid hourly rate.', 'error'); return; }
   IMPORT_STATE.hourlyRate = rate;
 
-  var delim = detectDelimiter(text);
-  var lines = text.split('\n').filter(function(l) { return l.trim().length > 0; });
-  if (lines.length < 2) { showToast('Need header + data rows.', 'error'); return; }
+  /* Try fixed-width timesheet format first */
+  var parsed = parseTimesheetReport(text);
 
-  var header = parseCSVLine(lines[0], delim);
-  var dateCol = -1, hoursCol = -1;
-  for (var h = 0; h < header.length; h++) {
-    var low = header[h].toLowerCase().replace(/[_\s-]/g, '');
-    if (low.indexOf('date') >= 0) dateCol = h;
-    if (low === 'hours' || low === 'hoursworked' || low === 'totalhours') hoursCol = h;
+  if (!parsed || parsed.entries.length === 0) {
+    showToast('Could not parse timesheet report. Check for "Total Hrs" / "Total Mins" columns.', 'error');
+    return;
   }
-  if (dateCol < 0) dateCol = 0;
-  if (hoursCol < 0) hoursCol = header.length - 1;
 
   /* Aggregate hours by month */
   var monthlyHours = {};
-  var totalRows = 0;
-  for (var i = 1; i < lines.length; i++) {
-    var cells = parseCSVLine(lines[i], delim);
-    if (cells.length < Math.max(dateCol, hoursCol) + 1) continue;
-    var d = parseDate(cells[dateCol]);
-    var hrs = parseNumeric(cells[hoursCol]);
-    if (!d || isNaN(hrs)) continue;
-    var mk = dateToMonth(d);
-    if (!monthlyHours[mk]) monthlyHours[mk] = 0;
-    monthlyHours[mk] += hrs;
-    totalRows++;
+  for (var i = 0; i < parsed.entries.length; i++) {
+    var e = parsed.entries[i];
+    if (!monthlyHours[e.month]) monthlyHours[e.month] = 0;
+    monthlyHours[e.month] += e.hours;
   }
 
-  var monthKeys = Object.keys(monthlyHours);
+  var monthKeys = Object.keys(monthlyHours).sort();
   if (monthKeys.length === 0) {
     showToast('Could not parse any labor rows.', 'error');
     return;
   }
 
+  /* Write to NORMALIZED */
   for (var mi = 0; mi < monthKeys.length; mi++) {
-    var mk2 = monthKeys[mi];
-    ensureMonth(mk2);
-    NORMALIZED[mk2].labor = monthlyHours[mk2] * rate;
+    var mk = monthKeys[mi];
+    ensureMonth(mk);
+    NORMALIZED[mk].labor = monthlyHours[mk] * rate;
+  }
+
+  /* Build employee summary */
+  var empNames = Object.keys(parsed.employees).sort(function(a, b) {
+    return parsed.employees[b] - parsed.employees[a];
+  });
+  var empSummary = empNames.map(function(n) {
+    return n + ': ' + parsed.employees[n].toFixed(1) + 'h';
+  }).join(' &middot; ');
+
+  var totalHrsAll = 0;
+  for (var ek = 0; ek < empNames.length; ek++) {
+    totalHrsAll += parsed.employees[empNames[ek]];
   }
 
   IMPORT_STATE.laborMonths = monthKeys.length;
-  document.getElementById('laborStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Imported ' + totalRows + ' rows &rarr; <strong>' + monthKeys.length + '</strong> months at $' + rate.toFixed(2) + '/hr</span>';
+  document.getElementById('laborStatus').innerHTML =
+    '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Imported ' +
+    parsed.entries.length + ' entries &middot; ' + empNames.length + ' employees &middot; ' +
+    totalHrsAll.toFixed(1) + ' total hrs &rarr; <strong>' + monthKeys.length +
+    '</strong> months at $' + rate.toFixed(2) + '/hr</span>' +
+    '<br><span style="font-size:.75rem;color:var(--text-muted);margin-top:4px;display:inline-block">' + empSummary + '</span>';
   updateMonthCount();
-  showToast('Labor imported: ' + monthKeys.length + ' months');
+  showToast('Labor imported: ' + monthKeys.length + ' months, ' + empNames.length + ' employees');
 }
 
 document.getElementById('importLaborBtn').addEventListener('click', importLabor);
 
 document.getElementById('sampleLaborBtn').addEventListener('click', function() {
-  var employees = ['Maria', 'James', 'Linda', 'Carlos'];
-  var lines = ['Date,Employee,Hours'];
-  for (var m = 1; m <= 12; m++) {
-    for (var ei = 0; ei < employees.length; ei++) {
-      var daysWorked = 18 + Math.floor(Math.random() * 6);
-      for (var d = 0; d < daysWorked; d++) {
-        var day = Math.floor(Math.random() * 28) + 1;
-        var hrs = 6 + Math.random() * 3;
-        var dateStr = '2025-' + String(m).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-        lines.push(dateStr + ',' + employees[ei] + ',' + hrs.toFixed(1));
+  var emps = [
+    { last: 'L', first: 'Rosel' },
+    { last: 'A', first: 'Brenda' },
+    { last: 'D', first: 'Sara' }
+  ];
+  var pad = function(s, len) {
+    s = String(s);
+    while (s.length < len) s += ' ';
+    return s;
+  };
+  var padLeft = function(s, len) {
+    s = String(s);
+    while (s.length < len) s = ' ' + s;
+    return s;
+  };
+  var sep = new Array(165).join('=');
+  var hdr = '   ID  ' + pad('Emp Last', 11) + pad('Emp First', 11) +
+    pad('Date', 11) + pad('Time In', 19) + pad('Time Out', 19) +
+    pad('Total Hrs', 11) + 'Total Mins ';
+  var rows = [sep, hdr, sep];
+  var id = 3001;
+  for (var ei = 0; ei < emps.length; ei++) {
+    for (var m = 1; m <= 3; m++) {
+      var daysInMonth = new Date(2025, m, 0).getDate();
+      for (var d = 1; d <= daysInMonth; d += 2 + Math.floor(Math.random() * 2)) {
+        var hIn = 8 + Math.floor(Math.random() * 2);
+        var mIn = Math.floor(Math.random() * 50);
+        var durH = 4 + Math.floor(Math.random() * 5);
+        var durM = Math.floor(Math.random() * 55);
+        var hOut = hIn + durH + Math.floor((mIn + durM) / 60);
+        var mOut = (mIn + durM) % 60;
+        var ampmIn = hIn < 12 ? 'AM' : 'PM';
+        var ampmOut = hOut < 12 ? 'AM' : 'PM';
+        var h12In = hIn > 12 ? hIn - 12 : hIn;
+        var h12Out = hOut > 12 ? hOut - 12 : hOut;
+        var dateStr = m + '/' + d + '/2025';
+        var mm = String(m).padStart(2, '0');
+        var dd = String(d).padStart(2, '0');
+        var timeIn = mm + '/' + dd + '/25 ' + String(h12In).padStart(2, '0') + ':' + String(mIn).padStart(2, '0') + ' ' + ampmIn;
+        var timeOut = mm + '/' + dd + '/25 ' + String(h12Out).padStart(2, '0') + ':' + String(mOut).padStart(2, '0') + ' ' + ampmOut;
+        var row = padLeft(id, 5) + '  ' + pad(emps[ei].last, 11) + pad(emps[ei].first, 11) +
+          pad(dateStr, 11) + pad(timeIn, 19) + pad(timeOut, 19) +
+          pad(durH, 11) + padLeft(durM, 2) + '         ';
+        rows.push(row);
+        rows.push('');
+        id++;
       }
     }
   }
-  document.getElementById('laborArea').value = lines.join('\n');
+  document.getElementById('laborArea').value = rows.join('\n');
 });
 
 /* ════════════════════════════════════════════════════════════════════
