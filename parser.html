@@ -229,6 +229,24 @@ body{min-height:100vh;overflow-x:hidden}
   overflow:auto;line-height:1.65;
 }
 
+/* ── Column Mapping ── */
+.col-map{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:14px}
+.col-map-item{
+  background:var(--bg-surface-alt);border:1px solid var(--border-light);border-radius:var(--radius-sm);
+  padding:12px;transition:border-color .2s;
+}
+.col-map-item:hover{border-color:var(--accent)}
+.col-map-item label{display:block;font-weight:600;margin-bottom:6px;color:var(--text-secondary);font-size:.78rem;letter-spacing:.02em}
+.col-map-item select{
+  width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);
+  background:var(--bg-surface);color:var(--text-primary);font-size:16px;font-family:var(--font-body);
+}
+.col-map-item .preview{font-family:var(--font-mono);font-size:.7rem;color:var(--text-muted);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Checkbox ── */
+.checkbox-label{display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--text-secondary);cursor:pointer;user-select:none}
+.checkbox-label input[type="checkbox"]{width:18px;height:18px;cursor:pointer;accent-color:var(--accent)}
+
 /* ── Select ── */
 .select-styled{
   padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
@@ -299,7 +317,7 @@ body{min-height:100vh;overflow-x:hidden}
     <div class="mode-card revenue-mode active" data-mode="revenue">
       <div class="mode-icon"><i class="fa-solid fa-chart-line"></i></div>
       <div class="mode-name">Revenue</div>
-      <div class="mode-desc">PieceCast Monthly CSV</div>
+      <div class="mode-desc">POS Report / CSV Parser</div>
     </div>
     <div class="mode-card expenses-mode" data-mode="expenses">
       <div class="mode-icon"><i class="fa-solid fa-receipt"></i></div>
@@ -313,23 +331,52 @@ body{min-height:100vh;overflow-x:hidden}
     </div>
   </div>
 
-  <!-- ── REVENUE IMPORT ── -->
+  <!-- ── REVENUE IMPORT (POS Parser) ── -->
   <div id="panel-revenue" class="import-panel active">
     <div class="card animate-in">
-      <div class="card-title"><span class="icon"><i class="fa-solid fa-chart-line" style="color:var(--accent2)"></i></span> Import Revenue (PieceCast Monthly CSV)</div>
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-clipboard" style="color:var(--accent2)"></i></span> Paste Your Report</div>
       <div class="info-box">
-        Paste monthly revenue data from PieceCast. Expected format:<br>
-        <code>Month,Actual_Revenue</code><br>
-        <code>2025-03,39489.30</code><br>
-        <code>2025-04,41200.00</code><br><br>
-        Each row stores as <strong>NORMALIZED[month].revenue</strong>.
+        Paste your <strong>Sales Report By Category</strong> directly from your POS system. The multi-page format (left page with Drop/Dry/Laundry, middle with Alter/Press, right with Totals) is <strong>auto-detected</strong>.
+        <br><br>
+        Also supports <strong>generic</strong> tab-separated and CSV formats with manual column mapping.
+        <br><br>
+        Daily revenue is aggregated monthly into <strong>NORMALIZED[month].revenue</strong>.
       </div>
-      <textarea id="revenueArea" class="textarea-paste" placeholder="Month,Actual_Revenue&#10;2025-01,35000.00&#10;2025-02,37500.00&#10;2025-03,39489.30"></textarea>
+      <textarea id="pasteArea" class="textarea-paste" placeholder="Paste your POS report data here...&#10;&#10;Supports:&#10;  • Sales Report By Category (multi-page POS format)&#10;  • Tab-separated data&#10;  • CSV data&#10;  • Pipe or semicolon delimited"></textarea>
       <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
-        <button class="btn btn-accent2" id="importRevenueBtn"><i class="fa-solid fa-bolt"></i> Import Revenue</button>
-        <button class="btn btn-secondary btn-sm" id="sampleRevenueBtn"><i class="fa-solid fa-flask"></i> Sample</button>
-        <span id="revenueStatus" style="margin-left:auto;font-size:.82rem;color:var(--text-muted)"></span>
+        <button class="btn btn-accent2" id="parseBtn"><i class="fa-solid fa-bolt"></i> Parse Report</button>
+        <button class="btn btn-secondary btn-sm" id="samplePOSBtn"><i class="fa-solid fa-flask"></i> Sample Data</button>
+        <label class="checkbox-label" style="margin-left:auto">
+          <input type="checkbox" id="includeLastDate"> Include last date (partial day)
+        </label>
       </div>
+      <div id="parseStatus" style="margin-top:10px;font-size:.82rem;color:var(--text-muted)"></div>
+    </div>
+
+    <!-- Column Mapping (for generic formats) -->
+    <div id="revMappingCard" class="card" style="display:none">
+      <div class="card-title"><span class="icon"><i class="fa-solid fa-arrows-left-right"></i></span> Column Mapping</div>
+      <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:8px">Assign each column a role. Pick one <strong>Date</strong> column and classify the rest as Pieces, Revenue, or Skip.</p>
+      <div id="colMappings" class="col-map"></div>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-accent2" id="loadDataBtn"><i class="fa-solid fa-check"></i> Load Data</button>
+        <span id="mappingStatus" style="font-size:.8rem;color:var(--text-muted)"></span>
+      </div>
+    </div>
+
+    <!-- Daily Data Preview (shown after successful parse) -->
+    <div id="revPreviewCard" class="card" style="display:none">
+      <div class="card-title">
+        <span class="icon"><i class="fa-solid fa-table-cells" style="color:var(--accent2)"></i></span> Daily Revenue Preview
+        <span id="revPreviewBadge" class="badge badge-teal" style="margin-left:auto"></span>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+        <div class="stats-row" id="revStats" style="margin-bottom:0"></div>
+      </div>
+      <div class="table-wrap" style="max-height:40vh;overflow-y:auto">
+        <table class="data-table" id="revPreviewTable"><thead></thead><tbody></tbody></table>
+      </div>
+      <div style="margin-top:12px;font-size:.82rem;color:var(--text-muted)" id="revAggStatus"></div>
     </div>
   </div>
 
@@ -495,6 +542,21 @@ var IMPORT_STATE = {
   waveCategorySums: {}
 };
 
+/* POS parser state */
+var STATE = {
+  raw: { headers: [], rows: [] },
+  mappings: { dateCol: -1, columns: [] },
+  series: {
+    dates: [],
+    categories: {},
+    totalPieces: [],
+    totalRevenue: []
+  },
+  dataLoaded: false
+};
+
+var DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
 /* ════════════════════════════════════════════════════════════════════
    DARK MODE
    ════════════════════════════════════════════════════════════════════ */
@@ -562,6 +624,10 @@ function dateToMonth(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
 
+function formatDateShort(d) {
+  return (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+}
+
 function parseNumeric(s) {
   if (s == null || s === '') return NaN;
   s = String(s).trim().replace(/[$,()]/g, '');
@@ -617,6 +683,27 @@ function parseCSVLine(line, delim) {
   return result;
 }
 
+function parseRawData(text) {
+  var delim = detectDelimiter(text);
+  var lines = text.trim().split('\n').filter(function(l) { return l.trim().length > 0; });
+  if (lines.length < 2) return null;
+
+  var headerIdx = 0;
+  for (var i = 0; i < Math.min(5, lines.length); i++) {
+    var cells = lines[i].split(delim).map(function(c) { return c.trim(); });
+    if (cells.filter(function(c) { return c.length > 0; }).length >= 2) { headerIdx = i; break; }
+  }
+
+  var headers = lines[headerIdx].split(delim).map(function(c) { return c.trim(); });
+  var rows = [];
+  for (var j = headerIdx + 1; j < lines.length; j++) {
+    var rowCells = lines[j].split(delim).map(function(c) { return c.trim(); });
+    if (rowCells.filter(function(c) { return c.length > 0; }).length >= 2) rows.push(rowCells);
+  }
+
+  return { headers: headers, rows: rows };
+}
+
 function getMonthsSorted() {
   return Object.keys(NORMALIZED).sort();
 }
@@ -652,67 +739,474 @@ document.querySelectorAll('.mode-card').forEach(function(card) {
 });
 
 /* ════════════════════════════════════════════════════════════════════
-   1. REVENUE IMPORT
+   1. REVENUE IMPORT — POS Parser System
    ════════════════════════════════════════════════════════════════════ */
-function importRevenue() {
-  var text = document.getElementById('revenueArea').value.trim();
-  if (!text) { showToast('Paste revenue CSV data first.', 'error'); return; }
 
-  var delim = detectDelimiter(text);
-  var lines = text.split('\n').filter(function(l) { return l.trim().length > 0; });
-  if (lines.length < 2) { showToast('Need header + at least 1 data row.', 'error'); return; }
-
-  var header = parseCSVLine(lines[0], delim);
-  var monthCol = -1;
-  var revCol = -1;
-  for (var h = 0; h < header.length; h++) {
-    var low = header[h].toLowerCase().replace(/[_\s-]/g, '');
-    if (low === 'month' || low === 'date' || low === 'period') monthCol = h;
-    if (low.indexOf('revenue') >= 0 || low.indexOf('actualrevenue') >= 0 || low.indexOf('sales') >= 0) revCol = h;
-  }
-  if (monthCol < 0) monthCol = 0;
-  if (revCol < 0) revCol = header.length > 1 ? 1 : 0;
-
-  var imported = 0;
-  for (var i = 1; i < lines.length; i++) {
-    var cells = parseCSVLine(lines[i], delim);
-    if (cells.length < 2) continue;
-    var monthStr = cells[monthCol].trim();
-    var revVal = parseNumeric(cells[revCol]);
-    if (isNaN(revVal)) continue;
-
-    /* Accept YYYY-MM directly or parse a full date */
-    var mk = null;
-    if (/^\d{4}-\d{2}$/.test(monthStr)) {
-      mk = monthStr;
-    } else {
-      var pd = parseDate(monthStr);
-      if (pd) mk = dateToMonth(pd);
-    }
-    if (!mk) continue;
-
-    ensureMonth(mk);
-    NORMALIZED[mk].revenue = revVal;
-    imported++;
-  }
-
-  IMPORT_STATE.revenueMonths = imported;
-  document.getElementById('revenueStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Imported revenue for <strong>' + imported + '</strong> months</span>';
-  updateMonthCount();
-  showToast('Revenue imported: ' + imported + ' months');
+/* ── POS "Sales Report By Category" format detection ── */
+function isPOSReport(text) {
+  return text.indexOf('Sales Report By Category') >= 0 && text.indexOf('Drop') >= 0;
 }
 
-document.getElementById('importRevenueBtn').addEventListener('click', importRevenue);
+function isReportHeaderLine(line) {
+  if (line === '') return true;
+  if (line.indexOf('Sales Report') >= 0) return true;
+  if (/^\d{4}\/\d{2}\s*~/.test(line)) return true;
+  if (/^\d{4}\.\d{2}\.\d{2}$/.test(line)) return true;
+  if (line.indexOf('Drop') >= 0 && line.indexOf('Dry') >= 0) return true;
+  if (line.indexOf('Alter Pcs') >= 0 || line.indexOf('Alter Amt') >= 0) return true;
+  if (line.indexOf('Press Pcs') >= 0 || line.indexOf('Press Amt') >= 0) return true;
+  if (line.indexOf('Total Pcs') >= 0 || line.indexOf('Total Amt') >= 0) return true;
+  if (line.indexOf('DC Amt') >= 0) return true;
+  if (line.indexOf('Laund Amt') >= 0 && line.indexOf('Alter') >= 0) return true;
+  return false;
+}
 
-document.getElementById('sampleRevenueBtn').addEventListener('click', function() {
-  var months = [];
-  var base = 34000;
-  for (var m = 1; m <= 12; m++) {
-    var seasonal = 1 + 0.12 * Math.sin((m - 3) * Math.PI / 6);
-    var val = base * seasonal + (Math.random() - 0.5) * 3000;
-    months.push('2025-' + String(m).padStart(2, '0') + ',' + val.toFixed(2));
+function parsePOSReport(text) {
+  var lines = text.split('\n');
+
+  var sections = [];
+  var current = [];
+  for (var li = 0; li < lines.length; li++) {
+    if (lines[li].indexOf('Sales Report By Category') >= 0) {
+      if (current.length > 0) sections.push(current);
+      current = [lines[li]];
+    } else {
+      current.push(lines[li]);
+    }
   }
-  document.getElementById('revenueArea').value = 'Month,Actual_Revenue\n' + months.join('\n');
+  if (current.length > 0) sections.push(current);
+
+  var leftRows = [];
+  var middleRows = [];
+  var rightRows = [];
+
+  for (var si = 0; si < sections.length; si++) {
+    var section = sections[si];
+    var sectionType = null;
+    for (var sl = 0; sl < section.length; sl++) {
+      var t = section[sl].trim();
+      if (t.indexOf('Drop') >= 0 && t.indexOf('Dry') >= 0) { sectionType = 'left'; break; }
+      if (t.indexOf('Alter Pcs') >= 0 || t.indexOf('Alter Amt') >= 0) { sectionType = 'middle'; break; }
+      if (t.indexOf('Total Pcs') >= 0 || t.indexOf('DC Amt') >= 0) { sectionType = 'right'; break; }
+    }
+    if (!sectionType) continue;
+
+    for (var ri = 0; ri < section.length; ri++) {
+      var trimmed = section[ri].trim();
+      if (isReportHeaderLine(trimmed)) continue;
+      var cells = trimmed.split(/\s{2,}/).filter(function(c) { return c.length > 0; });
+      if (cells.length < 2) continue;
+
+      if (sectionType === 'left') {
+        if (/^\d{4}\//.test(cells[0])) leftRows.push(cells);
+      } else if (sectionType === 'middle') {
+        if (/^-?[\d.]/.test(cells[0])) middleRows.push(cells);
+      } else {
+        if (/^-?[\d.]/.test(cells[0])) rightRows.push(cells);
+      }
+    }
+  }
+
+  var headers = ['Date', 'Dry Pcs', 'Dry Amt', 'Laund Pcs', 'Laund Amt',
+    'Alter Pcs', 'Alter Amt', 'Press Pcs', 'Press Amt', 'DC Amt', 'Total Pcs', 'Total Amt'];
+
+  var rows = [];
+  for (var rj = 0; rj < leftRows.length; rj++) {
+    var left = leftRows[rj];
+    var middle = rj < middleRows.length ? middleRows[rj] : [];
+    var right = rj < rightRows.length ? rightRows[rj] : [];
+    rows.push(left.concat(middle).concat(right));
+  }
+
+  var includeLastCb = document.getElementById('includeLastDate');
+  var keepLastDate = includeLastCb && includeLastCb.checked;
+  if (rows.length > 0 && !keepLastDate) {
+    var lastDateVal = rows[rows.length - 1][0];
+    for (var rd = rows.length - 1; rd >= 0; rd--) {
+      if (rows[rd][0] === lastDateVal) rows.splice(rd, 1);
+    }
+  }
+
+  var mappings = {
+    dateCol: 0,
+    columns: [
+      { index: 0, type: 'date', name: 'Date' },
+      { index: 1, type: 'pieces', name: 'Dry Cleaning' },
+      { index: 2, type: 'revenue', name: 'Dry Cleaning' },
+      { index: 3, type: 'pieces', name: 'Laundry' },
+      { index: 4, type: 'revenue', name: 'Laundry' },
+      { index: 5, type: 'pieces', name: 'Alterations' },
+      { index: 6, type: 'revenue', name: 'Alterations' },
+      { index: 7, type: 'pieces', name: 'Press' },
+      { index: 8, type: 'revenue', name: 'Press' },
+      { index: 9, type: 'skip', name: 'DC Amt' },
+      { index: 10, type: 'skip', name: 'Total Pcs' },
+      { index: 11, type: 'skip', name: 'Total Amt' }
+    ]
+  };
+
+  return { headers: headers, rows: rows, mappings: mappings };
+}
+
+function autoDetectColumns(headers, rows) {
+  var mappings = [];
+  var dateCol = -1;
+  var sample = rows.slice(0, Math.min(5, rows.length));
+
+  for (var i = 0; i < headers.length; i++) {
+    var vals = sample.map(function(r) { return r[i] || ''; });
+    var dateParsed = vals.filter(function(v) { return parseDate(v) !== null; }).length;
+    var hLow = headers[i].toLowerCase();
+
+    if (dateCol === -1 && (dateParsed >= vals.length * 0.6 || hLow.indexOf('date') >= 0)) {
+      dateCol = i;
+      mappings.push({ index: i, type: 'date', name: headers[i] });
+    } else if (hLow.indexOf('rev') >= 0 || hLow.indexOf('$') >= 0 || hLow.indexOf('sales') >= 0 ||
+               hLow.indexOf('amount') >= 0 || hLow.indexOf('dollar') >= 0 || hLow.indexOf('amt') >= 0) {
+      mappings.push({ index: i, type: 'revenue', name: headers[i].replace(/[$]/g, '').trim() });
+    } else {
+      var numParsed = vals.filter(function(v) { return !isNaN(parseNumeric(v)); }).length;
+      if (numParsed >= vals.length * 0.5) {
+        mappings.push({ index: i, type: 'pieces', name: headers[i] });
+      } else {
+        mappings.push({ index: i, type: 'skip', name: headers[i] });
+      }
+    }
+  }
+
+  return { dateCol: dateCol, columns: mappings };
+}
+
+function processData() {
+  var dateCol = STATE.mappings.dateCol;
+  var columns = STATE.mappings.columns;
+  if (dateCol < 0) return false;
+
+  var dates = [], categories = {};
+  var pieceCols = columns.filter(function(c) { return c.type === 'pieces'; });
+  var revCols = columns.filter(function(c) { return c.type === 'revenue'; });
+
+  pieceCols.forEach(function(c) { categories[c.name] = { pieces: [], revenue: [] }; });
+  revCols.forEach(function(c) {
+    if (!categories[c.name]) categories[c.name] = { pieces: [], revenue: [] };
+  });
+
+  var dateMap = {};
+  for (var ri = 0; ri < STATE.raw.rows.length; ri++) {
+    var row = STATE.raw.rows[ri];
+    var d = parseDate(row[dateCol]);
+    if (!d) continue;
+    var key = d.toISOString().slice(0, 10);
+    if (dateMap[key]) continue;
+    dateMap[key] = true;
+
+    dates.push(d);
+
+    pieceCols.forEach(function(c) {
+      var v = parseNumeric(row[c.index]);
+      categories[c.name].pieces.push(isNaN(v) ? 0 : v);
+    });
+    revCols.forEach(function(c) {
+      var v = parseNumeric(row[c.index]);
+      if (categories[c.name]) categories[c.name].revenue.push(isNaN(v) ? 0 : v);
+    });
+  }
+
+  /* Sort by date */
+  var indices = dates.map(function(_, i) { return i; }).sort(function(a, b) { return dates[a] - dates[b]; });
+  STATE.series.dates = indices.map(function(i) { return dates[i]; });
+
+  var sortedCats = {};
+  for (var name in categories) {
+    if (!categories.hasOwnProperty(name)) continue;
+    sortedCats[name] = {
+      pieces: indices.map(function(i) { return categories[name].pieces[i] || 0; }),
+      revenue: indices.map(function(i) { return categories[name].revenue[i] || 0; })
+    };
+  }
+
+  /* Merge Press into Dry Cleaning */
+  if (sortedCats['Press'] && sortedCats['Dry Cleaning']) {
+    var nMerge = sortedCats['Dry Cleaning'].pieces.length;
+    for (var mi = 0; mi < nMerge; mi++) {
+      sortedCats['Dry Cleaning'].pieces[mi] += sortedCats['Press'].pieces[mi] || 0;
+      sortedCats['Dry Cleaning'].revenue[mi] += sortedCats['Press'].revenue[mi] || 0;
+    }
+    delete sortedCats['Press'];
+  }
+
+  STATE.series.categories = sortedCats;
+
+  /* Compute totals */
+  var n = STATE.series.dates.length;
+  STATE.series.totalPieces = new Array(n).fill(0);
+  STATE.series.totalRevenue = new Array(n).fill(0);
+  for (var catName in sortedCats) {
+    if (!sortedCats.hasOwnProperty(catName)) continue;
+    for (var ti = 0; ti < n; ti++) {
+      STATE.series.totalPieces[ti] += sortedCats[catName].pieces[ti];
+      STATE.series.totalRevenue[ti] += sortedCats[catName].revenue[ti];
+    }
+  }
+
+  STATE.dataLoaded = true;
+  return true;
+}
+
+/* ── Monthly aggregation into NORMALIZED ── */
+function aggregateRevenueToNormalized() {
+  /* Preserve existing expense/labor data: only clear revenue fields */
+  var monthKeys = Object.keys(NORMALIZED);
+  for (var mk = 0; mk < monthKeys.length; mk++) {
+    NORMALIZED[monthKeys[mk]].revenue = null;
+  }
+
+  for (var i = 0; i < STATE.series.dates.length; i++) {
+    var d = STATE.series.dates[i];
+    var monthKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+
+    if (!NORMALIZED[monthKey]) {
+      NORMALIZED[monthKey] = {
+        revenue: 0,
+        variable: null,
+        labor: null,
+        fixed: null,
+        debt: null
+      };
+    }
+
+    if (NORMALIZED[monthKey].revenue == null) NORMALIZED[monthKey].revenue = 0;
+    NORMALIZED[monthKey].revenue += STATE.series.totalRevenue[i] || 0;
+  }
+
+  IMPORT_STATE.revenueMonths = Object.keys(NORMALIZED).filter(function(k) {
+    return NORMALIZED[k].revenue != null;
+  }).length;
+  updateMonthCount();
+}
+
+/* ── Column Mapping UI ── */
+function renderColumnMappings() {
+  var el = document.getElementById('colMappings');
+  var headers = STATE.raw.headers;
+  var rows = STATE.raw.rows;
+  var detected = autoDetectColumns(headers, rows);
+  STATE.mappings = detected;
+
+  el.innerHTML = '';
+  for (var i = 0; i < headers.length; i++) {
+    var col = null;
+    for (var ci = 0; ci < detected.columns.length; ci++) {
+      if (detected.columns[ci].index === i) { col = detected.columns[ci]; break; }
+    }
+    if (!col) col = { type: 'skip', name: headers[i] };
+    var sample = rows.slice(0, 3).map(function(r) { return r[i] || ''; }).join(', ');
+    var div = document.createElement('div');
+    div.className = 'col-map-item';
+    div.innerHTML =
+      '<label>' + escHtml(headers[i] || 'Col ' + (i+1)) + '</label>' +
+      '<select data-col="' + i + '" class="col-type-select">' +
+        '<option value="date"' + (col.type === 'date' ? ' selected' : '') + '>Date</option>' +
+        '<option value="pieces"' + (col.type === 'pieces' ? ' selected' : '') + '>Pieces</option>' +
+        '<option value="revenue"' + (col.type === 'revenue' ? ' selected' : '') + '>Revenue</option>' +
+        '<option value="skip"' + (col.type === 'skip' ? ' selected' : '') + '>Skip</option>' +
+      '</select>' +
+      '<div class="preview">' + escHtml(sample) + '</div>';
+    el.appendChild(div);
+  }
+
+  document.getElementById('revMappingCard').style.display = '';
+}
+
+function readColumnMappings() {
+  var selects = document.querySelectorAll('.col-type-select');
+  var columns = [];
+  var dateCol = -1;
+  selects.forEach(function(sel) {
+    var i = parseInt(sel.dataset.col);
+    var type = sel.value;
+    var name = STATE.raw.headers[i] || ('Column ' + (i+1));
+    if (type === 'date') dateCol = i;
+    columns.push({ index: i, type: type, name: name });
+  });
+  STATE.mappings = { dateCol: dateCol, columns: columns };
+  return dateCol >= 0;
+}
+
+/* ── Daily Preview ── */
+function renderRevenuePreview() {
+  var dates = STATE.series.dates;
+  var cats = STATE.series.categories;
+  var catNames = Object.keys(cats);
+  var n = dates.length;
+
+  /* Stats */
+  var totalPcs = STATE.series.totalPieces.reduce(function(a,b){return a+b;}, 0);
+  var totalRev = STATE.series.totalRevenue.reduce(function(a,b){return a+b;}, 0);
+  var avgDaily = n > 0 ? Math.round(totalPcs / n) : 0;
+  var hasRevenue = totalRev > 0;
+
+  var statsHtml = '';
+  statsHtml += '<div class="stat-pill"><span class="stat-label">Days</span><span class="stat-value">' + n + '</span></div>';
+  statsHtml += '<div class="stat-pill"><span class="stat-label">Categories</span><span class="stat-value">' + catNames.length + '</span></div>';
+  statsHtml += '<div class="stat-pill"><span class="stat-label">Avg Daily</span><span class="stat-value">' + avgDaily + '</span></div>';
+  statsHtml += '<div class="stat-pill"><span class="stat-label">Total Pcs</span><span class="stat-value">' + totalPcs.toLocaleString() + '</span></div>';
+  if (hasRevenue) {
+    statsHtml += '<div class="stat-pill"><span class="stat-label">Total Rev</span><span class="stat-value">$' + Math.round(totalRev).toLocaleString() + '</span></div>';
+  }
+  document.getElementById('revStats').innerHTML = statsHtml;
+
+  /* Table */
+  var thead = document.querySelector('#revPreviewTable thead');
+  var tbody = document.querySelector('#revPreviewTable tbody');
+
+  var headerHTML = '<tr><th>Date</th><th>DOW</th>';
+  for (var hi = 0; hi < catNames.length; hi++) {
+    headerHTML += '<th class="num">' + escHtml(catNames[hi]) + ' $</th>';
+  }
+  headerHTML += '<th class="num" style="font-weight:700;color:var(--accent2)">Total $</th></tr>';
+  thead.innerHTML = headerHTML;
+
+  var bodyHTML = '';
+  var showRows = Math.min(n, 60);
+  for (var i = 0; i < showRows; i++) {
+    bodyHTML += '<tr><td>' + formatDateShort(dates[i]) + '</td><td>' + DOW_NAMES[dates[i].getDay()] + '</td>';
+    for (var ci = 0; ci < catNames.length; ci++) {
+      bodyHTML += '<td class="num">$' + cats[catNames[ci]].revenue[i].toFixed(2) + '</td>';
+    }
+    bodyHTML += '<td class="num" style="font-weight:700">$' + STATE.series.totalRevenue[i].toFixed(2) + '</td></tr>';
+  }
+  if (n > showRows) {
+    var colSpan = 2 + catNames.length + 1;
+    bodyHTML += '<tr><td colspan="' + colSpan + '" style="text-align:center;color:var(--text-muted);padding:12px;font-style:italic">... and ' + (n - showRows) + ' more rows</td></tr>';
+  }
+  tbody.innerHTML = bodyHTML;
+
+  document.getElementById('revPreviewBadge').textContent = n + ' days \u00B7 ' + catNames.length + ' categories';
+  document.getElementById('revPreviewCard').style.display = '';
+}
+
+/* ── Sample POS data generator ── */
+function generateSampleData() {
+  var startDate = new Date(2025, 0, 1);
+  var endDate = new Date(2026, 2, 1);
+  var rows = ['Date\tDry Cleaning\tLaundry\tAlterations\tHousehold\tTotal Pcs\tTotal Rev'];
+
+  var totalDays = Math.round((endDate - startDate) / 86400000) + 1;
+  for (var dayIdx = 0; dayIdx < totalDays; dayIdx++) {
+    var d = new Date(startDate.getTime() + dayIdx * 86400000);
+    var dow = d.getDay();
+    var dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 1)) / 86400000);
+
+    var seasonal = 1 + 0.15 * Math.sin((dayOfYear - 60) * 2 * Math.PI / 365) + 0.08 * Math.sin((dayOfYear - 240) * 2 * Math.PI / 365);
+    var dowMult = [0.15, 1.0, 0.95, 0.88, 0.92, 1.05, 0.55][dow];
+
+    var noise = function() { return 0.85 + Math.random() * 0.3; };
+    var dc = Math.round(42 * seasonal * dowMult * noise());
+    var laundry = Math.round(30 * seasonal * dowMult * noise());
+    var alt = Math.round(12 * seasonal * dowMult * noise());
+    var hh = Math.round(7 * seasonal * dowMult * noise());
+    var total = dc + laundry + alt + hh;
+    var rev = (dc * 7.5 + laundry * 4.0 + alt * 14.0 + hh * 8.5) * (0.95 + Math.random() * 0.1);
+
+    var dateStr = (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+    rows.push(dateStr + '\t' + dc + '\t' + laundry + '\t' + alt + '\t' + hh + '\t' + total + '\t$' + rev.toFixed(2));
+  }
+
+  return rows.join('\n');
+}
+
+/* ── After successful parse: show preview + aggregate ── */
+function onRevenueDataLoaded() {
+  renderRevenuePreview();
+  aggregateRevenueToNormalized();
+
+  var mc = IMPORT_STATE.revenueMonths;
+  var totalRev = STATE.series.totalRevenue.reduce(function(a,b){return a+b;}, 0);
+  document.getElementById('revAggStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Aggregated daily revenue into <strong>' + mc + '</strong> months \u00B7 Total: <strong>$' + Math.round(totalRev).toLocaleString() + '</strong></span>';
+  showToast('Revenue parsed: ' + STATE.series.dates.length + ' days \u2192 ' + mc + ' months');
+}
+
+/* ── Event: Parse Report button ── */
+document.getElementById('parseBtn').addEventListener('click', function() {
+  var text = document.getElementById('pasteArea').value.trim();
+  if (!text) {
+    showToast('Please paste your report data first.', 'error');
+    return;
+  }
+
+  var statusEl = document.getElementById('parseStatus');
+
+  if (isPOSReport(text)) {
+    statusEl.innerHTML = '<span class="parsing-indicator"><i class="fa-solid fa-spinner fa-spin"></i> Parsing POS format...</span>';
+
+    setTimeout(function() {
+      var result = parsePOSReport(text);
+      if (!result || result.rows.length < 2) {
+        statusEl.innerHTML = '<span style="color:var(--error)"><i class="fa-solid fa-circle-xmark"></i> Could not parse POS report. Found ' + (result ? result.rows.length : 0) + ' data rows.</span>';
+        return;
+      }
+      STATE.raw = { headers: result.headers, rows: result.rows };
+      STATE.mappings = result.mappings;
+      document.getElementById('revMappingCard').style.display = 'none';
+
+      if (!processData()) {
+        statusEl.innerHTML = '<span style="color:var(--error)"><i class="fa-solid fa-circle-xmark"></i> Failed to process data.</span>';
+        return;
+      }
+
+      var lastDayMsg = (document.getElementById('includeLastDate').checked) ? 'last day included' : 'last day excluded';
+      statusEl.innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Auto-detected <strong>Sales Report By Category</strong> format. ' +
+        STATE.series.dates.length + ' days \u00B7 ' +
+        Object.keys(STATE.series.categories).length + ' categories (' + lastDayMsg + ', Press merged into Dry Cleaning)</span>';
+
+      onRevenueDataLoaded();
+    }, 50);
+  } else {
+    /* Generic format — show column mapping */
+    var parsed = parseRawData(text);
+    if (!parsed || parsed.rows.length < 2) {
+      statusEl.innerHTML = '<span style="color:var(--error)"><i class="fa-solid fa-circle-xmark"></i> Could not parse data. Need at least a header + 2 data rows.</span>';
+      return;
+    }
+    STATE.raw = parsed;
+    statusEl.innerHTML = '<span style="color:var(--accent)"><i class="fa-solid fa-circle-info"></i> Detected ' + parsed.headers.length + ' columns, ' + parsed.rows.length + ' rows. Map columns below.</span>';
+    renderColumnMappings();
+  }
+});
+
+/* ── Event: Load Data (from column mapping) ── */
+document.getElementById('loadDataBtn').addEventListener('click', function() {
+  if (!readColumnMappings()) {
+    showToast('Please assign one column as "Date".', 'error');
+    return;
+  }
+  var piecesCols = STATE.mappings.columns.filter(function(c) { return c.type === 'pieces'; });
+  var revCols = STATE.mappings.columns.filter(function(c) { return c.type === 'revenue'; });
+  if (piecesCols.length === 0 && revCols.length === 0) {
+    showToast('Assign at least one column as "Pieces" or "Revenue".', 'error');
+    return;
+  }
+  if (!processData()) {
+    showToast('Failed to process data. Check your date column.', 'error');
+    return;
+  }
+  if (STATE.series.dates.length < 2) {
+    showToast('Need at least 2 days of data.', 'error');
+    return;
+  }
+
+  document.getElementById('mappingStatus').innerHTML = '<span style="color:var(--success)"><i class="fa-solid fa-circle-check"></i> Loaded ' + STATE.series.dates.length + ' days across ' + Object.keys(STATE.series.categories).length + ' categories</span>';
+  onRevenueDataLoaded();
+});
+
+/* ── Event: Sample Data ── */
+document.getElementById('samplePOSBtn').addEventListener('click', function() {
+  document.getElementById('pasteArea').value = generateSampleData();
+  var parsed = parseRawData(document.getElementById('pasteArea').value);
+  STATE.raw = parsed;
+  document.getElementById('parseStatus').innerHTML = '<span style="color:var(--accent)"><i class="fa-solid fa-circle-info"></i> Sample data loaded. Map columns below or click Parse Report.</span>';
+  renderColumnMappings();
 });
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1220,15 +1714,27 @@ document.getElementById('clearAllBtn').addEventListener('click', function() {
     revenueMonths: 0, expenseMonths: 0, laborMonths: 0,
     hourlyRate: 15.00, waveRawRows: [], waveCategoryMap: {}, waveCategorySums: {}
   };
-  document.getElementById('revenueArea').value = '';
+  STATE = {
+    raw: { headers: [], rows: [] },
+    mappings: { dateCol: -1, columns: [] },
+    series: { dates: [], categories: {}, totalPieces: [], totalRevenue: [] },
+    dataLoaded: false
+  };
+  /* Revenue / POS parser elements */
+  document.getElementById('pasteArea').value = '';
+  document.getElementById('parseStatus').textContent = '';
+  document.getElementById('revMappingCard').style.display = 'none';
+  document.getElementById('revPreviewCard').style.display = 'none';
+  document.getElementById('revAggStatus').textContent = '';
+  /* Wave / Labor elements */
   document.getElementById('expensesArea').value = '';
   document.getElementById('laborArea').value = '';
-  document.getElementById('revenueStatus').textContent = '';
   document.getElementById('expenseParseStatus').textContent = '';
   document.getElementById('expenseImportStatus').textContent = '';
   document.getElementById('laborStatus').textContent = '';
   document.getElementById('catMappingCard').style.display = 'none';
   document.getElementById('hourlyRate').value = '15.00';
+  /* Export elements */
   document.getElementById('exportArea').textContent = '';
   document.getElementById('allocExpenses').checked = false;
   document.getElementById('allocLabor').checked = false;
