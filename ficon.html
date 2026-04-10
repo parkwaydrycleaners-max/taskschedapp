@@ -251,6 +251,21 @@
     </div>
   </div>
 
+  <!-- Import Forecast -->
+  <div class="card">
+    <div class="card-head" onclick="toggle('fcst')">
+      <span class="card-title"><span class="dot dot-gold"></span>Import Forecast (PieceCast)</span>
+      <span class="chevron" id="chev-fcst">&#9660;</span>
+    </div>
+    <div class="card-body" id="body-fcst">
+      <textarea id="fcstInput" placeholder="Paste your PieceCast forecast export here...&#10;# PIECECAST FORECAST EXPORT&#10;# ...&#10;Date	DOW	...	Total Pieces	Total Revenue ($)&#10;2026-04-09	Thu	...	131	1320.05"></textarea>
+      <div class="row">
+        <button class="btn btn-gold" onclick="importForecast()">&#9654; Import Forecast</button>
+      </div>
+      <div class="msg" id="fcstMsg"></div>
+    </div>
+  </div>
+
   <!-- Breakeven Results -->
   <div class="card">
     <div class="card-head" onclick="toggle('out')">
@@ -275,7 +290,9 @@
           <thead>
             <tr>
               <th>Month</th>
-              <th>Revenue</th>
+              <th>Actual Rev</th>
+              <th>Fcst Rev</th>
+              <th>Eff. Rev</th>
               <th>Variable</th>
               <th>Labor</th>
               <th>Fixed</th>
@@ -320,6 +337,7 @@
     return {
       Month: month,
       Revenue: 0,
+      Forecast: 0,
       Variable: 0,
       Labor: 0,
       Fixed: 0,
@@ -334,14 +352,15 @@
 
   /* ---- Breakeven math ---- */
   function calc(r) {
-    var rev = r.Revenue;
-    var contrib = rev - r.Variable - r.Labor;
-    var cm = rev > 0 ? contrib / rev : 0;
+    // Effective Revenue: use Forecast if actual is 0 but forecast exists
+    var effRev = (r.Revenue > 0) ? r.Revenue : (r.Forecast > 0 ? r.Forecast : 0);
+    var contrib = effRev - r.Variable - r.Labor;
+    var cm = effRev > 0 ? contrib / effRev : 0;
     var opBE = cm > 0 ? r.Fixed / cm : 0;
     var workerBE = cm > 0 ? (r.Fixed + r.Debt) / cm : 0;
     var target = cm > 0 ? (r.Fixed + desiredSurplus) / cm : 0;
-    var gap = rev - target;
-    return { Contribution: contrib, CM: cm, OpBE: opBE, ConsBE: workerBE, Target: target, Gap: gap };
+    var gap = effRev - target;
+    return { EffRev: effRev, Contribution: contrib, CM: cm, OpBE: opBE, ConsBE: workerBE, Target: target, Gap: gap };
   }
 
   /* ---- Format helpers ---- */
@@ -483,6 +502,67 @@
     msg("costMsg", "Imported costs." + extra, true);
   };
 
+  /* ============================================================
+     IMPORT FORECAST  —  PieceCast tab-separated daily export
+     Sums daily Total Revenue ($) into monthly totals.
+     Skips # comment lines, header line, and zero-revenue rows.
+     ============================================================ */
+  window.importForecast = function() {
+    var raw = document.getElementById("fcstInput").value;
+    if (!raw.trim()) { msg("fcstMsg", "Paste a forecast export first.", false); return; }
+
+    // Clear existing forecast data
+    for (var k in store) {
+      if (store.hasOwnProperty(k)) { store[k].Forecast = 0; }
+    }
+
+    var lines = raw.trim().split("\n");
+    var monthTotals = {};
+    var parsed = 0;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) { continue; }
+      if (line.charAt(0) === "#") { continue; }
+
+      // Skip header row (starts with "Date")
+      if (/^Date\b/i.test(line)) { continue; }
+
+      // Expect tab-separated: Date DOW ... Total Pieces Total Revenue ($)
+      var cols = line.split("\t");
+      if (cols.length < 2) { continue; }
+
+      // Date is first column, must match YYYY-MM-DD
+      var datePart = cols[0].trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) { continue; }
+
+      // Total Revenue is always the LAST column
+      var revStr = cols[cols.length - 1].trim().replace(/,/g, "");
+      var rev = parseFloat(revStr);
+      if (isNaN(rev) || rev === 0) { continue; }
+
+      var month = datePart.substring(0, 7); // YYYY-MM
+
+      if (!monthTotals[month]) { monthTotals[month] = 0; }
+      monthTotals[month] += rev;
+      parsed++;
+    }
+
+    if (parsed === 0) {
+      msg("fcstMsg", "No valid forecast rows found.", false);
+      return;
+    }
+
+    var months = Object.keys(monthTotals);
+    for (var j = 0; j < months.length; j++) {
+      ensure(months[j]).Forecast = monthTotals[months[j]];
+    }
+
+    document.getElementById("fcstInput").value = "";
+    renderAll();
+    msg("fcstMsg", "Imported forecast for " + months.length + " month(s) from " + parsed + " daily rows.", true);
+  };
+
   /* ---- Surplus ---- */
   window.onSurplusChange = function() {
     var v = parseFloat(document.getElementById("surplusInput").value.replace(/[$,]/g, ""));
@@ -534,8 +614,11 @@
       var r = store[chosen];
       var c = calc(r);
       statsGrid.style.display = "grid";
+      var usingFcst = r.Revenue === 0 && r.Forecast > 0;
       var cards = [
-        { label: "Revenue", val: $(r.Revenue), cls: "blu" },
+        { label: "Actual Revenue", val: $(r.Revenue), cls: r.Revenue > 0 ? "blu" : "dim" },
+        { label: "Forecast Revenue", val: $(r.Forecast), cls: r.Forecast > 0 ? "blu" : "dim" },
+        { label: "Effective Revenue" + (usingFcst ? " (fcst)" : ""), val: $(c.EffRev), cls: "blu" },
         { label: "Contribution", val: $(c.Contribution), cls: c.Contribution >= 0 ? "pos" : "neg" },
         { label: "CM Ratio", val: pct(c.CM), cls: "blu" },
         { label: "Operating BE", val: $(c.OpBE), cls: "blu" },
@@ -561,9 +644,12 @@
       var cc = calc(row);
       var gapCls = cc.Gap >= 0 ? "pos" : "neg";
       var contCls = cc.Contribution >= 0 ? "pos" : "neg";
+      var effCls = (row.Revenue === 0 && row.Forecast > 0) ? "blu" : "";
       html += "<tr>" +
         "<td>" + m + "</td>" +
         "<td>" + $(row.Revenue) + "</td>" +
+        '<td class="dim">' + $(row.Forecast) + "</td>" +
+        '<td class="' + effCls + '">' + $(cc.EffRev) + "</td>" +
         "<td>" + $(row.Variable) + "</td>" +
         "<td>" + $(row.Labor) + "</td>" +
         "<td>" + $(row.Fixed) + "</td>" +
@@ -585,13 +671,14 @@
   window.exportCSV = function() {
     var months = sortedMonths();
     if (months.length === 0) { return; }
-    var headers = ["Month","Revenue","Variable","Labor","Fixed","Debt","Contribution","CM_Ratio","Op_Breakeven","Cons_Breakeven","Target_Revenue","Revenue_Gap"];
+    var headers = ["Month","Actual_Revenue","Forecast_Revenue","Effective_Revenue","Variable","Labor","Fixed","Debt","Contribution","CM_Ratio","Op_Breakeven","Cons_Breakeven","Target_Revenue","Revenue_Gap"];
     var rows = [headers.join(",")];
     for (var i = 0; i < months.length; i++) {
       var r = store[months[i]];
       var c = calc(r);
       rows.push([
-        r.Month, r.Revenue.toFixed(2), r.Variable.toFixed(2), r.Labor.toFixed(2),
+        r.Month, r.Revenue.toFixed(2), r.Forecast.toFixed(2), c.EffRev.toFixed(2),
+        r.Variable.toFixed(2), r.Labor.toFixed(2),
         r.Fixed.toFixed(2), r.Debt.toFixed(2), c.Contribution.toFixed(2),
         c.CM.toFixed(4), c.OpBE.toFixed(2), c.ConsBE.toFixed(2),
         c.Target.toFixed(2), c.Gap.toFixed(2)
