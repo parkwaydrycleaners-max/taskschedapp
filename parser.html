@@ -368,7 +368,8 @@ body{min-height:100vh;overflow-x:hidden}
     <div id="revPreviewCard" class="card" style="display:none">
       <div class="card-title">
         <span class="icon"><i class="fa-solid fa-table-cells" style="color:var(--accent2)"></i></span> Daily Revenue Preview
-        <span id="revPreviewBadge" class="badge badge-teal" style="margin-left:auto"></span>
+        <button class="btn btn-secondary btn-sm" id="copyRevDataBtn" style="margin-left:auto;font-size:.72rem"><i class="fa-solid fa-copy"></i> Copy</button>
+        <span id="revPreviewBadge" class="badge badge-teal"></span>
       </div>
       <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
         <div class="stats-row" id="revStats" style="margin-bottom:0"></div>
@@ -410,6 +411,7 @@ body{min-height:100vh;overflow-x:hidden}
       </div>
       <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-primary" id="importExpensesBtn"><i class="fa-solid fa-check"></i> Import Expenses</button>
+        <button class="btn btn-secondary btn-sm" id="copyExpDataBtn"><i class="fa-solid fa-copy"></i> Copy</button>
         <span id="expenseImportStatus" style="font-size:.82rem;color:var(--text-muted)"></span>
       </div>
     </div>
@@ -431,6 +433,7 @@ body{min-height:100vh;overflow-x:hidden}
       <textarea id="laborArea" class="textarea-paste" placeholder="===========================&#10;   ID  Emp Last   Emp First  Date       Time In            Time Out           Total Hrs  Total Mins&#10;===========================&#10; 3093  L          Rosel      4/1/2025   04/01/25 08:24 AM  04/01/25 01:20 PM   4          56"></textarea>
       <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-purple" id="importLaborBtn"><i class="fa-solid fa-bolt"></i> Import Labor</button>
+        <button class="btn btn-secondary btn-sm" id="copyLaborDataBtn"><i class="fa-solid fa-copy"></i> Copy</button>
         <button class="btn btn-secondary btn-sm" id="sampleLaborBtn"><i class="fa-solid fa-flask"></i> Sample</button>
         <span id="laborStatus" style="margin-left:auto;font-size:.82rem;color:var(--text-muted)"></span>
       </div>
@@ -1749,6 +1752,109 @@ document.getElementById('sampleLaborBtn').addEventListener('click', function() {
     }
   }
   document.getElementById('laborArea').value = rows.join('\n');
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   COPY PARSED DATA HANDLERS
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Revenue: copy daily data from preview table as TSV */
+document.getElementById('copyRevDataBtn').addEventListener('click', function() {
+  if (!STATE.dataLoaded || !STATE.series.dates || STATE.series.dates.length === 0) {
+    showToast('No parsed revenue data to copy.', 'error'); return;
+  }
+  var s = STATE.series;
+  var catKeys = Object.keys(s.categories);
+  /* Header */
+  var header = ['Date', 'DOW'];
+  for (var ci = 0; ci < catKeys.length; ci++) header.push(catKeys[ci] + ' Pcs', catKeys[ci] + ' $');
+  header.push('Total Pcs', 'Total $');
+  var lines = [header.join('\t')];
+  /* Rows */
+  for (var i = 0; i < s.dates.length; i++) {
+    var row = [formatDateShort(s.dates[i]), DOW_NAMES[s.dates[i].getDay()]];
+    for (var cj = 0; cj < catKeys.length; cj++) {
+      var cat = s.categories[catKeys[cj]];
+      row.push(cat.pieces[i] != null ? cat.pieces[i] : '');
+      row.push(cat.revenue[i] != null ? cat.revenue[i].toFixed(2) : '');
+    }
+    row.push(s.totalPieces[i] != null ? s.totalPieces[i] : '');
+    row.push(s.totalRevenue[i] != null ? s.totalRevenue[i].toFixed(2) : '');
+    lines.push(row.join('\t'));
+  }
+  navigator.clipboard.writeText(lines.join('\n')).then(function() {
+    showToast('Revenue data copied (' + s.dates.length + ' rows)');
+  });
+});
+
+/* Wave Expenses: copy parsed accounts with mapping as TSV */
+document.getElementById('copyExpDataBtn').addEventListener('click', function() {
+  var accounts = IMPORT_STATE.waveRawRows;
+  var catMap = IMPORT_STATE.waveCategoryMap;
+  var dateRange = IMPORT_STATE.waveDateRange;
+  if (!accounts || accounts.length === 0) {
+    showToast('No parsed expense data to copy.', 'error'); return;
+  }
+  /* Read current user-selected mappings from the table */
+  document.querySelectorAll('.wave-cat-select').forEach(function(sel) {
+    catMap[sel.dataset.cat] = sel.value;
+  });
+  var monthCount = dateRange ? dateRange.months.length : 12;
+  var header = ['Account', 'Section', 'Annual Total', 'Monthly Avg', 'Mapping'];
+  var lines = [header.join('\t')];
+  for (var i = 0; i < accounts.length; i++) {
+    var a = accounts[i];
+    var mapping = catMap[a.name] || 'Fixed';
+    lines.push([a.name, a.section, a.amount.toFixed(2), (a.amount / monthCount).toFixed(2), mapping].join('\t'));
+  }
+  navigator.clipboard.writeText(lines.join('\n')).then(function() {
+    showToast('Expense data copied (' + accounts.length + ' accounts)');
+  });
+});
+
+/* Labor: re-parse and copy employee hours by month as TSV */
+document.getElementById('copyLaborDataBtn').addEventListener('click', function() {
+  var text = document.getElementById('laborArea').value.trim();
+  if (!text) { showToast('No labor data to copy.', 'error'); return; }
+  var parsed = parseTimesheetReport(text);
+  if (!parsed || parsed.entries.length === 0) {
+    showToast('No parsed labor data to copy.', 'error'); return;
+  }
+  var rate = parseFloat(document.getElementById('hourlyRate').value) || 0;
+  /* Aggregate: employee → month → hours */
+  var empMonths = {};
+  var allMonths = {};
+  for (var i = 0; i < parsed.entries.length; i++) {
+    var e = parsed.entries[i];
+    if (!empMonths[e.employee]) empMonths[e.employee] = {};
+    if (!empMonths[e.employee][e.month]) empMonths[e.employee][e.month] = 0;
+    empMonths[e.employee][e.month] += e.hours;
+    allMonths[e.month] = true;
+  }
+  var months = Object.keys(allMonths).sort();
+  var emps = Object.keys(empMonths).sort();
+  /* Header */
+  var header = ['Month'];
+  for (var ei = 0; ei < emps.length; ei++) header.push(emps[ei] + ' Hrs');
+  header.push('Total Hrs', 'Labor $');
+  var lines = [header.join('\t')];
+  /* Rows per month */
+  for (var mi = 0; mi < months.length; mi++) {
+    var mk = months[mi];
+    var row = [mk];
+    var monthTotal = 0;
+    for (var ej = 0; ej < emps.length; ej++) {
+      var h = (empMonths[emps[ej]][mk] || 0);
+      row.push(h.toFixed(1));
+      monthTotal += h;
+    }
+    row.push(monthTotal.toFixed(1));
+    row.push((monthTotal * rate).toFixed(2));
+    lines.push(row.join('\t'));
+  }
+  navigator.clipboard.writeText(lines.join('\n')).then(function() {
+    showToast('Labor data copied (' + months.length + ' months, ' + emps.length + ' employees)');
+  });
 });
 
 /* ════════════════════════════════════════════════════════════════════
