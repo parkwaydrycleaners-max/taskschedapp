@@ -364,6 +364,13 @@ tr.closed-row td{color:var(--tx3)!important;font-style:italic}
 <div id="noSchedMsg" class="card"><p style="text-align:center;color:var(--tx3);padding:30px 0;font-size:.9rem">Import forecast data and configure settings, then generate the schedule.</p></div>
 <div id="schedContent" style="display:none">
 <div class="card anim">
+<div class="row" style="margin-bottom:12px;align-items:flex-end;gap:10px">
+<div class="field" style="max-width:160px;margin-bottom:0"><label class="flbl">Schedule Start</label><input type="date" class="finput" id="schedStartDate"></div>
+<div class="field" style="max-width:160px;margin-bottom:0"><label class="flbl">Schedule End</label><input type="date" class="finput" id="schedEndDate"></div>
+<div class="field" style="margin-bottom:0;flex:0"><button class="btn btn-s btn-sm" id="schedDateResetBtn" title="Reset to full forecast range"><i class="fa-solid fa-arrows-rotate"></i> All</button></div>
+<div style="flex:1"></div>
+<span id="schedDateInfo" style="font-size:.73rem;color:var(--tx3);white-space:nowrap"></span>
+</div>
 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
 <button class="btn btn-p" id="genSchedBtn"><i class="fa-solid fa-calculator"></i> Generate Schedule</button>
 <button class="btn btn-s" id="regenSchedBtn" style="display:none"><i class="fa-solid fa-arrows-rotate"></i> Recalculate</button>
@@ -943,6 +950,39 @@ function checkImportReady(){
     document.getElementById('schedContent').style.display='';
     document.getElementById('statusBadge').textContent='Forecast loaded';
     document.getElementById('statusBadge').style.display='';
+    /* Auto-fill schedule date range from forecast if inputs are empty or stale */
+    prefillSchedDates();
+  }
+}
+
+function prefillSchedDates(){
+  if(ST.fc.dates.length<1)return;
+  var s=document.getElementById('schedStartDate');
+  var e=document.getElementById('schedEndDate');
+  var fcStart=fmtD(ST.fc.dates[0]);
+  var fcEnd=fmtD(ST.fc.dates[ST.fc.dates.length-1]);
+  if(!s.value)s.value=fcStart;
+  if(!e.value)e.value=fcEnd;
+  s.min=fcStart;s.max=fcEnd;
+  e.min=fcStart;e.max=fcEnd;
+  updateSchedDateInfo();
+}
+
+function updateSchedDateInfo(){
+  var info=document.getElementById('schedDateInfo');
+  if(ST.fc.dates.length<1){info.textContent='';return;}
+  var s=document.getElementById('schedStartDate').value;
+  var e=document.getElementById('schedEndDate').value;
+  var fcStart=fmtD(ST.fc.dates[0]);
+  var fcEnd=fmtD(ST.fc.dates[ST.fc.dates.length-1]);
+  if(s===fcStart&&e===fcEnd){
+    info.innerHTML='<i class="fa-solid fa-calendar-days"></i> Full range ('+ST.fc.dates.length+' days)';
+  }else{
+    /* Count days in selected range */
+    var cnt=0;
+    var sd=parseDate(s),ed=parseDate(e);
+    if(sd&&ed){ST.fc.dates.forEach(function(d){if(d>=sd&&d<=ed)cnt++;});}
+    info.innerHTML='<i class="fa-solid fa-filter" style="color:var(--ac)"></i> '+cnt+' of '+ST.fc.dates.length+' days selected';
   }
 }
 
@@ -1366,6 +1406,19 @@ function generateSchedule(){
   var rainRedist=document.getElementById('rainRedist').checked;
   var heatRedist=document.getElementById('heatRedist').checked;
 
+  /* Schedule date range filter */
+  var schedStart=parseDate(document.getElementById('schedStartDate').value);
+  var schedEnd=parseDate(document.getElementById('schedEndDate').value);
+
+  /* Build index set of which forecast indices are in range (we still need full
+     array for redistribution lookahead, but only output filtered days) */
+  var inRange=[];
+  ST.fc.dates.forEach(function(d,i){
+    if(schedStart&&d<schedStart){inRange.push(false);return;}
+    if(schedEnd&&d>schedEnd){inRange.push(false);return;}
+    inRange.push(true);
+  });
+
   var days=[];
   var redistributed=new Array(ST.fc.dates.length).fill(0);
 
@@ -1434,10 +1487,10 @@ function generateSchedule(){
       }
     });
 
-    days.push({date:d,dow:dow,dowName:dowName,basePcs:pcs,baseRev:rev,weatherAdj:weatherAdj,weatherInfo:weatherInfo,redistIn:0,catDetail:catDetail});
+    days.push({date:d,dow:dow,dowName:dowName,basePcs:pcs,baseRev:rev,weatherAdj:weatherAdj,weatherInfo:weatherInfo,redistIn:0,catDetail:catDetail,_fcIdx:i});
   });
 
-  days.forEach(function(day,i){day.redistIn=redistributed[i];});
+  days.forEach(function(day){day.redistIn=redistributed[day._fcIdx];});
 
   days.forEach(function(day){
     var pcs=day.basePcs;
@@ -1507,13 +1560,19 @@ function generateSchedule(){
     day.actualPPH=(day.actualHrs>0&&day.actualPcs!==null)?(day.actualPcs/day.actualHrs):null;
   });
 
+  /* Filter to selected date range (redistribution already calculated on full set) */
+  var allDaysCount=days.length;
+  days=days.filter(function(day){return inRange[day._fcIdx];});
+
   ST.sched=days;
   renderSchedule();
   renderScheduleChart();
   renderWeeklySummary();
+  updateSchedDateInfo();
 
+  var rangeNote=days.length<allDaysCount?' <span style="font-size:.72rem;color:var(--tx3)">('+allDaysCount+' total in forecast)</span>':'';
   var modeIcons={pieces:'<i class="fa-solid fa-shirt"></i> Pieces',revenue:'<i class="fa-solid fa-dollar-sign"></i> Revenue',both:'<i class="fa-solid fa-scale-balanced"></i> Both'};
-  document.getElementById('schedStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Generated for '+days.length+' days</span> <span style="color:var(--tx3);font-size:.75rem">('+modeIcons[SCHED_MODE]+' mode)</span>';
+  document.getElementById('schedStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Generated for '+days.length+' days</span>'+rangeNote+' <span style="color:var(--tx3);font-size:.75rem">('+modeIcons[SCHED_MODE]+' mode)</span>';
   document.getElementById('regenSchedBtn').style.display='';
 
   document.getElementById('noExpMsg').style.display='none';
@@ -1709,7 +1768,8 @@ function generateExport(){
   lines.push('# STAFFCAST SCHEDULE EXPORT');
   lines.push('# Generated: '+fmtD(new Date()));
   lines.push('# Scheduling Mode: '+modeLabel);
-  lines.push('# Period: '+fmtD(ST.sched[0].date)+' to '+fmtD(ST.sched[ST.sched.length-1].date));
+  lines.push('# Period: '+fmtD(ST.sched[0].date)+' to '+fmtD(ST.sched[ST.sched.length-1].date)+' ('+ST.sched.length+' days)');
+  if(ST.sched.length<ST.fc.dates.length)lines.push('# Forecast Range: '+fmtD(ST.fc.dates[0])+' to '+fmtD(ST.fc.dates[ST.fc.dates.length-1])+' ('+ST.fc.dates.length+' days total)');
   if(SCHED_MODE!=='revenue')lines.push('# Pieces/Labor Hour: '+(parseFloat(document.getElementById('pcsPerHr').value)||8.5));
   if(SCHED_MODE!=='pieces')lines.push('# Sales/Labor Hour: $'+(parseFloat(document.getElementById('salesPerHr').value)||38));
   lines.push('# Avg Wage: $'+(parseFloat(document.getElementById('avgWage').value)||18));
@@ -1841,7 +1901,7 @@ function generateDebugSnapshot(){
 
   /* Schedule detail — every day */
   if(ST.sched){
-    snap.schedule={days:ST.sched.length,mode:SCHED_MODE};
+    snap.schedule={days:ST.sched.length,mode:SCHED_MODE,schedDateRange:{start:document.getElementById('schedStartDate').value,end:document.getElementById('schedEndDate').value}};
     snap.schedule.detail=ST.sched.map(function(d){
       var row={
         date:fmtD(d.date),dow:d.dowName,closed:!!d.closed,
@@ -1910,6 +1970,23 @@ document.getElementById('copyDebugBtn').addEventListener('click',function(){
 document.getElementById('genSchedBtn').addEventListener('click',function(){generateSchedule();});
 document.getElementById('regenSchedBtn').addEventListener('click',function(){generateSchedule();});
 
+/* Schedule date range controls */
+document.getElementById('schedStartDate').addEventListener('change',function(){
+  updateSchedDateInfo();
+  if(ST.sched)generateSchedule();
+});
+document.getElementById('schedEndDate').addEventListener('change',function(){
+  updateSchedDateInfo();
+  if(ST.sched)generateSchedule();
+});
+document.getElementById('schedDateResetBtn').addEventListener('click',function(){
+  if(ST.fc.dates.length<1)return;
+  document.getElementById('schedStartDate').value=fmtD(ST.fc.dates[0]);
+  document.getElementById('schedEndDate').value=fmtD(ST.fc.dates[ST.fc.dates.length-1]);
+  updateSchedDateInfo();
+  if(ST.sched)generateSchedule();
+});
+
 /* ================================================================
    SAMPLE DATA GENERATORS
    ================================================================ */
@@ -1968,7 +2045,9 @@ var SETTING_FIELDS=[
   {id:'heatThresh',type:'num'},{id:'heatAdj',type:'num'},
   {id:'rainRedist',type:'chk'},{id:'heatRedist',type:'chk'},
   /* Import */
-  {id:'hrThreshold',type:'num'}
+  {id:'hrThreshold',type:'num'},
+  /* Schedule date range */
+  {id:'schedStartDate',type:'str'},{id:'schedEndDate',type:'str'}
 ];
 
 function gatherSettings(){
@@ -2091,10 +2170,12 @@ document.getElementById('resetSettingsBtn').addEventListener('click',function(){
     zipInput:'',weatherServerSelect:'auto',bizOpen:'9',bizClose:'19',
     rainLight:'2',rainMod:'5',rainHeavy:'30',heatThresh:'95',heatAdj:'14',
     rainRedist:true,heatRedist:true,hrThreshold:'0',
-    schedMode:'pieces',dowAdj:[100,133,100,100,100,100,133],closedDays:[true,false,false,false,false,false,false]
+    schedMode:'pieces',dowAdj:[100,133,100,100,100,100,133],closedDays:[true,false,false,false,false,false,false],
+    schedStartDate:'',schedEndDate:''
   };
   applySettings(defaults);
   saveSettingsCookie(defaults);
+  prefillSchedDates();
   document.getElementById('loadSettingsMsg').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Reset to defaults.</span>';
   if(ST.sched)generateSchedule();
 });
