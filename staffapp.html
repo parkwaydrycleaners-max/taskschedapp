@@ -1380,6 +1380,56 @@
             background: #16A34A;
         }
 
+        .subtask-item-edit .subtask-req-toggle {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+            margin-right: 2px;
+        }
+
+        .subtask-item-edit .subtask-req-toggle.required {
+            background: rgba(220, 38, 38, 0.12);
+            color: #DC2626;
+        }
+
+        .subtask-item-edit .subtask-req-toggle.optional {
+            background: var(--bg-secondary);
+            color: var(--text-muted);
+        }
+
+        .subtask-row .subtask-req-badge {
+            font-size: 9px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .subtask-row .subtask-req-badge.required {
+            background: rgba(220, 38, 38, 0.12);
+            color: #DC2626;
+        }
+
+        .subtask-row .subtask-req-badge.optional {
+            background: var(--bg-secondary);
+            color: var(--text-muted);
+        }
+
+        .subtask-row.checked .subtask-req-badge {
+            opacity: 0.4;
+        }
+
         /* Subtasks in Task Item */
         .item-subtasks {
             padding-top: 8px;
@@ -2675,6 +2725,14 @@
 
         // Create checklist item HTML
         // ========== SEQUENTIAL ENFORCEMENT ==========
+        // Check if a task has incomplete required subtasks
+        function hasIncompleteRequiredSubtasks(taskId) {
+            const found = findItemById(taskId);
+            if (!found || !found.item.subtasks || found.item.subtasks.length === 0) return false;
+            const completedSubs = (state.completedSubtasks && state.completedSubtasks[taskId]) || {};
+            return found.item.subtasks.some(sub => sub.required && !completedSubs[sub.id]);
+        }
+
         // A task is locked if any PREVIOUS checkable task in the same section isn't completed
         function isTaskLocked(section, group, taskId) {
             const items = getCombinedItems(section, group);
@@ -2745,6 +2803,9 @@
                 const taskSubtasks = completedSubtasks[item.id] || {};
                 const doneCount = Object.keys(taskSubtasks).length;
                 const totalCount = item.subtasks.length;
+                const requiredSubs = item.subtasks.filter(s => s.required);
+                const requiredDone = requiredSubs.filter(s => taskSubtasks[s.id]).length;
+                const allRequiredDone = requiredSubs.length === 0 || requiredDone === requiredSubs.length;
 
                 subtasksHtml = `
                     <div class="item-subtasks">
@@ -2756,10 +2817,11 @@
                                         <i class="fas fa-check"></i>
                                     </div>
                                     <span class="subtask-text">${escapeHtml(sub.text)}</span>
+                                    <span class="subtask-req-badge ${sub.required ? 'required' : 'optional'}">${sub.required ? 'req' : 'opt'}</span>
                                 </div>
                             `;
                         }).join('')}
-                        <div class="subtask-progress">${doneCount}/${totalCount} completed</div>
+                        <div class="subtask-progress">${doneCount}/${totalCount} completed${requiredSubs.length > 0 ? (allRequiredDone ? ' · <span style="color:var(--success-color)">✓ required done</span>' : ' · <span style="color:#DC2626">' + requiredDone + '/' + requiredSubs.length + ' required</span>') : ''}</div>
                     </div>
                 `;
             }
@@ -2976,6 +3038,14 @@
                             item.classList.add('shake');
                             setTimeout(() => item.classList.remove('shake'), 500);
                             showToast('<i class="fas fa-lock"></i> Complete the previous step first', 'warning');
+                            return;
+                        }
+
+                        // Block if required subtasks aren't done
+                        if (hasIncompleteRequiredSubtasks(id)) {
+                            item.classList.add('shake');
+                            setTimeout(() => item.classList.remove('shake'), 500);
+                            showToast('<i class="fas fa-list-check"></i> Complete all required subtasks first', 'warning');
                             return;
                         }
 
@@ -3216,6 +3286,9 @@
             subtasksList.innerHTML = currentSubtasks.map((subtask, index) => `
                 <div class="subtask-item-edit" data-index="${index}" draggable="true">
                     <i class="fas fa-grip-vertical drag-handle"></i>
+                    <button type="button" class="subtask-req-toggle ${subtask.required ? 'required' : 'optional'}" data-index="${index}" title="${subtask.required ? 'Required — click to make optional' : 'Optional — click to make required'}">
+                        ${subtask.required ? 'REQ' : 'OPT'}
+                    </button>
                     <span>${escapeHtml(subtask.text)}</span>
                     <button type="button" class="subtask-remove" data-index="${index}">
                         <i class="fas fa-times"></i>
@@ -3229,6 +3302,16 @@
                     e.stopPropagation();
                     const index = parseInt(btn.dataset.index);
                     currentSubtasks.splice(index, 1);
+                    renderSubtasksList();
+                });
+            });
+
+            // Attach required/optional toggle listeners
+            subtasksList.querySelectorAll('.subtask-req-toggle').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const index = parseInt(btn.dataset.index);
+                    currentSubtasks[index].required = !currentSubtasks[index].required;
                     renderSubtasksList();
                 });
             });
@@ -3338,7 +3421,7 @@
         function addSubtask() {
             const text = subtaskInput.value.trim();
             if (text) {
-                currentSubtasks.push({ id: 'sub_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5), text: text });
+                currentSubtasks.push({ id: 'sub_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5), text: text, required: true });
                 subtaskInput.value = '';
                 renderSubtasksList();
             }
