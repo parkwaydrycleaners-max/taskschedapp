@@ -1073,6 +1073,20 @@
             color: white;
         }
 
+        #subtaskConfirmModal .subtask-confirm-task-name {
+            background: var(--hover-bg, #f3f4f6);
+            color: var(--text-color, #1f2937);
+        }
+
+        #subtaskConfirmYes {
+            background: #16a34a !important;
+            color: white !important;
+        }
+
+        #subtaskConfirmYes:hover {
+            background: #15803d !important;
+        }
+
         /* Task Type Toggle */
         .task-type-toggle {
             display: flex;
@@ -2338,6 +2352,19 @@
         </div>
     </div>
 
+    <!-- Required Subtask Confirmation Modal -->
+    <div class="modal-overlay no-outside-close" id="subtaskConfirmModal">
+        <div class="modal" style="max-width: 400px;">
+            <h3><i class="fas fa-clipboard-check" style="margin-right: 8px; color: #DC2626;"></i>Confirm Completion</h3>
+            <p id="subtaskConfirmText" style="font-size: 15px; line-height: 1.5;">Did you actually complete this required step?</p>
+            <div class="subtask-confirm-task-name" id="subtaskConfirmName" style="background: var(--hover-bg, #f3f4f6); border-left: 4px solid #DC2626; padding: 10px 14px; border-radius: 6px; margin: 12px 0 16px; font-weight: 600; font-size: 14px;"></div>
+            <div class="modal-actions">
+                <button class="cancel-btn" id="subtaskConfirmNo"><i class="fas fa-times" style="margin-right: 6px;"></i>Not Yet</button>
+                <button class="confirm-btn" id="subtaskConfirmYes" style="background: #16a34a;"><i class="fas fa-check" style="margin-right: 6px;"></i>Yes, It's Done</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase Settings Modal -->
     <div class="modal-overlay" id="settingsModal">
         <div class="modal">
@@ -2733,6 +2760,84 @@
             return found.item.subtasks.some(sub => sub.required && !completedSubs[sub.id]);
         }
 
+        // Complete a subtask (shared logic for direct check and after confirmation)
+        function completeSubtask(row, taskId, subtaskId) {
+            if (!state.completedSubtasks) {
+                state.completedSubtasks = {};
+            }
+            if (!state.completedSubtasks[taskId]) {
+                state.completedSubtasks[taskId] = {};
+            }
+
+            markSubtaskDirty(taskId, subtaskId);
+
+            if (state.completedSubtasks[taskId][subtaskId]) {
+                delete state.completedSubtasks[taskId][subtaskId];
+                row.classList.remove('checked');
+            } else {
+                state.completedSubtasks[taskId][subtaskId] = true;
+                row.classList.add('checked');
+
+                // Send browser notification for subtask completion
+                const subtaskText = row.querySelector('.subtask-text');
+                const found = findItemById(taskId);
+                if (found && subtaskText) {
+                    sendTaskNotification(subtaskText.textContent.trim(), found.section, true);
+                }
+            }
+
+            // Update subtask progress display including required counts
+            var subtasksContainer = row.closest('.item-subtasks');
+            if (subtasksContainer) {
+                var totalSubs = subtasksContainer.querySelectorAll('.subtask-row').length;
+                var doneSubs = subtasksContainer.querySelectorAll('.subtask-row.checked').length;
+                var reqRows = subtasksContainer.querySelectorAll('.subtask-row[data-required="true"]');
+                var reqDone = subtasksContainer.querySelectorAll('.subtask-row[data-required="true"].checked').length;
+                var reqTotal = reqRows.length;
+                var progressEl = subtasksContainer.querySelector('.subtask-progress');
+                if (progressEl) {
+                    var progressText = doneSubs + '/' + totalSubs + ' completed';
+                    if (reqTotal > 0) {
+                        if (reqDone === reqTotal) {
+                            progressText += ' · <span style="color:var(--success-color)">✓ required done</span>';
+                        } else {
+                            progressText += ' · <span style="color:#DC2626">' + reqDone + '/' + reqTotal + ' required</span>';
+                        }
+                    }
+                    progressEl.innerHTML = progressText;
+                }
+            }
+
+            saveState();
+            schedulePush();
+        }
+
+        // Show confirmation modal for required subtask completion
+        function showSubtaskConfirmModal(subtaskName, onConfirm) {
+            var modal = document.getElementById('subtaskConfirmModal');
+            var nameEl = document.getElementById('subtaskConfirmName');
+            var yesBtn = document.getElementById('subtaskConfirmYes');
+            var noBtn = document.getElementById('subtaskConfirmNo');
+
+            nameEl.textContent = subtaskName;
+            modal.classList.add('show');
+
+            // Remove old listeners by cloning
+            var newYes = yesBtn.cloneNode(true);
+            var newNo = noBtn.cloneNode(true);
+            yesBtn.parentNode.replaceChild(newYes, yesBtn);
+            noBtn.parentNode.replaceChild(newNo, noBtn);
+
+            newYes.addEventListener('click', function() {
+                modal.classList.remove('show');
+                onConfirm();
+            });
+
+            newNo.addEventListener('click', function() {
+                modal.classList.remove('show');
+            });
+        }
+
         // A task is locked if any PREVIOUS checkable task in the same section isn't completed
         function isTaskLocked(section, group, taskId) {
             const items = getCombinedItems(section, group);
@@ -2812,7 +2917,7 @@
                         ${item.subtasks.map(sub => {
                             const subChecked = taskSubtasks[sub.id];
                             return `
-                                <div class="subtask-row ${subChecked ? 'checked' : ''}" data-task-id="${item.id}" data-subtask-id="${sub.id}">
+                                <div class="subtask-row ${subChecked ? 'checked' : ''}" data-task-id="${item.id}" data-subtask-id="${sub.id}" data-required="${sub.required ? 'true' : 'false'}">
                                     <div class="subtask-check">
                                         <i class="fas fa-check"></i>
                                     </div>
@@ -3094,44 +3199,21 @@
 
                     const taskId = row.dataset.taskId;
                     const subtaskId = row.dataset.subtaskId;
+                    const isRequired = row.dataset.required === 'true';
+                    const isAlreadyChecked = state.completedSubtasks && state.completedSubtasks[taskId] && state.completedSubtasks[taskId][subtaskId];
 
-                    if (!state.completedSubtasks) {
-                        state.completedSubtasks = {};
-                    }
-                    if (!state.completedSubtasks[taskId]) {
-                        state.completedSubtasks[taskId] = {};
-                    }
-
-                    markSubtaskDirty(taskId, subtaskId);
-
-                    if (state.completedSubtasks[taskId][subtaskId]) {
-                        delete state.completedSubtasks[taskId][subtaskId];
-                        row.classList.remove('checked');
-                    } else {
-                        state.completedSubtasks[taskId][subtaskId] = true;
-                        row.classList.add('checked');
-
-                        // Send browser notification for subtask completion
+                    // If checking (not unchecking) a required subtask, show confirmation modal
+                    if (isRequired && !isAlreadyChecked) {
                         const subtaskText = row.querySelector('.subtask-text');
-                        const found = findItemById(taskId);
-                        if (found && subtaskText) {
-                            sendTaskNotification(subtaskText.textContent.trim(), found.section, true);
-                        }
+                        const subtaskName = subtaskText ? subtaskText.textContent.trim() : 'this step';
+                        showSubtaskConfirmModal(subtaskName, () => {
+                            completeSubtask(row, taskId, subtaskId);
+                        });
+                        return;
                     }
 
-                    // Update subtask progress display
-                    const subtasksContainer = row.closest('.item-subtasks');
-                    if (subtasksContainer) {
-                        const totalSubs = subtasksContainer.querySelectorAll('.subtask-row').length;
-                        const doneSubs = subtasksContainer.querySelectorAll('.subtask-row.checked').length;
-                        const progressEl = subtasksContainer.querySelector('.subtask-progress');
-                        if (progressEl) {
-                            progressEl.textContent = `${doneSubs}/${totalSubs} completed`;
-                        }
-                    }
-
-                    saveState();
-                    schedulePush();
+                    // For unchecking or optional subtasks, proceed immediately
+                    completeSubtask(row, taskId, subtaskId);
                 });
             });
 
