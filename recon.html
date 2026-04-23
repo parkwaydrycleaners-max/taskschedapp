@@ -848,6 +848,7 @@
     <script>
         let history = [];
         let cashHandoff = '';
+        let safeSignoff = '';
         let pettyCashBack = '';
 
         // Dark mode
@@ -1369,7 +1370,10 @@
             report += `Overall Status:               ${allBalanced ? '✓ BALANCED' : '⚠️ VARIANCE DETECTED'}\n`;
 
             if (cashHandoff) {
-                report += `Cash:                         ${fmt(totalRegisterSales)} → ${cashHandoff}\n`;
+                report += `Cash Sales Submitted:         ${fmt(totalRegisterSales)} → ${cashHandoff}\n`;
+            }
+            if (safeSignoff) {
+                report += `Safe Sign-Off:                Verified by ${safeSignoff}\n`;
             }
             if (pettyCashBack !== '') {
                 report += `Petty Cash → Register 1:      ${fmt(pettyCashBack)}\n`;
@@ -1545,9 +1549,94 @@
                     cashHandoff = 'Given to ' + name;
                 } else if (selected.value === 'safe') {
                     cashHandoff = 'Put in the safe';
+                    m.remove();
+                    showSafeSignoffModal(onSubmit);
+                    return;
                 } else {
                     cashHandoff = 'Given to ' + selected.value;
                 }
+                m.remove();
+                onSubmit();
+            };
+        }
+
+        function showSafeSignoffModal(onSubmit) {
+            var m = document.createElement('div');
+            m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+            m.innerHTML = '<div style="background:var(--bg);padding:2rem;border-radius:8px;max-width:500px;width:90%;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid var(--border)">' +
+                '<p style="color:var(--text);font-weight:700;font-size:1.15rem;margin-bottom:0.5rem">🔐 Safe Sign-Off</p>' +
+                '<p style="color:var(--text);font-size:0.95rem;margin-bottom:1rem">Two people must sign below to confirm the cash was placed in the safe and the amount is correct.</p>' +
+                '<div style="margin-bottom:1rem">' +
+                    '<label style="color:var(--text);font-weight:600;font-size:0.95rem;display:block;margin-bottom:0.5rem">Person 1 — Name</label>' +
+                    '<input id="safeSign1" type="text" style="width:100%;padding:0.75rem;font-size:1rem;font-family:inherit;border:2px solid #4a90e2;border-radius:6px;background:var(--input-bg);color:var(--text)" placeholder="Enter full name">' +
+                '</div>' +
+                '<div style="margin-bottom:1rem">' +
+                    '<label style="color:var(--text);font-weight:600;font-size:0.95rem;display:block;margin-bottom:0.5rem">Person 2 — Name</label>' +
+                    '<input id="safeSign2" type="text" style="width:100%;padding:0.75rem;font-size:1rem;font-family:inherit;border:2px solid #4a90e2;border-radius:6px;background:var(--input-bg);color:var(--text)" placeholder="Enter full name">' +
+                '</div>' +
+                '<div style="background:rgba(74,144,226,0.08);border:2px solid #4a90e2;border-radius:6px;padding:0.75rem;margin-bottom:1rem">' +
+                    '<label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;color:var(--text);font-size:0.95rem;line-height:1.4">' +
+                        '<input id="safeAgreeCheck" type="checkbox" style="min-width:20px;min-height:20px;width:20px;height:20px;margin-top:2px;accent-color:#4a90e2">' +
+                        '<span>We both confirm that the cash has been counted, the amount is correct, and it has been placed in the safe.</span>' +
+                    '</label>' +
+                '</div>' +
+                '<p id="safeSignError" style="color:var(--red-text);font-size:0.9rem;margin-bottom:1rem;display:none"></p>' +
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">' +
+                    '<button class="cancel-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Cancel</button>' +
+                    '<button class="submit-btn" style="padding:0.75rem;background:#4a90e2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:1rem;font-weight:600">Confirm</button>' +
+                '</div></div>';
+            document.body.appendChild(m);
+
+            var sign1 = m.querySelector('#safeSign1');
+            var sign2 = m.querySelector('#safeSign2');
+            var agreeCheck = m.querySelector('#safeAgreeCheck');
+            var errorEl = m.querySelector('#safeSignError');
+
+            setTimeout(function() { sign1.focus(); }, 50);
+
+            m.querySelector('.cancel-btn').onclick = function() {
+                cashHandoff = '';
+                safeSignoff = '';
+                m.remove();
+            };
+
+            m.querySelector('.submit-btn').onclick = function() {
+                var name1 = sign1.value.trim();
+                var name2 = sign2.value.trim();
+                errorEl.style.display = 'none';
+
+                if (!name1) {
+                    errorEl.textContent = '⚠️ Person 1 must enter their name';
+                    errorEl.style.display = 'block';
+                    sign1.style.borderColor = '#dc3545';
+                    sign1.focus();
+                    return;
+                }
+                sign1.style.borderColor = '#4a90e2';
+
+                if (!name2) {
+                    errorEl.textContent = '⚠️ Person 2 must enter their name';
+                    errorEl.style.display = 'block';
+                    sign2.style.borderColor = '#dc3545';
+                    sign2.focus();
+                    return;
+                }
+                sign2.style.borderColor = '#4a90e2';
+
+                if (name1.toLowerCase() === name2.toLowerCase()) {
+                    errorEl.textContent = '⚠️ Two different people must sign — names cannot be the same';
+                    errorEl.style.display = 'block';
+                    sign2.style.borderColor = '#dc3545';
+                    return;
+                }
+
+                if (!agreeCheck.checked) {
+                    errorEl.textContent = '⚠️ Both parties must check the box to confirm';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+
+                safeSignoff = name1 + ' & ' + name2;
                 m.remove();
                 onSubmit();
             };
@@ -1726,6 +1815,7 @@
                     balance: parseFloat(document.getElementById('cashBalance').textContent.replace('$', ''))
                 },
                 cashHandoff: cashHandoff,
+                safeSignoff: safeSignoff,
                 pettyCashBack: pettyCashBack,
                 mixedBreakdown: JSON.parse(JSON.stringify(mixedBreakdown))
             };
@@ -1743,6 +1833,7 @@
                 inputs.forEach(input => input.value = '');
                 document.getElementById('notesField').value = '';
                 cashHandoff = '';
+                safeSignoff = '';
                 pettyCashBack = '';
                 mixedBreakdown = {
                     card: { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 },
@@ -1785,7 +1876,7 @@
                 return;
             }
 
-            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Terminal 1', 'CC Terminal 2', 'Total CC Terminal', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Modified Past Orders Card', 'Store Credit Card', 'Voids', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Modified Past Orders Cash', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance', 'Cash Handoff', 'Petty Cash Back to Reg 1'];
+            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Terminal 1', 'CC Terminal 2', 'Total CC Terminal', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Modified Past Orders Card', 'Store Credit Card', 'Voids', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Modified Past Orders Cash', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance', 'Cash Handoff', 'Safe Sign-Off', 'Petty Cash Back to Reg 1'];
 
             const rows = history.map(r => [
                 r.date,
@@ -1800,6 +1891,7 @@
                 r.cash.pettyCash, r.cash.otherCashAdded, r.cash.cashNotPOS,
                 r.cash.modifiedPastOrdersCash || 0, r.cash.storeCreditCash, r.cash.cashRefunds, r.cash.totalRegisterSales, r.cash.balance,
                 `"${(r.cashHandoff || '').replace(/"/g, '""')}"`,
+                `"${(r.safeSignoff || '').replace(/"/g, '""')}"`,
                 r.pettyCashBack !== undefined && r.pettyCashBack !== '' ? r.pettyCashBack : ''
             ]);
 
