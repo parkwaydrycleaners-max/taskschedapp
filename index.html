@@ -732,6 +732,15 @@ button {
                             Capacity‑Based ALT Rush
                         </div>
 
+                        <!-- Sneaker Cleaning Estimator -->
+                        <div class="tile" onclick="openModal('sneakerModal')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M3 14h18l-2 5H5z"/>
+                                <path d="M5 14l4-6 4 6"/>
+                            </svg>
+                            Sneaker Cleaning
+                        </div>
+                        
                         <div class="tile" onclick="openModal('weddingModal')">
                             <svg viewBox="0 0 24 24">
                                 <path d="M12 2l4 6h-8l4-6z"/>
@@ -924,6 +933,72 @@ button {
    DO NOT add grid/flex/centered layout rules here.
    Doing so WILL break the calculators.
 -->
+
+<!-- ===============================
+     SNEAKER CLEANING ESTIMATOR
+=============================== -->
+<div id="sneakerModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-close-x" onclick="closeModal('sneakerModal')">✕</div>
+        <h2>Sneaker Cleaning Estimate</h2>
+
+        <!-- Sneaker Type Image -->
+        <div class="dress-type-image">
+            <img src="images/sneaker-types.png" alt="Low, Medium, High Top Sneakers">
+        </div>
+
+        <!-- Size Construction -->
+        <div class="estimator-section">
+            <div class="section-title">Size Construction</div>
+            <div class="option-group">
+                <label>
+                    <input type="radio" name="sneakerSize" value="24.99" onchange="calculateSneaker()" checked>
+                    Low Top ($24.99)
+                </label>
+                <label>
+                    <input type="radio" name="sneakerSize" value="29.99" onchange="calculateSneaker()">
+                    Medium Top ($29.99)
+                </label>
+                <label>
+                    <input type="radio" name="sneakerSize" value="34.99" onchange="calculateSneaker()">
+                    High Top ($34.99)
+                </label>
+            </div>
+        </div>
+
+        <!-- Material -->
+        <div class="estimator-section">
+            <div class="section-title">Material (Select at least one)</div>
+            <div class="checkbox-grid">
+                <label><input type="checkbox" class="sneaker-material" value="0" onchange="calculateSneaker()"> All Washable (+$0)</label>
+                <label><input type="checkbox" class="sneaker-material" value="5" onchange="calculateSneaker()"> Any Suede (+$5)</label>
+                <label><input type="checkbox" class="sneaker-material" value="5" onchange="calculateSneaker()"> Leather (+$5)</label>
+                <label><input type="checkbox" class="sneaker-material" value="10" onchange="calculateSneaker()"> Luxury (+$10)</label>
+                <label><input type="checkbox" class="sneaker-material" value="10" onchange="calculateSneaker()"> Vintage (+$10)</label>
+            </div>
+        </div>
+
+        <!-- Additional Services -->
+        <div class="estimator-section">
+            <div class="section-title">Additional Services</div>
+            <div class="checkbox-grid">
+                <label><input type="checkbox" class="sneaker-addon" value="15" onchange="calculateSneaker()"> Deoxidation (+$15)</label>
+                <label><input type="checkbox" class="sneaker-addon" value="10" onchange="calculateSneaker()"> Ozone (+$10)</label>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="results-box">
+            <div id="sneakerTotal" class="final-total">
+                Estimated Total: $0.00
+            </div>
+            <div id="sneakerWarning" style="color:#b00020; font-size:0.8rem; margin-top:4px;"></div>
+        </div>
+
+        <button class="close-btn" onclick="closeModal('sneakerModal')">Close</button>
+    </div>
+</div>
+    
 <!-- ===============================
      DRESS HEM ESTIMATOR MODAL
 =============================== -->
@@ -1463,6 +1538,48 @@ function calculateHem() {
         "Total: $" + (subtotal + rushFee).toFixed(2);
 }
 
+/* ==================================================
+   SNEAKER ESTIMATOR
+================================================== */
+    
+function calculateSneaker() {
+    let total = 0;
+
+    // Base size
+    const size = document.querySelector('input[name="sneakerSize"]:checked');
+    if (size) total += parseFloat(size.value);
+
+    // Materials (must select at least one)
+    const materials = document.querySelectorAll('.sneaker-material:checked');
+    let materialTotal = 0;
+
+    materials.forEach(m => {
+        materialTotal += parseFloat(m.value);
+    });
+
+    total += materialTotal;
+
+    // Additional services
+    const addons = document.querySelectorAll('.sneaker-addon:checked');
+    addons.forEach(a => {
+        total += parseFloat(a.value);
+    });
+
+    // Validation: At least one material
+    const warning = document.getElementById("sneakerWarning");
+
+    if (materials.length === 0) {
+        warning.innerText = "Please select at least one material.";
+        document.getElementById("sneakerTotal").innerText = "Estimated Total: —";
+        return;
+    } else {
+        warning.innerText = "";
+    }
+
+    document.getElementById("sneakerTotal").innerText =
+        "Estimated Total: $" + total.toFixed(2);
+}
+    
 /* ==================================================
    GOOGLE REVIEWS (LIVE)
 ================================================== */
