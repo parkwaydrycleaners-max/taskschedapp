@@ -243,6 +243,33 @@ button {
 .estimator-section {
     margin-bottom: 28px;
 }
+
+.required-section {
+    font-weight: 600;
+    color: #000;
+}
+
+.required-note {
+    font-weight: normal;
+    font-size: 0.85rem;
+    color: #b00020;
+    margin-left: 4px;
+}
+
+.info-icon {
+    font-size: 0.85rem;
+    margin-left: 6px;
+    color: #555;
+    cursor: pointer;
+}
+
+.info-icon:hover {
+    color: #000;
+}
+
+.small-modal {
+    max-width: 420px;
+}
     
 /* ==================================================
    WEDDING IMAGE — ORIGINAL RULES
@@ -1055,7 +1082,12 @@ button {
 
 <!-- Material -->
 <div class="estimator-section">
-    <div class="section-title">Material (Select at least one)</div>
+    <div class="section-title required-section">
+    Material 
+    <span class="required-note">
+        (Must select at least one, you can select multiple)
+    </span>
+    </div>
 
     <div class="checkbox-list">
         <label>
@@ -1076,12 +1108,14 @@ button {
         <label>
             <input type="checkbox" class="sneaker-material" value="10" onchange="calculateSneaker()">
             Luxury (+$10)
+            <span class="info-icon" onclick="showLuxuryInfo(event)">ⓘ</span>
         </label>
 
         <label>
             <input type="checkbox" class="sneaker-material" value="10" onchange="calculateSneaker()">
             Vintage (+$10)
-        </label>
+            <span class="info-icon" onclick="showVintageInfo(event)">ⓘ</span>
+        </label>    
     </div>
 </div>
 
@@ -1402,6 +1436,15 @@ button {
         </button>
     </div>
 </div>
+
+<!-- Info Modal -->
+<div id="infoModal" class="modal-overlay">
+    <div class="modal-box small-modal">
+        <div class="modal-close-x" onclick="closeModal('infoModal')">✕</div>
+        <div id="infoContent"></div>
+        <button class="close-btn" onclick="closeModal('infoModal')">Close</button>
+    </div>
+</div>
     
 <!-- ===============================
      FOOTER
@@ -1693,6 +1736,44 @@ function calculateSneaker() {
 
     document.getElementById("sneakerTotal").innerText =
         "Estimated Total: $" + total.toFixed(2);
+}
+
+function showVintageInfo(e) {
+    e.stopPropagation();
+
+    document.getElementById("infoContent").innerHTML = `
+        <p>
+        A sneaker is generally considered vintage if it is at least 20 years old.
+        This "20-year rule" is widely used by collectors, resellers, and fashion experts
+        to distinguish vintage items from modern ones.
+        </p>
+        <p>
+        Meaning as of 2026, sneakers produced in or before 2006
+        are officially considered vintage.
+        </p>
+    `;
+
+    openModal('infoModal');
+}
+
+function showLuxuryInfo(e) {
+    e.stopPropagation();
+
+    document.getElementById("infoContent").innerHTML = `
+        <p>
+        The shoe is generally considered luxury if the designer
+        is on the approved luxury brand list.
+        </p>
+        <p>
+        <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUsQz_ALi-Q_DW6y3e6wjslq2S3onzpjpMrzYFh_wwstnvb79wxRDG9yGCqrbtKNpqSwQy-Y4Ro0k/pubhtml?gid=150558302&single=true"
+           target="_blank"
+           style="color:#0066cc; text-decoration:underline;">
+           View Luxury Brand List
+        </a>
+        </p>
+    `;
+
+    openModal('infoModal');
 }
     
 /* ==================================================
