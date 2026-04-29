@@ -4309,7 +4309,7 @@
                 // Handle both 'put' and 'patch' SSE events from Firebase
                 function handleSSEEvent(e) {
                     // Don't process our own echo
-                    if (Date.now() - lastSyncTime < 1500) return;
+                    // if (Date.now() - lastSyncTime < 1500) return;
                     if (isSyncing) return;
 
                     try {
