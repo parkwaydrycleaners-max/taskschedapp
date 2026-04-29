@@ -308,8 +308,60 @@ button {
 ================================================== */
 @media (max-width: 600px) {
     .tiles {
+        grid-template-columns: 1fr;   
+    }
+     .sneaker-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* ==================================================
+   SNEAKER
+================================================== */
+    
+.sneaker-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.sneaker-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+}
+
+.sneaker-option input {
+    margin-right: 5px;
+}
+
+/* Image cropping from single combined image */
+.sneaker-option img {
+    width: 100%;
+    max-width: 120px;
+    height: auto;
+    margin-bottom: 6px;
+}
+
+/* Crop left third */
+.sneaker-img-left {
+    object-fit: cover;
+    object-position: left;
+}
+
+/* Crop center third */
+.sneaker-img-center {
+    object-fit: cover;
+    object-position: center;
+}
+
+/* Crop right third */
+.sneaker-img-right {
+    object-fit: cover;
+    object-position: right;
 }
     
 /* ==================================================
@@ -947,24 +999,44 @@ button {
             <img src="images/sneaker-types.png" alt="Low, Medium, High Top Sneakers">
         </div>
 
-        <!-- Size Construction -->
-        <div class="estimator-section">
-            <div class="section-title">Size Construction</div>
-            <div class="option-group">
-                <label>
-                    <input type="radio" name="sneakerSize" value="24.99" onchange="calculateSneaker()" checked>
-                    Low Top ($24.99)
-                </label>
-                <label>
-                    <input type="radio" name="sneakerSize" value="29.99" onchange="calculateSneaker()">
-                    Medium Top ($29.99)
-                </label>
-                <label>
-                    <input type="radio" name="sneakerSize" value="34.99" onchange="calculateSneaker()">
-                    High Top ($34.99)
-                </label>
+<!-- Size Construction -->
+<div class="estimator-section">
+    <div class="section-title">Size Construction</div>
+
+    <div class="sneaker-grid">
+
+        <!-- Low Top -->
+        <label class="sneaker-option">
+            <img src="images/sneaker-types.png" class="sneaker-img-left">
+            <div>
+                <input type="radio" name="sneakerSize" value="24.99"
+                       onchange="calculateSneaker()" checked>
+                Low Top ($24.99)
             </div>
-        </div>
+        </label>
+
+        <!-- Medium Top -->
+        <label class="sneaker-option">
+            <img src="images/sneaker-types.png" class="sneaker-img-center">
+            <div>
+                <input type="radio" name="sneakerSize" value="29.99"
+                       onchange="calculateSneaker()">
+                Medium Top ($29.99)
+            </div>
+        </label>
+
+        <!-- High Top -->
+        <label class="sneaker-option">
+            <img src="images/sneaker-types.png" class="sneaker-img-right">
+            <div>
+                <input type="radio" name="sneakerSize" value="34.99"
+                       onchange="calculateSneaker()">
+                High Top ($34.99)
+            </div>
+        </label>
+
+    </div>
+</div>
 
         <!-- Material -->
         <div class="estimator-section">
