@@ -256,14 +256,22 @@ button {
 }
 
 .info-icon {
-    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 11px;
+    border-radius: 50%;
+    background: #eee;
+    color: #333;
     margin-left: 6px;
-    color: #555;
     cursor: pointer;
 }
 
 .info-icon:hover {
-    color: #000;
+    background: #333;
+    color: #fff;
 }
 
 .small-modal {
@@ -1049,35 +1057,38 @@ button {
 
     <div class="sneaker-grid">
 
-        <!-- Low Top -->
-        <label class="sneaker-option">
-            <div>
-                <input type="radio" name="sneakerSize" value="24.99"
-                       onchange="calculateSneaker()" checked>
-                Low Top ($24.99)
-            </div>
-        </label>
-
-        <!-- Medium Top -->
-        <label class="sneaker-option">
-            <div>
-                <input type="radio" name="sneakerSize" value="29.99"
-                       onchange="calculateSneaker()">
-                Medium Top ($29.99)
-            </div>
-        </label>
-
-        <!-- High Top -->
-        <label class="sneaker-option">
-            <div>
-                <input type="radio" name="sneakerSize" value="34.99"
-                       onchange="calculateSneaker()">
-                High Top ($34.99)
-            </div>
-        </label>
-
-    </div>
-</div>
+    <!-- Low Top -->
+    <label class="sneaker-option">
+        <img src="images/sneaker-types.png" class="sneaker-img-left">
+        <div>
+            <input type="radio" name="sneakerSize" value="24.99"
+                   onchange="calculateSneaker()" checked>
+            Low Top ($24.99)
+            <span class="info-icon" onclick="showLowTopInfo(event)">ⓘ</span>
+        </div>
+    </label>
+    
+    <!-- Medium Top -->
+    <label class="sneaker-option">
+        <img src="images/sneaker-types.png" class="sneaker-img-center">
+        <div>
+            <input type="radio" name="sneakerSize" value="29.99"
+                   onchange="calculateSneaker()">
+            Medium Top ($29.99)
+            <span class="info-icon" onclick="showMediumTopInfo(event)">ⓘ</span>
+        </div>
+    </label>
+    
+    <!-- High Top -->
+    <label class="sneaker-option">
+        <img src="images/sneaker-types.png" class="sneaker-img-right">
+        <div>
+            <input type="radio" name="sneakerSize" value="34.99"
+                   onchange="calculateSneaker()">
+            High Top ($34.99)
+            <span class="info-icon" onclick="showHighTopInfo(event)">ⓘ</span>
+        </div>
+    </label>
 
 <!-- Material -->
 <div class="estimator-section">
@@ -1774,6 +1785,42 @@ function showLuxuryInfo(e) {
            style="color:#0066cc; text-decoration:underline;">
            View Luxury Brand List
         </a>
+        </p>
+    `;
+
+    openModal('infoModal');
+}
+
+function showLowTopInfo(e) {
+    e.stopPropagation();
+
+    document.getElementById("infoContent").innerHTML = `
+        <p>
+        BELOW ANKLE shoes, ie sandals, loafers, low top Vans.
+        </p>
+    `;
+
+    openModal('infoModal');
+}
+
+function showMediumTopInfo(e) {
+    e.stopPropagation();
+
+    document.getElementById("infoContent").innerHTML = `
+        <p>
+        AT ANKLE shoes, ie high top Converse, Jordan Mid.
+        </p>
+    `;
+
+    openModal('infoModal');
+}
+
+function showHighTopInfo(e) {
+    e.stopPropagation();
+
+    document.getElementById("infoContent").innerHTML = `
+        <p>
+        ABOVE ANKLE shoes, ie Jordan 1 High.
         </p>
     `;
 
