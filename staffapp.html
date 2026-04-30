@@ -2580,9 +2580,9 @@
             // Auto-reset completed tasks if new day (or if lastDate is missing/corrupt)
             const today = new Date().toDateString();
             if (state.lastDate !== today) {
-               // state.completed = {};
-               // state.completedSubtasks = {};
-               // state.todayOnlyTasks = null;
+                state.completed = {};
+                state.completedSubtasks = {};
+                state.todayOnlyTasks = null;
             }
             state.lastDate = today;
 
@@ -4067,65 +4067,71 @@
         function markMasterDirty() { masterDirty = true; }
         function markFullDailyPush() { fullDailyPush = true; }
 
-        // Push ONLY the changed paths to Firebase — other devices' changes stay untouched
+        // Push changes to Firebase using individual writes at specific paths.
+        // This ensures Firebase SSE sends granular events (e.g. /daily/.../completed/taskId)
+        // that other devices can process without wiping their local state.
         async function pushToFirebase() {
             if (!firebaseConfig) return;
-            const todayKey = getLocalDateKey();
-            const updates = {};
+            var todayKey = getLocalDateKey();
+            var promises = [];
 
-            // Master data (only if edited)
+            // Master data (only if edited) — single PUT at /master
             if (masterDirty) {
-                updates['/master'] = { tasks: checklistData, settings: appSettings, lastModified: Date.now() };
+                promises.push(firebaseRequest('PUT', 'master', { tasks: checklistData, settings: appSettings, lastModified: Date.now() }));
                 masterDirty = false;
             }
 
             if (fullDailyPush) {
-                // Full daily overwrite (reset button, etc.)
-                updates['/daily/' + todayKey] = {
+                // Full daily overwrite (reset button, etc.) — single PUT at /daily/{today}
+                promises.push(firebaseRequest('PUT', 'daily/' + todayKey, {
                     completed: state.completed,
                     completedSubtasks: state.completedSubtasks,
                     todayOnlyTasks: state.todayOnlyTasks,
                     date: new Date().toDateString(),
                     lastModified: Date.now()
-                };
+                }));
                 fullDailyPush = false;
             } else {
-                // Granular: only push changed task completions
-                const dailyBase = '/daily/' + todayKey;
+                // Granular: individual PUT/DELETE at each specific path
+                var dailyBase = 'daily/' + todayKey;
+                var hasChanges = false;
 
-                for (const taskId of dirtyTasks) {
+                for (var taskId of dirtyTasks) {
+                    hasChanges = true;
                     if (state.completed[taskId]) {
-                        updates[dailyBase + '/completed/' + taskId] = state.completed[taskId];
+                        promises.push(firebaseRequest('PUT', dailyBase + '/completed/' + taskId, state.completed[taskId]));
                     } else {
-                        updates[dailyBase + '/completed/' + taskId] = null; // delete from Firebase
+                        promises.push(firebaseRequest('DELETE', dailyBase + '/completed/' + taskId));
                     }
                 }
 
-                for (const key of dirtySubtasks) {
-                    const parts = key.split(':');
-                    const taskId = parts[0];
-                    const subtaskId = parts[1];
-                    if (state.completedSubtasks && state.completedSubtasks[taskId] && state.completedSubtasks[taskId][subtaskId]) {
-                        updates[dailyBase + '/completedSubtasks/' + taskId + '/' + subtaskId] = true;
+                for (var key of dirtySubtasks) {
+                    hasChanges = true;
+                    var parts = key.split(':');
+                    var stId = parts[0];
+                    var subId = parts[1];
+                    if (state.completedSubtasks && state.completedSubtasks[stId] && state.completedSubtasks[stId][subId]) {
+                        promises.push(firebaseRequest('PUT', dailyBase + '/completedSubtasks/' + stId + '/' + subId, true));
                     } else {
-                        updates[dailyBase + '/completedSubtasks/' + taskId + '/' + subtaskId] = null;
+                        promises.push(firebaseRequest('DELETE', dailyBase + '/completedSubtasks/' + stId + '/' + subId));
                     }
                 }
 
-                // Always update metadata so other devices know this is fresh
-                if (dirtyTasks.size > 0 || dirtySubtasks.size > 0) {
-                    updates[dailyBase + '/date'] = new Date().toDateString();
-                    updates[dailyBase + '/lastModified'] = Date.now();
+                // Update metadata so stale-data detection works across days
+                if (hasChanges) {
+                    promises.push(firebaseRequest('PUT', dailyBase + '/date', new Date().toDateString()));
+                    promises.push(firebaseRequest('PUT', dailyBase + '/lastModified', Date.now()));
                 }
             }
 
             dirtyTasks.clear();
             dirtySubtasks.clear();
 
-            if (Object.keys(updates).length > 0) {
-                await firebaseRequest('PATCH', '', updates);
-            }
+            // Set echo guard BEFORE writes so SSE echoes are caught
             lastSyncTime = Date.now();
+            if (promises.length > 0) {
+                await Promise.all(promises);
+            }
         }
 
         // Firebase can convert arrays to objects with numeric keys — this ensures we always get an array
@@ -4190,6 +4196,47 @@
                 state.completed = dailyData.completed || {};
                 state.completedSubtasks = dailyData.completedSubtasks || {};
                 state.todayOnlyTasks = dailyData.todayOnlyTasks || null;
+            }
+        }
+
+        // Merge partial daily data from a patch event (don't wipe existing state)
+        function mergeDailyPatch(patch) {
+            if (!patch) return;
+            // Merge completed tasks
+            if (patch.completed !== undefined) {
+                if (patch.completed && typeof patch.completed === 'object') {
+                    for (var tid in patch.completed) {
+                        if (patch.completed[tid] === null) {
+                            delete state.completed[tid];
+                        } else {
+                            state.completed[tid] = patch.completed[tid];
+                        }
+                    }
+                }
+            }
+            // Merge completed subtasks
+            if (patch.completedSubtasks !== undefined) {
+                if (!state.completedSubtasks) state.completedSubtasks = {};
+                if (patch.completedSubtasks && typeof patch.completedSubtasks === 'object') {
+                    for (var stid in patch.completedSubtasks) {
+                        if (patch.completedSubtasks[stid] === null) {
+                            delete state.completedSubtasks[stid];
+                        } else if (typeof patch.completedSubtasks[stid] === 'object') {
+                            if (!state.completedSubtasks[stid]) state.completedSubtasks[stid] = {};
+                            for (var sid in patch.completedSubtasks[stid]) {
+                                if (patch.completedSubtasks[stid][sid] === null) {
+                                    delete state.completedSubtasks[stid][sid];
+                                } else {
+                                    state.completedSubtasks[stid][sid] = patch.completedSubtasks[stid][sid];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Merge todayOnlyTasks if present
+            if (patch.todayOnlyTasks !== undefined) {
+                state.todayOnlyTasks = patch.todayOnlyTasks;
             }
         }
 
@@ -4309,20 +4356,29 @@
                 // Handle both 'put' and 'patch' SSE events from Firebase
                 function handleSSEEvent(e) {
                     // Don't process our own echo
-                    // if (Date.now() - lastSyncTime < 1500) return;
+                    if (Date.now() - lastSyncTime < 1500) return;
                     if (isSyncing) return;
 
                     try {
                         const { path, data } = JSON.parse(e.data);
                         const todayKey = getLocalDateKey();
                         const dailyPrefix = '/daily/' + todayKey;
+                        const eventType = e.type; // 'put' or 'patch'
 
                         if (path === '/') {
-                            // Full data update
                             if (data) {
-                                if (data.master) applyMasterData(data.master);
-                                if (data.daily && data.daily[todayKey]) {
-                                    applyDailyData(data.daily[todayKey]);
+                                if (eventType === 'put') {
+                                    // Full data snapshot (initial connection / reconnect) — safe to replace
+                                    if (data.master) applyMasterData(data.master);
+                                    if (data.daily && data.daily[todayKey]) {
+                                        applyDailyData(data.daily[todayKey]);
+                                    }
+                                } else {
+                                    // Patch at root — data is PARTIAL, merge instead of replace
+                                    if (data.master) applyMasterData(data.master);
+                                    if (data.daily && data.daily[todayKey]) {
+                                        mergeDailyPatch(data.daily[todayKey]);
+                                    }
                                 }
                                 saveState();
                                 renderChecklists();
