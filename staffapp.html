@@ -2580,9 +2580,9 @@
             // Auto-reset completed tasks if new day (or if lastDate is missing/corrupt)
             const today = new Date().toDateString();
             if (state.lastDate !== today) {
-                state.completed = {};
-                state.completedSubtasks = {};
-                state.todayOnlyTasks = null;
+               // state.completed = {};
+               // state.completedSubtasks = {};
+               // state.todayOnlyTasks = null;
             }
             state.lastDate = today;
 
