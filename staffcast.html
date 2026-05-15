@@ -214,12 +214,16 @@ tr.closed-row td{color:var(--tx3)!important;font-style:italic}
 <button class="btn btn-p" id="parseHrBtn"><i class="fa-solid fa-bolt"></i> Parse Hours</button>
 <button class="btn btn-s" id="sampleHrBtn">Load Sample</button>
 <button class="btn btn-clr" id="clearHrBtn" style="display:none"><i class="fa-solid fa-xmark"></i> Clear</button>
-<div class="field" style="margin:0;max-width:160px">
-<label class="flbl" style="font-size:.7rem">Min Hours Threshold</label>
+<div class="field" style="margin:0;max-width:140px">
+<label class="flbl" style="font-size:.7rem">Min Hours</label>
 <input type="number" class="finput finput-xs" id="hrThreshold" value="0" min="0" max="999" step="0.5" style="max-width:80px">
 </div>
+<div class="field" style="margin:0;max-width:140px">
+<label class="flbl" style="font-size:.7rem">Max Hours</label>
+<input type="number" class="finput finput-xs" id="hrThresholdMax" value="0" min="0" max="999" step="0.5" style="max-width:80px">
 </div>
-<p class="flbl2" style="margin-top:6px">Days with <strong>0 hours</strong> (no employees) are always excluded. Set a threshold above 0 to also drop days below that total (e.g. <em>8</em> to skip partial/half days).</p>
+</div>
+<p class="flbl2" style="margin-top:6px">Days with <strong>0 hours</strong> are always excluded. <strong>Min</strong> drops days below that total (e.g. <em>8</em> to skip partial/half days). <strong>Max</strong> drops days above that total (e.g. <em>60</em> to exclude abnormally high entries). Set either to 0 to disable.</p>
 <div id="hrStatus" style="font-size:.8rem;color:var(--tx3);margin-top:8px"></div>
 </div>
 
@@ -681,14 +685,17 @@ function parseHours(text){
 }
 
 /* Apply min-hours threshold filter to parsed data */
-function applyHrThreshold(raw,threshold){
+function applyHrThreshold(raw,minThr,maxThr){
   if(!raw||raw.dates.length<1)return raw;
-  if(!threshold||threshold<=0)return raw;
+  var hasMin=minThr&&minThr>0;
+  var hasMax=maxThr&&maxThr>0;
+  if(!hasMin&&!hasMax)return raw;
   var dates=[],hours=[],dateMap={};
   var employees=raw.employees?{}:undefined;
   raw.dates.forEach(function(d,i){
     var h=raw.hours[i];
-    if(h<threshold)return; /* below threshold — skip */
+    if(hasMin&&h<minThr)return; /* below min — skip */
+    if(hasMax&&h>maxThr)return; /* above max — skip */
     var key=fmtD(d);
     dates.push(d);hours.push(h);dateMap[key]=h;
     if(raw.employees){
@@ -708,9 +715,22 @@ function applyHrThreshold(raw,threshold){
 function updateHrStatus(filtered,raw){
   var skipped=raw.dates.length-filtered.dates.length;
   var empCount=raw.employees?Object.keys(raw.employees).length:0;
+  var minThr=parseFloat(document.getElementById('hrThreshold').value)||0;
+  var maxThr=parseFloat(document.getElementById('hrThresholdMax').value)||0;
   var msg=filtered.dates.length+' days of hours data';
   if(empCount>0)msg+=' ('+empCount+' employees)';
-  if(skipped>0)msg+=' · <span style="color:var(--warn)">'+skipped+' day'+(skipped>1?'s':'')+' excluded by threshold</span>';
+  if(skipped>0){
+    var reasons=[];
+    if(minThr>0){
+      var belowCnt=0;raw.dates.forEach(function(d,i){if(raw.hours[i]<minThr)belowCnt++;});
+      if(belowCnt>0)reasons.push(belowCnt+' below '+minThr+'h');
+    }
+    if(maxThr>0){
+      var aboveCnt=0;raw.dates.forEach(function(d,i){if(raw.hours[i]>maxThr)aboveCnt++;});
+      if(aboveCnt>0)reasons.push(aboveCnt+' above '+maxThr+'h');
+    }
+    msg+=' · <span style="color:var(--warn)">'+skipped+' day'+(skipped>1?'s':'')+' excluded'+(reasons.length>0?' ('+reasons.join(', ')+')':'')+'</span>';
+  }
   document.getElementById('hrStatus').innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> '+msg+'</span>';
 }
 
@@ -724,7 +744,8 @@ document.getElementById('parseHrBtn').addEventListener('click',function(){
   if(!parsed||parsed.dates.length<1){showMsg('Could not parse hours. Need a Date column and an Hours column.','error');return;}
   ST_hrRaw=parsed;
   var threshold=parseFloat(document.getElementById('hrThreshold').value)||0;
-  var filtered=applyHrThreshold(parsed,threshold);
+  var thresholdMax=parseFloat(document.getElementById('hrThresholdMax').value)||0;
+  var filtered=applyHrThreshold(parsed,threshold,thresholdMax);
   ST.hr=filtered;
   updateHrStatus(filtered,parsed);
   document.getElementById('clearHrBtn').style.display='';
@@ -746,7 +767,8 @@ document.getElementById('clearHrBtn').addEventListener('click',function(){
 function onHrThresholdChange(){
   if(!ST_hrRaw||ST_hrRaw.dates.length<1)return;
   var threshold=parseFloat(document.getElementById('hrThreshold').value)||0;
-  var filtered=applyHrThreshold(ST_hrRaw,threshold);
+  var thresholdMax=parseFloat(document.getElementById('hrThresholdMax').value)||0;
+  var filtered=applyHrThreshold(ST_hrRaw,threshold,thresholdMax);
   ST.hr=filtered;
   updateHrStatus(filtered,ST_hrRaw);
   checkImportReady();
@@ -754,6 +776,8 @@ function onHrThresholdChange(){
 }
 document.getElementById('hrThreshold').addEventListener('change',onHrThresholdChange);
 document.getElementById('hrThreshold').addEventListener('input',onHrThresholdChange);
+document.getElementById('hrThresholdMax').addEventListener('change',onHrThresholdChange);
+document.getElementById('hrThresholdMax').addEventListener('input',onHrThresholdChange);
 
 /* ================================================================
    PARSE SALES REPORT BY CATEGORY
@@ -1877,7 +1901,8 @@ function generateDebugSnapshot(){
     dateRange:ST.hr.dates.length>0?[fmtD(ST.hr.dates[0]),fmtD(ST.hr.dates[ST.hr.dates.length-1])]:null,
     totalHours:ST.hr.hours.reduce(function(a,b){return a+b;},0),
     avgPerDay:ST.hr.hours.length>0?(ST.hr.hours.reduce(function(a,b){return a+b;},0)/ST.hr.hours.length):0,
-    thresholdApplied:parseFloat(document.getElementById('hrThreshold').value)||0
+    thresholdMinApplied:parseFloat(document.getElementById('hrThreshold').value)||0,
+    thresholdMaxApplied:parseFloat(document.getElementById('hrThresholdMax').value)||0
   };
 
   /* Sales data summary */
@@ -2045,7 +2070,7 @@ var SETTING_FIELDS=[
   {id:'heatThresh',type:'num'},{id:'heatAdj',type:'num'},
   {id:'rainRedist',type:'chk'},{id:'heatRedist',type:'chk'},
   /* Import */
-  {id:'hrThreshold',type:'num'},
+  {id:'hrThreshold',type:'num'},{id:'hrThresholdMax',type:'num'},
   /* Schedule date range */
   {id:'schedStartDate',type:'str'},{id:'schedEndDate',type:'str'}
 ];
@@ -2169,7 +2194,7 @@ document.getElementById('resetSettingsBtn').addEventListener('click',function(){
     pcsPerHr:'8.5',salesPerHr:'38',avgWage:'18',targetLaborPct:'25',capIfOver:true,minHrProd:'11',
     zipInput:'',weatherServerSelect:'auto',bizOpen:'9',bizClose:'19',
     rainLight:'2',rainMod:'5',rainHeavy:'30',heatThresh:'95',heatAdj:'14',
-    rainRedist:true,heatRedist:true,hrThreshold:'0',
+    rainRedist:true,heatRedist:true,hrThreshold:'0',hrThresholdMax:'0',
     schedMode:'pieces',dowAdj:[100,133,100,100,100,100,133],closedDays:[true,false,false,false,false,false,false],
     schedStartDate:'',schedEndDate:''
   };
