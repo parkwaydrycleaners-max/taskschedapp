@@ -399,7 +399,7 @@ tr.recon-checked {
 
                     <!-- Drop report count input -->
                     <div class="flex items-center space-x-2">
-                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Drop Alter Tot</span>
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Drop</span>
                         <input type="text" inputmode="numeric" pattern="[0-9]*" id="posReconPosCount" class="w-14 p-1.5 text-center text-base font-bold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="—">
                     </div>
 
@@ -3105,16 +3105,18 @@ renderWhiteboard() {
  if (emptyState) {
  whiteboard.appendChild(emptyState);
  }
+ // Still update POS recon counts even with no people columns
+ this.updatePosReconCounts();
  return;
  }
- 
- 
+
+
  // Rest of your existing code...
  whiteboard.innerHTML = '';
  if (emptyState && emptyState.parentNode) {
  emptyState.style.display = 'none';
  }
- 
+
  for (let dayOffset = 0; dayOffset < this.viewDays; dayOffset++) {
  const viewDate = new Date(this.currentDate);
  viewDate.setDate(viewDate.getDate() + dayOffset);
@@ -4134,7 +4136,8 @@ attachSearchListeners() {
              const personTasks = this.tasks[dateKey][person];
              if (!Array.isArray(personTasks)) continue;
              personTasks.forEach(task => {
-                 if (task.createdAt && task.createdAt === targetDateStr) {
+                 const taskCreatedDate = task.createdAt ? String(task.createdAt).substring(0, 10) : '';
+                if (taskCreatedDate && taskCreatedDate === targetDateStr) {
                      orders.push({
                          orderNumber: task.orderNumber || '—',
                          person: person,
@@ -4326,7 +4329,10 @@ attachSearchListeners() {
          if (!Array.isArray(personTasks)) continue;
          personTasks.forEach(task => {
              // Only count orders that have a createdAt matching today
-             if (task.createdAt && task.createdAt === todayStr) {
+             // Normalize to YYYY-MM-DD (first 10 chars) to handle Airtable
+             // returning datetime strings like "2026-05-15T18:30:00.000Z"
+             const taskCreatedDate = task.createdAt ? String(task.createdAt).substring(0, 10) : '';
+             if (taskCreatedDate && taskCreatedDate === todayStr) {
                  totalOrders++;
                  totalPieces += parseInt(task.alterationPieces) || 0;
              }
@@ -5881,8 +5887,11 @@ if (dateDue && dateDue.trim() !== '') {
 
  // Re-add with updated values — guaranteed to be in this.tasks for next render
  this.addTaskToSpecificDate(targetPerson, updatedTask, targetDateKey);
+
+ // Refresh POS recon count immediately (piece count may have changed)
+ this.updatePosReconCounts();
  }
- 
+
  async createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey) {
  const workDate = this.parseDateString(targetDateKey);
  const correctedDateKey = this.dateToLocalDateString(workDate);
@@ -5939,6 +5948,10 @@ if (dateDue && dateDue.trim() !== '') {
  }
 
  this.showToast('✅ Order saved and verified in Airtable!', 'success');
+
+ // Refresh POS recon count immediately after Airtable save
+ // (auto-refresh may have reset counts while we were awaiting)
+ this.updatePosReconCounts();
 
  // Audit log for creation
  this.logAuditEvent('Created', orderNumber, [
