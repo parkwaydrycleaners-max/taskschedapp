@@ -553,13 +553,6 @@ tr.recon-checked {
                     <div>
                         <span class="block text-sm font-medium mb-2">Description: Quantity, Item Name, Alterations, and if RUSH.</span>
                         <textarea id="descriptionInput" placeholder="Example: 1 pants hem RUSH" rows="3" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
-                        <!-- Quick Numbers -->
-                        <div class="mt-2">
-                            <span class="block text-xs text-gray-500 mb-1">Quick numbers:</span>
-                            <div id="quickNumbersList" class="flex flex-wrap gap-1 mb-3">
-                                <!-- Populated by JavaScript -->
-                            </div>
-                        </div>
                         <!-- Common Words -->
                         <div class="mt-2">
                             <span class="block text-xs text-gray-500 mb-1">Common words:</span>
@@ -5989,56 +5982,8 @@ if (dateDue && dateDue.trim() !== '') {
  this.tasks[dateKey][person].push(task);
  }
 
-updateQuickNumbers() {
- const container = document.getElementById('quickNumbersList');
- if (!container) return;
- 
- container.innerHTML = '';
- 
- // Create numbers 1-9 and some special numbers
- const numbers = [
- 1, 2, 3, 4, 5, 6, 7, 8, 9
- ];
- 
- numbers.forEach(number => {
- const btn = document.createElement('button');
- btn.type = 'button';
-btn.className = 'px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-mono';
- btn.textContent = number.toString();
- btn.addEventListener('click', () => {
- this.insertNumberIntoDescription(number);
- });
- container.appendChild(btn);
- });
-}
-
-insertNumberIntoDescription(number) {
- const textarea = document.getElementById('descriptionInput');
- if (!textarea) return;
- 
- const start = textarea.selectionStart;
- const end = textarea.selectionEnd;
- const currentText = textarea.value;
- 
- // Insert the number at cursor position
- const newText = currentText.slice(0, start) + number + currentText.slice(end);
- textarea.value = newText;
- 
- // Set cursor position after the inserted number
- const newCursorPos = start + number.toString().length;
- textarea.setSelectionRange(newCursorPos, newCursorPos);
- 
- // Focus back to textarea
- textarea.focus();
-}
-
-
- 
 updateCommonWords() {
- // Update numbers first
- this.updateQuickNumbers();
- 
- // Then update common words
+ // Update common words
  const container = document.getElementById('commonWordsList');
  if (!container) return;
  
@@ -12109,29 +12054,12 @@ wizardRenderDescription() {
  var wordBtns = commonWords.map(function(w) {
   return '<button type="button" class="wiz-word-btn px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors" data-word="' + w + '">' + w + '</button>';
  }).join('');
- var numBtns = [1,2,3,4,5,6,7,8,9].map(function(n) {
-  return '<button type="button" class="wiz-num-btn px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-mono" data-num="' + n + '">' + n + '</button>';
- }).join('');
-
  this.wizardStepTemplate('📝', 'Description', 'Quantity, Item Name, Alterations, and if RUSH. (min 3 characters)',
   '<textarea id="wizDescription" rows="3" placeholder="Example: 1 pants hem RUSH" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none">' + (this.wizardData.description || '') + '</textarea>' +
   '<div id="wizDescCharCount" class="text-xs text-gray-400 text-right"></div>' +
-  '<div><span class="block text-xs text-gray-500 mb-1">Quick numbers:</span><div class="flex flex-wrap gap-1">' + numBtns + '</div></div>' +
   (commonWords.length > 0 ? '<div><span class="block text-xs text-gray-500 mb-1">Common words:</span><div class="flex flex-wrap gap-1">' + wordBtns + '</div></div>' : ''));
 
  setTimeout(function() {
-  // Wire quick number buttons
-  document.querySelectorAll('.wiz-num-btn').forEach(function(btn) {
-   btn.addEventListener('click', function() {
-    var ta = document.getElementById('wizDescription');
-    var num = btn.dataset.num;
-    var start = ta.selectionStart;
-    ta.value = ta.value.slice(0, start) + num + ta.value.slice(ta.selectionEnd);
-    ta.setSelectionRange(start + num.length, start + num.length);
-    ta.focus();
-    updateCharCount();
-   });
-  });
   // Wire common word buttons
   document.querySelectorAll('.wiz-word-btn').forEach(function(btn) {
    btn.addEventListener('click', function() {
