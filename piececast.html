@@ -3187,27 +3187,52 @@ function autoOptimize(options) {
     testDowIdx[tdi2] = testDates[tdi2] ? testDates[tdi2].getDay() : 0;
   }
 
+  // Vectorize: contiguous Float64Array forecast matrix for cache-friendly inner loop
+  // Layout: fcMatrix[methodIdx * win + testIdx] — eliminates object property lookups
+  var numMethods = enabledKeys.length;
+  var fcMatrix = new Float64Array(numMethods * win);
+  for (var fmi = 0; fmi < numMethods; fmi++) {
+    var fmFc = forecasts[enabledKeys[fmi]];
+    var fmOff = fmi * win;
+    for (var fmj = 0; fmj < win; fmj++) {
+      fcMatrix[fmOff + fmj] = fmFc[fmj] || 0;
+    }
+  }
+
+  // Pre-compute test actuals as typed array + exclusion mask (act <= 2 excluded)
+  var testActuals = new Float64Array(win);
+  var testInclude = new Uint8Array(win);
+  var preActSum = 0;
+  for (var tai = 0; tai < win; tai++) {
+    testActuals[tai] = testData[tai];
+    if (testData[tai] > 2) { testInclude[tai] = 1; preActSum += testData[tai]; }
+  }
+
   function getEnsembleMAPE(w, biasFactorsOvr) {
     var wSum = 0;
-    for (var ek = 0; ek < enabledKeys.length; ek++) wSum += w[enabledKeys[ek]];
+    for (var ek = 0; ek < numMethods; ek++) wSum += w[enabledKeys[ek]];
     if (wSum === 0) return 999;
     var invW = 1 / wSum;
     var absErr = 0, actSum = 0;
     var bf = biasFactorsOvr || cachedBiasFactors;
+    // Build weight array for vectorized inner loop
+    var wArr = new Float64Array(numMethods);
+    for (var wi = 0; wi < numMethods; wi++) wArr[wi] = w[enabledKeys[wi]];
     for (var ei = 0; ei < win; ei++) {
+      if (!testInclude[ei]) continue; // skip excluded days
       var weighted = 0;
-      for (var ek2 = 0; ek2 < enabledKeys.length; ek2++) {
-        weighted += w[enabledKeys[ek2]] * (forecasts[enabledKeys[ek2]][ei] || 0);
+      for (var ek2 = 0; ek2 < numMethods; ek2++) {
+        weighted += wArr[ek2] * fcMatrix[ek2 * win + ei];
       }
       var pred = weighted * invW;
       if (bf) pred = Math.max(0, pred * bf[testDowIdx[ei]]);
-      var act = testData[ei];
-      if (act > 2) { absErr += Math.abs(act - pred); actSum += act; }
+      absErr += Math.abs(testActuals[ei] - pred);
+      actSum += testActuals[ei];
     }
     return actSum > 0 ? absErr / actSum * 100 : 999;
   }
 
-  // ── Starting points (6 diverse starts) ──────────────────────────────
+  // ── Starting points (4 diverse starts, +2 deep) ─────────────────────
   const startingPoints = [];
 
   // Compute per-method WAPE for smart starting points
@@ -3223,53 +3248,38 @@ function autoOptimize(options) {
   for (var wk2 = 0; wk2 < enabledKeys.length; wk2++) {
     wapeW[enabledKeys[wk2]] = Math.round((wapeW[enabledKeys[wk2]] / wapeTotalInv) * 100) || 1;
   }
-  var wSorted = [...enabledKeys].sort(function(a,b){ return (wapeW[b]||0)-(wapeW[a]||0); });
+  var wSorted = enabledKeys.slice().sort(function(a,b){ return (wapeW[b]||0)-(wapeW[a]||0); });
 
   // 1: inverse WAPE weighted (best overall start)
-  startingPoints.push({...wapeW});
+  var sp1 = {}; for (var sp1k = 0; sp1k < enabledKeys.length; sp1k++) sp1[enabledKeys[sp1k]] = wapeW[enabledKeys[sp1k]];
+  startingPoints.push(sp1);
 
   // 2: top-5 methods only
   var top5W = {};
-  for (var k5 of enabledKeys) top5W[k5] = 0;
+  for (var k5 = 0; k5 < enabledKeys.length; k5++) top5W[enabledKeys[k5]] = 0;
   var top5 = wSorted.slice(0, Math.min(5, wSorted.length));
-  for (var k5b of top5) top5W[k5b] = wapeW[k5b] || 1;
+  for (var k5b = 0; k5b < top5.length; k5b++) top5W[top5[k5b]] = wapeW[top5[k5b]] || 1;
   startingPoints.push(top5W);
 
-  // 3: equal weights
-  var eqW = {};
-  var eqVal = Math.round(100 / enabledKeys.length);
-  for (var keq of enabledKeys) eqW[keq] = eqVal;
-  startingPoints.push(eqW);
-
-  // 4: concentrate on best method
+  // 3: concentrate on best method
   var concW = {};
-  for (var kc of enabledKeys) concW[kc] = kc === wSorted[0] ? 80 : Math.round(20 / (enabledKeys.length - 1)) || 1;
+  for (var kc = 0; kc < enabledKeys.length; kc++) concW[enabledKeys[kc]] = enabledKeys[kc] === wSorted[0] ? 80 : Math.round(20 / (enabledKeys.length - 1)) || 1;
   startingPoints.push(concW);
 
-  // 5: DOW-methods-only (helps low-volume categories like Alterations)
+  // 4: DOW-methods-only (helps low-volume categories like Alterations)
   var dowOnlyW = {};
-  for (var kd of enabledKeys) dowOnlyW[kd] = 0;
+  for (var kd = 0; kd < enabledKeys.length; kd++) dowOnlyW[enabledKeys[kd]] = 0;
   var dowMethods = ['dowAvg','recent','wDow','medDow','trimDow','q75','last2','monthDow','monthDowR','trendSeason','recentMonth','winsDow','adapMedian'];
   for (var dmi = 0; dmi < dowMethods.length; dmi++) {
     if (dowOnlyW.hasOwnProperty(dowMethods[dmi])) dowOnlyW[dowMethods[dmi]] = 15;
   }
   startingPoints.push(dowOnlyW);
 
-  // 6: seasonal-focused
-  var seaW = {};
-  for (var ks of enabledKeys) seaW[ks] = 0;
-  if (seaW.hasOwnProperty('trendSeason')) seaW['trendSeason'] = 40;
-  if (seaW.hasOwnProperty('monthDow')) seaW['monthDow'] = 25;
-  if (seaW.hasOwnProperty('monthDowR')) seaW['monthDowR'] = 25;
-  if (seaW.hasOwnProperty('recentMonth')) seaW['recentMonth'] = 30;
-  if (seaW.hasOwnProperty('annualDow')) seaW['annualDow'] = 15;
-  startingPoints.push(seaW);
-
-  // Deep search: add starting points tailored for volatile/low-volume series
+  // Deep search: add 2 more starting points
   if (deepSearch) {
-    // 7: median/trimmed/q25 focus (outlier-resistant methods for volatile data)
+    // 5: robust/outlier-resistant focus
     var robustW = {};
-    for (var krb of enabledKeys) robustW[krb] = 0;
+    for (var krb = 0; krb < enabledKeys.length; krb++) robustW[enabledKeys[krb]] = 0;
     if (robustW.hasOwnProperty('medDow')) robustW['medDow'] = 40;
     if (robustW.hasOwnProperty('trimDow')) robustW['trimDow'] = 30;
     if (robustW.hasOwnProperty('q25')) robustW['q25'] = 30;
@@ -3277,35 +3287,19 @@ function autoOptimize(options) {
     if (robustW.hasOwnProperty('adapMedian')) robustW['adapMedian'] = 20;
     startingPoints.push(robustW);
 
-    // 8: recent-only (short lookback for fast-changing patterns)
-    var recW = {};
-    for (var krc of enabledKeys) recW[krc] = 0;
-    if (recW.hasOwnProperty('recent')) recW['recent'] = 30;
-    if (recW.hasOwnProperty('last2')) recW['last2'] = 25;
-    if (recW.hasOwnProperty('wDow')) recW['wDow'] = 25;
-    if (recW.hasOwnProperty('expSmooth')) recW['expSmooth'] = 20;
-    if (recW.hasOwnProperty('regime')) recW['regime'] = 20;
-    startingPoints.push(recW);
-
-    // 9: top-3 concentrated (tighter focus for better convergence)
+    // 6: top-3 concentrated
     var t3W = {};
-    for (var kt3 of enabledKeys) t3W[kt3] = 0;
+    for (var kt3 = 0; kt3 < enabledKeys.length; kt3++) t3W[enabledKeys[kt3]] = 0;
     var top3 = wSorted.slice(0, Math.min(3, wSorted.length));
-    for (var kt3b of top3) t3W[kt3b] = wapeW[kt3b] || 20;
+    for (var kt3b = 0; kt3b < top3.length; kt3b++) t3W[top3[kt3b]] = wapeW[top3[kt3b]] || 20;
     startingPoints.push(t3W);
-
-    // 10: best method solo
-    var soloW = {};
-    for (var kso of enabledKeys) soloW[kso] = 0;
-    soloW[wSorted[0]] = 100;
-    startingPoints.push(soloW);
   }
 
-  // Extra random starts for shuffle or deep search runs
-  var nRandom = deepSearch ? 4 : (doShuffle ? 2 : 0);
+  // Fewer random starts: 2 deep, 1 shuffle, 0 normal
+  var nRandom = deepSearch ? 2 : (doShuffle ? 1 : 0);
   for (var rsp = 0; rsp < nRandom; rsp++) {
     var randW = {};
-    for (var rk of enabledKeys) randW[rk] = Math.floor(Math.random() * 50);
+    for (var rk = 0; rk < enabledKeys.length; rk++) randW[enabledKeys[rk]] = Math.floor(Math.random() * 50);
     startingPoints.push(randW);
   }
 
@@ -3320,27 +3314,32 @@ function autoOptimize(options) {
     var startScore = getEnsembleMAPE(weights);
     if (globalBestMape < 900 && startScore > globalBestMape * 2) continue;
 
-    // Multi-resolution coordinate descent (3-4 step sizes, max 30 iters each)
-    const stepSizes = deepSearch ? [5, 2, 1, 0.5] : [5, 2, 1];
-    for (const step of stepSizes) {
+    // Multi-resolution coordinate descent (3-4 step sizes, max 20 iters each)
+    var stepSizes = deepSearch ? [5, 2, 1, 0.5] : [5, 2, 1];
+    for (var ssi = 0; ssi < stepSizes.length; ssi++) {
+      var step = stepSizes[ssi];
       var cdKeys = doShuffle ? shuffleArray(enabledKeys.slice()) : enabledKeys;
-      let bestMape = getEnsembleMAPE(weights);
-      for (let iter = 0; iter < 30; iter++) {
-        let improved = false;
-        for (const k of cdKeys) {
-          weights[k] += step;
-          let newMape = getEnsembleMAPE(weights);
+      var bestMape = getEnsembleMAPE(weights);
+      for (var iter = 0; iter < 20; iter++) {
+        var improved = false;
+        var iterStartMape = bestMape;
+        for (var cdk = 0; cdk < cdKeys.length; cdk++) {
+          var cdKey = cdKeys[cdk];
+          weights[cdKey] += step;
+          var newMape = getEnsembleMAPE(weights);
           if (newMape < bestMape - 0.0001) { bestMape = newMape; improved = true; continue; }
-          weights[k] -= step;
+          weights[cdKey] -= step;
 
-          if (weights[k] >= step) {
-            weights[k] -= step;
+          if (weights[cdKey] >= step) {
+            weights[cdKey] -= step;
             newMape = getEnsembleMAPE(weights);
             if (newMape < bestMape - 0.0001) { bestMape = newMape; improved = true; continue; }
-            weights[k] += step;
+            weights[cdKey] += step;
           }
         }
         if (!improved) break;
+        // Early convergence: if full pass improved < 0.01%, stop this step size
+        if (iterStartMape - bestMape < 0.01) break;
       }
     }
 
@@ -3394,7 +3393,7 @@ function autoOptimize(options) {
     for (var ts = 0; ts < topSteps.length; ts++) {
       var tStep = topSteps[ts];
       var tBest = getEnsembleMAPE(globalBestWeights);
-      for (var tIter = 0; tIter < 30; tIter++) {
+      for (var tIter = 0; tIter < 15; tIter++) {
         var tImproved = false;
         for (var ti = 0; ti < topN.length; ti++) {
           var tK = topN[ti];
@@ -3466,7 +3465,7 @@ function autoOptimize(options) {
       var rStep = reSteps[rs];
       var reKeys = doShuffle ? shuffleArray(enabledKeys.slice()) : enabledKeys;
       var rBest = getEnsembleMAPE(globalBestWeights);
-      for (var rIter = 0; rIter < 30; rIter++) {
+      for (var rIter = 0; rIter < 15; rIter++) {
         var rImproved = false;
         for (var ri = 0; ri < reKeys.length; ri++) {
           var rK = reKeys[ri];
@@ -3578,7 +3577,7 @@ function autoOptimize(options) {
     for (var ds = 0; ds < dowSteps.length; ds++) {
       var dStep = dowSteps[ds];
       var dowCDKeys = doShuffle ? shuffleArray(dowTopN.slice()) : dowTopN;
-      for (var dIter = 0; dIter < 30; dIter++) {
+      for (var dIter = 0; dIter < 15; dIter++) {
         var dImproved = false;
         for (var dk2 = 0; dk2 < dowCDKeys.length; dk2++) {
           var dk2Key = dowCDKeys[dk2];
@@ -3667,8 +3666,8 @@ function autoOptimize(options) {
       for (var fmk = 0; fmk < dowActiveKeys.length; fmk++) {
         var fmKey = dowActiveKeys[fmk];
         var fmErr = 0;
-        for (var fmi = 0; fmi < friIdx.length; fmi++) {
-          fmErr += Math.abs(friActual[fmi] - (forecasts[fmKey][friIdx[fmi]] || 0));
+        for (var fmi2 = 0; fmi2 < friIdx.length; fmi2++) {
+          fmErr += Math.abs(friActual[fmi2] - (forecasts[fmKey][friIdx[fmi2]] || 0));
         }
         friMethodErr[fmKey] = fmErr;
       }
@@ -3702,7 +3701,7 @@ function autoOptimize(options) {
         for (var fds = 0; fds < friSteps.length; fds++) {
           var fStep = friSteps[fds];
           var friCDKeys = doShuffle ? shuffleArray(friTopN.slice()) : friTopN;
-          for (var fIter = 0; fIter < 30; fIter++) {
+          for (var fIter = 0; fIter < 20; fIter++) {
             var fImproved = false;
             for (var fdk = 0; fdk < friCDKeys.length; fdk++) {
               var fdKey = friCDKeys[fdk];
@@ -3899,7 +3898,7 @@ function buildOptimizeAndBacktestSteps() {
 
         // Auto-refine: if WMAPE > 20%, run extra shuffled passes with deep search
         // Passes reduced for speed; param tuning skipped (reuses first-pass params)
-        var maxRefPasses = wape > 25 ? 4 : (wape > 22 ? 3 : 2);
+        var maxRefPasses = wape > 25 ? 3 : (wape > 22 ? 2 : 1);
         if (wape > 0 && wape > 20) {
           for (var refPass = 0; refPass < maxRefPasses; refPass++) {
             resetMethods();
@@ -3958,7 +3957,8 @@ function buildOptimizeAndBacktestSteps() {
             }
 
             // Strategy B: concentrate on top-5 methods (broader ensemble)
-            if (wape > 20 && sortedMethods.length >= 5) {
+            // Skip if Strategy A already brought WMAPE close enough (< 22%)
+            if (wape > 22 && sortedMethods.length >= 5) {
               resetMethods();
               if (tunedParams) restoreMethodParams(tunedParams);
               S.activeSeries = 'pieces:' + cn;
@@ -3977,7 +3977,8 @@ function buildOptimizeAndBacktestSteps() {
             }
 
             // Strategy C: disable bottom half of methods, optimize remaining
-            if (wape > 20 && sortedMethods.length >= 6) {
+            // Skip if already below 22%
+            if (wape > 22 && sortedMethods.length >= 6) {
               resetMethods();
               if (tunedParams) restoreMethodParams(tunedParams);
               S.activeSeries = 'pieces:' + cn;
@@ -5332,7 +5333,14 @@ function runWithLoading(title, steps, onDone) {
     var step = steps[i];
     i++;
     setTimeout(function() {
-      step.fn();
+      try {
+        step.fn();
+      } catch (e) {
+        console.log('Step error (' + step.label + '): ' + String(e));
+        hideLoading();
+        showNotification('Error in "' + step.label + '": ' + String(e), 'error');
+        return; // stop pipeline on error instead of white-screening
+      }
       next();
     }, 20);
   }
