@@ -551,8 +551,8 @@ tr.recon-checked {
 
                     <!-- Description -->
                     <div>
-                        <span class="block text-sm font-medium mb-2">Description: Quantity, Item Name, Alterations, and if RUSH.</span>
-                        <textarea id="descriptionInput" placeholder="Example: 1 pants hem RUSH" rows="3" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+                        <span class="block text-sm font-medium mb-2">Description: Quantity, Item Name, Alterations, and if RUSH, REDO</span>
+                        <textarea id="descriptionInput" placeholder="Example: 1 pants hem RUSH REDO" rows="3" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
                         <!-- Common Words -->
                         <div class="mt-2">
                             <span class="block text-xs text-gray-500 mb-1">Common words:</span>
@@ -825,6 +825,8 @@ tr.recon-checked {
                             <input type="number" id="dueDateOffsetSetting" min="0" max="365" value="0"
                                    class="w-20 p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
                             <span class="text-sm text-gray-600">days from today</span>
+                            <button type="button" id="saveDueDateOffsetBtn" class="px-3 py-2 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">Save</button>
+                            <span id="dueDateOffsetSaved" class="text-xs text-green-600 font-medium hidden">✓ Saved</span>
                         </div>
                         <p class="text-xs text-gray-500 mt-1">Set to 0 for today's date, 7 for one week ahead, etc.</p>
                     </div>
@@ -3353,27 +3355,40 @@ renderWhiteboard() {
  }
  return '#' + orderNumber;
  }
-validateDueDate(dueDateValue) {
+validateDueDate(dueDateValue, workDateValue) {
  // Allow blank/empty due dates
  if (!dueDateValue || dueDateValue.trim() === '') {
  return { isValid: true };
  }
- 
+
  const dueDate = new Date(dueDateValue + 'T00:00:00');
  const today = new Date();
- 
+
  // Set both to start of day for proper comparison
  dueDate.setHours(0, 0, 0, 0);
  today.setHours(0, 0, 0, 0);
- 
- // Allow today's date (>= instead of >)
+
+ // Due date cannot be in the past
  if (dueDate < today) {
- return { 
- isValid: false, 
- error: 'Due date cannot be in the past. Please select today or a future date.' 
+ return {
+ isValid: false,
+ error: 'Due date cannot be in the past. Please select today or a future date.'
  };
  }
- 
+
+ // Due date cannot be before the work date
+ if (workDateValue) {
+ const workDate = new Date(workDateValue + 'T00:00:00');
+ workDate.setHours(0, 0, 0, 0);
+ if (dueDate < workDate) {
+ const workDateDisplay = workDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+ return {
+ isValid: false,
+ error: 'Due date cannot be before the work date (' + workDateDisplay + '). The order must be due on or after the day it is worked on.'
+ };
+ }
+ }
+
  return { isValid: true };
 }
 			
@@ -3954,6 +3969,17 @@ attachTaskCardListeners(card, task) {
  document.getElementById('saveSettings').addEventListener('click', () => this.saveSettingsAndConnect());
  document.getElementById('downloadConfig').addEventListener('click', () => this.downloadConfig());
  document.getElementById('uploadConfig').addEventListener('change', (e) => this.uploadConfig(e));
+
+ document.getElementById('saveDueDateOffsetBtn').addEventListener('click', () => {
+     const val = parseInt(document.getElementById('dueDateOffsetSetting').value) || 0;
+     this.saveDueDateOffset(val);
+     const savedMsg = document.getElementById('dueDateOffsetSaved');
+     if (savedMsg) {
+         savedMsg.classList.remove('hidden');
+         setTimeout(() => savedMsg.classList.add('hidden'), 2500);
+     }
+     this.showToast('✅ Due date offset saved (' + val + ' days)', 'success');
+ });
 
  document.getElementById('autoRefreshSelect').addEventListener('change', (e) => this.setAutoRefreshInterval(e.target.value));
  document.getElementById('applyAutoCapacityBtn').addEventListener('click', () => {
@@ -4979,7 +5005,10 @@ attachOrderModalListeners() {
  
  dueDateInput.addEventListener('change', (e) => {
  const value = e.target.value;
- const validation = this.validateDueDate(value);
+ // Get work date from modal context for validation
+ const workDateEl = document.getElementById('workDateInput');
+ const workDate = workDateEl ? workDateEl.value : (this.currentOrderDate || '');
+ const validation = this.validateDueDate(value, workDate);
  
  if (!validation.isValid) {
  dueDateErrorDiv.textContent = validation.error;
@@ -5089,16 +5118,16 @@ attachOrderModalListeners() {
  this.updateCommonWords();
 }
 	
-validateOrderData(orderNumber, dateDue, description, duration) {
+validateOrderData(orderNumber, dateDue, description, duration, workDate) {
  const errors = [];
- 
+
  // Call individual validation methods
  const orderValidation = this.validateOrderNumber(orderNumber);
  if (!orderValidation.isValid) {
  errors.push(orderValidation.error);
  }
- 
- const dueDateValidation = this.validateDueDate(dateDue);
+
+ const dueDateValidation = this.validateDueDate(dateDue, workDate);
  if (!dueDateValidation.isValid) {
  errors.push(dueDateValidation.error);
  }
@@ -5678,8 +5707,19 @@ async saveOrder() {
  const altInput = document.getElementById('alterationPiecesInput');
  if (altInput) altInput.classList.remove('border-red-500');
 
- // Enhanced validation with user feedback
- const validation = this.validateOrderData(orderNumber, dateDue, description, duration);
+ // Determine target person and work date first (needed for due date validation)
+ let targetPerson, targetDateKey;
+
+ if (this.getElement('personDateFields').classList.contains('hidden')) {
+ targetPerson = this.currentOrderPerson;
+ targetDateKey = this.currentOrderDate;
+ } else {
+ targetPerson = this.getElement('assignPersonSelect').value;
+ targetDateKey = this.getElement('workDateInput').value;
+ }
+
+ // Enhanced validation with user feedback (pass work date for due date check)
+ const validation = this.validateOrderData(orderNumber, dateDue, description, duration, targetDateKey);
  if (!validation.isValid) {
  this.showValidationSummary(validation.errors);
 
@@ -5692,16 +5732,6 @@ async saveOrder() {
  return;
  } else {
  this.showValidationSummary([]); // Clear any existing errors
- }
-
- let targetPerson, targetDateKey;
- 
- if (this.getElement('personDateFields').classList.contains('hidden')) {
- targetPerson = this.currentOrderPerson;
- targetDateKey = this.currentOrderDate;
- } else {
- targetPerson = this.getElement('assignPersonSelect').value;
- targetDateKey = this.getElement('workDateInput').value;
  }
 
  // Check for duplicates (skip if editing the same task)
@@ -8784,6 +8814,7 @@ showIdleWakeModal(context) {
  await this.loadViewPreferences();
  await this.loadAutoRefreshSettings();
  await this.loadAutoCapacitySettings();
+ await this.loadDueDateOffsetSettings();
  
  const urlParams = new URLSearchParams(window.location.search);
  const baseId = urlParams.get('baseId');
@@ -12024,7 +12055,8 @@ wizardRenderDueDate() {
   var errDiv = document.getElementById('wizDueDateError');
   if (inp && errDiv) {
    inp.addEventListener('change', function() {
-    var result = self.validateDueDate(inp.value);
+    var wizWorkDate = self.wizardData.workDate || self.dateToLocalDateString(self.currentDate);
+    var result = self.validateDueDate(inp.value, wizWorkDate);
     if (!result.isValid) {
      errDiv.textContent = result.error;
      errDiv.classList.remove('hidden');
@@ -12041,7 +12073,8 @@ wizardValidateDueDate() {
  this.wizardClearError();
  var val = document.getElementById('wizDueDate')?.value || '';
  if (!val) { this.wizardShowError('Please select a due date.'); return false; }
- var result = this.validateDueDate(val);
+ var wizWorkDate = this.wizardData.workDate || this.dateToLocalDateString(this.currentDate);
+ var result = this.validateDueDate(val, wizWorkDate);
  if (!result.isValid) { this.wizardShowError(result.error); return false; }
  return true;
 }
@@ -12054,8 +12087,8 @@ wizardRenderDescription() {
  var wordBtns = commonWords.map(function(w) {
   return '<button type="button" class="wiz-word-btn px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors" data-word="' + w + '">' + w + '</button>';
  }).join('');
- this.wizardStepTemplate('📝', 'Description', 'Quantity, Item Name, Alterations, and if RUSH. (min 3 characters)',
-  '<textarea id="wizDescription" rows="3" placeholder="Example: 1 pants hem RUSH" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none">' + (this.wizardData.description || '') + '</textarea>' +
+ this.wizardStepTemplate('📝', 'Description', 'Quantity, Item Name, Alterations, and if RUSH, REDO (min 3 characters)',
+  '<textarea id="wizDescription" rows="3" placeholder="Example: 1 pants hem RUSH REDO" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none">' + (this.wizardData.description || '') + '</textarea>' +
   '<div id="wizDescCharCount" class="text-xs text-gray-400 text-right"></div>' +
   (commonWords.length > 0 ? '<div><span class="block text-xs text-gray-500 mb-1">Common words:</span><div class="flex flex-wrap gap-1">' + wordBtns + '</div></div>' : ''));
 
