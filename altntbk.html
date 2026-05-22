@@ -199,6 +199,15 @@ tr.recon-checked {
     background-color: rgba(34, 197, 94, 0.08) !important;
 }
 
+@keyframes reconCountFlash {
+    0% { background-color: #c7d2fe; transform: scale(1.15); }
+    100% { background-color: transparent; transform: scale(1); }
+}
+.recon-count-flash {
+    animation: reconCountFlash 0.8s ease-out;
+    border-radius: 4px;
+}
+
 .highlight-order {
     outline: 3px solid #5D5CDE !important;
     outline-offset: 2px;
@@ -551,8 +560,8 @@ tr.recon-checked {
 
                     <!-- Description -->
                     <div>
-                        <span class="block text-sm font-medium mb-2">Description: Quantity, Item Name, Alterations, and if RUSH, REDO</span>
-                        <textarea id="descriptionInput" placeholder="Example: 1 pants hem RUSH REDO" rows="3" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+                        <span class="block text-sm font-medium mb-2">Description: Quantity, Item Name, Alterations, and if RUSH.</span>
+                        <textarea id="descriptionInput" placeholder="Example: 1 pants hem RUSH" rows="3" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
                         <!-- Common Words -->
                         <div class="mt-2">
                             <span class="block text-xs text-gray-500 mb-1">Common words:</span>
@@ -825,8 +834,6 @@ tr.recon-checked {
                             <input type="number" id="dueDateOffsetSetting" min="0" max="365" value="0"
                                    class="w-20 p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
                             <span class="text-sm text-gray-600">days from today</span>
-                            <button type="button" id="saveDueDateOffsetBtn" class="px-3 py-2 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">Save</button>
-                            <span id="dueDateOffsetSaved" class="text-xs text-green-600 font-medium hidden">✓ Saved</span>
                         </div>
                         <p class="text-xs text-gray-500 mt-1">Set to 0 for today's date, 7 for one week ahead, etc.</p>
                     </div>
@@ -3090,18 +3097,17 @@ async loadDueDateOffsetSettings() {
  
 // Whiteboard Rendering
 renderWhiteboard() {
- 
+
  const whiteboard = document.getElementById('whiteboard');
  const emptyState = document.getElementById('emptyState');
- 
- 
+
+ try {
+
  if (!this.people || this.people.length === 0) {
  whiteboard.innerHTML = '';
  if (emptyState) {
  whiteboard.appendChild(emptyState);
  }
- // Still update POS recon counts even with no people columns
- this.updatePosReconCounts();
  return;
  }
 
@@ -3120,8 +3126,10 @@ renderWhiteboard() {
  whiteboard.appendChild(dayContainer);
  }
 
- // Update drop alter piece count bar
+ } finally {
+ // ALWAYS update POS recon counts, even if rendering throws an error
  this.updatePosReconCounts();
+ }
 
 }
  
@@ -3355,40 +3363,27 @@ renderWhiteboard() {
  }
  return '#' + orderNumber;
  }
-validateDueDate(dueDateValue, workDateValue) {
+validateDueDate(dueDateValue) {
  // Allow blank/empty due dates
  if (!dueDateValue || dueDateValue.trim() === '') {
  return { isValid: true };
  }
-
+ 
  const dueDate = new Date(dueDateValue + 'T00:00:00');
  const today = new Date();
-
+ 
  // Set both to start of day for proper comparison
  dueDate.setHours(0, 0, 0, 0);
  today.setHours(0, 0, 0, 0);
-
- // Due date cannot be in the past
+ 
+ // Allow today's date (>= instead of >)
  if (dueDate < today) {
- return {
- isValid: false,
- error: 'Due date cannot be in the past. Please select today or a future date.'
+ return { 
+ isValid: false, 
+ error: 'Due date cannot be in the past. Please select today or a future date.' 
  };
  }
-
- // Due date cannot be before the work date
- if (workDateValue) {
- const workDate = new Date(workDateValue + 'T00:00:00');
- workDate.setHours(0, 0, 0, 0);
- if (dueDate < workDate) {
- const workDateDisplay = workDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
- return {
- isValid: false,
- error: 'Due date cannot be before the work date (' + workDateDisplay + '). The order must be due on or after the day it is worked on.'
- };
- }
- }
-
+ 
  return { isValid: true };
 }
 			
@@ -3970,17 +3965,6 @@ attachTaskCardListeners(card, task) {
  document.getElementById('downloadConfig').addEventListener('click', () => this.downloadConfig());
  document.getElementById('uploadConfig').addEventListener('change', (e) => this.uploadConfig(e));
 
- document.getElementById('saveDueDateOffsetBtn').addEventListener('click', () => {
-     const val = parseInt(document.getElementById('dueDateOffsetSetting').value) || 0;
-     this.saveDueDateOffset(val);
-     const savedMsg = document.getElementById('dueDateOffsetSaved');
-     if (savedMsg) {
-         savedMsg.classList.remove('hidden');
-         setTimeout(() => savedMsg.classList.add('hidden'), 2500);
-     }
-     this.showToast('✅ Due date offset saved (' + val + ' days)', 'success');
- });
-
  document.getElementById('autoRefreshSelect').addEventListener('change', (e) => this.setAutoRefreshInterval(e.target.value));
  document.getElementById('applyAutoCapacityBtn').addEventListener('click', () => {
  const selectedMode = document.getElementById('autoCapacityRuleSelect').value;
@@ -4368,7 +4352,17 @@ attachSearchListeners() {
  const appOrdersEl = document.getElementById('posReconAppOrders');
  const dateEl = document.getElementById('posReconDate');
 
- if (appCountEl) appCountEl.textContent = totalPieces;
+ if (appCountEl) {
+     // Detect if value actually changed to flash a highlight
+     const oldValue = appCountEl.textContent;
+     appCountEl.textContent = totalPieces;
+     if (String(totalPieces) !== oldValue) {
+         appCountEl.classList.remove('recon-count-flash');
+         // Force reflow so removing and re-adding the class triggers animation
+         void appCountEl.offsetWidth;
+         appCountEl.classList.add('recon-count-flash');
+     }
+ }
  if (appOrdersEl) appOrdersEl.textContent = `${totalOrders} order${totalOrders !== 1 ? 's' : ''}`;
 
  const today = new Date();
@@ -5005,10 +4999,7 @@ attachOrderModalListeners() {
  
  dueDateInput.addEventListener('change', (e) => {
  const value = e.target.value;
- // Get work date from modal context for validation
- const workDateEl = document.getElementById('workDateInput');
- const workDate = workDateEl ? workDateEl.value : (this.currentOrderDate || '');
- const validation = this.validateDueDate(value, workDate);
+ const validation = this.validateDueDate(value);
  
  if (!validation.isValid) {
  dueDateErrorDiv.textContent = validation.error;
@@ -5118,16 +5109,16 @@ attachOrderModalListeners() {
  this.updateCommonWords();
 }
 	
-validateOrderData(orderNumber, dateDue, description, duration, workDate) {
+validateOrderData(orderNumber, dateDue, description, duration) {
  const errors = [];
-
+ 
  // Call individual validation methods
  const orderValidation = this.validateOrderNumber(orderNumber);
  if (!orderValidation.isValid) {
  errors.push(orderValidation.error);
  }
-
- const dueDateValidation = this.validateDueDate(dateDue, workDate);
+ 
+ const dueDateValidation = this.validateDueDate(dateDue);
  if (!dueDateValidation.isValid) {
  errors.push(dueDateValidation.error);
  }
@@ -5707,19 +5698,8 @@ async saveOrder() {
  const altInput = document.getElementById('alterationPiecesInput');
  if (altInput) altInput.classList.remove('border-red-500');
 
- // Determine target person and work date first (needed for due date validation)
- let targetPerson, targetDateKey;
-
- if (this.getElement('personDateFields').classList.contains('hidden')) {
- targetPerson = this.currentOrderPerson;
- targetDateKey = this.currentOrderDate;
- } else {
- targetPerson = this.getElement('assignPersonSelect').value;
- targetDateKey = this.getElement('workDateInput').value;
- }
-
- // Enhanced validation with user feedback (pass work date for due date check)
- const validation = this.validateOrderData(orderNumber, dateDue, description, duration, targetDateKey);
+ // Enhanced validation with user feedback
+ const validation = this.validateOrderData(orderNumber, dateDue, description, duration);
  if (!validation.isValid) {
  this.showValidationSummary(validation.errors);
 
@@ -5732,6 +5712,16 @@ async saveOrder() {
  return;
  } else {
  this.showValidationSummary([]); // Clear any existing errors
+ }
+
+ let targetPerson, targetDateKey;
+ 
+ if (this.getElement('personDateFields').classList.contains('hidden')) {
+ targetPerson = this.currentOrderPerson;
+ targetDateKey = this.currentOrderDate;
+ } else {
+ targetPerson = this.getElement('assignPersonSelect').value;
+ targetDateKey = this.getElement('workDateInput').value;
  }
 
  // Check for duplicates (skip if editing the same task)
@@ -5783,7 +5773,7 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  // Use performance tracking (original logic preserved)
  try {
  if (this.isEditingTask) {
- await this.performAsyncOperation('updateOrder', 
+ await this.performAsyncOperation('updateOrder',
  () => this.updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey)
  );
  } else {
@@ -5791,7 +5781,7 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  () => this.createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey)
  );
  }
- 
+
  this.handleModalAction('orderModal', 'hide');
  this.renderWhiteboard();
 
@@ -5803,6 +5793,10 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  }
  } catch (error) {
  // Error already handled in performAsyncOperation
+ } finally {
+ // ALWAYS refresh POS recon counts after any order save attempt,
+ // regardless of success/failure or renderWhiteboard outcome
+ this.updatePosReconCounts();
  }
 }
  
@@ -8814,7 +8808,6 @@ showIdleWakeModal(context) {
  await this.loadViewPreferences();
  await this.loadAutoRefreshSettings();
  await this.loadAutoCapacitySettings();
- await this.loadDueDateOffsetSettings();
  
  const urlParams = new URLSearchParams(window.location.search);
  const baseId = urlParams.get('baseId');
@@ -12055,8 +12048,7 @@ wizardRenderDueDate() {
   var errDiv = document.getElementById('wizDueDateError');
   if (inp && errDiv) {
    inp.addEventListener('change', function() {
-    var wizWorkDate = self.wizardData.workDate || self.dateToLocalDateString(self.currentDate);
-    var result = self.validateDueDate(inp.value, wizWorkDate);
+    var result = self.validateDueDate(inp.value);
     if (!result.isValid) {
      errDiv.textContent = result.error;
      errDiv.classList.remove('hidden');
@@ -12073,8 +12065,7 @@ wizardValidateDueDate() {
  this.wizardClearError();
  var val = document.getElementById('wizDueDate')?.value || '';
  if (!val) { this.wizardShowError('Please select a due date.'); return false; }
- var wizWorkDate = this.wizardData.workDate || this.dateToLocalDateString(this.currentDate);
- var result = this.validateDueDate(val, wizWorkDate);
+ var result = this.validateDueDate(val);
  if (!result.isValid) { this.wizardShowError(result.error); return false; }
  return true;
 }
@@ -12087,8 +12078,8 @@ wizardRenderDescription() {
  var wordBtns = commonWords.map(function(w) {
   return '<button type="button" class="wiz-word-btn px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors" data-word="' + w + '">' + w + '</button>';
  }).join('');
- this.wizardStepTemplate('📝', 'Description', 'Quantity, Item Name, Alterations, and if RUSH, REDO (min 3 characters)',
-  '<textarea id="wizDescription" rows="3" placeholder="Example: 1 pants hem RUSH REDO" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none">' + (this.wizardData.description || '') + '</textarea>' +
+ this.wizardStepTemplate('📝', 'Description', 'Quantity, Item Name, Alterations, and if RUSH. (min 3 characters)',
+  '<textarea id="wizDescription" rows="3" placeholder="Example: 1 pants hem RUSH" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none">' + (this.wizardData.description || '') + '</textarea>' +
   '<div id="wizDescCharCount" class="text-xs text-gray-400 text-right"></div>' +
   (commonWords.length > 0 ? '<div><span class="block text-xs text-gray-500 mb-1">Common words:</span><div class="flex flex-wrap gap-1">' + wordBtns + '</div></div>' : ''));
 
