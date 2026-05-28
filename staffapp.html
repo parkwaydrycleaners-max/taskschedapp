@@ -2849,6 +2849,25 @@
 
             saveState();
             schedulePush();
+
+            // Auto-complete main task when all required subtasks are done
+            var justChecked = !!(state.completedSubtasks[taskId] && state.completedSubtasks[taskId][subtaskId]);
+            if (justChecked && !state.completed[taskId]) {
+                var found = findItemById(taskId);
+                if (found && !hasIncompleteRequiredSubtasks(taskId) && !isTaskLocked(found.section, found.group, taskId)) {
+                    // Check that the task actually HAS required subtasks (don't auto-complete tasks with only optional subs)
+                    var hasRequired = found.item.subtasks && found.item.subtasks.some(function(s) { return s.required; });
+                    if (hasRequired) {
+                        markTaskDirty(taskId);
+                        state.completed[taskId] = { time: formatTime() };
+                        saveState();
+                        schedulePush();
+                        sendTaskNotification(found.item.title, found.section, false);
+                        showToast('<i class="fas fa-check-circle"></i> ' + escapeHtml(found.item.title) + ' auto-completed', 'success');
+                        renderChecklists();
+                    }
+                }
+            }
         }
 
         // Show confirmation modal for required subtask completion
