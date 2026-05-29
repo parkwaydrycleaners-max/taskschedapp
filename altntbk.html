@@ -4324,6 +4324,8 @@ attachSearchListeners() {
  const todayStr = this.dateToLocalDateString(new Date());
  let totalPieces = 0;
  let totalOrders = 0;
+ let debugMatched = [];
+ let debugSkipped = [];
 
  // Scan ALL tasks across all dates, filter by createdAt = today
  for (const dateKey in this.tasks) {
@@ -4331,17 +4333,21 @@ attachSearchListeners() {
          const personTasks = this.tasks[dateKey][person];
          if (!Array.isArray(personTasks)) continue;
          personTasks.forEach(task => {
-             // Only count orders that have a createdAt matching today
-             // Normalize to YYYY-MM-DD (first 10 chars) to handle Airtable
-             // returning datetime strings like "2026-05-15T18:30:00.000Z"
              const taskCreatedDate = task.createdAt ? String(task.createdAt).substring(0, 10) : '';
              if (taskCreatedDate && taskCreatedDate === todayStr) {
                  totalOrders++;
                  totalPieces += parseInt(task.alterationPieces) || 0;
+                 debugMatched.push({order: task.orderNumber, pieces: task.alterationPieces, createdAt: task.createdAt});
+             } else if (task.createdAt) {
+                 debugSkipped.push({order: task.orderNumber, createdAt: task.createdAt, createdDate: taskCreatedDate});
              }
          });
      }
  }
+
+ console.log('[POS Recon] getTodayPieceCounts: today=' + todayStr + ' matched=' + totalOrders + ' totalPieces=' + totalPieces);
+ if (debugMatched.length > 0) console.log('[POS Recon] Matched orders: ' + JSON.stringify(debugMatched));
+ if (debugSkipped.length > 0 && debugSkipped.length <= 10) console.log('[POS Recon] Skipped (wrong date): ' + JSON.stringify(debugSkipped));
 
  return { totalPieces, totalOrders };
  }
@@ -4351,6 +4357,9 @@ attachSearchListeners() {
  const appCountEl = document.getElementById('posReconAppCount');
  const appOrdersEl = document.getElementById('posReconAppOrders');
  const dateEl = document.getElementById('posReconDate');
+
+ const caller = new Error().stack.split('\n')[2]?.trim() || 'unknown';
+ console.log('[POS Recon] updatePosReconCounts called: pieces=' + totalPieces + ' orders=' + totalOrders + ' element=' + (appCountEl ? 'found(current:' + appCountEl.textContent + ')' : 'NULL') + ' from: ' + caller);
 
  if (appCountEl) {
      // Detect if value actually changed to flash a highlight
@@ -5928,6 +5937,8 @@ if (dateDue && dateDue.trim() !== '') {
  createdAt: this.dateToLocalDateString(new Date())
 };
 
+ console.log('[POS Recon] createNewTask: order=' + orderNumber + ' pieces=' + alterationPieces + ' createdAt=' + task.createdAt + ' dateKey=' + correctedDateKey + ' person=' + targetPerson);
+
  // Add to local state first
  this.addTaskToSpecificDate(targetPerson, task, correctedDateKey);
 
@@ -5939,7 +5950,9 @@ if (dateDue && dateDue.trim() !== '') {
  timestamp: Date.now()
  });
 
+ console.log('[POS Recon] createNewTask: task added to this.tasks, about to renderWhiteboard');
  this.renderWhiteboard();
+ console.log('[POS Recon] createNewTask: renderWhiteboard complete, starting Airtable save');
 
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
  this.showLoading('Saving to Airtable...');
