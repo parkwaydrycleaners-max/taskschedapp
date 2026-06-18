@@ -706,84 +706,6 @@
             color: #D97706;
         }
 
-        .item-badge.scheduled-day {
-            background: #DBEAFE;
-            color: #2563EB;
-            font-size: 9px;
-            padding: 1px 6px;
-        }
-
-        .dark .item-badge.scheduled-day {
-            background: #1e3a5f;
-            color: #93c5fd;
-        }
-
-        /* Inactive scheduled task (not today's day) */
-        .checklist-item.inactive-day {
-            opacity: 0.4;
-            pointer-events: none;
-            filter: grayscale(0.5);
-        }
-
-        .checklist-item.inactive-day.show-inactive {
-            pointer-events: auto;
-            cursor: default;
-        }
-
-        body.editing .checklist-item.inactive-day {
-            opacity: 0.7;
-            pointer-events: auto;
-            filter: none;
-        }
-
-        /* Scheduled days picker in task modal */
-        .scheduled-days-picker {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 8px;
-        }
-
-        .scheduled-days-picker .day-btn {
-            width: 40px;
-            height: 34px;
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            background: var(--card-bg);
-            color: var(--text-color);
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s;
-            padding: 0;
-        }
-
-        .scheduled-days-picker .day-btn:hover {
-            border-color: var(--accent-opening);
-        }
-
-        .scheduled-days-picker .day-btn.active {
-            background: var(--accent-opening);
-            color: white;
-            border-color: var(--accent-opening);
-        }
-
-        .schedule-visibility-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 6px 0 2px;
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        .schedule-visibility-row label {
-            margin: 0;
-            font-size: 12px;
-            color: var(--text-muted);
-            font-weight: normal;
-        }
-
         /* Item Actions */
         .item-actions {
             display: none;
@@ -2402,24 +2324,6 @@
                 <div class="color-option" data-color="#FEE2E2" style="background: #FEE2E2;" title="Rose"></div>
             </div>
 
-            <label>Scheduled Days <span style="font-weight: normal; color: var(--text-muted); font-size: 11px;">(leave all selected for every day)</span></label>
-            <div class="scheduled-days-picker" id="scheduledDaysPicker">
-                <button type="button" class="day-btn active" data-day="0">Sun</button>
-                <button type="button" class="day-btn active" data-day="1">Mon</button>
-                <button type="button" class="day-btn active" data-day="2">Tue</button>
-                <button type="button" class="day-btn active" data-day="3">Wed</button>
-                <button type="button" class="day-btn active" data-day="4">Thu</button>
-                <button type="button" class="day-btn active" data-day="5">Fri</button>
-                <button type="button" class="day-btn active" data-day="6">Sat</button>
-            </div>
-            <div class="schedule-visibility-row" id="scheduleVisibilityRow" style="display: none;">
-                <label for="showOnOffDays">Show dimmed on other days as reminder</label>
-                <label class="toggle-switch" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
-                    <input type="checkbox" id="showOnOffDays" checked style="opacity: 0; width: 0; height: 0;">
-                    <span class="toggle-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 24px; transition: 0.3s;"></span>
-                </label>
-            </div>
-
             <label>Task Style</label>
             <div class="task-style-toggle" id="taskStyleToggle">
                 <button type="button" class="task-style-btn active" data-style="checkable">
@@ -2895,21 +2799,6 @@
             return found.item.subtasks.some(sub => sub.required && !completedSubs[sub.id]);
         }
 
-        // Check if a task is active on a given day (or today by default)
-        // Tasks with no scheduledDays are active every day (backward compatible)
-        function isTaskActiveToday(item, date) {
-            if (!item.scheduledDays || !Array.isArray(item.scheduledDays) || item.scheduledDays.length === 0) return true;
-            var dayOfWeek = (date || selectedDate || new Date()).getDay();
-            return item.scheduledDays.indexOf(dayOfWeek) !== -1;
-        }
-
-        // Get short day names for display
-        function getScheduledDayNames(days) {
-            var names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-            if (!days || days.length === 0 || days.length === 7) return '';
-            return days.map(function(d) { return names[d]; }).join(', ');
-        }
-
         // Complete a subtask (shared logic for direct check and after confirmation)
         function completeSubtask(row, taskId, subtaskId) {
             if (!state.completedSubtasks) {
@@ -3013,8 +2902,6 @@
             for (let i = 0; i < items.length; i++) {
                 if (items[i].id === taskId) return false;
                 if (items[i].isPlaceholder || items[i].isDivider) continue;
-                // Skip tasks that are not active today (don't block the sequence)
-                if (!isTaskActiveToday(items[i])) continue;
                 if (!state.completed[items[i].id]) return true;
             }
             return false;
@@ -3036,7 +2923,7 @@
             let found = false;
             items.forEach(item => {
                 if (item.id === taskId) found = true;
-                if (found && !item.isPlaceholder && !item.isDivider && isTaskActiveToday(item)) {
+                if (found && !item.isPlaceholder && !item.isDivider) {
                     markTaskDirty(item.id);
                     delete state.completed[item.id];
                     if (state.completedSubtasks && state.completedSubtasks[item.id]) {
@@ -3064,21 +2951,10 @@
         function createItem(item, section, group) {
             const isPlaceholder = item.isPlaceholder;
             const isDivider = item.isDivider;
-            // Scheduled day logic
-            const activeToday = isTaskActiveToday(item);
-            const hasSchedule = item.scheduledDays && Array.isArray(item.scheduledDays) && item.scheduledDays.length < 7;
-
-            // If task is not active today and should be hidden, skip rendering entirely
-            if (hasSchedule && !activeToday && !item.showOnOffDays && !editMode) {
-                return '';
-            }
-
-            const inactiveDay = hasSchedule && !activeToday && !editMode;
             const checked = !isPlaceholder && !isDivider && state.completed[item.id];
             const locked = !isPlaceholder && !isDivider && !checked && section && group && isTaskLocked(section, group, item.id);
             const timestamp = checked ? checked.time : '';
             const todayBadge = item.todayOnly ? '<span class="item-badge today-only">Today Only</span>' : '';
-            const scheduleBadge = hasSchedule ? '<span class="item-badge scheduled-day">' + getScheduledDayNames(item.scheduledDays) + '</span>' : '';
             const taskColor = getTaskColor(item.color);
             const colorStyle = (taskColor && !isDivider) ? `style="background-color: ${taskColor};"` : '';
             const styleClass = isDivider ? 'divider' : (isPlaceholder ? 'placeholder' : '');
@@ -3114,12 +2990,12 @@
             }
 
             return `
-                <div class="checklist-item ${checked ? 'checked' : ''} ${locked ? 'locked' : ''} ${inactiveDay ? 'inactive-day show-inactive' : ''} ${styleClass}" data-id="${item.id}" data-section="${section || ''}" data-group="${group || ''}" ${colorStyle}>
+                <div class="checklist-item ${checked ? 'checked' : ''} ${locked ? 'locked' : ''} ${styleClass}" data-id="${item.id}" data-section="${section || ''}" data-group="${group || ''}" ${colorStyle}>
                     <div class="checkbox-wrapper">
                         <i class="fas fa-check"></i>
                     </div>
                     <div class="item-content">
-                        <div class="item-title">${escapeHtml(item.title)}${isDivider ? '' : todayBadge}${isDivider ? '' : scheduleBadge}</div>
+                        <div class="item-title">${escapeHtml(item.title)}${isDivider ? '' : todayBadge}</div>
                         <div class="item-description">${escapeHtml(item.desc || '')}</div>
                         ${(!isPlaceholder && !isDivider) ? `<div class="item-timestamp">
                             <i class="fas fa-clock"></i>
@@ -3231,8 +3107,8 @@
 
             sections.forEach(section => {
                 const allItems = getAllSectionItems(section);
-                // Filter out placeholders, dividers, and inactive scheduled tasks from progress
-                const checkableItems = allItems.filter(item => !item.isPlaceholder && !item.isDivider && isTaskActiveToday(item));
+                // Filter out placeholders and dividers from progress calculation
+                const checkableItems = allItems.filter(item => !item.isPlaceholder && !item.isDivider);
                 const total = checkableItems.length;
                 const done = checkableItems.filter(item => state.completed[item.id]).length;
                 const percent = total > 0 ? (done / total) * 100 : 0;
@@ -3307,7 +3183,6 @@
                     if (editMode) return;
                     if (item.classList.contains('placeholder')) return;
                     if (item.classList.contains('divider')) return;
-                    if (item.classList.contains('inactive-day')) return;
                     if (!isToday()) return;
 
                     const id = item.dataset.id;
@@ -3379,9 +3254,6 @@
                     e.stopPropagation();
                     if (editMode) return;
                     if (!isToday()) return;
-                    // Block subtask clicks on inactive scheduled tasks
-                    var parentItem = row.closest('.checklist-item');
-                    if (parentItem && parentItem.classList.contains('inactive-day')) return;
 
                     const taskId = row.dataset.taskId;
                     const subtaskId = row.dataset.subtaskId;
@@ -3542,8 +3414,6 @@
         let currentTaskColor = 'none';
         let currentTaskStyle = 'checkable';
         let currentSubtasks = [];
-        let currentScheduledDays = [0,1,2,3,4,5,6]; // all days selected = every day
-        let currentShowOnOffDays = true;
 
         // Subtasks management
         const subtasksList = document.getElementById('subtasksList');
@@ -3741,32 +3611,6 @@
             });
         });
 
-        // Scheduled days picker
-        var scheduledDaysPicker = document.getElementById('scheduledDaysPicker');
-        var scheduledDayBtns = scheduledDaysPicker.querySelectorAll('.day-btn');
-        var scheduleVisibilityRow = document.getElementById('scheduleVisibilityRow');
-        var showOnOffDaysToggle = document.getElementById('showOnOffDays');
-
-        scheduledDayBtns.forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                btn.classList.toggle('active');
-                // Read current state from buttons
-                currentScheduledDays = [];
-                scheduledDayBtns.forEach(function(b) {
-                    if (b.classList.contains('active')) {
-                        currentScheduledDays.push(parseInt(b.dataset.day));
-                    }
-                });
-                // Show/hide visibility toggle based on whether specific days are selected
-                var allSelected = currentScheduledDays.length === 7;
-                scheduleVisibilityRow.style.display = allSelected ? 'none' : 'flex';
-            });
-        });
-
-        showOnOffDaysToggle.addEventListener('change', function() {
-            currentShowOnOffDays = this.checked;
-        });
-
         function openTaskModal(section, group, existingItem = null) {
             currentAddSection = section;
             currentAddGroup = group;
@@ -3792,13 +3636,6 @@
 
             // Reset subtasks
             currentSubtasks = [];
-
-            // Reset scheduled days to all
-            currentScheduledDays = [0,1,2,3,4,5,6];
-            currentShowOnOffDays = true;
-            scheduledDayBtns.forEach(function(b) { b.classList.add('active'); });
-            scheduleVisibilityRow.style.display = 'none';
-            showOnOffDaysToggle.checked = true;
 
             if (existingItem) {
                 taskModalTitle.textContent = 'Edit Task';
@@ -3839,20 +3676,6 @@
                 // Load existing subtasks
                 if (existingItem.subtasks && existingItem.subtasks.length > 0) {
                     currentSubtasks = JSON.parse(JSON.stringify(existingItem.subtasks));
-                }
-
-                // Load scheduled days
-                if (existingItem.scheduledDays && Array.isArray(existingItem.scheduledDays)) {
-                    currentScheduledDays = existingItem.scheduledDays.slice();
-                    scheduledDayBtns.forEach(function(b) {
-                        b.classList.toggle('active', currentScheduledDays.indexOf(parseInt(b.dataset.day)) !== -1);
-                    });
-                    var allSelected = currentScheduledDays.length === 7;
-                    scheduleVisibilityRow.style.display = allSelected ? 'none' : 'flex';
-                }
-                if (existingItem.showOnOffDays !== undefined) {
-                    currentShowOnOffDays = existingItem.showOnOffDays;
-                    showOnOffDaysToggle.checked = currentShowOnOffDays;
                 }
 
                 // Hide type toggle when editing (can't change type of existing task)
@@ -3902,10 +3725,6 @@
 
             if (currentTaskEdit) {
                 // Edit existing task
-                // Compute scheduled days to save (undefined = every day)
-                var saveDays = currentScheduledDays.length < 7 ? currentScheduledDays.slice().sort() : undefined;
-                var saveShowOff = saveDays ? currentShowOnOffDays : undefined;
-
                 if (currentTaskEdit.todayOnly) {
                     // Find in todayOnlyTasks
                     const tasks = state.todayOnlyTasks[currentAddSection][currentAddGroup];
@@ -3917,22 +3736,17 @@
                         tasks[idx].isPlaceholder = currentTaskStyle === 'placeholder' ? true : undefined;
                         tasks[idx].isDivider = currentTaskStyle === 'divider' ? true : undefined;
                         tasks[idx].subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
-                        tasks[idx].scheduledDays = saveDays;
-                        tasks[idx].showOnOffDays = saveShowOff;
                     }
                 } else {
                     // Find in permanent tasks
                     const found = findItemById(currentTaskEdit.id);
                     if (found) {
-                        var t = checklistData[found.section][found.group][found.index];
-                        t.title = title;
-                        t.desc = desc;
-                        t.color = currentTaskColor !== 'none' ? currentTaskColor : undefined;
-                        t.isPlaceholder = currentTaskStyle === 'placeholder' ? true : undefined;
-                        t.isDivider = currentTaskStyle === 'divider' ? true : undefined;
-                        t.subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
-                        t.scheduledDays = saveDays;
-                        t.showOnOffDays = saveShowOff;
+                        checklistData[found.section][found.group][found.index].title = title;
+                        checklistData[found.section][found.group][found.index].desc = desc;
+                        checklistData[found.section][found.group][found.index].color = currentTaskColor !== 'none' ? currentTaskColor : undefined;
+                        checklistData[found.section][found.group][found.index].isPlaceholder = currentTaskStyle === 'placeholder' ? true : undefined;
+                        checklistData[found.section][found.group][found.index].isDivider = currentTaskStyle === 'divider' ? true : undefined;
+                        checklistData[found.section][found.group][found.index].subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
                     }
                 }
             } else {
@@ -3958,12 +3772,6 @@
                 // Add subtasks if any
                 if (currentSubtasks.length > 0) {
                     newTask.subtasks = currentSubtasks;
-                }
-
-                // Add scheduled days if not every day
-                if (currentScheduledDays.length < 7) {
-                    newTask.scheduledDays = currentScheduledDays.slice().sort();
-                    newTask.showOnOffDays = currentShowOnOffDays;
                 }
 
                 if (currentTaskType === 'today') {
@@ -4460,15 +4268,10 @@
             try {
                 updateSyncStatus('syncing', 'Syncing...');
 
-                const todayKey = getLocalDateKey();
+                var todayKey = getLocalDateKey();
 
                 // Fetch all data under the key in one call
-                const allData = await firebaseRequest('GET', '');
-
-                // ALWAYS clear completed state first — only restore if today's data exists
-                state.completed = {};
-                state.completedSubtasks = {};
-                state.todayOnlyTasks = null;
+                var allData = await firebaseRequest('GET', '');
 
                 if (allData) {
                     if (allData.master) {
@@ -4477,18 +4280,35 @@
                     } else {
                         console.log('Firebase: no master data found');
                     }
+
                     if (allData.daily && allData.daily[todayKey]) {
-                        const dailyRecord = allData.daily[todayKey];
+                        var dailyRecord = allData.daily[todayKey];
                         // Guard: if the stored date doesn't match today, it's stale data
-                        // from the old UTC date bug — ignore it
                         if (dailyRecord.date && dailyRecord.date !== new Date().toDateString()) {
-                            console.log('Firebase daily record date mismatch — ignoring stale data. Stored: ' + dailyRecord.date + ', Today: ' + new Date().toDateString());
+                            console.log('Firebase daily: date mismatch — ignoring. Stored: ' + dailyRecord.date + ', Today: ' + new Date().toDateString());
+                            // Clear state for a fresh day
+                            state.completed = {};
+                            state.completedSubtasks = {};
+                            state.todayOnlyTasks = null;
                         } else {
+                            // Apply daily data (this replaces state with Firebase data)
                             applyDailyData(dailyRecord);
+                            var taskCount = Object.keys(state.completed).length;
+                            var subCount = Object.keys(state.completedSubtasks).length;
+                            console.log('Firebase daily loaded: ' + taskCount + ' completed tasks, ' + subCount + ' tasks with subtasks');
                         }
+                    } else {
+                        // No daily record for today — start fresh
+                        console.log('Firebase daily: no record for ' + todayKey + ' — starting fresh');
+                        state.completed = {};
+                        state.completedSubtasks = {};
+                        state.todayOnlyTasks = null;
                     }
                 } else {
-                    console.log('Firebase: no data at all');
+                    console.log('Firebase: no data at all — starting fresh');
+                    state.completed = {};
+                    state.completedSubtasks = {};
+                    state.todayOnlyTasks = null;
                 }
 
                 state.lastDate = new Date().toDateString();
@@ -4500,6 +4320,7 @@
                 isSyncing = false;
                 return true;
             } catch (e) {
+                // On error, DON'T clear state — keep whatever was there before
                 console.log('Pull error:', e.message);
                 updateSyncStatus('error', 'Sync failed');
                 isSyncing = false;
@@ -4782,10 +4603,10 @@
             settingsModal.classList.remove('show');
         });
 
-        // Manual sync button
+        // Manual sync button — pull only (never force push, which risks overwriting other devices)
         document.getElementById('manualSyncBtn').addEventListener('click', () => {
             if (firebaseConfig) {
-                syncWithFirebase(true);
+                pullFromFirebase();
             } else {
                 // Show settings if not connected
                 document.getElementById('settingsBtn').click();
@@ -5280,11 +5101,11 @@
                 return;
             }
 
-            // Idle for 3+ minutes → force a fresh Firebase sync
+            // Idle for 3+ minutes → pull latest from Firebase (NEVER force push — that can wipe data)
             if (idleTime > IDLE_RESYNC_MS && firebaseConfig && !isResyncing) {
                 isResyncing = true;
-                console.log('Returned from idle (' + Math.round(idleTime / 1000) + 's) — resyncing');
-                syncWithFirebase(true).finally(() => { isResyncing = false; });
+                console.log('Returned from idle (' + Math.round(idleTime / 1000) + 's) — pulling latest');
+                pullFromFirebase().finally(() => { isResyncing = false; });
             }
         }
 
