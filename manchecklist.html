@@ -4148,6 +4148,7 @@
 
         let firebaseConfig = null;
         let isSyncing = false;
+        let isSyncingTimer = null;
         let lastSyncTime = 0;
         let eventSource = null;
 
@@ -4182,21 +4183,29 @@
             }"></i><span>${message}</span>`;
         }
 
-        // Firebase REST API helper
+        // Firebase REST API helper (with 15s timeout)
         async function firebaseRequest(method, path, body = null) {
             if (!firebaseConfig) return null;
-            const authParam = firebaseConfig.secret ? `?auth=${firebaseConfig.secret}` : '';
-            const url = `${firebaseConfig.databaseUrl}/${firebaseConfig.dataKey}/${path}.json${authParam}`;
+            var authParam = firebaseConfig.secret ? '?auth=' + firebaseConfig.secret : '';
+            var url = firebaseConfig.databaseUrl + '/' + firebaseConfig.dataKey + '/' + path + '.json' + authParam;
 
-            const options = { method, headers: { 'Content-Type': 'application/json' } };
+            var options = { method: method, headers: { 'Content-Type': 'application/json' } };
             if (body !== null) options.body = JSON.stringify(body);
 
-            let response;
+            // Abort after 15 seconds to prevent hanging forever
+            var controller = new AbortController();
+            options.signal = controller.signal;
+            var timeoutId = setTimeout(function() { controller.abort(); }, 15000);
+
+            var response;
             try {
                 response = await fetch(url, options);
+                clearTimeout(timeoutId);
             } catch (networkErr) {
-                console.log(`Firebase ${method} network error:`, networkErr.message);
-                throw new Error('Network error - check your internet connection');
+                clearTimeout(timeoutId);
+                var msg = networkErr.name === 'AbortError' ? 'Request timed out (15s)' : networkErr.message;
+                console.log('Firebase ' + method + ' error:', msg, path);
+                throw new Error(msg);
             }
 
             if (!response.ok) {
@@ -4403,6 +4412,16 @@
             if (isSyncing) return false;
             isSyncing = true;
 
+            // Safety: force-reset isSyncing after 20s in case something hangs
+            if (isSyncingTimer) clearTimeout(isSyncingTimer);
+            isSyncingTimer = setTimeout(function() {
+                if (isSyncing) {
+                    console.log('Pull safety timeout — force-resetting isSyncing');
+                    isSyncing = false;
+                    updateSyncStatus('error', 'Sync timed out');
+                }
+            }, 20000);
+
             try {
                 updateSyncStatus('syncing', 'Syncing...');
 
@@ -4456,12 +4475,14 @@
                 lastSyncTime = Date.now();
                 updateSyncStatus('connected', 'Synced just now');
                 isSyncing = false;
+                if (isSyncingTimer) { clearTimeout(isSyncingTimer); isSyncingTimer = null; }
                 return true;
             } catch (e) {
                 // On error, DON'T clear state — keep whatever was there before
                 console.log('Pull error:', e.message);
                 updateSyncStatus('error', 'Sync failed');
                 isSyncing = false;
+                if (isSyncingTimer) { clearTimeout(isSyncingTimer); isSyncingTimer = null; }
                 return false;
             }
         }
@@ -4849,8 +4870,15 @@
 
             if (firebaseConfig) {
                 updateSyncStatus('syncing', 'Connecting...');
-                syncWithFirebase().then(() => {
+                // Always start the realtime listener — even if initial pull fails
+                pullFromFirebase().then(function(success) {
                     startRealtimeListener();
+                    if (!success) {
+                        updateSyncStatus('error', 'Initial sync failed — retrying via SSE');
+                    }
+                }).catch(function() {
+                    startRealtimeListener();
+                    updateSyncStatus('error', 'Connection error — retrying via SSE');
                 });
             } else {
                 updateSyncStatus('', 'Tap to connect', true);
