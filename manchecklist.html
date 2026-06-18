@@ -1108,6 +1108,78 @@
             transform: translateX(20px);
         }
 
+        /* Day Selector */
+        .day-selector {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .day-btn {
+            flex: 1;
+            min-width: 38px;
+            padding: 6px 2px;
+            border: 2px solid var(--border-color, #e5e7eb);
+            border-radius: 8px;
+            background: var(--card-bg, #fff);
+            color: var(--text-color, #374151);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .day-btn:hover {
+            border-color: var(--primary-color, #2563eb);
+        }
+
+        .day-btn.active {
+            background: var(--primary-color, #2563eb);
+            border-color: var(--primary-color, #2563eb);
+            color: #fff;
+        }
+
+        /* Dimmed task (not active today) */
+        .checklist-item.day-dimmed {
+            opacity: 0.35;
+            pointer-events: none;
+            user-select: none;
+            position: relative;
+        }
+
+        .checklist-item.day-dimmed .checkbox-wrapper,
+        .checklist-item.day-dimmed .item-subtasks {
+            pointer-events: none;
+        }
+
+        body.edit-mode .checklist-item.day-dimmed {
+            opacity: 0.6;
+            pointer-events: auto;
+        }
+
+        body.edit-mode .checklist-item.day-dimmed .item-actions {
+            pointer-events: auto;
+        }
+
+        .day-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 5px;
+            border-radius: 4px;
+            background: var(--primary-color, #2563eb);
+            color: #fff;
+            margin-left: 6px;
+            vertical-align: middle;
+            letter-spacing: 0.3px;
+        }
+
+        .checklist-item.day-dimmed .day-badge {
+            background: var(--text-muted, #9ca3af);
+        }
+
         /* Task Type Toggle */
         .task-type-toggle {
             display: flex;
@@ -2340,6 +2412,17 @@
                 </button>
             </div>
 
+            <label>Active Days <small style="font-weight:400; color:var(--text-muted);">(leave all off = every day)</small></label>
+            <div class="day-selector" id="daySelector">
+                <button type="button" class="day-btn" data-day="0">Sun</button>
+                <button type="button" class="day-btn" data-day="1">Mon</button>
+                <button type="button" class="day-btn" data-day="2">Tue</button>
+                <button type="button" class="day-btn" data-day="3">Wed</button>
+                <button type="button" class="day-btn" data-day="4">Thu</button>
+                <button type="button" class="day-btn" data-day="5">Fri</button>
+                <button type="button" class="day-btn" data-day="6">Sat</button>
+            </div>
+
             <label>Task Duration</label>
             <div class="task-type-toggle" id="taskTypeToggle">
                 <button type="button" class="task-type-btn active" data-type="permanent">
@@ -2902,6 +2985,8 @@
             for (let i = 0; i < items.length; i++) {
                 if (items[i].id === taskId) return false;
                 if (items[i].isPlaceholder || items[i].isDivider) continue;
+                // Skip tasks not active today — they shouldn't block the sequence
+                if (!isTaskActiveToday(items[i])) continue;
                 if (!state.completed[items[i].id]) return true;
             }
             return false;
@@ -2948,13 +3033,31 @@
             });
         }
 
+        function isTaskActiveToday(item) {
+            if (!item.activeDays) return true;
+            var days = Array.isArray(item.activeDays) ? item.activeDays : Object.values(item.activeDays);
+            if (days.length === 0) return true;
+            // Use selectedDate so history view dims based on viewed day
+            var dayOfWeek = selectedDate ? selectedDate.getDay() : new Date().getDay();
+            return days.indexOf(dayOfWeek) !== -1;
+        }
+
+        var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
         function createItem(item, section, group) {
             const isPlaceholder = item.isPlaceholder;
             const isDivider = item.isDivider;
+            const activeToday = isTaskActiveToday(item);
             const checked = !isPlaceholder && !isDivider && state.completed[item.id];
             const locked = !isPlaceholder && !isDivider && !checked && section && group && isTaskLocked(section, group, item.id);
             const timestamp = checked ? checked.time : '';
             const todayBadge = item.todayOnly ? '<span class="item-badge today-only">Today Only</span>' : '';
+            var dayBadge = '';
+            if (item.activeDays && item.activeDays.length > 0 && item.activeDays.length < 7) {
+                var sortedDays = item.activeDays.slice().sort();
+                dayBadge = '<span class="day-badge">' + sortedDays.map(function(d) { return dayNames[d]; }).join(' ') + '</span>';
+            }
+            const dimmedClass = (!activeToday && !isDivider && !isPlaceholder) ? 'day-dimmed' : '';
             const taskColor = getTaskColor(item.color);
             const colorStyle = (taskColor && !isDivider) ? `style="background-color: ${taskColor};"` : '';
             const styleClass = isDivider ? 'divider' : (isPlaceholder ? 'placeholder' : '');
@@ -2990,12 +3093,12 @@
             }
 
             return `
-                <div class="checklist-item ${checked ? 'checked' : ''} ${locked ? 'locked' : ''} ${styleClass}" data-id="${item.id}" data-section="${section || ''}" data-group="${group || ''}" ${colorStyle}>
+                <div class="checklist-item ${checked ? 'checked' : ''} ${locked ? 'locked' : ''} ${dimmedClass} ${styleClass}" data-id="${item.id}" data-section="${section || ''}" data-group="${group || ''}" ${colorStyle}>
                     <div class="checkbox-wrapper">
                         <i class="fas fa-check"></i>
                     </div>
                     <div class="item-content">
-                        <div class="item-title">${escapeHtml(item.title)}${isDivider ? '' : todayBadge}</div>
+                        <div class="item-title">${escapeHtml(item.title)}${isDivider ? '' : todayBadge}${dayBadge}</div>
                         <div class="item-description">${escapeHtml(item.desc || '')}</div>
                         ${(!isPlaceholder && !isDivider) ? `<div class="item-timestamp">
                             <i class="fas fa-clock"></i>
@@ -3108,7 +3211,7 @@
             sections.forEach(section => {
                 const allItems = getAllSectionItems(section);
                 // Filter out placeholders and dividers from progress calculation
-                const checkableItems = allItems.filter(item => !item.isPlaceholder && !item.isDivider);
+                const checkableItems = allItems.filter(item => !item.isPlaceholder && !item.isDivider && isTaskActiveToday(item));
                 const total = checkableItems.length;
                 const done = checkableItems.filter(item => state.completed[item.id]).length;
                 const percent = total > 0 ? (done / total) * 100 : 0;
@@ -3413,6 +3516,7 @@
         let currentTaskType = 'permanent';
         let currentTaskColor = 'none';
         let currentTaskStyle = 'checkable';
+        let currentActiveDays = []; // empty = every day; e.g. [0,6] = Sun & Sat only
         let currentSubtasks = [];
 
         // Subtasks management
@@ -3611,6 +3715,20 @@
             });
         });
 
+        // Day selector
+        var dayBtns = document.querySelectorAll('#daySelector .day-btn');
+        dayBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var day = parseInt(btn.dataset.day);
+                btn.classList.toggle('active');
+                if (btn.classList.contains('active')) {
+                    if (currentActiveDays.indexOf(day) === -1) currentActiveDays.push(day);
+                } else {
+                    currentActiveDays = currentActiveDays.filter(function(d) { return d !== day; });
+                }
+            });
+        });
+
         function openTaskModal(section, group, existingItem = null) {
             currentAddSection = section;
             currentAddGroup = group;
@@ -3633,6 +3751,10 @@
             taskStyleBtns.forEach(b => {
                 b.classList.toggle('active', b.dataset.style === 'checkable');
             });
+
+            // Reset active days
+            currentActiveDays = [];
+            dayBtns.forEach(function(b) { b.classList.remove('active'); });
 
             // Reset subtasks
             currentSubtasks = [];
@@ -3670,6 +3792,14 @@
                     currentTaskStyle = 'placeholder';
                     taskStyleBtns.forEach(b => {
                         b.classList.toggle('active', b.dataset.style === 'placeholder');
+                    });
+                }
+
+                // Load existing active days
+                if (existingItem.activeDays && existingItem.activeDays.length > 0) {
+                    currentActiveDays = existingItem.activeDays.slice();
+                    dayBtns.forEach(function(b) {
+                        b.classList.toggle('active', currentActiveDays.indexOf(parseInt(b.dataset.day)) !== -1);
                     });
                 }
 
@@ -3736,17 +3866,20 @@
                         tasks[idx].isPlaceholder = currentTaskStyle === 'placeholder' ? true : undefined;
                         tasks[idx].isDivider = currentTaskStyle === 'divider' ? true : undefined;
                         tasks[idx].subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
+                        tasks[idx].activeDays = currentActiveDays.length > 0 ? currentActiveDays.slice() : undefined;
                     }
                 } else {
                     // Find in permanent tasks
                     const found = findItemById(currentTaskEdit.id);
                     if (found) {
-                        checklistData[found.section][found.group][found.index].title = title;
-                        checklistData[found.section][found.group][found.index].desc = desc;
-                        checklistData[found.section][found.group][found.index].color = currentTaskColor !== 'none' ? currentTaskColor : undefined;
-                        checklistData[found.section][found.group][found.index].isPlaceholder = currentTaskStyle === 'placeholder' ? true : undefined;
-                        checklistData[found.section][found.group][found.index].isDivider = currentTaskStyle === 'divider' ? true : undefined;
-                        checklistData[found.section][found.group][found.index].subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
+                        var t = checklistData[found.section][found.group][found.index];
+                        t.title = title;
+                        t.desc = desc;
+                        t.color = currentTaskColor !== 'none' ? currentTaskColor : undefined;
+                        t.isPlaceholder = currentTaskStyle === 'placeholder' ? true : undefined;
+                        t.isDivider = currentTaskStyle === 'divider' ? true : undefined;
+                        t.subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
+                        t.activeDays = currentActiveDays.length > 0 ? currentActiveDays.slice() : undefined;
                     }
                 }
             } else {
@@ -3772,6 +3905,11 @@
                 // Add subtasks if any
                 if (currentSubtasks.length > 0) {
                     newTask.subtasks = currentSubtasks;
+                }
+
+                // Add active days if any selected
+                if (currentActiveDays.length > 0) {
+                    newTask.activeDays = currentActiveDays.slice();
                 }
 
                 if (currentTaskType === 'today') {
