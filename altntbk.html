@@ -8821,6 +8821,7 @@ showIdleWakeModal(context) {
  await this.loadViewPreferences();
  await this.loadAutoRefreshSettings();
  await this.loadAutoCapacitySettings();
+ await this.loadDueDateOffsetSettings();
  
  const urlParams = new URLSearchParams(window.location.search);
  const baseId = urlParams.get('baseId');
