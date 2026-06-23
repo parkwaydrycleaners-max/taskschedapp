@@ -870,13 +870,14 @@ function parseSalesReport(text,opts){
     if(!d)continue;
     var key=fmtD(d);
 
-    /* Total Pcs and Total Amt are the last two cells of right page row */
+    /* Total Pcs and Total Amt are the last two cells of right page row.
+       Use parseNum (not parseFloat) to handle commas/dollar signs in values. */
     var pcs=0,amt=0;
     if(right.length>=2){
-      pcs=parseFloat(right[right.length-2])||0;
-      amt=parseFloat(right[right.length-1])||0;
+      pcs=parseNum(right[right.length-2])||0;
+      amt=parseNum(right[right.length-1])||0;
     }else if(right.length===1){
-      pcs=parseFloat(right[0])||0;
+      pcs=parseNum(right[0])||0;
     }
 
     /* Handle duplicate dates (shouldn't happen but just in case) */
