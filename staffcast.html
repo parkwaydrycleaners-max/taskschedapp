@@ -781,112 +781,83 @@ document.getElementById('hrThresholdMax').addEventListener('input',onHrThreshold
 
 /* ================================================================
    PARSE SALES REPORT BY CATEGORY
-   Robust whitespace-based parser adapted from PieceCast. Instead of
-   relying on fixed character positions (which break when POS column
-   widths change), this parser:
-   1. Splits text into sections at each "Sales Report By Category"
-   2. Classifies sections as left/middle/right by header keywords
-   3. Splits data rows on 2+ whitespace (not fixed positions)
-   4. Joins left[i]+middle[i]+right[i] by row index
-   5. Extracts Total Pcs and Total Amt from the combined row
+   State-based parser with whitespace splitting. Scans lines
+   sequentially, toggling between left/middle/right mode as it
+   encounters column header lines. Values are extracted by splitting
+   on whitespace (not fixed character positions), so it handles
+   varying POS column widths without breaking.
    ================================================================ */
-function isReportHeaderLine(line){
-  if(line==='')return true;
-  if(line.indexOf('Sales Report')>=0)return true;
-  if(/^\d{4}\/\d{2}\s*~/.test(line))return true;
-  if(/^\d{4}\.\d{2}\.\d{2}$/.test(line))return true;
-  if(line.indexOf('Drop')>=0&&line.indexOf('Dry')>=0)return true;
-  if(line.indexOf('Alter Pcs')>=0||line.indexOf('Alter Amt')>=0)return true;
-  if(line.indexOf('Press Pcs')>=0||line.indexOf('Press Amt')>=0)return true;
-  if(line.indexOf('Total Pcs')>=0||line.indexOf('Total Amt')>=0)return true;
-  if(line.indexOf('DC Amt')>=0)return true;
-  if(line.indexOf('Laund Amt')>=0&&line.indexOf('Alter')>=0)return true;
-  if(/^[\s=\-]+$/.test(line))return true;
-  return false;
-}
 function parseSalesReport(text,opts){
   opts=opts||{};
   var lines=text.split('\n');
+  var leftRows=[];   /* date strings */
+  var rightRows=[];  /* {totalPcs, totalAmt} */
+  var mode='';       /* '' | 'left' | 'middle' | 'right' */
 
-  /* --- Step 1: Split into sections at each "Sales Report By Category" --- */
-  var sections=[],current=[];
   for(var i=0;i<lines.length;i++){
-    if(lines[i].indexOf('Sales Report By Category')>=0){
-      if(current.length>0)sections.push(current);
-      current=[lines[i]];
-    }else{
-      current.push(lines[i]);
-    }
-  }
-  if(current.length>0)sections.push(current);
+    var trimmed=lines[i].trim();
 
-  /* --- Step 2: Classify each section as left / middle / right --- */
-  var leftRows=[],middleRows=[],rightRows=[];
-  for(var s=0;s<sections.length;s++){
-    var sec=sections[s];
-    var sectionType=null;
-    for(var k=0;k<sec.length;k++){
-      var t=sec[k].trim();
-      if(t.indexOf('Drop')>=0&&t.indexOf('Dry')>=0){sectionType='left';break;}
-      if(t.indexOf('Alter Pcs')>=0||t.indexOf('Alter Amt')>=0){sectionType='middle';break;}
-      if(t.indexOf('Total Pcs')>=0||t.indexOf('DC Amt')>=0){sectionType='right';break;}
+    /* --- Detect column header lines and switch mode --- */
+    /* Left page header: has Drop + Dry */
+    if(trimmed.indexOf('Drop')>=0&&trimmed.indexOf('Dry')>=0){
+      mode='left';continue;
     }
-    if(!sectionType)continue;
+    /* Right page header: has Total Pcs + Total Amt */
+    if(trimmed.indexOf('Total Pcs')>=0&&trimmed.indexOf('Total Amt')>=0){
+      mode='right';continue;
+    }
+    /* Middle page header: has Alter Pcs or Alter Amt — skip middle data */
+    if(trimmed.indexOf('Alter Pcs')>=0||trimmed.indexOf('Alter Amt')>=0){
+      mode='middle';continue;
+    }
+    /* Also catch middle headers with Laund Amt + Alter on same line */
+    if(trimmed.indexOf('Laund Amt')>=0&&trimmed.indexOf('Alter')>=0){
+      mode='middle';continue;
+    }
 
-    /* --- Step 3: Extract data rows by splitting on 2+ whitespace --- */
-    for(var r=0;r<sec.length;r++){
-      var trimmed=sec[r].trim();
-      if(isReportHeaderLine(trimmed))continue;
-      var cells=trimmed.split(/\s{2,}/).filter(function(c){return c.length>0;});
+    /* --- Skip non-data lines --- */
+    if(trimmed.length===0)continue;
+    if(/^[\s=\-]+$/.test(trimmed))continue;
+    if(trimmed.indexOf('Sales Report By Category')>=0)continue;
+    if(/^\d{4}\/\d{2}\s*~/.test(trimmed))continue;
+    if(/^\d{4}\.\d{2}\.\d{2}$/.test(trimmed))continue;
+    /* Skip stray column-label lines that didn't match above */
+    if(trimmed.indexOf('Press Pcs')>=0||trimmed.indexOf('Press Amt')>=0)continue;
+    if(trimmed.indexOf('DC Amt')>=0&&trimmed.indexOf('Total')>=0)continue;
+
+    /* --- Extract data rows based on current mode --- */
+    if(mode==='left'){
+      var dm=trimmed.match(/^(\d{4}\/\d{1,2}\/\d{1,2})/);
+      if(dm)leftRows.push(dm[1]);
+    }else if(mode==='right'){
+      /* Split on any whitespace — right-page cells are all numeric */
+      var cells=trimmed.split(/\s+/).filter(function(c){return c.length>0;});
       if(cells.length<2)continue;
-      if(sectionType==='left'){
-        if(/^\d{4}\//.test(cells[0]))leftRows.push(cells);
-      }else if(sectionType==='middle'){
-        if(/^-?[\d.]/.test(cells[0]))middleRows.push(cells);
-      }else{
-        if(/^-?[\d.]/.test(cells[0]))rightRows.push(cells);
-      }
+      if(!/^-?[\d.,]/.test(cells[0]))continue;
+      /* Total Pcs and Total Amt are always the last two values */
+      var pcs=parseNum(cells[cells.length-2])||0;
+      var amt=parseNum(cells[cells.length-1])||0;
+      rightRows.push({totalPcs:pcs,totalAmt:amt});
     }
+    /* mode==='middle' → skip silently */
   }
 
-  /* --- Step 4: Join left+middle+right by row index --- */
-  /*
-     Left cells:   [Date, Dry Pcs, Dry Amt, Laund Pcs]
-     Middle cells:  [Laund Amt, Alter Pcs, Alter Amt, Press Pcs]
-     Right cells:   [Press Amt, DC Amt, Total Pcs, Total Amt]
-     Combined has 12 columns; Total Pcs = index 10, Total Amt = index 11
-     But column counts can vary, so we take the LAST TWO from right page
-     which are always Total Pcs and Total Amt.
-  */
-  var len=leftRows.length;
+  /* --- Join left and right by row index --- */
+  var len=Math.min(leftRows.length,rightRows.length);
   if(len<1)return null;
 
   var dates=[],totalPcs=[],totalRev=[],pcsMap={},revMap={};
   for(var j=0;j<len;j++){
-    var left=leftRows[j];
-    var right=j<rightRows.length?rightRows[j]:[];
-    /* Date from left page first cell */
-    var d=parseDate(left[0]);
+    var d=parseDate(leftRows[j]);
     if(!d)continue;
     var key=fmtD(d);
-
-    /* Total Pcs and Total Amt are the last two cells of right page row.
-       Use parseNum (not parseFloat) to handle commas/dollar signs in values. */
-    var pcs=0,amt=0;
-    if(right.length>=2){
-      pcs=parseNum(right[right.length-2])||0;
-      amt=parseNum(right[right.length-1])||0;
-    }else if(right.length===1){
-      pcs=parseNum(right[0])||0;
-    }
-
-    /* Handle duplicate dates (shouldn't happen but just in case) */
-    if(pcsMap[key]!==undefined){pcsMap[key]+=pcs;revMap[key]+=amt;continue;}
+    /* Handle duplicate dates */
+    if(pcsMap[key]!==undefined){pcsMap[key]+=rightRows[j].totalPcs;revMap[key]+=rightRows[j].totalAmt;continue;}
     dates.push(d);
-    totalPcs.push(pcs);
-    totalRev.push(amt);
-    pcsMap[key]=pcs;
-    revMap[key]=amt;
+    totalPcs.push(rightRows[j].totalPcs);
+    totalRev.push(rightRows[j].totalAmt);
+    pcsMap[key]=rightRows[j].totalPcs;
+    revMap[key]=rightRows[j].totalAmt;
   }
 
   if(dates.length<1)return null;
