@@ -904,7 +904,18 @@ function parseSalesReport(text,opts){
     delete revMap[lastKey];
   }
 
-  return{dates:dates,totalPcs:totalPcs,totalRev:totalRev,pcsMap:pcsMap,revMap:revMap,droppedDate:droppedDate};
+  /* Scan for lines containing "Total" for debug visibility */
+  var totalHits=[];
+  for(var th=0;th<lines.length&&totalHits.length<3;th++){
+    var tl=lines[th].trim();
+    if(tl.toLowerCase().indexOf('total')>=0&&tl.length<200){
+      totalHits.push(tl.substring(0,80));
+    }
+  }
+
+  return{dates:dates,totalPcs:totalPcs,totalRev:totalRev,pcsMap:pcsMap,revMap:revMap,droppedDate:droppedDate,
+    _debug:{dateRows:dateRows.length,rightRows:rightRows.length,avgCells:Math.round(avgCells*10)/10,
+      wide:!useRightRows,sample:dateRows.length>0?dateRows[0].cells.join(' | '):'',totalHits:totalHits}};
 }
 
 function parseSalesAndUpdate(){
@@ -918,6 +929,10 @@ function parseSalesAndUpdate(){
   var sumRev=parsed.totalRev.reduce(function(a,b){return a+b;},0);
   var msg='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> Parsed '+parsed.dates.length+' days · '+Math.round(sumPcs).toLocaleString()+' total pcs · $'+Math.round(sumRev).toLocaleString()+' revenue</span>';
   if(parsed.droppedDate)msg+=' <span style="color:var(--tx3);font-size:.72rem">(last date '+parsed.droppedDate+' excluded)</span>';
+  if(parsed._debug){
+    var db=parsed._debug;
+    msg+='<br><span style="font-size:.65rem;color:var(--tx3)">DEBUG: '+db.dateRows+' date rows, '+db.rightRows+' right rows, avg '+db.avgCells+' cells/row, mode: '+(db.wide?'wide':'paginated')+'<br>Sample row: '+db.sample+'<br>Lines with "Total": '+(db.totalHits.length>0?db.totalHits.join(' /// '):'NONE FOUND')+'</span>';
+  }
   document.getElementById('salesStatus').innerHTML=msg;
   document.getElementById('clearSalesBtn').style.display='';
   checkImportReady();
