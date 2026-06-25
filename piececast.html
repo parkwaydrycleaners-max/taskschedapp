@@ -813,6 +813,11 @@ function parsePOSReport(text) {
       if (t.includes('Alter Pcs') || t.includes('Alter Amt')) { sectionType = 'middle'; break; }
       if (t.includes('Total Pcs') || t.includes('DC Amt')) { sectionType = 'right'; break; }
     }
+    if (!sectionType) {
+      for (const l of section) {
+        if (l.trim().includes('Total Amt')) { sectionType = 'right'; break; }
+      }
+    }
     if (!sectionType) continue;
 
     // Extract numeric data rows (skip header/meta lines)
@@ -820,8 +825,8 @@ function parsePOSReport(text) {
       const trimmed = line.trim();
       if (isReportHeaderLine(trimmed)) continue;
       // Split on 2+ whitespace
-      const cells = trimmed.split(/\s{2,}/).filter(c => c.length > 0);
-      if (cells.length < 2) continue;
+      const cells = trimmed.split(/\s+/).filter(c => c.length > 0);
+      if (cells.length < 1) continue;
 
       // Left rows start with a date (YYYY/MM/DD); middle & right rows start with a number
       if (sectionType === 'left') {
