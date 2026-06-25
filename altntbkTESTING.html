@@ -208,6 +208,12 @@ tr.recon-checked {
     border-radius: 4px;
 }
 
+.cap-lock-btn { transition: all 0.15s; }
+.cap-lock-btn.locked { color: #dc2626; }
+.cap-lock-btn.unlocked { color: #d1d5db; }
+.cap-lock-btn.unlocked:hover { color: #9ca3af; }
+.cap-locked-column { background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(239,68,68,0.03) 8px, rgba(239,68,68,0.03) 16px); }
+
 .highlight-order {
     outline: 3px solid #5D5CDE !important;
     outline-offset: 2px;
@@ -1581,6 +1587,7 @@ tr.recon-checked {
  this.peopleSpecificCapacity = {};
  this.manuallyDeletedOverrides = new Set(); // Tracks person|date keys deleted by user
  this.manuallySetOverrides = new Set(); // Tracks person|date keys explicitly set by user via Quick Capacity Override
+ this.capacityLockedPersonDays = new Set(); // "person|dateKey" — blocks scheduling into red area
  this.reconciledOrders = new Set(); // Tracks task IDs checked off in Drop Alter Piece Count
  this.posReconViewDate = null; // Currently viewed date in Drop Alter Piece Count modal
  this.returnToDropAlterPieceCount = null; // Date to return to after editing from Drop Alter Piece Count
@@ -1594,7 +1601,6 @@ tr.recon-checked {
  this.dayNoteSyncWarningShown = false;
  this.dayNoteLoadWarningShown = false;
  this.recentLocalTasks = []; // Tasks created/edited locally that may not yet be in Airtable
- this.capacityLockedDays = new Set(); // dateKeys where red-area scheduling is blocked
  this.tasks = {};
 
  // -----------------------------------------------------------------
@@ -3264,31 +3270,18 @@ renderWhiteboard() {
  dateBadgeClass = 'bg-emerald-500 text-white';
  }
 
- const isLocked = this.isDayCapacityLocked(dateKey);
- const lockBtnClass = isLocked
- ? 'bg-red-100 text-red-600 hover:bg-red-200'
- : 'text-gray-400 hover:bg-gray-200';
- const lockIcon = isLocked
- ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>'
- : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path>';
- const lockTitle = isLocked
- ? 'Capacity LOCKED — click to unlock red area'
- : 'Capacity unlocked — click to lock red area';
- const headerTint = isLocked ? 'border-l-4 border-l-red-400 bg-red-50' : '';
-
  column.innerHTML = `
- <div class="p-4 border-b border-gray-200 ${headerTint}">
+ <div class="p-4 border-b border-gray-200 ">
  <div class="flex items-center justify-between mb-2">
  <div class="flex items-center gap-2">
  <h3 class="font-semibold text-lg ">${person}</h3>
  <span class="px-2 py-0.5 rounded-full text-xs font-bold ${dateBadgeClass}">${shortDate}</span>
- ${isLocked ? '<span class="text-red-500 text-xs font-bold" title="Red area locked">🔒</span>' : ''}
+ <button class="cap-lock-btn ${this.isCapacityLocked(person, dateKey) ? 'locked' : 'unlocked'} p-0.5 rounded transition-colors" title="${this.isCapacityLocked(person, dateKey) ? 'Capacity LOCKED — click to unlock red area' : 'Click to lock red area (prevent over-capacity scheduling)'}" data-person="${person}" data-date="${dateKey}">
+ <svg class="w-4 h-4" fill="${this.isCapacityLocked(person, dateKey) ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${this.isCapacityLocked(person, dateKey) ? 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' : 'M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z'}"></path></svg>
+ </button>
  </div>
  <div class="flex space-x-1">
- <button class="capacity-lock-btn p-1 ${lockBtnClass} rounded transition-colors" title="${lockTitle}" data-date="${dateKey}">
- <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${lockIcon}</svg>
- </button>
- <button class="add-task-btn p-1 hover:bg-gray-200 :bg-gray-700 rounded transition-colors" title="Add Order" data-person="${person}" data-date="${this.dateToLocalDateString(date)}">
+ <button class="add-task-btn p-1 hover:bg-gray-200 :bg-gray-700 rounded transition-colors" title="Add Order" data-person="${person}" data-date="${dateKey}">
  <svg class="w-4 h-4 " fill="none" stroke="currentColor" viewBox="0 0 24 24">
  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
  </svg>
@@ -3332,9 +3325,23 @@ renderWhiteboard() {
  </div>
  `;
 
+ // Wire up capacity lock toggle
+ const lockBtn = column.querySelector('.cap-lock-btn');
+ if (lockBtn) {
+     lockBtn.addEventListener('click', (e) => {
+         e.stopPropagation();
+         this.toggleCapacityLock(lockBtn.dataset.person, lockBtn.dataset.date);
+     });
+ }
+
  const taskArea = column.querySelector('.task-area');
  this.addCapacityIndicators(taskArea, capacity);
- 
+
+ // Visual indicator: subtle striped background when locked
+ if (this.isCapacityLocked(person, dateKey)) {
+     taskArea.classList.add('cap-locked-column');
+ }
+
  taskArea.addEventListener('dragover', this.handleDragOver.bind(this));
  taskArea.addEventListener('drop', this.handleDrop.bind(this));
  taskArea.addEventListener('dragleave', this.handleDragLeave.bind(this));
@@ -3692,6 +3699,129 @@ attachTaskCardListeners(card, task) {
  return defaultCapacity;
  }
 
+ // ---------------------------------------------------------------
+ // CAPACITY LOCK — per person+date, prevents scheduling into red
+ // ---------------------------------------------------------------
+ isCapacityLocked(person, dateKey) {
+     return this.capacityLockedPersonDays.has(`${person}|${dateKey}`);
+ }
+
+ async toggleCapacityLock(person, dateKey) {
+     const key = `${person}|${dateKey}`;
+     const wasLocked = this.capacityLockedPersonDays.has(key);
+     if (wasLocked) {
+         this.capacityLockedPersonDays.delete(key);
+     } else {
+         this.capacityLockedPersonDays.add(key);
+     }
+     this.renderWhiteboard();
+     this.showToast(wasLocked ? `🔓 ${person} unlocked for ${dateKey}` : `🔒 ${person} locked — red area blocked for ${dateKey}`, 'success');
+
+     // Persist locally first (instant)
+     await this.saveCapacityLocksToLocal();
+     // Then sync to Airtable (cross-computer)
+     try {
+         await this.syncCapacityLockToAirtable(person, dateKey, !wasLocked);
+     } catch (err) {
+         console.warn('Capacity lock Airtable sync failed (saved locally):', err);
+     }
+ }
+
+ wouldExceedCapacity(person, dateKey, position, duration, excludeTaskId) {
+     const date = new Date(dateKey + 'T12:00:00');
+     const capacity = this.getPersonCapacityForDate(person, date);
+     const taskEnd = position + duration;
+     // Check if any part of the task extends past the capacity line
+     return taskEnd > capacity;
+ }
+
+ async saveCapacityLocksToLocal() {
+     try {
+         const db = await this.openConfigDatabase();
+         const transaction = db.transaction(['config'], 'readwrite');
+         const store = transaction.objectStore('config');
+         const data = {
+             id: 'capacity-locks',
+             locks: Array.from(this.capacityLockedPersonDays)
+         };
+         await new Promise((resolve, reject) => {
+             const req = store.put(data);
+             req.onsuccess = () => resolve();
+             req.onerror = () => reject(req.error);
+         });
+     } catch (err) {
+         console.warn('Could not save capacity locks locally:', err);
+     }
+ }
+
+ async loadCapacityLocksFromLocal() {
+     try {
+         const db = await this.openConfigDatabase();
+         const transaction = db.transaction(['config'], 'readonly');
+         const store = transaction.objectStore('config');
+         const result = await new Promise((resolve) => {
+             const req = store.get('capacity-locks');
+             req.onsuccess = () => resolve(req.result);
+             req.onerror = () => resolve(null);
+         });
+         if (result && Array.isArray(result.locks)) {
+             this.capacityLockedPersonDays = new Set(result.locks);
+         }
+     } catch (err) {
+         console.warn('Could not load capacity locks locally:', err);
+     }
+ }
+
+ async syncCapacityLockToAirtable(person, dateKey, isLocked) {
+     if (!this.airtableConfig.apiKey || !this.airtableConfig.baseId) return;
+     const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
+
+     try {
+         // Find existing record for this person+date
+         const filterFormula = `AND({Person}='${person}',{Date}='${dateKey}')`;
+         const response = await this.makeAirtableRequest(`${tableName}?filterByFormula=${encodeURIComponent(filterFormula)}`);
+
+         if (response.records.length > 0) {
+             // Update existing record — try with CapacityLocked field
+             const recordId = response.records[0].id;
+             try {
+                 await this.makeAirtableRequest(tableName, 'PATCH', {
+                     records: [{ id: recordId, fields: { CapacityLocked: isLocked } }]
+                 });
+             } catch (fieldErr) {
+                 // Field might not exist — try creating it by using full record update
+                 if (String(fieldErr).includes('UNKNOWN_FIELD_NAME')) {
+                     console.warn('CapacityLocked field not found in Airtable. Please add a Checkbox field named "CapacityLocked" to your CapacityOverrides table for cross-computer lock sync.');
+                 } else {
+                     throw fieldErr;
+                 }
+             }
+         } else {
+             // No override record exists — create one with current effective capacity + lock
+             const date = new Date(dateKey + 'T12:00:00');
+             const currentCapacity = this.getPersonCapacityForDate(person, date);
+             const fields = { Person: person, Date: dateKey, Capacity: currentCapacity };
+             try {
+                 fields.CapacityLocked = isLocked;
+                 await this.makeAirtableRequest(tableName, 'POST', { records: [{ fields }] });
+             } catch (fieldErr) {
+                 if (String(fieldErr).includes('UNKNOWN_FIELD_NAME')) {
+                     delete fields.CapacityLocked;
+                     await this.makeAirtableRequest(tableName, 'POST', { records: [{ fields }] });
+                     console.warn('CapacityLocked field not found. Please add a Checkbox field named "CapacityLocked" to CapacityOverrides table.');
+                 } else {
+                     throw fieldErr;
+                 }
+             }
+             // Also save the capacity override locally
+             if (!this.peopleSpecificCapacity[person]) this.peopleSpecificCapacity[person] = {};
+             this.peopleSpecificCapacity[person][dateKey] = currentCapacity;
+         }
+     } catch (err) {
+         console.warn('Failed to sync capacity lock to Airtable:', err);
+     }
+ }
+
  async saveViewPreferences() {
  try {
  const db = await this.openConfigDatabase();
@@ -3815,10 +3945,6 @@ attachTaskCardListeners(card, task) {
  } else if (e.target.closest('.remove-person-btn')) {
  const person = e.target.closest('.remove-person-btn').dataset.person;
  this.showRemovePersonConfirmation(person);
- } else if (e.target.closest('.capacity-lock-btn')) {
- const btn = e.target.closest('.capacity-lock-btn');
- const dateKey = btn.dataset.date;
- this.toggleCapacityLock(dateKey);
  } else if (e.target.closest('.snap-cards-btn')) {
  const btn = e.target.closest('.snap-cards-btn');
  const person = btn.dataset.person;
@@ -5198,12 +5324,12 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  const y = e.clientY - rect.top;
  let slotPosition = Math.floor(y / 32);
 
- const adjustedPosition = this.findNonCollidingPosition(newPerson, newDate, slotPosition, this.draggedElement.dataset.taskId);
  const taskId = this.draggedElement.dataset.taskId;
+ const adjustedPosition = this.findNonCollidingPosition(newPerson, newDate, slotPosition, taskId);
 
- // Capacity lock guard: reject if no valid position found
+ // If locked and no valid position, reject the drop
  if (adjustedPosition === -1) {
- this.showToast('🔒 This day is capacity-locked — cannot schedule into the red area.', 'error');
+ this.showToast(`🔒 ${newPerson} is capacity-locked on ${newDate} — cannot schedule into the red area.`, 'error');
  this.renderWhiteboard();
  return;
  }
@@ -5321,13 +5447,14 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  
  findNonCollidingPosition(person, dateKey, slotPosition, taskId) {
  const existingTasks = this.tasks[dateKey]?.[person] || [];
- const ceiling = this.getCapacityCeilingForDay(person, dateKey);
- const isLocked = this.isDayCapacityLocked(dateKey);
+ const locked = this.isCapacityLocked(person, dateKey);
+ const date = new Date(dateKey + 'T12:00:00');
+ const capacity = this.getPersonCapacityForDate(person, date);
 
  let taskDuration = 2;
- for (const date in this.tasks) {
- for (const p in this.tasks[date]) {
- const foundTask = this.tasks[date][p].find(t => t.id == taskId);
+ for (const d in this.tasks) {
+ for (const p in this.tasks[d]) {
+ const foundTask = this.tasks[d][p].find(t => t.id == taskId);
  if (foundTask) {
  taskDuration = foundTask.duration;
  break;
@@ -5336,6 +5463,9 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  if (taskDuration !== 2) break;
  }
 
+ // When locked, the max boundary is capacity instead of 32
+ const maxSlot = locked ? capacity : 32;
+
  function hasCollision(pos) {
  return existingTasks.some(task => {
  if (task.id == taskId) return false;
@@ -5343,30 +5473,32 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  });
  }
 
- const maxPos = ceiling - taskDuration;
-
- if (!hasCollision(slotPosition) && slotPosition <= maxPos) {
- return Math.max(0, Math.min(slotPosition, maxPos));
+ if (!hasCollision(slotPosition) && slotPosition + taskDuration <= maxSlot) {
+ return Math.max(0, Math.min(slotPosition, maxSlot - taskDuration));
  }
 
- for (let pos = Math.min(slotPosition, maxPos); pos <= maxPos; pos++) {
+ for (let pos = slotPosition; pos <= maxSlot - taskDuration; pos++) {
  if (!hasCollision(pos)) return pos;
  }
 
- for (let pos = Math.min(slotPosition - 1, maxPos); pos >= 0; pos--) {
- if (!hasCollision(pos)) return pos;
+ for (let pos = slotPosition - 1; pos >= 0; pos--) {
+ if (!hasCollision(pos) && pos + taskDuration <= maxSlot) return pos;
  }
 
- if (isLocked) {
- return -1;
- }
+ // If locked and no valid position exists, return -1 to signal rejection
+ if (locked) return -1;
 
  return Math.max(0, 32 - taskDuration);
  }
- 
+
  findOptimalPosition(person, dateKey, duration) {
  const existingTasks = this.tasks[dateKey]?.[person] || [];
- const ceiling = this.getCapacityCeilingForDay(person, dateKey);
+ const locked = this.isCapacityLocked(person, dateKey);
+ const date = new Date(dateKey + 'T12:00:00');
+ const capacity = this.getPersonCapacityForDate(person, date);
+
+ // When locked, the max boundary is capacity instead of 32
+ const maxSlot = locked ? capacity : 32;
 
  function hasCollision(pos) {
  return existingTasks.some(task => {
@@ -5374,15 +5506,14 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  });
  }
 
- for (let pos = 0; pos <= ceiling - duration; pos++) {
+ for (let pos = 0; pos <= maxSlot - duration; pos++) {
  if (!hasCollision(pos)) {
  return pos;
  }
  }
 
- if (this.isDayCapacityLocked(dateKey)) {
- return -1;
- }
+ // If locked and no valid position, return -1 to signal rejection
+ if (locked) return -1;
 
  return Math.max(0, 32 - duration);
  }
@@ -8386,13 +8517,6 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  <input type="number" id="overrideCapacity" min="0" max="32" value="0" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
  </div>
  </div>
- <div class="flex items-center mt-3 mb-3">
- <label class="flex items-center cursor-pointer select-none">
- <input type="checkbox" id="overrideLockCapacity" class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500 mr-2">
- <span class="text-sm font-medium text-gray-700">🔒 Lock capacity for these dates</span>
- <span class="text-xs text-gray-400 ml-2">(prevents scheduling into red area)</span>
- </label>
- </div>
  <div class="flex justify-between items-center">
  <div class="flex space-x-2">
  <button id="quickAbsentToday" class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors">Absent Today</button>
@@ -8411,20 +8535,16 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  '<p class="text-gray-500 text-sm">No capacity overrides set.</p>' :
  sortedDates.map(date => {
  const capacity = currentOverrides[date];
- const isDateLocked = this.isDayCapacityLocked(date);
  // Fix date display issue by parsing the date string properly
  const parsedDate = this.parseDateString(date);
  const formattedDate = parsedDate ? this.formatDateForDisplay(parsedDate) : date;
  return `
- <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border ${isDateLocked ? 'border-red-300 bg-red-50' : ''}">
+ <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
  <div>
- <div class="font-medium">${formattedDate} ${isDateLocked ? '<span class="text-red-500 text-xs font-bold">🔒 Locked</span>' : ''}</div>
+ <div class="font-medium">${formattedDate}</div>
  <div class="text-sm text-gray-500">${capacity} slots (${Math.floor(capacity * 15 / 60)}h ${(capacity * 15) % 60}m)</div>
  </div>
- <div class="flex space-x-2">
- <button class="toggle-lock-override px-3 py-1 text-sm ${isDateLocked ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white rounded transition-colors" data-date="${date}">${isDateLocked ? '🔓 Unlock' : '🔒 Lock'}</button>
  <button class="remove-override px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors" data-date="${date}">Remove</button>
- </div>
  </div>
  `;
  }).join('')
@@ -8490,27 +8610,11 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  return;
  }
  
- const lockCheckbox = modal.querySelector('#overrideLockCapacity');
  await this.addCapacityOverride(person, startDate, endDate, capacity);
- // Also lock/unlock the dates if checkbox is checked
- if (lockCheckbox && lockCheckbox.checked) {
- const dates = this.getOverrideDateRange(startDate, endDate);
- dates.forEach(d => this.capacityLockedDays.add(d));
- this.saveCapacityLockedDaysToLocal();
- }
  document.body.removeChild(modal);
  this.showCapacityOverridesModal(person);
  });
-
- modal.querySelectorAll('.toggle-lock-override').forEach(btn => {
- btn.addEventListener('click', () => {
- const date = btn.dataset.date;
- this.toggleCapacityLock(date);
- document.body.removeChild(modal);
- this.showCapacityOverridesModal(person);
- });
- });
-
+ 
  modal.querySelectorAll('.remove-override').forEach(btn => {
  btn.addEventListener('click', async () => {
  const date = btn.dataset.date;
@@ -9294,115 +9398,6 @@ if (savedConfig) {
  if (toRemove.length > 0) {
  this.saveManuallySetOverridesToLocal();
  }
- }
-
- // ---------------------------------------------------------------
- // CAPACITY-LOCKED DAYS PERSISTENCE
- // Prevents scheduling into the red (over-capacity) zone on locked days
- // ---------------------------------------------------------------
- async saveCapacityLockedDaysToLocal() {
- try {
- const db = await this.openConfigDatabase();
- const transaction = db.transaction(['config'], 'readwrite');
- const store = transaction.objectStore('config');
-
- const dataToSave = {
- id: 'capacity-locked-days',
- data: Array.from(this.capacityLockedDays || []),
- lastSaved: new Date().toISOString()
- };
-
- return new Promise((resolve, reject) => {
- const request = store.put(dataToSave);
- request.onsuccess = () => resolve();
- request.onerror = () => reject(request.error);
- });
- } catch (error) {
- console.warn('Could not save capacity locked days:', error);
- }
- }
-
- async loadCapacityLockedDaysFromLocal() {
- try {
- const db = await this.openConfigDatabase();
- const transaction = db.transaction(['config'], 'readonly');
- const store = transaction.objectStore('config');
-
- return new Promise((resolve) => {
- const request = store.get('capacity-locked-days');
- request.onsuccess = () => {
- const result = request.result;
- if (result && Array.isArray(result.data)) {
- this.capacityLockedDays = new Set(result.data);
- this.cleanupCapacityLockedDays();
- }
- resolve();
- };
- request.onerror = () => resolve();
- });
- } catch (error) {
- console.warn('Could not load capacity locked days:', error);
- }
- }
-
- cleanupCapacityLockedDays() {
- // Remove entries older than 35 days to prevent unbounded growth
- const cutoff = new Date();
- cutoff.setDate(cutoff.getDate() - 35);
- const cutoffStr = this.dateToLocalDateString(cutoff);
-
- const toRemove = [];
- this.capacityLockedDays.forEach(dateKey => {
- if (dateKey < cutoffStr) {
- toRemove.push(dateKey);
- }
- });
-
- toRemove.forEach(key => this.capacityLockedDays.delete(key));
- if (toRemove.length > 0) {
- this.saveCapacityLockedDaysToLocal();
- }
- }
-
- toggleCapacityLock(dateKey) {
- if (this.capacityLockedDays.has(dateKey)) {
- this.capacityLockedDays.delete(dateKey);
- this.showToast('🔓 Capacity unlocked — scheduling into red area is allowed', 'success');
- } else {
- this.capacityLockedDays.add(dateKey);
- this.showToast('🔒 Capacity locked — scheduling into red area is blocked', 'success');
- }
- this.saveCapacityLockedDaysToLocal();
- this.renderWhiteboard();
- }
-
- isDayCapacityLocked(dateKey) {
- return this.capacityLockedDays && this.capacityLockedDays.has(dateKey);
- }
-
- getOverrideDateRange(startDate, endDate) {
- const dates = [];
- const start = this.parseDateString(startDate);
- if (!endDate || endDate === startDate) {
- dates.push(this.dateToLocalDateString(start));
- return dates;
- }
- const end = this.parseDateString(endDate);
- const current = new Date(start);
- while (current.getTime() <= end.getTime()) {
- dates.push(this.dateToLocalDateString(current));
- current.setDate(current.getDate() + 1);
- }
- return dates;
- }
-
- getCapacityCeilingForDay(person, dateKey) {
- const date = this.parseDateString(dateKey);
- const capacity = this.getPersonCapacityForDate(person, date);
- if (this.isDayCapacityLocked(dateKey)) {
- return Math.min(capacity, 32);
- }
- return 32;
  }
 
  // ---------------------------------------------------------------
@@ -10515,7 +10510,6 @@ async loadAllDataFromAirtable() {
  // so it knows which person+date combos to skip
  await this.loadManuallyDeletedOverridesFromLocal();
  await this.loadManuallySetOverridesFromLocal();
- await this.loadCapacityLockedDaysFromLocal();
 
  if (this.autoCapacityRule && this.autoCapacityRule.enabled) {
  this.applyAutoCapacityRule();
