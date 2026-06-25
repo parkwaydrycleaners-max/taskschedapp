@@ -199,6 +199,15 @@ tr.recon-checked {
     background-color: rgba(34, 197, 94, 0.08) !important;
 }
 
+@keyframes reconCountFlash {
+    0% { background-color: #c7d2fe; transform: scale(1.15); }
+    100% { background-color: transparent; transform: scale(1); }
+}
+.recon-count-flash {
+    animation: reconCountFlash 0.8s ease-out;
+    border-radius: 4px;
+}
+
 .highlight-order {
     outline: 3px solid #5D5CDE !important;
     outline-offset: 2px;
@@ -399,8 +408,26 @@ tr.recon-checked {
 
                     <!-- Drop report count input -->
                     <div class="flex items-center space-x-2">
-                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Drop Report</span>
-                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="posReconPosCount" class="w-16 p-1.5 text-center text-base font-bold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="—">
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Drop</span>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="posReconPosCount" class="w-14 p-1.5 text-center text-base font-bold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="—">
+                    </div>
+
+                    <!-- Plus sign -->
+                    <span class="text-gray-400 font-bold text-lg">+</span>
+
+                    <!-- Redos count input -->
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs font-semibold text-orange-500 uppercase tracking-wide">Redos</span>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="posReconRedoCount" class="w-14 p-1.5 text-center text-base font-bold border border-orange-300 rounded-lg bg-orange-50 focus:ring-2 focus:ring-orange-500 focus:border-transparent text-orange-700" placeholder="0">
+                    </div>
+
+                    <!-- Equals sign -->
+                    <span class="text-gray-400 font-bold text-lg">=</span>
+
+                    <!-- Total Drop -->
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</span>
+                        <span id="posReconTotalDrop" class="text-lg font-bold text-gray-700">0</span>
                         <span class="text-xs text-gray-400">pcs</span>
                     </div>
 
@@ -535,13 +562,6 @@ tr.recon-checked {
                     <div>
                         <span class="block text-sm font-medium mb-2">Description: Quantity, Item Name, Alterations, and if RUSH.</span>
                         <textarea id="descriptionInput" placeholder="Example: 1 pants hem RUSH" rows="3" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
-                        <!-- Quick Numbers -->
-                        <div class="mt-2">
-                            <span class="block text-xs text-gray-500 mb-1">Quick numbers:</span>
-                            <div id="quickNumbersList" class="flex flex-wrap gap-1 mb-3">
-                                <!-- Populated by JavaScript -->
-                            </div>
-                        </div>
                         <!-- Common Words -->
                         <div class="mt-2">
                             <span class="block text-xs text-gray-500 mb-1">Common words:</span>
@@ -1574,6 +1594,7 @@ tr.recon-checked {
  this.dayNoteSyncWarningShown = false;
  this.dayNoteLoadWarningShown = false;
  this.recentLocalTasks = []; // Tasks created/edited locally that may not yet be in Airtable
+ this.capacityLockedDays = new Set(); // dateKeys where red-area scheduling is blocked
  this.tasks = {};
 
  // -----------------------------------------------------------------
@@ -2302,8 +2323,8 @@ tr.recon-checked {
 			 
 			 switch(column) {
 			 case 'orderNumber':
-			 valueA = parseInt((a.task.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
-			 valueB = parseInt((b.task.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
+			 valueA = parseInt(String(a.task.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
+			 valueB = parseInt(String(b.task.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
 			 break;
 			 case 'person':
 			 valueA = a.person;
@@ -3077,11 +3098,12 @@ async loadDueDateOffsetSettings() {
  
 // Whiteboard Rendering
 renderWhiteboard() {
- 
+
  const whiteboard = document.getElementById('whiteboard');
  const emptyState = document.getElementById('emptyState');
- 
- 
+
+ try {
+
  if (!this.people || this.people.length === 0) {
  whiteboard.innerHTML = '';
  if (emptyState) {
@@ -3089,14 +3111,14 @@ renderWhiteboard() {
  }
  return;
  }
- 
- 
+
+
  // Rest of your existing code...
  whiteboard.innerHTML = '';
  if (emptyState && emptyState.parentNode) {
  emptyState.style.display = 'none';
  }
- 
+
  for (let dayOffset = 0; dayOffset < this.viewDays; dayOffset++) {
  const viewDate = new Date(this.currentDate);
  viewDate.setDate(viewDate.getDate() + dayOffset);
@@ -3105,8 +3127,10 @@ renderWhiteboard() {
  whiteboard.appendChild(dayContainer);
  }
 
- // Update drop alter piece count bar
+ } finally {
+ // ALWAYS update POS recon counts, even if rendering throws an error
  this.updatePosReconCounts();
+ }
 
 }
  
@@ -3240,14 +3264,30 @@ renderWhiteboard() {
  dateBadgeClass = 'bg-emerald-500 text-white';
  }
 
+ const isLocked = this.isDayCapacityLocked(dateKey);
+ const lockBtnClass = isLocked
+ ? 'bg-red-100 text-red-600 hover:bg-red-200'
+ : 'text-gray-400 hover:bg-gray-200';
+ const lockIcon = isLocked
+ ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>'
+ : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path>';
+ const lockTitle = isLocked
+ ? 'Capacity LOCKED — click to unlock red area'
+ : 'Capacity unlocked — click to lock red area';
+ const headerTint = isLocked ? 'border-l-4 border-l-red-400 bg-red-50' : '';
+
  column.innerHTML = `
- <div class="p-4 border-b border-gray-200 ">
+ <div class="p-4 border-b border-gray-200 ${headerTint}">
  <div class="flex items-center justify-between mb-2">
  <div class="flex items-center gap-2">
  <h3 class="font-semibold text-lg ">${person}</h3>
  <span class="px-2 py-0.5 rounded-full text-xs font-bold ${dateBadgeClass}">${shortDate}</span>
+ ${isLocked ? '<span class="text-red-500 text-xs font-bold" title="Red area locked">🔒</span>' : ''}
  </div>
  <div class="flex space-x-1">
+ <button class="capacity-lock-btn p-1 ${lockBtnClass} rounded transition-colors" title="${lockTitle}" data-date="${dateKey}">
+ <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${lockIcon}</svg>
+ </button>
  <button class="add-task-btn p-1 hover:bg-gray-200 :bg-gray-700 rounded transition-colors" title="Add Order" data-person="${person}" data-date="${this.dateToLocalDateString(date)}">
  <svg class="w-4 h-4 " fill="none" stroke="currentColor" viewBox="0 0 24 24">
  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
@@ -3775,6 +3815,10 @@ attachTaskCardListeners(card, task) {
  } else if (e.target.closest('.remove-person-btn')) {
  const person = e.target.closest('.remove-person-btn').dataset.person;
  this.showRemovePersonConfirmation(person);
+ } else if (e.target.closest('.capacity-lock-btn')) {
+ const btn = e.target.closest('.capacity-lock-btn');
+ const dateKey = btn.dataset.date;
+ this.toggleCapacityLock(dateKey);
  } else if (e.target.closest('.snap-cards-btn')) {
  const btn = e.target.closest('.snap-cards-btn');
  const person = btn.dataset.person;
@@ -4045,6 +4089,7 @@ attachSearchListeners() {
  // ---------------------------------------------------------------
  attachPosReconListeners() {
  document.getElementById('posReconPosCount').addEventListener('input', () => this.updatePosReconStatus());
+ document.getElementById('posReconRedoCount').addEventListener('input', () => this.updatePosReconStatus());
  document.getElementById('posReconDetailBtn').addEventListener('click', () => this.showPosReconDetailModal());
  document.getElementById('posReconDetailClose').addEventListener('click', () => {
      document.getElementById('posReconDetailModal').classList.add('hidden');
@@ -4115,7 +4160,8 @@ attachSearchListeners() {
              const personTasks = this.tasks[dateKey][person];
              if (!Array.isArray(personTasks)) continue;
              personTasks.forEach(task => {
-                 if (task.createdAt && task.createdAt === targetDateStr) {
+                 const taskCreatedDate = task.createdAt ? String(task.createdAt).substring(0, 10) : '';
+                if (taskCreatedDate && taskCreatedDate === targetDateStr) {
                      orders.push({
                          orderNumber: task.orderNumber || '—',
                          person: person,
@@ -4135,9 +4181,10 @@ attachSearchListeners() {
      const sortDir = this.reconSortState.direction === 'desc' ? -1 : 1;
      if (sortCol === 'order') {
          orders.sort((a, b) => {
-             const numA = parseInt((a.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
-             const numB = parseInt((b.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
-             return (numA - numB) * sortDir;
+             const numA = parseInt(String(a.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
+             const numB = parseInt(String(b.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
+             if (numA !== numB) return (numA - numB) * sortDir;
+             return String(a.orderNumber || '').localeCompare(String(b.orderNumber || '')) * sortDir;
          });
      } else if (sortCol === 'pieces') {
          orders.sort((a, b) => (a.pieces - b.pieces) * sortDir);
@@ -4148,8 +4195,14 @@ attachSearchListeners() {
              return (aChecked - bChecked) * sortDir;
          });
      } else {
-         // Default: person then order number
-         orders.sort((a, b) => a.person.localeCompare(b.person) || a.orderNumber.localeCompare(b.orderNumber));
+         // Default: person then order number (numeric)
+         orders.sort((a, b) => {
+             const personCmp = a.person.localeCompare(b.person);
+             if (personCmp !== 0) return personCmp;
+             const numA = parseInt(String(a.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
+             const numB = parseInt(String(b.orderNumber || '').replace(/[^0-9]/g, '')) || 0;
+             return numA - numB;
+         });
      }
 
      // Update sort arrows in header
@@ -4231,17 +4284,21 @@ attachSearchListeners() {
      if (summaryEl) {
          if (isToday) {
              const posInput = document.getElementById('posReconPosCount');
+             const redoInput = document.getElementById('posReconRedoCount');
              const posValue = posInput ? posInput.value.trim() : '';
-             if (posValue !== '') {
+             const redoValue = redoInput ? redoInput.value.trim() : '';
+             if (posValue !== '' || redoValue !== '') {
                  const posCount = parseInt(posValue) || 0;
+                 const redoCount = parseInt(redoValue) || 0;
+                 const totalDrop = posCount + redoCount;
                  const { totalPieces: todayTotalPieces } = this.getTodayPieceCounts();
-                 const diff = todayTotalPieces - posCount;
+                 const diff = todayTotalPieces - totalDrop;
                  if (diff === 0) {
-                     summaryEl.innerHTML = '<span class="text-green-700">✅ Matches drop report</span>';
+                     summaryEl.innerHTML = '<span class="text-green-700">✅ Matches drop + redos</span>';
                  } else if (diff > 0) {
-                     summaryEl.innerHTML = `<span class="text-yellow-700">⚠️ ${diff} more than drop report</span>`;
+                     summaryEl.innerHTML = `<span class="text-yellow-700">⚠️ ${diff} more than drop + redos</span>`;
                  } else {
-                     summaryEl.innerHTML = `<span class="text-red-700">🚨 ${Math.abs(diff)} missing vs drop report</span>`;
+                     summaryEl.innerHTML = `<span class="text-red-700">🚨 ${Math.abs(diff)} missing vs drop + redos</span>`;
                  }
              } else {
                  summaryEl.textContent = '';
@@ -4288,6 +4345,8 @@ attachSearchListeners() {
  const todayStr = this.dateToLocalDateString(new Date());
  let totalPieces = 0;
  let totalOrders = 0;
+ let debugMatched = [];
+ let debugSkipped = [];
 
  // Scan ALL tasks across all dates, filter by createdAt = today
  for (const dateKey in this.tasks) {
@@ -4295,14 +4354,21 @@ attachSearchListeners() {
          const personTasks = this.tasks[dateKey][person];
          if (!Array.isArray(personTasks)) continue;
          personTasks.forEach(task => {
-             // Only count orders that have a createdAt matching today
-             if (task.createdAt && task.createdAt === todayStr) {
+             const taskCreatedDate = task.createdAt ? String(task.createdAt).substring(0, 10) : '';
+             if (taskCreatedDate && taskCreatedDate === todayStr) {
                  totalOrders++;
                  totalPieces += parseInt(task.alterationPieces) || 0;
+                 debugMatched.push({order: task.orderNumber, pieces: task.alterationPieces, createdAt: task.createdAt});
+             } else if (task.createdAt) {
+                 debugSkipped.push({order: task.orderNumber, createdAt: task.createdAt, createdDate: taskCreatedDate});
              }
          });
      }
  }
+
+ console.log('[POS Recon] getTodayPieceCounts: today=' + todayStr + ' matched=' + totalOrders + ' totalPieces=' + totalPieces);
+ if (debugMatched.length > 0) console.log('[POS Recon] Matched orders: ' + JSON.stringify(debugMatched));
+ if (debugSkipped.length > 0 && debugSkipped.length <= 10) console.log('[POS Recon] Skipped (wrong date): ' + JSON.stringify(debugSkipped));
 
  return { totalPieces, totalOrders };
  }
@@ -4313,7 +4379,20 @@ attachSearchListeners() {
  const appOrdersEl = document.getElementById('posReconAppOrders');
  const dateEl = document.getElementById('posReconDate');
 
- if (appCountEl) appCountEl.textContent = totalPieces;
+ const caller = new Error().stack.split('\n')[2]?.trim() || 'unknown';
+ console.log('[POS Recon] updatePosReconCounts called: pieces=' + totalPieces + ' orders=' + totalOrders + ' element=' + (appCountEl ? 'found(current:' + appCountEl.textContent + ')' : 'NULL') + ' from: ' + caller);
+
+ if (appCountEl) {
+     // Detect if value actually changed to flash a highlight
+     const oldValue = appCountEl.textContent;
+     appCountEl.textContent = totalPieces;
+     if (String(totalPieces) !== oldValue) {
+         appCountEl.classList.remove('recon-count-flash');
+         // Force reflow so removing and re-adding the class triggers animation
+         void appCountEl.offsetWidth;
+         appCountEl.classList.add('recon-count-flash');
+     }
+ }
  if (appOrdersEl) appOrdersEl.textContent = `${totalOrders} order${totalOrders !== 1 ? 's' : ''}`;
 
  const today = new Date();
@@ -4324,30 +4403,40 @@ attachSearchListeners() {
 
  updatePosReconStatus() {
  const posInput = document.getElementById('posReconPosCount');
+ const redoInput = document.getElementById('posReconRedoCount');
+ const totalDropEl = document.getElementById('posReconTotalDrop');
  const statusEl = document.getElementById('posReconStatus');
  if (!posInput || !statusEl) return;
 
  const posValue = posInput.value.trim();
- if (posValue === '') {
+ const redoValue = redoInput ? redoInput.value.trim() : '';
+ const posCount = parseInt(posValue) || 0;
+ const redoCount = parseInt(redoValue) || 0;
+ const totalDrop = posCount + redoCount;
+
+ // Update total drop display
+ if (totalDropEl) totalDropEl.textContent = totalDrop;
+
+ if (posValue === '' && redoValue === '') {
  statusEl.innerHTML = '<span class="text-sm text-gray-400 italic">Enter drop report count to compare</span>';
- posInput.className = 'w-16 p-1.5 text-center text-base font-bold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent';
+ posInput.className = 'w-14 p-1.5 text-center text-base font-bold border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent';
+ if (totalDropEl) totalDropEl.textContent = '0';
  return;
  }
 
- const posCount = parseInt(posValue) || 0;
  const { totalPieces } = this.getTodayPieceCounts();
- const diff = totalPieces - posCount;
+ const diff = totalPieces - totalDrop;
 
  if (diff === 0) {
  statusEl.innerHTML = '<span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">✅ Counts match!</span>';
- posInput.className = 'w-16 p-1.5 text-center text-base font-bold border-2 border-green-500 rounded-lg bg-green-50 focus:ring-2 focus:ring-green-500 focus:border-transparent text-green-700';
+ posInput.className = 'w-14 p-1.5 text-center text-base font-bold border-2 border-green-500 rounded-lg bg-green-50 focus:ring-2 focus:ring-green-500 focus:border-transparent text-green-700';
  } else if (diff > 0) {
- statusEl.innerHTML = `<span class="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">⚠️ App has ${diff} more piece${diff !== 1 ? 's' : ''} than drop report</span>`;
- posInput.className = 'w-16 p-1.5 text-center text-base font-bold border-2 border-yellow-500 rounded-lg bg-yellow-50 focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-yellow-700';
+ statusEl.innerHTML = `<span class="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">⚠️ App has ${diff} more piece${diff !== 1 ? 's' : ''}</span>`;
+ posInput.className = 'w-14 p-1.5 text-center text-base font-bold border-2 border-yellow-500 rounded-lg bg-yellow-50 focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-yellow-700';
  } else {
  const missing = Math.abs(diff);
- statusEl.innerHTML = `<span class="inline-flex items-center px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-bold">🚨 Missing ${missing} piece${missing !== 1 ? 's' : ''} in app — orders not entered!</span>`;
- posInput.className = 'w-16 p-1.5 text-center text-base font-bold border-2 border-red-500 rounded-lg bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-transparent text-red-700';
+ statusEl.innerHTML = `<span class="inline-flex items-center px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-bold">🚨 Missing ${missing} piece${missing !== 1 ? 's' : ''} in app</span>`;
+ posInput.className = 'w-14 p-1.5 text-center text-base font-bold border-2 border-red-500 rounded-lg bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-transparent text-red-700';
  }
  }
 
@@ -5112,6 +5201,13 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  const adjustedPosition = this.findNonCollidingPosition(newPerson, newDate, slotPosition, this.draggedElement.dataset.taskId);
  const taskId = this.draggedElement.dataset.taskId;
 
+ // Capacity lock guard: reject if no valid position found
+ if (adjustedPosition === -1) {
+ this.showToast('🔒 This day is capacity-locked — cannot schedule into the red area.', 'error');
+ this.renderWhiteboard();
+ return;
+ }
+
  // Find the task to show details in confirmation
  let task = null;
  let oldPerson = null;
@@ -5225,7 +5321,9 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  
  findNonCollidingPosition(person, dateKey, slotPosition, taskId) {
  const existingTasks = this.tasks[dateKey]?.[person] || [];
- 
+ const ceiling = this.getCapacityCeilingForDay(person, dateKey);
+ const isLocked = this.isDayCapacityLocked(dateKey);
+
  let taskDuration = 2;
  for (const date in this.tasks) {
  for (const p in this.tasks[date]) {
@@ -5237,44 +5335,55 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  }
  if (taskDuration !== 2) break;
  }
- 
+
  function hasCollision(pos) {
  return existingTasks.some(task => {
  if (task.id == taskId) return false;
  return !(pos >= task.position + task.duration || pos + taskDuration <= task.position);
  });
  }
- 
- if (!hasCollision(slotPosition)) {
- return Math.max(0, Math.min(slotPosition, 32 - taskDuration));
+
+ const maxPos = ceiling - taskDuration;
+
+ if (!hasCollision(slotPosition) && slotPosition <= maxPos) {
+ return Math.max(0, Math.min(slotPosition, maxPos));
  }
- 
- for (let pos = slotPosition; pos <= 32 - taskDuration; pos++) {
+
+ for (let pos = Math.min(slotPosition, maxPos); pos <= maxPos; pos++) {
  if (!hasCollision(pos)) return pos;
  }
- 
- for (let pos = slotPosition - 1; pos >= 0; pos--) {
+
+ for (let pos = Math.min(slotPosition - 1, maxPos); pos >= 0; pos--) {
  if (!hasCollision(pos)) return pos;
  }
- 
+
+ if (isLocked) {
+ return -1;
+ }
+
  return Math.max(0, 32 - taskDuration);
  }
  
  findOptimalPosition(person, dateKey, duration) {
  const existingTasks = this.tasks[dateKey]?.[person] || [];
- 
+ const ceiling = this.getCapacityCeilingForDay(person, dateKey);
+
  function hasCollision(pos) {
  return existingTasks.some(task => {
  return !(pos >= task.position + task.duration || pos + duration <= task.position);
  });
  }
- 
- for (let pos = 0; pos <= 32 - duration; pos++) {
+
+ for (let pos = 0; pos <= ceiling - duration; pos++) {
  if (!hasCollision(pos)) {
  return pos;
  }
  }
- 
+
+ if (this.isDayCapacityLocked(dateKey)) {
+ return -1;
+ }
+
  return Math.max(0, 32 - duration);
  }
  
@@ -5714,7 +5823,7 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  // Use performance tracking (original logic preserved)
  try {
  if (this.isEditingTask) {
- await this.performAsyncOperation('updateOrder', 
+ await this.performAsyncOperation('updateOrder',
  () => this.updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey)
  );
  } else {
@@ -5722,7 +5831,7 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  () => this.createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey)
  );
  }
- 
+
  this.handleModalAction('orderModal', 'hide');
  this.renderWhiteboard();
 
@@ -5734,6 +5843,10 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  }
  } catch (error) {
  // Error already handled in performAsyncOperation
+ } finally {
+ // ALWAYS refresh POS recon counts after any order save attempt,
+ // regardless of success/failure or renderWhiteboard outcome
+ this.updatePosReconCounts();
  }
 }
  
@@ -5841,8 +5954,11 @@ if (dateDue && dateDue.trim() !== '') {
 
  // Re-add with updated values — guaranteed to be in this.tasks for next render
  this.addTaskToSpecificDate(targetPerson, updatedTask, targetDateKey);
+
+ // Refresh POS recon count immediately (piece count may have changed)
+ this.updatePosReconCounts();
  }
- 
+
  async createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey) {
  const workDate = this.parseDateString(targetDateKey);
  const correctedDateKey = this.dateToLocalDateString(workDate);
@@ -5862,6 +5978,8 @@ if (dateDue && dateDue.trim() !== '') {
  createdAt: this.dateToLocalDateString(new Date())
 };
 
+ console.log('[POS Recon] createNewTask: order=' + orderNumber + ' pieces=' + alterationPieces + ' createdAt=' + task.createdAt + ' dateKey=' + correctedDateKey + ' person=' + targetPerson);
+
  // Add to local state first
  this.addTaskToSpecificDate(targetPerson, task, correctedDateKey);
 
@@ -5873,7 +5991,9 @@ if (dateDue && dateDue.trim() !== '') {
  timestamp: Date.now()
  });
 
+ console.log('[POS Recon] createNewTask: task added to this.tasks, about to renderWhiteboard');
  this.renderWhiteboard();
+ console.log('[POS Recon] createNewTask: renderWhiteboard complete, starting Airtable save');
 
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
  this.showLoading('Saving to Airtable...');
@@ -5899,6 +6019,10 @@ if (dateDue && dateDue.trim() !== '') {
  }
 
  this.showToast('✅ Order saved and verified in Airtable!', 'success');
+
+ // Refresh POS recon count immediately after Airtable save
+ // (auto-refresh may have reset counts while we were awaiting)
+ this.updatePosReconCounts();
 
  // Audit log for creation
  this.logAuditEvent('Created', orderNumber, [
@@ -5936,56 +6060,8 @@ if (dateDue && dateDue.trim() !== '') {
  this.tasks[dateKey][person].push(task);
  }
 
-updateQuickNumbers() {
- const container = document.getElementById('quickNumbersList');
- if (!container) return;
- 
- container.innerHTML = '';
- 
- // Create numbers 1-9 and some special numbers
- const numbers = [
- 1, 2, 3, 4, 5, 6, 7, 8, 9
- ];
- 
- numbers.forEach(number => {
- const btn = document.createElement('button');
- btn.type = 'button';
-btn.className = 'px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-mono';
- btn.textContent = number.toString();
- btn.addEventListener('click', () => {
- this.insertNumberIntoDescription(number);
- });
- container.appendChild(btn);
- });
-}
-
-insertNumberIntoDescription(number) {
- const textarea = document.getElementById('descriptionInput');
- if (!textarea) return;
- 
- const start = textarea.selectionStart;
- const end = textarea.selectionEnd;
- const currentText = textarea.value;
- 
- // Insert the number at cursor position
- const newText = currentText.slice(0, start) + number + currentText.slice(end);
- textarea.value = newText;
- 
- // Set cursor position after the inserted number
- const newCursorPos = start + number.toString().length;
- textarea.setSelectionRange(newCursorPos, newCursorPos);
- 
- // Focus back to textarea
- textarea.focus();
-}
-
-
- 
 updateCommonWords() {
- // Update numbers first
- this.updateQuickNumbers();
- 
- // Then update common words
+ // Update common words
  const container = document.getElementById('commonWordsList');
  if (!container) return;
  
@@ -8310,6 +8386,13 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  <input type="number" id="overrideCapacity" min="0" max="32" value="0" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
  </div>
  </div>
+ <div class="flex items-center mt-3 mb-3">
+ <label class="flex items-center cursor-pointer select-none">
+ <input type="checkbox" id="overrideLockCapacity" class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500 mr-2">
+ <span class="text-sm font-medium text-gray-700">🔒 Lock capacity for these dates</span>
+ <span class="text-xs text-gray-400 ml-2">(prevents scheduling into red area)</span>
+ </label>
+ </div>
  <div class="flex justify-between items-center">
  <div class="flex space-x-2">
  <button id="quickAbsentToday" class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors">Absent Today</button>
@@ -8328,16 +8411,20 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  '<p class="text-gray-500 text-sm">No capacity overrides set.</p>' :
  sortedDates.map(date => {
  const capacity = currentOverrides[date];
+ const isDateLocked = this.isDayCapacityLocked(date);
  // Fix date display issue by parsing the date string properly
  const parsedDate = this.parseDateString(date);
  const formattedDate = parsedDate ? this.formatDateForDisplay(parsedDate) : date;
  return `
- <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+ <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border ${isDateLocked ? 'border-red-300 bg-red-50' : ''}">
  <div>
- <div class="font-medium">${formattedDate}</div>
+ <div class="font-medium">${formattedDate} ${isDateLocked ? '<span class="text-red-500 text-xs font-bold">🔒 Locked</span>' : ''}</div>
  <div class="text-sm text-gray-500">${capacity} slots (${Math.floor(capacity * 15 / 60)}h ${(capacity * 15) % 60}m)</div>
  </div>
+ <div class="flex space-x-2">
+ <button class="toggle-lock-override px-3 py-1 text-sm ${isDateLocked ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white rounded transition-colors" data-date="${date}">${isDateLocked ? '🔓 Unlock' : '🔒 Lock'}</button>
  <button class="remove-override px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors" data-date="${date}">Remove</button>
+ </div>
  </div>
  `;
  }).join('')
@@ -8403,11 +8490,27 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  return;
  }
  
+ const lockCheckbox = modal.querySelector('#overrideLockCapacity');
  await this.addCapacityOverride(person, startDate, endDate, capacity);
+ // Also lock/unlock the dates if checkbox is checked
+ if (lockCheckbox && lockCheckbox.checked) {
+ const dates = this.getOverrideDateRange(startDate, endDate);
+ dates.forEach(d => this.capacityLockedDays.add(d));
+ this.saveCapacityLockedDaysToLocal();
+ }
  document.body.removeChild(modal);
  this.showCapacityOverridesModal(person);
  });
- 
+
+ modal.querySelectorAll('.toggle-lock-override').forEach(btn => {
+ btn.addEventListener('click', () => {
+ const date = btn.dataset.date;
+ this.toggleCapacityLock(date);
+ document.body.removeChild(modal);
+ this.showCapacityOverridesModal(person);
+ });
+ });
+
  modal.querySelectorAll('.remove-override').forEach(btn => {
  btn.addEventListener('click', async () => {
  const date = btn.dataset.date;
@@ -9191,6 +9294,115 @@ if (savedConfig) {
  if (toRemove.length > 0) {
  this.saveManuallySetOverridesToLocal();
  }
+ }
+
+ // ---------------------------------------------------------------
+ // CAPACITY-LOCKED DAYS PERSISTENCE
+ // Prevents scheduling into the red (over-capacity) zone on locked days
+ // ---------------------------------------------------------------
+ async saveCapacityLockedDaysToLocal() {
+ try {
+ const db = await this.openConfigDatabase();
+ const transaction = db.transaction(['config'], 'readwrite');
+ const store = transaction.objectStore('config');
+
+ const dataToSave = {
+ id: 'capacity-locked-days',
+ data: Array.from(this.capacityLockedDays || []),
+ lastSaved: new Date().toISOString()
+ };
+
+ return new Promise((resolve, reject) => {
+ const request = store.put(dataToSave);
+ request.onsuccess = () => resolve();
+ request.onerror = () => reject(request.error);
+ });
+ } catch (error) {
+ console.warn('Could not save capacity locked days:', error);
+ }
+ }
+
+ async loadCapacityLockedDaysFromLocal() {
+ try {
+ const db = await this.openConfigDatabase();
+ const transaction = db.transaction(['config'], 'readonly');
+ const store = transaction.objectStore('config');
+
+ return new Promise((resolve) => {
+ const request = store.get('capacity-locked-days');
+ request.onsuccess = () => {
+ const result = request.result;
+ if (result && Array.isArray(result.data)) {
+ this.capacityLockedDays = new Set(result.data);
+ this.cleanupCapacityLockedDays();
+ }
+ resolve();
+ };
+ request.onerror = () => resolve();
+ });
+ } catch (error) {
+ console.warn('Could not load capacity locked days:', error);
+ }
+ }
+
+ cleanupCapacityLockedDays() {
+ // Remove entries older than 35 days to prevent unbounded growth
+ const cutoff = new Date();
+ cutoff.setDate(cutoff.getDate() - 35);
+ const cutoffStr = this.dateToLocalDateString(cutoff);
+
+ const toRemove = [];
+ this.capacityLockedDays.forEach(dateKey => {
+ if (dateKey < cutoffStr) {
+ toRemove.push(dateKey);
+ }
+ });
+
+ toRemove.forEach(key => this.capacityLockedDays.delete(key));
+ if (toRemove.length > 0) {
+ this.saveCapacityLockedDaysToLocal();
+ }
+ }
+
+ toggleCapacityLock(dateKey) {
+ if (this.capacityLockedDays.has(dateKey)) {
+ this.capacityLockedDays.delete(dateKey);
+ this.showToast('🔓 Capacity unlocked — scheduling into red area is allowed', 'success');
+ } else {
+ this.capacityLockedDays.add(dateKey);
+ this.showToast('🔒 Capacity locked — scheduling into red area is blocked', 'success');
+ }
+ this.saveCapacityLockedDaysToLocal();
+ this.renderWhiteboard();
+ }
+
+ isDayCapacityLocked(dateKey) {
+ return this.capacityLockedDays && this.capacityLockedDays.has(dateKey);
+ }
+
+ getOverrideDateRange(startDate, endDate) {
+ const dates = [];
+ const start = this.parseDateString(startDate);
+ if (!endDate || endDate === startDate) {
+ dates.push(this.dateToLocalDateString(start));
+ return dates;
+ }
+ const end = this.parseDateString(endDate);
+ const current = new Date(start);
+ while (current.getTime() <= end.getTime()) {
+ dates.push(this.dateToLocalDateString(current));
+ current.setDate(current.getDate() + 1);
+ }
+ return dates;
+ }
+
+ getCapacityCeilingForDay(person, dateKey) {
+ const date = this.parseDateString(dateKey);
+ const capacity = this.getPersonCapacityForDate(person, date);
+ if (this.isDayCapacityLocked(dateKey)) {
+ return Math.min(capacity, 32);
+ }
+ return 32;
  }
 
  // ---------------------------------------------------------------
@@ -10303,6 +10515,7 @@ async loadAllDataFromAirtable() {
  // so it knows which person+date combos to skip
  await this.loadManuallyDeletedOverridesFromLocal();
  await this.loadManuallySetOverridesFromLocal();
+ await this.loadCapacityLockedDaysFromLocal();
 
  if (this.autoCapacityRule && this.autoCapacityRule.enabled) {
  this.applyAutoCapacityRule();
@@ -12056,29 +12269,12 @@ wizardRenderDescription() {
  var wordBtns = commonWords.map(function(w) {
   return '<button type="button" class="wiz-word-btn px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors" data-word="' + w + '">' + w + '</button>';
  }).join('');
- var numBtns = [1,2,3,4,5,6,7,8,9].map(function(n) {
-  return '<button type="button" class="wiz-num-btn px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-mono" data-num="' + n + '">' + n + '</button>';
- }).join('');
-
  this.wizardStepTemplate('📝', 'Description', 'Quantity, Item Name, Alterations, and if RUSH. (min 3 characters)',
   '<textarea id="wizDescription" rows="3" placeholder="Example: 1 pants hem RUSH" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none">' + (this.wizardData.description || '') + '</textarea>' +
   '<div id="wizDescCharCount" class="text-xs text-gray-400 text-right"></div>' +
-  '<div><span class="block text-xs text-gray-500 mb-1">Quick numbers:</span><div class="flex flex-wrap gap-1">' + numBtns + '</div></div>' +
   (commonWords.length > 0 ? '<div><span class="block text-xs text-gray-500 mb-1">Common words:</span><div class="flex flex-wrap gap-1">' + wordBtns + '</div></div>' : ''));
 
  setTimeout(function() {
-  // Wire quick number buttons
-  document.querySelectorAll('.wiz-num-btn').forEach(function(btn) {
-   btn.addEventListener('click', function() {
-    var ta = document.getElementById('wizDescription');
-    var num = btn.dataset.num;
-    var start = ta.selectionStart;
-    ta.value = ta.value.slice(0, start) + num + ta.value.slice(ta.selectionEnd);
-    ta.setSelectionRange(start + num.length, start + num.length);
-    ta.focus();
-    updateCharCount();
-   });
-  });
   // Wire common word buttons
   document.querySelectorAll('.wiz-word-btn').forEach(function(btn) {
    btn.addEventListener('click', function() {
