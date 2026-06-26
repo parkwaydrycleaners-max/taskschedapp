@@ -11799,7 +11799,7 @@ async upsertCapacityLockInAirtable(person, dateKey, locked) {
   }
   if (!this.capacityLockSyncWarningShown) {
    this.capacityLockSyncWarningShown = true;
-   this.showToast('Capacity Locks: Could not sync to Airtable. Make sure a "CapacityLocks" table exists with "Person", "Date", and "Locked" fields.', 'warning');
+   this.showToast('⚠️ Capacity Lock did NOT save to Airtable! Create a "CapacityLocks" table with fields: Person (single line text), Date (single line text), Locked (checkbox). Without this table, locks only work on THIS computer.', 'error');
   }
  }
 }
@@ -11858,7 +11858,8 @@ async loadCapacityLockedDaysFromAirtable() {
  } catch (error) {
   if (!this.capacityLockLoadWarningShown) {
    this.capacityLockLoadWarningShown = true;
-   console.warn('Could not load capacity locks from Airtable (table may not exist):', error.message);
+   console.warn('Could not load capacity locks from Airtable:', error.message);
+   this.showToast('⚠️ Capacity Locks table not found in Airtable. Create a "CapacityLocks" table with fields: Person (single line text), Date (single line text), Locked (checkbox). Locks will only work locally until this is set up.', 'warning');
   }
  }
 }
