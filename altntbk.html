@@ -1604,6 +1604,7 @@ tr.recon-checked {
  this.dayNoteLoadWarningShown = false;
  this.recentLocalTasks = []; // Tasks created/edited locally that may not yet be in Airtable
  this.capacityLockedDays = new Set(); // dateKeys where red-area scheduling is blocked
+ this.weeklyAutoLocks = {}; // { person: { Saturday: true, Sunday: true } } — recurring day-of-week locks
  this.tasks = {};
 
  // -----------------------------------------------------------------
@@ -7963,14 +7964,24 @@ showExportOptionsModal() {
  currentCapacity[day] = 16;
  });
  }
- 
+
+ const personAutoLocks = this.weeklyAutoLocks[person] || {};
+
  const capacityInputs = this.DAYS_OF_WEEK.map(day => {
  const value = currentCapacity[day] !== undefined && currentCapacity[day] !== null ? currentCapacity[day] : 16;
+ const isAutoLocked = personAutoLocks[day] === true;
  return `
  <div>
  <span class="block text-sm font-medium mb-1">${day}:</span>
- <input type="number" id="capacity${day}" min="0" max="32" value="${value}" 
- class="w-full p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+ <div class="flex items-center gap-2">
+ <input type="number" id="capacity${day}" min="0" max="32" value="${value}"
+ class="flex-1 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
+ <label class="flex items-center gap-1 cursor-pointer select-none" title="Auto-lock red area every ${day}">
+ <input type="checkbox" id="autoLock${day}" class="sr-only peer" ${isAutoLocked ? 'checked' : ''}>
+ <div class="w-8 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500 relative"></div>
+ <span class="text-xs ${isAutoLocked ? 'text-red-600 font-semibold' : 'text-gray-400'}">🔒</span>
+ </label>
+ </div>
  </div>
  `;
  }).join('');
@@ -7984,7 +7995,7 @@ showExportOptionsModal() {
  <div class="grid grid-cols-2 gap-3">
  ${capacityInputs}
  </div>
- <p class="text-xs text-gray-500 mt-2">Each slot = 15 minutes. 32 slots = 8 hours max.</p>
+ <p class="text-xs text-gray-500 mt-2">Each slot = 15 minutes. 32 slots = 8 hours max. 🔒 = auto-lock red area every week.</p>
  </div>
  
  <div class="bg-gray-50 p-3 rounded-lg">
@@ -8054,28 +8065,41 @@ showExportOptionsModal() {
  saveButton.addEventListener('click', async (e) => {
  e.preventDefault();
  e.stopPropagation();
- 
+
  const weeklyCapacity = {};
+ const weeklyLocks = {};
  this.DAYS_OF_WEEK.forEach(day => {
  const input = modal.querySelector(`#capacity${day}`);
  const capacity = parseInt(input.value) || 0;
  weeklyCapacity[day] = Math.max(0, Math.min(capacity, 32));
+ const lockToggle = modal.querySelector('#autoLock' + day);
+ if (lockToggle && lockToggle.checked) {
+ weeklyLocks[day] = true;
+ }
  });
- 
+
+ // Update weekly auto-locks in memory
+ if (Object.keys(weeklyLocks).length > 0) {
+ this.weeklyAutoLocks[person] = weeklyLocks;
+ } else {
+ delete this.weeklyAutoLocks[person];
+ }
+ this.saveWeeklyAutoLocksToLocal();
+
  // 🚨 CRITICAL FIX: ALWAYS preserve historical capacity BEFORE making ANY changes
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
  this.showLoading('Preserving historical data and updating capacity...');
  try {
  // Step 1: Preserve historical capacity FIRST
  await this.preserveHistoricalCapacity(person);
- 
- // Step 2: Update weekly capacity in Airtable
- await this.updatePersonWeeklyCapacityInAirtable(person, weeklyCapacity);
- 
+
+ // Step 2: Update weekly capacity AND auto-locks in Airtable
+ await this.updatePersonWeeklyCapacityInAirtable(person, weeklyCapacity, weeklyLocks);
+
  // Step 3: Update local state only AFTER successful Airtable update
  this.peopleCapacity[person] = weeklyCapacity;
  await this.savePeopleCapacityToLocal();
- 
+
  this.showToast('✅ Capacity updated with historical data preserved!', 'success');
  } catch (error) {
  console.error('❌ Failed to update capacity with preservation:', error);
@@ -8095,7 +8119,7 @@ showExportOptionsModal() {
  this.showToast('Capacity updated successfully!', 'success');
  }
  }
- 
+
  this.closeModal(modal);
  this.renderWhiteboard();
  this.updateCurrentPeopleList();
@@ -8915,6 +8939,7 @@ showIdleWakeModal(context) {
  await this.loadCapacityOverridesFromLocal();
  await this.loadDayNotesFromLocal();
  await this.loadCapacityLockedDaysFromLocal();
+ await this.loadWeeklyAutoLocksFromLocal();
 // CRITICAL FIX: Don't load people capacity from local storage
 // Let Airtable data load first and save to local storage
 // await this.loadPeopleCapacityFromLocal();
@@ -10191,13 +10216,24 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  
  // Build weekly capacity from Airtable fields
  const weeklyCapacity = {};
+ const weeklyLocks = {};
+ var hasAnyLock = false;
  this.DAYS_OF_WEEK.forEach(day => {
  // Use nullish coalescing to preserve 0 values from Airtable
  weeklyCapacity[day] = fields[`Capacity${day}`] ?? 16;
+ if (fields['Lock' + day] === true) {
+  weeklyLocks[day] = true;
+  hasAnyLock = true;
+ }
  });
 
  // Always update weekly capacity from Airtable (source of truth)
  this.peopleCapacity[fields.Name] = weeklyCapacity;
+ if (hasAnyLock) {
+ this.weeklyAutoLocks[fields.Name] = weeklyLocks;
+ } else {
+ delete this.weeklyAutoLocks[fields.Name];
+ }
  }
  });
 }
@@ -10418,6 +10454,7 @@ async loadAllDataFromAirtable() {
  
  // CRITICAL FIX: Save fresh Airtable people capacity to local storage
  await this.savePeopleCapacityToLocal();
+ await this.saveWeeklyAutoLocksToLocal();
  await this.loadTextContentFromAirtable();
  await this.loadDayNotesFromAirtable();
  await this.loadCapacityLockedDaysFromAirtable();
@@ -10647,19 +10684,20 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  await this.updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity);
 }
  
- async updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity) {
- 
+ async updatePersonWeeklyCapacityInAirtable(name, weeklyCapacity, weeklyLocks) {
+
  const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.people);
  const response = await this.makeAirtableRequest(`${tableName}?filterByFormula={Name}='${name}'`);
- 
+
  if (response.records.length > 0) {
  const recordId = response.records[0].id;
- 
+
  const fields = {};
  this.DAYS_OF_WEEK.forEach(day => {
  fields[`Capacity${day}`] = weeklyCapacity[day];
+ fields['Lock' + day] = (weeklyLocks && weeklyLocks[day] === true) ? true : false;
  });
- 
+
  const data = {
  records: [{
  id: recordId,
@@ -10667,7 +10705,26 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  }]
  };
 
+ try {
  await this.makeAirtableRequest(tableName, 'PATCH', data);
+ } catch (err) {
+ // If Lock fields don't exist yet, retry without them
+ if (err.message && (err.message.includes('UNKNOWN_FIELD') || err.message.includes('unknown field'))) {
+ var fieldsNoLock = {};
+ this.DAYS_OF_WEEK.forEach(day => {
+  fieldsNoLock['Capacity' + day] = weeklyCapacity[day];
+ });
+ await this.makeAirtableRequest(tableName, 'PATCH', {
+  records: [{ id: recordId, fields: fieldsNoLock }]
+ });
+ if (!this.weeklyLockFieldWarningShown) {
+  this.weeklyLockFieldWarningShown = true;
+  this.showToast('⚠️ Auto-lock saved locally only. Add Lock fields (LockSunday, LockMonday, etc.) as checkboxes to your People table for cross-computer sync.', 'warning');
+ }
+ } else {
+ throw err;
+ }
+ }
  } else {
  throw new Error(`Person ${name} not found in Airtable`);
  }
@@ -11753,6 +11810,38 @@ async loadCapacityLockedDaysFromLocal() {
  } catch (e) { console.warn('Could not load capacity-locked-days:', e); }
 }
 
+async saveWeeklyAutoLocksToLocal() {
+ try {
+  const db = await this.openConfigDatabase();
+  const tx = db.transaction(['config'], 'readwrite');
+  const store = tx.objectStore('config');
+  return new Promise((resolve, reject) => {
+   const req = store.put({ id: 'weekly-auto-locks', data: this.weeklyAutoLocks, lastSaved: new Date().toISOString() });
+   req.onsuccess = () => resolve();
+   req.onerror = () => reject(req.error);
+  });
+ } catch (e) { console.warn('Could not save weekly-auto-locks:', e); }
+}
+
+async loadWeeklyAutoLocksFromLocal() {
+ try {
+  const db = await this.openConfigDatabase();
+  const tx = db.transaction(['config'], 'readonly');
+  const store = tx.objectStore('config');
+  return new Promise((resolve) => {
+   const req = store.get('weekly-auto-locks');
+   req.onsuccess = () => {
+    const result = req.result;
+    if (result && result.data && typeof result.data === 'object') {
+     this.weeklyAutoLocks = result.data;
+    }
+    resolve();
+   };
+   req.onerror = () => resolve();
+  });
+ } catch (e) { console.warn('Could not load weekly-auto-locks:', e); }
+}
+
 toggleCapacityLock(person, dateKey) {
  const key = person + '|' + dateKey;
  var locked;
@@ -11774,7 +11863,18 @@ toggleCapacityLock(person, dateKey) {
 }
 
 isPersonDayCapacityLocked(person, dateKey) {
- return this.capacityLockedDays.has(person + '|' + dateKey);
+ // Check explicit per-date lock first
+ if (this.capacityLockedDays.has(person + '|' + dateKey)) return true;
+ // Check recurring weekly auto-lock
+ var personLocks = this.weeklyAutoLocks[person];
+ if (personLocks) {
+  var d = this.parseDateString(dateKey);
+  if (d) {
+   var dayName = this.DAYS_OF_WEEK[d.getDay()];
+   if (personLocks[dayName] === true) return true;
+  }
+ }
+ return false;
 }
 
 async lockDateRange(person, startDate, endDate) {
