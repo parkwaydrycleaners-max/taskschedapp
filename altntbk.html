@@ -1605,6 +1605,7 @@ tr.recon-checked {
  this.recentLocalTasks = []; // Tasks created/edited locally that may not yet be in Airtable
  this.capacityLockedDays = new Set(); // dateKeys where red-area scheduling is blocked
  this.weeklyAutoLocks = {}; // { person: { Saturday: true, Sunday: true } } — recurring day-of-week locks
+ this.weeklyLockExemptions = new Set(); // "person|dateKey" entries that override weekly auto-locks for a specific date
  this.tasks = {};
 
  // -----------------------------------------------------------------
@@ -9135,6 +9136,7 @@ showIdleWakeModal(context) {
  await this.loadDayNotesFromLocal();
  await this.loadCapacityLockedDaysFromLocal();
  await this.loadWeeklyAutoLocksFromLocal();
+ await this.loadWeeklyLockExemptionsFromLocal();
 // CRITICAL FIX: Don't load people capacity from local storage
 // Let Airtable data load first and save to local storage
 // await this.loadPeopleCapacityFromLocal();
@@ -12037,29 +12039,98 @@ async loadWeeklyAutoLocksFromLocal() {
  } catch (e) { console.warn('Could not load weekly-auto-locks:', e); }
 }
 
+async saveWeeklyLockExemptionsToLocal() {
+ try {
+  const db = await this.openConfigDatabase();
+  const tx = db.transaction(['config'], 'readwrite');
+  const store = tx.objectStore('config');
+  return new Promise((resolve, reject) => {
+   const req = store.put({ id: 'weekly-lock-exemptions', data: Array.from(this.weeklyLockExemptions), lastSaved: new Date().toISOString() });
+   req.onsuccess = () => resolve();
+   req.onerror = () => reject(req.error);
+  });
+ } catch (e) { console.warn('Could not save weekly-lock-exemptions:', e); }
+}
+
+async loadWeeklyLockExemptionsFromLocal() {
+ try {
+  const db = await this.openConfigDatabase();
+  const tx = db.transaction(['config'], 'readonly');
+  const store = tx.objectStore('config');
+  return new Promise((resolve) => {
+   const req = store.get('weekly-lock-exemptions');
+   req.onsuccess = () => {
+    const result = req.result;
+    if (result && Array.isArray(result.data)) {
+     this.weeklyLockExemptions = new Set(result.data);
+    }
+    resolve();
+   };
+   req.onerror = () => resolve();
+  });
+ } catch (e) { console.warn('Could not load weekly-lock-exemptions:', e); }
+}
+
 toggleCapacityLock(person, dateKey) {
- const key = person + '|' + dateKey;
- var locked;
- if (this.capacityLockedDays.has(key)) {
-  this.capacityLockedDays.delete(key);
-  locked = false;
+ var key = person + '|' + dateKey;
+ var isCurrentlyLocked = this.isPersonDayCapacityLocked(person, dateKey);
+
+ // Determine if this date is auto-locked by weekly rule
+ var isWeeklyAutoLocked = false;
+ var personLocks = this.weeklyAutoLocks[person];
+ if (personLocks) {
+  var d = this.parseDateString(dateKey);
+  if (d) {
+   var dayName = this.DAYS_OF_WEEK[d.getDay()];
+   if (personLocks[dayName] === true) isWeeklyAutoLocked = true;
+  }
+ }
+
+ if (isCurrentlyLocked) {
+  // UNLOCKING
+  if (isWeeklyAutoLocked) {
+   // Day is auto-locked by weekly rule — add exemption to override it
+   this.weeklyLockExemptions.add(key);
+   this.saveWeeklyLockExemptionsToLocal();
+   this.upsertCapacityLockInAirtable(person, dateKey, false).catch(function(e) {
+    console.warn('Capacity lock Airtable sync failed:', e);
+   });
+  }
+  // Also remove from explicit locks if it was there
+  if (this.capacityLockedDays.has(key)) {
+   this.capacityLockedDays.delete(key);
+   this.saveCapacityLockedDaysToLocal();
+   this.upsertCapacityLockInAirtable(person, dateKey, false).catch(function(e) {
+    console.warn('Capacity lock Airtable sync failed:', e);
+   });
+  }
   this.showToast('🔓 ' + person + ' unlocked — red area scheduling allowed', 'success');
  } else {
-  this.capacityLockedDays.add(key);
-  locked = true;
+  // LOCKING
+  // If there was an exemption, remove it (re-enable auto-lock)
+  if (this.weeklyLockExemptions.has(key)) {
+   this.weeklyLockExemptions.delete(key);
+   this.saveWeeklyLockExemptionsToLocal();
+  }
+  if (!isWeeklyAutoLocked) {
+   // Only add to explicit locks if not already covered by weekly auto-lock
+   this.capacityLockedDays.add(key);
+   this.saveCapacityLockedDaysToLocal();
+   this.upsertCapacityLockInAirtable(person, dateKey, true).catch(function(e) {
+    console.warn('Capacity lock Airtable sync failed:', e);
+   });
+  }
   this.showToast('🔒 ' + person + ' locked — red area scheduling blocked', 'success');
  }
- this.saveCapacityLockedDaysToLocal();
- // Sync to Airtable in background (don't block UI)
- this.upsertCapacityLockInAirtable(person, dateKey, locked).catch(function(e) {
-  console.warn('Capacity lock Airtable sync failed:', e);
- });
  this.renderWhiteboard();
 }
 
 isPersonDayCapacityLocked(person, dateKey) {
- // Check explicit per-date lock first
- if (this.capacityLockedDays.has(person + '|' + dateKey)) return true;
+ var key = person + '|' + dateKey;
+ // Check if this specific date has been explicitly exempted from the weekly auto-lock
+ if (this.weeklyLockExemptions.has(key)) return false;
+ // Check explicit per-date lock
+ if (this.capacityLockedDays.has(key)) return true;
  // Check recurring weekly auto-lock
  var personLocks = this.weeklyAutoLocks[person];
  if (personLocks) {
@@ -12133,24 +12204,34 @@ async upsertCapacityLockInAirtable(person, dateKey, locked) {
    }
   }
 
+  // Determine if this is a weekly-auto-locked day being exempted
+  var isWeeklyDay = false;
+  var pLocks = this.weeklyAutoLocks[person];
+  if (pLocks) {
+   var dt = this.parseDateString(dateKey);
+   if (dt && pLocks[this.DAYS_OF_WEEK[dt.getDay()]] === true) isWeeklyDay = true;
+  }
+
   if (recordId) {
-   if (locked) {
-    // Update existing record
-    await this.makeAirtableRequest(tableName, 'PATCH', {
-     records: [{ id: recordId, fields: { Person: person, Date: dateKey, Locked: true } }]
-    }, true);
-   } else {
-    // Delete record when unlocking
+   if (!locked && !isWeeklyDay) {
+    // Plain unlock on a non-auto-locked day — delete the record entirely
     await this.makeAirtableRequest(tableName + '/' + recordId, 'DELETE', null, true);
     delete this.capacityLockRecordIds[cacheKey];
+   } else {
+    // Update record: Locked=true for locking, Locked=false for exempting a weekly auto-lock
+    await this.makeAirtableRequest(tableName, 'PATCH', {
+     records: [{ id: recordId, fields: { Person: person, Date: dateKey, Locked: locked } }]
+    }, true);
    }
-  } else if (locked) {
-   // Create new record
-   const createResp = await this.makeAirtableRequest(tableName, 'POST', {
-    records: [{ fields: { Person: person, Date: dateKey, Locked: true } }]
-   }, true);
-   if (createResp.records && createResp.records.length > 0) {
-    this.capacityLockRecordIds[cacheKey] = createResp.records[0].id;
+  } else {
+   // Create new record (lock or exemption)
+   if (locked || isWeeklyDay) {
+    const createResp = await this.makeAirtableRequest(tableName, 'POST', {
+     records: [{ fields: { Person: person, Date: dateKey, Locked: locked } }]
+    }, true);
+    if (createResp.records && createResp.records.length > 0) {
+     this.capacityLockRecordIds[cacheKey] = createResp.records[0].id;
+    }
    }
   }
  } catch (error) {
@@ -12187,6 +12268,7 @@ async loadCapacityLockedDaysFromAirtable() {
   const seen = {};
   const duplicatesToDelete = [];
   this.capacityLockedDays = new Set();
+  this.weeklyLockExemptions = new Set();
   this.capacityLockRecordIds = {};
 
   allRecords.forEach(function(record) {
@@ -12197,6 +12279,9 @@ async loadCapacityLockedDaysFromAirtable() {
      seen[key] = true;
      if (fields.Locked) {
       this.capacityLockedDays.add(key);
+     } else {
+      // Locked=false means explicit exemption from weekly auto-lock
+      this.weeklyLockExemptions.add(key);
      }
      this.capacityLockRecordIds[key] = record.id;
     } else {
@@ -12216,6 +12301,7 @@ async loadCapacityLockedDaysFromAirtable() {
 
   // Sync to local IndexedDB cache
   await this.saveCapacityLockedDaysToLocal();
+  await this.saveWeeklyLockExemptionsToLocal();
  } catch (error) {
   if (!this.capacityLockLoadWarningShown) {
    this.capacityLockLoadWarningShown = true;
