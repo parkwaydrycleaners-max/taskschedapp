@@ -1597,6 +1597,7 @@ tr.recon-checked {
  this.dayNoteSaveTimers = {}; // Debounce timers for day note saves
  this.pendingDayNoteSyncs = {}; // Tracks notes waiting for Airtable sync
  this.dayNoteRecordIds = {}; // Cache: dateKey → Airtable record ID
+ this.capacityLockRecordIds = {}; // Cache: "person|dateKey" → Airtable record ID
  this.dayNoteInFlight = {}; // Lock: dateKey → true if upsert is in progress
  this.dayNoteDirtyAfterFlight = {}; // dateKey → true if value changed while upsert was in flight
  this.dayNoteSyncWarningShown = false;
@@ -1659,7 +1660,8 @@ tr.recon-checked {
  capacityOverrides: 'CapacityOverrides',
  users: 'Users',
  auditLog: 'AuditLog',
- dayNotes: 'DayNotes'
+ dayNotes: 'DayNotes',
+ capacityLocks: 'CapacityLocks'
  }
  };
 
@@ -10383,6 +10385,7 @@ async loadAllDataFromAirtable() {
  await this.savePeopleCapacityToLocal();
  await this.loadTextContentFromAirtable();
  await this.loadDayNotesFromAirtable();
+ await this.loadCapacityLockedDaysFromAirtable();
 
  // Re-render whiteboard after all loads complete
 
@@ -11717,20 +11720,149 @@ async loadCapacityLockedDaysFromLocal() {
 
 toggleCapacityLock(person, dateKey) {
  const key = person + '|' + dateKey;
+ var locked;
  if (this.capacityLockedDays.has(key)) {
   this.capacityLockedDays.delete(key);
+  locked = false;
   this.showToast('🔓 ' + person + ' unlocked — red area scheduling allowed', 'success');
  } else {
   this.capacityLockedDays.add(key);
+  locked = true;
   this.showToast('🔒 ' + person + ' locked — red area scheduling blocked', 'success');
  }
  this.saveCapacityLockedDaysToLocal();
+ // Sync to Airtable in background (don't block UI)
+ this.upsertCapacityLockInAirtable(person, dateKey, locked).catch(function(e) {
+  console.warn('Capacity lock Airtable sync failed:', e);
+ });
  this.renderWhiteboard();
 }
 
 isPersonDayCapacityLocked(person, dateKey) {
  return this.capacityLockedDays.has(person + '|' + dateKey);
 }
+
+// ── Capacity Locks – Airtable Persistence ──────────────────────────
+// Table: CapacityLocks   Fields: Person (text), Date (text), Locked (checkbox)
+async upsertCapacityLockInAirtable(person, dateKey, locked) {
+ try {
+  const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityLocks || 'CapacityLocks');
+  const cacheKey = person + '|' + dateKey;
+
+  // Use cached record ID if available
+  let recordId = this.capacityLockRecordIds[cacheKey] || null;
+
+  // If no cached ID, look up by person + date
+  if (!recordId) {
+   const filterFormula = "AND({Person}='" + person + "',{Date}='" + dateKey + "')";
+   const response = await this.makeAirtableRequest(
+    tableName + '?filterByFormula=' + encodeURIComponent(filterFormula), 'GET', null, true
+   );
+   if (response.records && response.records.length > 0) {
+    recordId = response.records[0].id;
+    this.capacityLockRecordIds[cacheKey] = recordId;
+    // Clean up duplicates
+    if (response.records.length > 1) {
+     for (let i = 1; i < response.records.length; i++) {
+      try {
+       await this.makeAirtableRequest(tableName + '/' + response.records[i].id, 'DELETE', null, true);
+      } catch (e) { /* best effort cleanup */ }
+     }
+    }
+   }
+  }
+
+  if (recordId) {
+   if (locked) {
+    // Update existing record
+    await this.makeAirtableRequest(tableName, 'PATCH', {
+     records: [{ id: recordId, fields: { Person: person, Date: dateKey, Locked: true } }]
+    }, true);
+   } else {
+    // Delete record when unlocking
+    await this.makeAirtableRequest(tableName + '/' + recordId, 'DELETE', null, true);
+    delete this.capacityLockRecordIds[cacheKey];
+   }
+  } else if (locked) {
+   // Create new record
+   const createResp = await this.makeAirtableRequest(tableName, 'POST', {
+    records: [{ fields: { Person: person, Date: dateKey, Locked: true } }]
+   }, true);
+   if (createResp.records && createResp.records.length > 0) {
+    this.capacityLockRecordIds[cacheKey] = createResp.records[0].id;
+   }
+  }
+ } catch (error) {
+  if (error.statusCode === 422 || error.statusCode === 404) {
+   const ck = person + '|' + dateKey;
+   delete this.capacityLockRecordIds[ck];
+  }
+  if (!this.capacityLockSyncWarningShown) {
+   this.capacityLockSyncWarningShown = true;
+   this.showToast('Capacity Locks: Could not sync to Airtable. Make sure a "CapacityLocks" table exists with "Person", "Date", and "Locked" fields.', 'warning');
+  }
+ }
+}
+
+async loadCapacityLockedDaysFromAirtable() {
+ try {
+  const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityLocks || 'CapacityLocks');
+
+  // Load all records with pagination
+  let allRecords = [];
+  let offset = null;
+  do {
+   const url = offset
+    ? tableName + '?offset=' + encodeURIComponent(offset)
+    : tableName;
+   const response = await this.makeAirtableRequest(url, 'GET', null, true);
+   if (response.records) {
+    allRecords = allRecords.concat(response.records);
+   }
+   offset = response.offset || null;
+  } while (offset);
+
+  // Deduplicate: keep first record per person+date, delete extras
+  const seen = {};
+  const duplicatesToDelete = [];
+  this.capacityLockedDays = new Set();
+  this.capacityLockRecordIds = {};
+
+  allRecords.forEach(function(record) {
+   var fields = record.fields;
+   if (fields.Person && fields.Date) {
+    var key = fields.Person + '|' + fields.Date;
+    if (!seen[key]) {
+     seen[key] = true;
+     if (fields.Locked) {
+      this.capacityLockedDays.add(key);
+     }
+     this.capacityLockRecordIds[key] = record.id;
+    } else {
+     duplicatesToDelete.push(record.id);
+    }
+   }
+  }.bind(this));
+
+  // Clean up duplicates in background
+  if (duplicatesToDelete.length > 0) {
+   for (var i = 0; i < duplicatesToDelete.length; i++) {
+    try {
+     await this.makeAirtableRequest(tableName + '/' + duplicatesToDelete[i], 'DELETE', null, true);
+    } catch (e) { /* best effort */ }
+   }
+  }
+
+  // Sync to local IndexedDB cache
+  await this.saveCapacityLockedDaysToLocal();
+ } catch (error) {
+  if (!this.capacityLockLoadWarningShown) {
+   this.capacityLockLoadWarningShown = true;
+   console.warn('Could not load capacity locks from Airtable (table may not exist):', error.message);
+  }
+ }
+}
+// ── End Capacity Locks – Airtable Persistence ──────────────────────
 
 async upsertDayNoteInAirtable(dateKey, noteText) {
  try {
