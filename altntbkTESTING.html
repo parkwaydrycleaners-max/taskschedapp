@@ -8409,6 +8409,16 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  <input type="number" id="overrideCapacity" min="0" max="32" value="0" class="w-full p-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
  </div>
  </div>
+ <div class="flex items-center justify-between mt-3 mb-4 p-3 rounded-lg border border-red-200 bg-red-50">
+ <div class="flex items-center gap-2">
+ <span class="text-base">🔒</span>
+ <span class="text-sm font-medium text-red-700">Also lock red area (block scheduling past capacity)</span>
+ </div>
+ <label class="relative inline-flex items-center cursor-pointer">
+ <input type="checkbox" id="overrideLockToggle" class="sr-only peer" checked>
+ <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+ </label>
+ </div>
  <div class="flex justify-between items-center">
  <div class="flex space-x-2">
  <button id="quickAbsentToday" class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors">Absent Today</button>
@@ -8427,16 +8437,19 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  '<p class="text-gray-500 text-sm">No capacity overrides set.</p>' :
  sortedDates.map(date => {
  const capacity = currentOverrides[date];
- // Fix date display issue by parsing the date string properly
  const parsedDate = this.parseDateString(date);
  const formattedDate = parsedDate ? this.formatDateForDisplay(parsedDate) : date;
+ const isLocked = this.isPersonDayCapacityLocked(person, date);
  return `
- <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
- <div>
- <div class="font-medium">${formattedDate}</div>
+ <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border${isLocked ? ' border-red-300 bg-red-50' : ''}">
+ <div class="flex-1">
+ <div class="font-medium">${formattedDate}${isLocked ? ' <span class="text-red-600 text-sm ml-1">🔒 Locked</span>' : ''}</div>
  <div class="text-sm text-gray-500">${capacity} slots (${Math.floor(capacity * 15 / 60)}h ${(capacity * 15) % 60}m)</div>
  </div>
+ <div class="flex items-center space-x-2">
+ <button class="toggle-lock-override px-3 py-1 text-sm ${isLocked ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'} text-white rounded transition-colors" data-date="${date}" data-person="${person}">${isLocked ? '🔓 Unlock' : '🔒 Lock'}</button>
  <button class="remove-override px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors" data-date="${date}">Remove</button>
+ </div>
  </div>
  `;
  }).join('')
@@ -8496,20 +8509,42 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  const startDate = modal.querySelector('#overrideStartDate').value;
  const endDate = modal.querySelector('#overrideEndDate').value;
  const capacity = parseInt(modal.querySelector('#overrideCapacity').value) || 0;
- 
+ const shouldLock = modal.querySelector('#overrideLockToggle').checked;
+
  if (!startDate) {
  this.showToast('Please select a start date', 'error');
  return;
  }
- 
+
  await this.addCapacityOverride(person, startDate, endDate, capacity);
+
+ // Lock the date range if the lock toggle is on
+ if (shouldLock) {
+ await this.lockDateRange(person, startDate, endDate);
+ }
+
  document.body.removeChild(modal);
  this.showCapacityOverridesModal(person);
  });
- 
+
+ // Toggle lock on individual existing overrides
+ modal.querySelectorAll('.toggle-lock-override').forEach(btn => {
+ btn.addEventListener('click', async () => {
+ const date = btn.dataset.date;
+ const p = btn.dataset.person;
+ this.toggleCapacityLock(p, date);
+ document.body.removeChild(modal);
+ this.showCapacityOverridesModal(p);
+ });
+ });
+
  modal.querySelectorAll('.remove-override').forEach(btn => {
  btn.addEventListener('click', async () => {
  const date = btn.dataset.date;
+ // Also unlock if locked
+ if (this.isPersonDayCapacityLocked(person, date)) {
+ this.toggleCapacityLock(person, date);
+ }
  await this.removeCapacityOverride(person, date);
  document.body.removeChild(modal);
  this.showCapacityOverridesModal(person);
@@ -11740,6 +11775,37 @@ toggleCapacityLock(person, dateKey) {
 
 isPersonDayCapacityLocked(person, dateKey) {
  return this.capacityLockedDays.has(person + '|' + dateKey);
+}
+
+async lockDateRange(person, startDate, endDate) {
+ var dates = [];
+ if (endDate && endDate !== startDate) {
+  var start = this.parseDateString(startDate);
+  var end = this.parseDateString(endDate);
+  var current = new Date(start);
+  while (current.getTime() <= end.getTime()) {
+   dates.push(this.dateToLocalDateString(current));
+   current.setDate(current.getDate() + 1);
+  }
+ } else {
+  dates.push(startDate);
+ }
+ var lockedCount = 0;
+ for (var i = 0; i < dates.length; i++) {
+  var key = person + '|' + dates[i];
+  if (!this.capacityLockedDays.has(key)) {
+   this.capacityLockedDays.add(key);
+   lockedCount++;
+   this.upsertCapacityLockInAirtable(person, dates[i], true).catch(function(e) {
+    console.warn('Capacity lock Airtable sync failed:', e);
+   });
+  }
+ }
+ if (lockedCount > 0) {
+  this.saveCapacityLockedDaysToLocal();
+  this.showToast('🔒 Locked ' + lockedCount + ' day' + (lockedCount !== 1 ? 's' : '') + ' for ' + person, 'success');
+  this.renderWhiteboard();
+ }
 }
 
 // ── Capacity Locks – Airtable Persistence ──────────────────────────
