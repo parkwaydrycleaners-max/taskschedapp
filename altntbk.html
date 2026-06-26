@@ -8481,6 +8481,36 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  </div>
  </div>
  
+ <!-- Bulk Delete Section -->
+ ${sortedDates.length > 0 ? `
+ <div class="bg-orange-50 p-4 rounded-lg mb-6 border border-orange-200">
+ <h4 class="font-medium mb-3 text-orange-800">🗑️ Bulk Delete</h4>
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+ <div>
+ <span class="block text-sm font-medium mb-1 text-orange-700">Delete from:</span>
+ <input type="date" id="bulkDeleteStart" class="w-full p-3 text-base border border-orange-300 rounded-lg bg-white focus:ring-2 focus:ring-orange-400 focus:border-transparent">
+ </div>
+ <div>
+ <span class="block text-sm font-medium mb-1 text-orange-700">Delete to:</span>
+ <input type="date" id="bulkDeleteEnd" class="w-full p-3 text-base border border-orange-300 rounded-lg bg-white focus:ring-2 focus:ring-orange-400 focus:border-transparent">
+ </div>
+ </div>
+ <div class="flex flex-wrap items-center justify-between gap-2">
+ <button id="bulkDeleteRange" class="px-4 py-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors text-sm font-medium">Delete Date Range</button>
+ <div class="flex items-center gap-2">
+ <span class="text-sm text-orange-700">Keep only last</span>
+ <select id="purgeMonths" class="p-2 text-base border border-orange-300 rounded-lg bg-white focus:ring-2 focus:ring-orange-400">
+ <option value="3">3 months</option>
+ <option value="6" selected>6 months</option>
+ <option value="9">9 months</option>
+ <option value="12">12 months</option>
+ </select>
+ <button id="purgeOldOverrides" class="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors text-sm font-medium">Purge Old</button>
+ </div>
+ </div>
+ </div>
+ ` : ''}
+
  <div class="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
  <button class="close-overrides px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Close</button>
  </div>
@@ -8574,6 +8604,52 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  this.showCapacityOverridesModal(person);
  });
  });
+
+ // Bulk Delete Date Range handler
+ var bulkDeleteBtn = modal.querySelector('#bulkDeleteRange');
+ if (bulkDeleteBtn) {
+ bulkDeleteBtn.addEventListener('click', () => {
+ var startVal = modal.querySelector('#bulkDeleteStart').value;
+ var endVal = modal.querySelector('#bulkDeleteEnd').value;
+ if (!startVal || !endVal) {
+  this.showToast('Please select both start and end dates', 'error');
+  return;
+ }
+ if (endVal < startVal) {
+  this.showToast('End date must be after start date', 'error');
+  return;
+ }
+ var overrides = this.peopleSpecificCapacity[person] || {};
+ var datesToDelete = Object.keys(overrides).filter(function(d) {
+  return d >= startVal && d <= endVal;
+ });
+ if (datesToDelete.length === 0) {
+  this.showToast('No overrides found in that date range', 'warning');
+  return;
+ }
+ this.showBulkDeleteConfirm(person, datesToDelete, 'Delete ' + datesToDelete.length + ' override' + (datesToDelete.length !== 1 ? 's' : '') + ' from ' + startVal + ' to ' + endVal + '?', modal);
+ });
+ }
+
+ // Purge Old Overrides handler
+ var purgeBtn = modal.querySelector('#purgeOldOverrides');
+ if (purgeBtn) {
+ purgeBtn.addEventListener('click', () => {
+ var months = parseInt(modal.querySelector('#purgeMonths').value) || 6;
+ var cutoff = new Date();
+ cutoff.setMonth(cutoff.getMonth() - months);
+ var cutoffStr = this.dateToLocalDateString(cutoff);
+ var overrides = this.peopleSpecificCapacity[person] || {};
+ var datesToDelete = Object.keys(overrides).filter(function(d) {
+  return d < cutoffStr;
+ });
+ if (datesToDelete.length === 0) {
+  this.showToast('No overrides older than ' + months + ' months found', 'warning');
+  return;
+ }
+ this.showBulkDeleteConfirm(person, datesToDelete, 'Purge ' + datesToDelete.length + ' override' + (datesToDelete.length !== 1 ? 's' : '') + ' older than ' + months + ' month' + (months !== 1 ? 's' : '') + '? (before ' + cutoffStr + ')', modal);
+ });
+ }
  }
  
  async addCapacityOverride(person, startDate, endDate, capacity) {
@@ -8674,7 +8750,126 @@ const isOverdue = !task.completed && taskDueDate && taskDueDate < today;
  // Force re-render
  this.renderWhiteboard();
  }
- 
+
+ showBulkDeleteConfirm(person, datesToDelete, message, parentModal) {
+ var confirmModal = document.createElement('div');
+ confirmModal.className = 'fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60]';
+ confirmModal.innerHTML =
+  '<div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4 fade-in">' +
+  '<h3 class="text-lg font-semibold mb-3 text-red-700">⚠️ Confirm Bulk Delete</h3>' +
+  '<p class="text-gray-700 mb-4">' + message + '</p>' +
+  '<p class="text-sm text-gray-500 mb-4">This cannot be undone.</p>' +
+  '<div class="flex justify-end space-x-3">' +
+  '<button class="bulk-cancel px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>' +
+  '<button class="bulk-confirm px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors font-medium">Delete</button>' +
+  '</div>' +
+  '</div>';
+ document.body.appendChild(confirmModal);
+
+ confirmModal.querySelector('.bulk-cancel').addEventListener('click', function() {
+  document.body.removeChild(confirmModal);
+ });
+
+ var self = this;
+ confirmModal.querySelector('.bulk-confirm').addEventListener('click', async function() {
+  document.body.removeChild(confirmModal);
+  await self.bulkDeleteOverrides(person, datesToDelete);
+  if (parentModal && parentModal.parentNode) {
+   document.body.removeChild(parentModal);
+  }
+  self.showCapacityOverridesModal(person);
+ });
+ }
+
+ async bulkDeleteOverrides(person, datesToDelete) {
+ if (!datesToDelete || datesToDelete.length === 0) return;
+
+ this.showLoading('Deleting ' + datesToDelete.length + ' overrides...');
+
+ var deleted = 0;
+ try {
+  for (var i = 0; i < datesToDelete.length; i++) {
+   var date = datesToDelete[i];
+
+   // Remove from local data
+   if (this.peopleSpecificCapacity[person]) {
+    delete this.peopleSpecificCapacity[person][date];
+   }
+
+   // Track deletion so auto-capacity won't re-create
+   var deleteKey = person + '|' + date;
+   this.manuallyDeletedOverrides.add(deleteKey);
+
+   // Clear manually-set flag
+   if (this.manuallySetOverrides && this.manuallySetOverrides.has(deleteKey)) {
+    this.manuallySetOverrides.delete(deleteKey);
+   }
+
+   // Also unlock if locked
+   if (this.capacityLockedDays.has(deleteKey)) {
+    this.capacityLockedDays.delete(deleteKey);
+    this.upsertCapacityLockInAirtable(person, date, false).catch(function() {});
+   }
+
+   deleted++;
+  }
+
+  // Clean up empty person object
+  if (this.peopleSpecificCapacity[person] &&
+   Object.keys(this.peopleSpecificCapacity[person]).length === 0) {
+   delete this.peopleSpecificCapacity[person];
+  }
+
+  // Save all local state
+  await this.saveCapacityOverridesToLocal();
+  this.saveManuallyDeletedOverridesToLocal();
+  this.saveManuallySetOverridesToLocal();
+  this.saveCapacityLockedDaysToLocal();
+
+  // Delete from Airtable in batches
+  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
+   try {
+    var tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
+    var filterFormula = "{Person}='" + person + "'";
+    var allRecords = await this.makeAirtableRequest(tableName + '?filterByFormula=' + encodeURIComponent(filterFormula));
+
+    // Build a Set for fast lookup
+    var deleteSet = {};
+    for (var j = 0; j < datesToDelete.length; j++) {
+     deleteSet[datesToDelete[j]] = true;
+    }
+
+    var recordsToDelete = [];
+    if (allRecords.records) {
+     allRecords.records.forEach(function(record) {
+      if (record.fields.Date && deleteSet[record.fields.Date]) {
+       recordsToDelete.push(record.id);
+      }
+     });
+    }
+
+    // Delete in batches of 10 (Airtable limit)
+    while (recordsToDelete.length > 0) {
+     var batch = recordsToDelete.splice(0, 10);
+     var queryParams = batch.map(function(id) { return 'records[]=' + id; }).join('&');
+     await this.makeAirtableRequest(tableName + '?' + queryParams, 'DELETE');
+    }
+   } catch (err) {
+    console.warn('Airtable bulk delete failed (local data still cleaned):', err.message);
+    this.showToast('Overrides removed locally. Airtable sync failed: ' + err.message, 'warning');
+   }
+  }
+
+  this.showToast('🗑️ Deleted ' + deleted + ' override' + (deleted !== 1 ? 's' : '') + ' for ' + person, 'success');
+  this.renderWhiteboard();
+ } catch (error) {
+  console.error('Bulk delete error:', error);
+  this.showToast('Error during bulk delete: ' + error.message, 'error');
+ } finally {
+  this.hideLoading();
+ }
+ }
+
  async upsertCapacityOverridesInAirtable(person, dates, capacity) {
  const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.capacityOverrides || 'CapacityOverrides');
  
