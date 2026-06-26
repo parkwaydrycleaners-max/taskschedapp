@@ -932,6 +932,172 @@
             animation: shake 0.4s ease;
         }
 
+        /* Sync Error Banner */
+        .sync-error-banner {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 3000;
+            background: #fef2f2;
+            border-bottom: 2px solid #DC2626;
+            padding: 14px 18px;
+            box-shadow: 0 4px 16px rgba(220,38,38,0.18);
+            animation: slideDownBanner 0.35s ease-out;
+        }
+
+        .dark .sync-error-banner {
+            background: #2d1518;
+            border-bottom-color: #ef4444;
+        }
+
+        @keyframes slideDownBanner {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .sync-error-banner.show {
+            display: block;
+        }
+
+        .sync-error-banner .banner-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .sync-error-banner .banner-icon {
+            font-size: 20px;
+            color: #DC2626;
+            flex-shrink: 0;
+        }
+
+        .dark .sync-error-banner .banner-icon {
+            color: #ef4444;
+        }
+
+        .sync-error-banner .banner-title {
+            font-weight: 700;
+            font-size: 15px;
+            color: #991b1b;
+            flex: 1;
+        }
+
+        .dark .sync-error-banner .banner-title {
+            color: #fca5a5;
+        }
+
+        .sync-error-banner .banner-dismiss {
+            background: none;
+            border: none;
+            color: #991b1b;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 6px;
+            flex-shrink: 0;
+        }
+
+        .dark .sync-error-banner .banner-dismiss {
+            color: #fca5a5;
+        }
+
+        .sync-error-banner .banner-dismiss:hover {
+            background: rgba(220,38,38,0.1);
+        }
+
+        .sync-error-banner .banner-msg {
+            font-size: 13px;
+            color: #b91c1c;
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+
+        .dark .sync-error-banner .banner-msg {
+            color: #fca5a5;
+        }
+
+        .sync-error-banner .banner-error-detail {
+            font-size: 11px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            color: #9b1c1c;
+            background: rgba(220,38,38,0.07);
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            word-break: break-word;
+        }
+
+        .dark .sync-error-banner .banner-error-detail {
+            color: #fca5a5;
+            background: rgba(239,68,68,0.1);
+        }
+
+        .sync-error-banner .banner-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .sync-error-banner .banner-retry-btn {
+            background: #DC2626;
+            color: #fff;
+            border: none;
+            padding: 7px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+
+        .sync-error-banner .banner-retry-btn:hover {
+            background: #b91c1c;
+        }
+
+        .sync-error-banner .banner-retry-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .sync-error-banner .banner-retry-btn .fa-sync-alt {
+            transition: transform 0.3s;
+        }
+
+        .sync-error-banner .banner-retry-btn.spinning .fa-sync-alt {
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .sync-error-banner .banner-attempt {
+            font-size: 12px;
+            color: #b91c1c;
+            font-weight: 500;
+        }
+
+        .dark .sync-error-banner .banner-attempt {
+            color: #fca5a5;
+        }
+
+        .sync-error-banner .banner-offline-note {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 6px;
+            font-style: italic;
+        }
+
+        .dark .sync-error-banner .banner-offline-note {
+            color: #9ca3af;
+        }
+
         /* Modal */
         .modal-overlay {
             position: fixed;
@@ -2516,6 +2682,22 @@
     </div>
 
     <!-- Required Subtask Confirmation Modal -->
+    <!-- Sync Error Banner (non-blocking — employees can keep using the checklist) -->
+    <div class="sync-error-banner" id="syncErrorBanner">
+        <div class="banner-header">
+            <i class="fas fa-exclamation-triangle banner-icon"></i>
+            <span class="banner-title" id="syncErrorTitle">Sync Error</span>
+            <button class="banner-dismiss" id="syncErrorDismiss" title="Dismiss"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="banner-msg" id="syncErrorMsg">Unable to sync with the server.</div>
+        <div class="banner-error-detail" id="syncErrorDetail"></div>
+        <div class="banner-actions">
+            <button class="banner-retry-btn" id="syncErrorRetry"><i class="fas fa-sync-alt"></i>Retry Sync</button>
+            <span class="banner-attempt" id="syncErrorAttempt"></span>
+        </div>
+        <div class="banner-offline-note" id="syncErrorNote">You can keep using the checklist — changes will sync when the connection is restored.</div>
+    </div>
+
     <div class="modal-overlay no-outside-close" id="subtaskConfirmModal">
         <div class="modal" style="max-width: 400px;">
             <h3><i class="fas fa-clipboard-check" style="margin-right: 8px; color: #DC2626;"></i>Confirm Completion</h3>
@@ -4611,6 +4793,10 @@
                 hasSuccessfulPull = true; // Data loaded — pushes are now safe
                 console.log('hasSuccessfulPull = true (from pullFromFirebase)');
                 updateSyncStatus('connected', 'Synced just now');
+                // Clear any sync error banner on successful pull
+                if (syncErrorBanner && syncErrorBanner.classList.contains('show')) {
+                    hideSyncErrorBanner();
+                }
                 isSyncing = false;
                 if (isSyncingTimer) { clearTimeout(isSyncingTimer); isSyncingTimer = null; }
                 return true;
@@ -4620,9 +4806,13 @@
                 updateSyncStatus('error', 'Sync failed');
                 isSyncing = false;
                 if (isSyncingTimer) { clearTimeout(isSyncingTimer); isSyncingTimer = null; }
+                lastPullError = e.message || 'Unknown error';
                 return false;
             }
         }
+
+        // Stores the last pull error message for the banner to display
+        let lastPullError = '';
 
         // Full sync (pull then push)
         async function syncWithFirebase(forcePush = false) {
@@ -4657,12 +4847,123 @@
                 try {
                     await pushToFirebase();
                     updateSyncStatus('connected', 'Synced just now');
+                    // Push succeeded — if banner was showing from a previous error, clear it
+                    if (syncErrorBanner.classList.contains('show')) {
+                        hideSyncErrorBanner();
+                    }
                 } catch (e) {
                     console.log('Push error:', e.message);
                     updateSyncStatus('error', 'Sync failed');
+                    handleSyncFailure(e.message || 'Push failed');
                 }
             }, 300); // Push almost immediately
         }
+
+        // ========== SYNC ERROR BANNER WITH AUTO-RETRY ==========
+        const syncErrorBanner = document.getElementById('syncErrorBanner');
+        const syncErrorTitle = document.getElementById('syncErrorTitle');
+        const syncErrorMsg = document.getElementById('syncErrorMsg');
+        const syncErrorDetail = document.getElementById('syncErrorDetail');
+        const syncErrorRetryBtn = document.getElementById('syncErrorRetry');
+        const syncErrorAttempt = document.getElementById('syncErrorAttempt');
+        const syncErrorNote = document.getElementById('syncErrorNote');
+        const MAX_SYNC_RETRIES = 3;
+        let syncRetryCount = 0;
+        let syncRetryTimer = null;
+
+        function showSyncErrorBanner(errorMessage, attempt, maxedOut) {
+            syncErrorTitle.textContent = maxedOut ? 'Sync Unavailable' : 'Sync Error';
+            if (maxedOut) {
+                syncErrorMsg.textContent = 'Sync failed after ' + MAX_SYNC_RETRIES + ' attempts. Please wait a few minutes and try again, or contact your manager.';
+                syncErrorRetryBtn.textContent = '';
+                syncErrorRetryBtn.innerHTML = '<i class="fas fa-sync-alt"></i>Try Again';
+                syncErrorRetryBtn.disabled = false;
+                syncErrorRetryBtn.classList.remove('spinning');
+                syncErrorAttempt.textContent = '';
+                syncErrorNote.textContent = 'You can keep using the checklist offline — your progress is saved locally and will sync when the connection is restored.';
+            } else {
+                syncErrorMsg.textContent = 'Unable to connect to the server. Retrying automatically\u2026';
+                syncErrorAttempt.textContent = 'Attempt ' + attempt + ' of ' + MAX_SYNC_RETRIES;
+                syncErrorRetryBtn.innerHTML = '<i class="fas fa-sync-alt"></i>Retry Now';
+                syncErrorRetryBtn.disabled = false;
+                syncErrorRetryBtn.classList.remove('spinning');
+                syncErrorNote.textContent = 'You can keep using the checklist \u2014 changes will sync when the connection is restored.';
+            }
+            syncErrorDetail.textContent = errorMessage || 'Unknown error';
+            syncErrorBanner.classList.add('show');
+        }
+
+        function hideSyncErrorBanner() {
+            syncErrorBanner.classList.remove('show');
+            syncRetryCount = 0;
+            if (syncRetryTimer) { clearTimeout(syncRetryTimer); syncRetryTimer = null; }
+        }
+
+        async function syncRetryPull() {
+            syncRetryBtn_setSpinning(true);
+            try {
+                var success = await pullFromFirebase();
+                if (success) {
+                    hideSyncErrorBanner();
+                    showToast('<i class="fas fa-check-circle"></i> Sync restored', 'success');
+                    return true;
+                } else {
+                    return false;
+                }
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function syncRetryBtn_setSpinning(on) {
+            if (on) {
+                syncErrorRetryBtn.disabled = true;
+                syncErrorRetryBtn.classList.add('spinning');
+                syncErrorRetryBtn.innerHTML = '<i class="fas fa-sync-alt"></i>Syncing\u2026';
+            } else {
+                syncErrorRetryBtn.disabled = false;
+                syncErrorRetryBtn.classList.remove('spinning');
+                syncErrorRetryBtn.innerHTML = '<i class="fas fa-sync-alt"></i>Retry Now';
+            }
+        }
+
+        // Auto-retry with escalating delays: 3s, 6s, then stop
+        async function handleSyncFailure(errorMessage) {
+            syncRetryCount++;
+            if (syncRetryCount > MAX_SYNC_RETRIES) {
+                showSyncErrorBanner(errorMessage, syncRetryCount, true);
+                return;
+            }
+            showSyncErrorBanner(errorMessage, syncRetryCount, false);
+
+            var delay = syncRetryCount * 3000; // 3s, 6s, 9s
+            syncRetryTimer = setTimeout(async function() {
+                syncRetryBtn_setSpinning(true);
+                syncErrorAttempt.textContent = 'Attempt ' + syncRetryCount + ' of ' + MAX_SYNC_RETRIES + ' \u2014 retrying\u2026';
+                var success = await syncRetryPull();
+                if (!success) {
+                    handleSyncFailure(errorMessage);
+                }
+            }, delay);
+        }
+
+        // Manual retry button
+        syncErrorRetryBtn.addEventListener('click', async function() {
+            // Reset counter for a fresh manual retry cycle
+            syncRetryCount = 0;
+            if (syncRetryTimer) { clearTimeout(syncRetryTimer); syncRetryTimer = null; }
+            syncRetryBtn_setSpinning(true);
+            syncErrorAttempt.textContent = 'Retrying\u2026';
+            var success = await syncRetryPull();
+            if (!success) {
+                handleSyncFailure(syncErrorDetail.textContent);
+            }
+        });
+
+        // Dismiss button — hides banner, lets employees keep working
+        document.getElementById('syncErrorDismiss').addEventListener('click', function() {
+            hideSyncErrorBanner();
+        });
 
         // Override saveState — NO auto-push. Push is triggered explicitly via schedulePush().
         const originalSaveState = saveState;
@@ -4804,6 +5105,11 @@
                 eventSource.onopen = () => {
                     if (firebaseConfig) {
                         updateSyncStatus('connected', 'Synced just now');
+                        // SSE reconnected — clear any error banner
+                        if (syncErrorBanner && syncErrorBanner.classList.contains('show')) {
+                            hideSyncErrorBanner();
+                            showToast('<i class="fas fa-check-circle"></i> Sync restored', 'success');
+                        }
                     }
                 };
             } catch (e) {
@@ -5021,11 +5327,14 @@
                 pullFromFirebase().then(function(success) {
                     startRealtimeListener();
                     if (!success) {
-                        updateSyncStatus('error', 'Initial sync failed — retrying via SSE');
+                        updateSyncStatus('error', 'Initial sync failed — retrying');
+                        handleSyncFailure(lastPullError || 'Initial sync failed');
                     }
-                }).catch(function() {
+                }).catch(function(err) {
                     startRealtimeListener();
-                    updateSyncStatus('error', 'Connection error — retrying via SSE');
+                    var errMsg = (err && err.message) ? err.message : 'Connection error';
+                    updateSyncStatus('error', 'Connection error — retrying');
+                    handleSyncFailure(errMsg);
                 });
             } else {
                 updateSyncStatus('', 'Tap to connect', true);
