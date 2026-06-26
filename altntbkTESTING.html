@@ -3241,7 +3241,7 @@ renderWhiteboard() {
  borderClass = 'border border-gray-300 ';
  }
 
- const lockClass = this.isDayCapacityLocked(this.dateToLocalDateString(date)) ? ' cap-locked-column' : '';
+ const lockClass = this.isPersonDayCapacityLocked(person, this.dateToLocalDateString(date)) ? ' cap-locked-column' : '';
  column.className = `flex-shrink-0 person-column w-[268px] ${columnBgClass} rounded-lg ${borderClass}${lockClass}`;
  column.dataset.person = person;
 
@@ -3297,8 +3297,8 @@ renderWhiteboard() {
  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
  </svg>
  </button>
- <button class="cap-lock-btn p-1 rounded transition-colors ${this.isDayCapacityLocked(this.dateToLocalDateString(date)) ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'text-gray-400 hover:bg-gray-200 hover:text-gray-600'}" title="${this.isDayCapacityLocked(this.dateToLocalDateString(date)) ? 'Capacity LOCKED — click to unlock red area' : 'Capacity unlocked — click to lock red area'}" data-date="${this.dateToLocalDateString(date)}">
- ${this.isDayCapacityLocked(this.dateToLocalDateString(date)) ? '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>' : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>'}
+ <button class="cap-lock-btn p-1 rounded transition-colors ${this.isPersonDayCapacityLocked(person, this.dateToLocalDateString(date)) ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'text-gray-400 hover:bg-gray-200 hover:text-gray-600'}" title="${this.isPersonDayCapacityLocked(person, this.dateToLocalDateString(date)) ? 'Capacity LOCKED — click to unlock red area' : 'Capacity unlocked — click to lock red area'}" data-person="${person}" data-date="${this.dateToLocalDateString(date)}">
+ ${this.isPersonDayCapacityLocked(person, this.dateToLocalDateString(date)) ? '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>' : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>'}
  </button>
  </div>
  </div>
@@ -3818,7 +3818,7 @@ attachTaskCardListeners(card, task) {
  this.snapCardsToTop(person, dateKey);
  } else if (e.target.closest('.cap-lock-btn')) {
  const btn = e.target.closest('.cap-lock-btn');
- this.toggleCapacityLock(btn.dataset.date);
+ this.toggleCapacityLock(btn.dataset.person, btn.dataset.date);
  } else if (e.target.closest('.quick-capacity-btn')) {
  const btn = e.target.closest('.quick-capacity-btn');
  const person = btn.dataset.person;
@@ -5316,7 +5316,7 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  
  findNonCollidingPosition(person, dateKey, slotPosition, taskId) {
  const existingTasks = this.tasks[dateKey]?.[person] || [];
- const isLocked = this.isDayCapacityLocked(dateKey);
+ const isLocked = this.isPersonDayCapacityLocked(person, dateKey);
  const date = this.parseDateString(dateKey);
  const capacity = isLocked ? this.getPersonCapacityForDate(person, date) : 32;
 
@@ -5363,7 +5363,7 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  
  findOptimalPosition(person, dateKey, duration) {
  const existingTasks = this.tasks[dateKey]?.[person] || [];
- const isLocked = this.isDayCapacityLocked(dateKey);
+ const isLocked = this.isPersonDayCapacityLocked(person, dateKey);
  const date = this.parseDateString(dateKey);
  const capacity = isLocked ? this.getPersonCapacityForDate(person, date) : 32;
  const maxPos = Math.min(32, capacity) - duration;
@@ -5873,7 +5873,7 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  } else {
  newPosition = currentTask?.position || 0;
  // Check if duration change pushes task into red on locked day
- if (this.isDayCapacityLocked(targetDateKey)) {
+ if (this.isPersonDayCapacityLocked(targetPerson, targetDateKey)) {
   const date = this.parseDateString(targetDateKey);
   const capacity = this.getPersonCapacityForDate(targetPerson, date);
   if (newPosition + duration > capacity) {
@@ -11715,20 +11715,21 @@ async loadCapacityLockedDaysFromLocal() {
  } catch (e) { console.warn('Could not load capacity-locked-days:', e); }
 }
 
-toggleCapacityLock(dateKey) {
- if (this.capacityLockedDays.has(dateKey)) {
-  this.capacityLockedDays.delete(dateKey);
-  this.showToast('🔓 Capacity unlocked — red area scheduling allowed', 'success');
+toggleCapacityLock(person, dateKey) {
+ const key = person + '|' + dateKey;
+ if (this.capacityLockedDays.has(key)) {
+  this.capacityLockedDays.delete(key);
+  this.showToast('🔓 ' + person + ' unlocked — red area scheduling allowed', 'success');
  } else {
-  this.capacityLockedDays.add(dateKey);
-  this.showToast('🔒 Capacity locked — red area scheduling blocked', 'success');
+  this.capacityLockedDays.add(key);
+  this.showToast('🔒 ' + person + ' locked — red area scheduling blocked', 'success');
  }
  this.saveCapacityLockedDaysToLocal();
  this.renderWhiteboard();
 }
 
-isDayCapacityLocked(dateKey) {
- return this.capacityLockedDays.has(dateKey);
+isPersonDayCapacityLocked(person, dateKey) {
+ return this.capacityLockedDays.has(person + '|' + dateKey);
 }
 
 async upsertDayNoteInAirtable(dateKey, noteText) {
