@@ -550,6 +550,10 @@
             cursor: not-allowed;
         }
 
+        .checklist-item.locked .item-subtasks {
+            pointer-events: none;
+        }
+
         .checklist-item.locked .checkbox-wrapper {
             background: var(--bg-secondary);
             border-color: var(--border-color);
@@ -3643,7 +3647,7 @@
                 });
             });
 
-            // Subtask click handlers (no sequential enforcement — subtasks are optional/any order)
+            // Subtask click handlers
             document.querySelectorAll('.subtask-row').forEach(row => {
                 row.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -3652,6 +3656,19 @@
 
                     const taskId = row.dataset.taskId;
                     const subtaskId = row.dataset.subtaskId;
+
+                    // Block subtask clicks if the parent task is locked
+                    const parentItem = row.closest('.checklist-item');
+                    if (parentItem) {
+                        const pSection = parentItem.dataset.section;
+                        const pGroup = parentItem.dataset.group;
+                        if (pSection && pGroup && isTaskLocked(pSection, pGroup, taskId)) {
+                            parentItem.classList.add('shake');
+                            setTimeout(() => parentItem.classList.remove('shake'), 500);
+                            showToast('<i class="fas fa-lock"></i> Complete the previous task first', 'warning');
+                            return;
+                        }
+                    }
                     const isRequired = row.dataset.required === 'true';
                     const isAlreadyChecked = state.completedSubtasks && state.completedSubtasks[taskId] && state.completedSubtasks[taskId][subtaskId];
 
