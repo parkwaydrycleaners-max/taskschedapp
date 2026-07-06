@@ -3408,7 +3408,78 @@
             if (state.todayOnlyTasks && state.todayOnlyTasks[section] && state.todayOnlyTasks[section][group]) {
                 todayOnly = ensureArray(state.todayOnlyTasks[section][group]);
             }
-            return [...permanent, ...todayOnly];
+            if (todayOnly.length === 0) return permanent.slice();
+
+            // Slot-based interleaving: each today-only task has a "position"
+            // value meaning "how many permanent tasks should come before me."
+            // Group today-only tasks by their position slot.
+            let slots = {};
+            todayOnly.forEach(function(t) {
+                let pos = (t.position !== undefined) ? t.position : permanent.length;
+                if (!slots[pos]) slots[pos] = [];
+                slots[pos].push(t);
+            });
+
+            let combined = [];
+            for (let i = 0; i <= permanent.length; i++) {
+                // Insert today-only tasks slotted at this position
+                if (slots[i]) combined.push(...slots[i]);
+                // Then add the permanent task at this index
+                if (i < permanent.length) combined.push(permanent[i]);
+            }
+            // Handle any slots beyond permanent.length
+            let maxSlot = permanent.length;
+            Object.keys(slots).forEach(function(k) {
+                if (parseInt(k) > maxSlot) combined.push(...slots[k]);
+            });
+            return combined;
+        }
+
+        // Unified move handler for both permanent and today-only tasks
+        function moveItemInList(id, direction) {
+            let found = findItemById(id);
+            if (!found) return;
+            let section = found.section;
+            let group = found.group;
+
+            let combined = getCombinedItems(section, group);
+            let idx = combined.findIndex(function(it) { return it.id === id; });
+            if (idx === -1) return;
+
+            let targetIdx = idx + direction;
+            if (targetIdx < 0 || targetIdx >= combined.length) return;
+
+            // Swap in the combined list
+            let tmp = combined[idx];
+            combined[idx] = combined[targetIdx];
+            combined[targetIdx] = tmp;
+
+            // Rebuild permanent and today-only arrays from the new combined order
+            let newPermanent = [];
+            let newTodayOnly = [];
+            combined.forEach(function(item) {
+                if (item.todayOnly) {
+                    item.position = newPermanent.length;
+                    newTodayOnly.push(item);
+                } else {
+                    newPermanent.push(item);
+                }
+            });
+
+            // Write back
+            if (!checklistData[section]) checklistData[section] = {};
+            checklistData[section][group] = newPermanent;
+            if (!state.todayOnlyTasks) {
+                state.todayOnlyTasks = { opening: { tasks: [] }, sorting: { tasks: [] }, closing: { tasks: [] } };
+            }
+            if (!state.todayOnlyTasks[section]) state.todayOnlyTasks[section] = {};
+            state.todayOnlyTasks[section][group] = newTodayOnly;
+
+            markMasterDirty();
+            markFullDailyPush();
+            saveState();
+            schedulePush();
+            renderChecklists();
         }
 
         // Render group with empty state fallback.
@@ -3715,17 +3786,7 @@
             document.querySelectorAll('.item-action-btn.move-up').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const id = btn.dataset.id;
-                    const found = findItemById(id);
-                    if (found && found.index > 0) {
-                        const items = checklistData[found.section][found.group];
-                        // Swap with previous item
-                        [items[found.index - 1], items[found.index]] = [items[found.index], items[found.index - 1]];
-                        markMasterDirty();
-                        saveState();
-                        schedulePush();
-                        renderChecklists();
-                    }
+                    moveItemInList(btn.dataset.id, -1);
                 });
             });
 
@@ -3733,19 +3794,7 @@
             document.querySelectorAll('.item-action-btn.move-down').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const id = btn.dataset.id;
-                    const found = findItemById(id);
-                    if (found) {
-                        const items = checklistData[found.section][found.group];
-                        if (found.index < items.length - 1) {
-                            // Swap with next item
-                            [items[found.index], items[found.index + 1]] = [items[found.index + 1], items[found.index]];
-                            markMasterDirty();
-                            saveState();
-                            schedulePush();
-                            renderChecklists();
-                        }
-                    }
+                    moveItemInList(btn.dataset.id, 1);
                 });
             });
         }
@@ -4239,6 +4288,12 @@
                 if (currentTaskType === 'today') {
                     // Add to today-only tasks
                     newTask.todayOnly = true;
+                    // Set default position = end of combined list (after all permanent tasks)
+                    let permLen = 0;
+                    if (checklistData && checklistData[currentAddSection] && checklistData[currentAddSection][currentAddGroup]) {
+                        permLen = ensureArray(checklistData[currentAddSection][currentAddGroup]).length;
+                    }
+                    newTask.position = permLen;
                     if (!state.todayOnlyTasks) {
                         state.todayOnlyTasks = {
                             opening: { tasks: [] },
