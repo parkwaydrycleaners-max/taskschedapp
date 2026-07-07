@@ -616,9 +616,9 @@
 
                 <div class="row">
                     <div class="row-label">POS MIXED SALES (CARD PORTION)
-                        <div class="helper-text">Click to enter mixed payment breakdown</div>
+                        <div class="helper-text">Click to enter mixed orders — auto-fills both sides</div>
                     </div>
-                    <div class="row-value"><input type="number" id="posMixedCard" step="0.01" placeholder="0.00" tabindex="2" readonly style="cursor:pointer" onclick="showMixedBreakdownModal('card')" ></div>
+                    <div class="row-value"><input type="number" id="posMixedCard" step="0.01" placeholder="0.00" tabindex="2" readonly style="cursor:pointer" onclick="showMixedOrdersModal()" ></div>
                 </div>
 
                 <div class="row">
@@ -719,9 +719,9 @@
 
                 <div class="row">
                     <div class="row-label">POS MIXED SALES (CASH PORTION)
-                        <div class="helper-text">Click to enter mixed payment breakdown</div>
+                        <div class="helper-text">Click to enter mixed orders — auto-fills both sides</div>
                     </div>
-                    <div class="row-value"><input type="number" id="posMixedCash" step="0.01" placeholder="0.00" tabindex="12" readonly style="cursor:pointer" onclick="showMixedBreakdownModal('cash')" ></div>
+                    <div class="row-value"><input type="number" id="posMixedCash" step="0.01" placeholder="0.00" tabindex="12" readonly style="cursor:pointer" onclick="showMixedOrdersModal()" ></div>
                 </div>
 
                 <div class="row">
@@ -938,134 +938,217 @@
             return '$' + val.toFixed(2);
         }
 
-        // Mixed payment breakdown storage
-        var mixedBreakdown = {
-            card: { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 },
-            cash: { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 }
-        };
+        // Mixed payment orders storage
+        var mixedOrders = [];
 
-        function showMixedBreakdownModal(side) {
-            var bd = mixedBreakdown[side];
-            var isCard = side === 'card';
-            var categories = isCard
-                ? [
-                    { key: 'cr', label: 'CARD (CR)' },
-                    { key: 'ca', label: 'CASH (CA)' },
-                    { key: 'ck', label: 'CHECK (CK)' },
-                    { key: 'dc', label: 'DISCOUNT (DC)' },
-                    { key: 'cd', label: 'CREDIT (CD)' }
-                ]
-                : [
-                    { key: 'ca', label: 'CASH (CA)' },
-                    { key: 'cr', label: 'CARD (CR)' },
-                    { key: 'ck', label: 'CHECK (CK)' },
-                    { key: 'dc', label: 'DISCOUNT (DC)' },
-                    { key: 'cd', label: 'CREDIT (CD)' }
-                ];
+        function getMixedTotals() {
+            var totals = { grand: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 };
+            mixedOrders.forEach(function(order) {
+                totals.grand += order.total || 0;
+                totals.cr += order.cr || 0;
+                totals.ca += order.ca || 0;
+                totals.ck += order.ck || 0;
+                totals.dc += order.dc || 0;
+                totals.cd += order.cd || 0;
+            });
+            return totals;
+        }
 
+        function applyMixedToFields() {
+            var totals = getMixedTotals();
+            document.getElementById('posMixedCard').value = totals.cr ? totals.cr.toFixed(2) : '';
+            document.getElementById('posMixedCash').value = totals.ca ? totals.ca.toFixed(2) : '';
+            calculate();
+        }
+
+        function showMixedOrdersModal() {
             var m = document.createElement('div');
             m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
 
-            var fieldsHtml = '<div style="margin-bottom:1rem">' +
-                '<label style="color:var(--text);font-weight:700;font-size:1rem;display:block;margin-bottom:0.5rem">TOTAL MIXED PAYMENT</label>' +
-                '<div style="position:relative"><span style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);color:var(--text);font-weight:600">$</span>' +
-                '<input id="mixedTotal" type="number" step="0.01" min="0" value="' + (bd.total || '') + '" style="width:100%;padding:0.75rem 0.75rem 0.75rem 1.75rem;font-size:1.1rem;font-family:inherit;border:2px solid #4a90e2;border-radius:6px;background:var(--input-bg);color:var(--text)" placeholder="0.00"></div></div>';
-
-            fieldsHtml += '<div style="border-top:2px solid var(--border);padding-top:0.75rem;margin-bottom:0.5rem"><p style="color:var(--text);font-weight:700;font-size:0.95rem;margin-bottom:0.75rem">Break down into categories:</p></div>';
-
-            categories.forEach(function(cat) {
-                var highlight = (isCard && cat.key === 'cr') || (!isCard && cat.key === 'ca');
-                var borderColor = highlight ? '#4a90e2' : 'var(--border)';
-                var bgColor = highlight ? 'rgba(74,144,226,0.06)' : 'transparent';
-                fieldsHtml += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;padding:0.5rem;border-radius:6px;background:' + bgColor + '">' +
-                    '<label style="color:var(--text);font-weight:600;font-size:0.9rem;min-width:110px;white-space:nowrap">' + cat.label + (highlight ? ' ✱' : '') + '</label>' +
-                    '<div style="position:relative;flex:1"><span style="position:absolute;left:0.6rem;top:50%;transform:translateY(-50%);color:var(--text);font-size:0.95rem">$</span>' +
-                    '<input data-cat="' + cat.key + '" type="number" step="0.01" min="0" value="' + (bd[cat.key] || '') + '" style="width:100%;padding:0.5rem 0.5rem 0.5rem 1.5rem;font-size:1rem;font-family:inherit;border:2px solid ' + borderColor + ';border-radius:6px;background:var(--input-bg);color:var(--text)" placeholder="0.00"></div></div>';
-            });
-
-            fieldsHtml += '<p id="mixedBreakdownStatus" style="font-size:0.9rem;margin-bottom:0.75rem;color:var(--text);font-weight:600;text-align:right">Remaining: $0.00</p>';
-            fieldsHtml += '<p id="mixedBreakdownError" style="color:var(--red-text);font-size:0.9rem;margin-bottom:0.75rem;display:none"></p>';
-
-            m.innerHTML = '<div style="background:var(--bg);padding:2rem;border-radius:8px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid var(--border)">' +
-                '<p style="color:var(--text);font-weight:700;font-size:1.15rem;margin-bottom:0.25rem">🔀 Mixed Payment Breakdown</p>' +
-                '<p style="color:var(--text);font-size:0.85rem;margin-bottom:1rem;opacity:0.7">The ' + (isCard ? 'CARD (CR)' : 'CASH (CA)') + ' amount will be used for the ' + (isCard ? 'card' : 'cash') + ' side</p>' +
-                fieldsHtml +
+            m.innerHTML = '<div style="background:var(--bg);padding:1.5rem;border-radius:8px;max-width:560px;width:95%;max-height:92vh;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid var(--border)">' +
+                '<p style="color:var(--text);font-weight:700;font-size:1.15rem;margin-bottom:0.25rem">🔀 Mixed Payment Orders</p>' +
+                '<p style="color:var(--text);font-size:0.82rem;margin-bottom:1rem;opacity:0.7">Enter each mixed order. The app totals CARD → card side and CASH → cash side automatically.</p>' +
+                '<div id="mixedOrdersList"></div>' +
+                '<button id="addOrderBtn" style="width:100%;padding:0.6rem;background:transparent;color:#4a90e2;border:2px dashed #4a90e2;border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600;margin-bottom:0.75rem">+ Add Order</button>' +
+                '<div id="mixedGrandTotals" style="background:var(--total-bg);border-radius:6px;padding:0.75rem;margin-bottom:0.75rem"></div>' +
+                '<p id="mixedOrdersError" style="color:var(--red-text);font-size:0.9rem;margin-bottom:0.75rem;display:none"></p>' +
                 '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem">' +
                     '<button class="cancel-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600">Cancel</button>' +
-                    '<button class="clear-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--red-text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600">Clear</button>' +
+                    '<button class="clear-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--red-text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600">Clear All</button>' +
                     '<button class="submit-btn" style="padding:0.75rem;background:#4a90e2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600">OK</button>' +
                 '</div></div>';
             document.body.appendChild(m);
 
-            var totalInput = m.querySelector('#mixedTotal');
-            var catInputs = m.querySelectorAll('[data-cat]');
-            var statusEl = m.querySelector('#mixedBreakdownStatus');
-            var errorEl = m.querySelector('#mixedBreakdownError');
+            var listEl = m.querySelector('#mixedOrdersList');
+            var totalsEl = m.querySelector('#mixedGrandTotals');
+            var errorEl = m.querySelector('#mixedOrdersError');
+            var orderIndex = 0;
 
-            function updateRemaining() {
+            function makeField(label, dataKey, idx, val) {
+                var isHighlight = dataKey === 'cr' || dataKey === 'ca';
+                var tag = dataKey === 'cr' ? '💳' : dataKey === 'ca' ? '💵' : '';
+                return '<div style="display:flex;align-items:center;gap:0.4rem">' +
+                    '<label style="color:var(--text);font-weight:600;font-size:0.8rem;min-width:80px;white-space:nowrap">' + (tag ? tag + ' ' : '') + label + '</label>' +
+                    '<div style="position:relative;flex:1"><span style="position:absolute;left:0.5rem;top:50%;transform:translateY(-50%);color:var(--text);font-size:0.85rem">$</span>' +
+                    '<input data-order="' + idx + '" data-field="' + dataKey + '" type="number" step="0.01" min="0" value="' + (val || '') + '" ' +
+                    'style="width:100%;padding:0.4rem 0.4rem 0.4rem 1.3rem;font-size:0.95rem;font-family:inherit;border:2px solid ' + (isHighlight ? '#4a90e2' : 'var(--border)') + ';border-radius:5px;background:var(--input-bg);color:var(--text)" placeholder="0.00"></div></div>';
+            }
+
+            function addOrderRow(data) {
+                var idx = orderIndex++;
+                var d = data || { orderNum: '', total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 };
+                var card = document.createElement('div');
+                card.dataset.orderIdx = idx;
+                card.style.cssText = 'border:2px solid var(--border);border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;position:relative';
+                card.innerHTML =
+                    '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem">' +
+                        '<label style="color:var(--text);font-weight:700;font-size:0.9rem;white-space:nowrap">Order #</label>' +
+                        '<input data-order="' + idx + '" data-field="orderNum" type="text" value="' + (d.orderNum || '') + '" ' +
+                        'style="flex:1;padding:0.4rem 0.5rem;font-size:0.95rem;font-family:inherit;border:2px solid var(--border);border-radius:5px;background:var(--input-bg);color:var(--text)" placeholder="e.g. 1042">' +
+                        '<label style="color:var(--text);font-weight:700;font-size:0.9rem;white-space:nowrap;margin-left:0.25rem">Total $</label>' +
+                        '<input data-order="' + idx + '" data-field="total" type="number" step="0.01" min="0" value="' + (d.total || '') + '" ' +
+                        'style="width:90px;padding:0.4rem 0.5rem;font-size:0.95rem;font-family:inherit;border:2px solid #4a90e2;border-radius:5px;background:var(--input-bg);color:var(--text);font-weight:700" placeholder="0.00">' +
+                        '<button data-remove="' + idx + '" style="background:none;border:none;color:var(--red-text);font-size:1.2rem;cursor:pointer;padding:0 0.3rem;font-weight:700" title="Remove order">✕</button>' +
+                    '</div>' +
+                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem 0.75rem">' +
+                        makeField('CARD (CR)', 'cr', idx, d.cr) +
+                        makeField('CASH (CA)', 'ca', idx, d.ca) +
+                        makeField('CHECK (CK)', 'ck', idx, d.ck) +
+                        makeField('DISCOUNT (DC)', 'dc', idx, d.dc) +
+                        makeField('CREDIT (CD)', 'cd', idx, d.cd) +
+                    '</div>' +
+                    '<p data-order-status="' + idx + '" style="font-size:0.8rem;font-weight:600;text-align:right;margin-top:0.4rem;color:var(--text)"></p>';
+                listEl.appendChild(card);
+
+                // Remove button
+                card.querySelector('[data-remove="' + idx + '"]').onclick = function() {
+                    card.remove();
+                    updateGrandTotals();
+                };
+
+                // Listen for inputs
+                card.querySelectorAll('input[type="number"]').forEach(function(inp) {
+                    inp.addEventListener('input', function() { updateOrderStatus(idx); updateGrandTotals(); });
+                });
+
+                updateOrderStatus(idx);
+                updateGrandTotals();
+
+                // Focus the order number field
+                var orderNumInput = card.querySelector('[data-field="orderNum"]');
+                if (!data) setTimeout(function() { orderNumInput.focus(); }, 50);
+            }
+
+            function updateOrderStatus(idx) {
+                var totalInput = m.querySelector('[data-order="' + idx + '"][data-field="total"]');
+                var statusEl2 = m.querySelector('[data-order-status="' + idx + '"]');
+                if (!totalInput || !statusEl2) return;
                 var total = parseFloat(totalInput.value) || 0;
                 var sum = 0;
-                catInputs.forEach(function(inp) { sum += parseFloat(inp.value) || 0; });
+                var cats = ['cr', 'ca', 'ck', 'dc', 'cd'];
+                cats.forEach(function(cat) {
+                    var inp = m.querySelector('[data-order="' + idx + '"][data-field="' + cat + '"]');
+                    if (inp) sum += parseFloat(inp.value) || 0;
+                });
                 var remaining = total - sum;
-                statusEl.textContent = 'Remaining: ' + fmt(remaining);
-                if (Math.abs(remaining) < 0.005) {
-                    statusEl.style.color = 'var(--green-text)';
-                } else if (remaining < 0) {
-                    statusEl.style.color = 'var(--red-text)';
+                if (total === 0 && sum === 0) {
+                    statusEl2.textContent = '';
+                } else if (Math.abs(remaining) < 0.005) {
+                    statusEl2.textContent = '✓ Balanced';
+                    statusEl2.style.color = 'var(--green-text)';
                 } else {
-                    statusEl.style.color = 'var(--text)';
+                    statusEl2.textContent = 'Remaining: ' + fmt(remaining);
+                    statusEl2.style.color = remaining < 0 ? 'var(--red-text)' : 'var(--text)';
                 }
             }
 
-            totalInput.addEventListener('input', updateRemaining);
-            catInputs.forEach(function(inp) { inp.addEventListener('input', updateRemaining); });
-            updateRemaining();
+            function getOrderData(idx) {
+                var data = { orderNum: '', total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 };
+                var numInput = m.querySelector('[data-order="' + idx + '"][data-field="orderNum"]');
+                if (numInput) data.orderNum = numInput.value.trim();
+                ['total', 'cr', 'ca', 'ck', 'dc', 'cd'].forEach(function(f) {
+                    var inp = m.querySelector('[data-order="' + idx + '"][data-field="' + f + '"]');
+                    if (inp) data[f] = parseFloat(inp.value) || 0;
+                });
+                return data;
+            }
 
-            setTimeout(function() { totalInput.select(); }, 50);
+            function getAllOrders() {
+                var orders = [];
+                listEl.querySelectorAll('[data-order-idx]').forEach(function(card) {
+                    var idx = parseInt(card.dataset.orderIdx);
+                    orders.push(getOrderData(idx));
+                });
+                return orders;
+            }
+
+            function updateGrandTotals() {
+                var orders = getAllOrders();
+                var sums = { grand: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 };
+                orders.forEach(function(o) {
+                    sums.grand += o.total;
+                    sums.cr += o.cr; sums.ca += o.ca; sums.ck += o.ck; sums.dc += o.dc; sums.cd += o.cd;
+                });
+                totalsEl.innerHTML =
+                    '<div style="font-weight:700;font-size:0.95rem;color:var(--text);margin-bottom:0.4rem">Running Totals (' + orders.length + ' order' + (orders.length !== 1 ? 's' : '') + ')</div>' +
+                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.25rem 1rem;font-size:0.9rem;color:var(--text)">' +
+                        '<div>Grand Total: <strong>' + fmt(sums.grand) + '</strong></div>' +
+                        '<div></div>' +
+                        '<div>💳 CARD (CR): <strong style="color:#4a90e2">' + fmt(sums.cr) + '</strong></div>' +
+                        '<div>💵 CASH (CA): <strong style="color:#4a90e2">' + fmt(sums.ca) + '</strong></div>' +
+                        '<div>CHECK (CK): ' + fmt(sums.ck) + '</div>' +
+                        '<div>DISCOUNT (DC): ' + fmt(sums.dc) + '</div>' +
+                        '<div>CREDIT (CD): ' + fmt(sums.cd) + '</div>' +
+                    '</div>';
+            }
+
+            // Load existing orders or start with one empty row
+            if (mixedOrders.length > 0) {
+                mixedOrders.forEach(function(o) { addOrderRow(o); });
+            } else {
+                addOrderRow();
+            }
+
+            m.querySelector('#addOrderBtn').onclick = function() { addOrderBtn(); };
+            function addOrderBtn() { addOrderRow(); }
 
             m.querySelector('.cancel-btn').onclick = function() { m.remove(); };
 
             m.querySelector('.clear-btn').onclick = function() {
-                mixedBreakdown[side] = { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 };
-                var targetId = isCard ? 'posMixedCard' : 'posMixedCash';
-                document.getElementById(targetId).value = '';
+                mixedOrders = [];
+                document.getElementById('posMixedCard').value = '';
+                document.getElementById('posMixedCash').value = '';
                 m.remove();
                 calculate();
             };
 
             m.querySelector('.submit-btn').onclick = function() {
-                var total = parseFloat(totalInput.value) || 0;
                 errorEl.style.display = 'none';
+                var orders = getAllOrders();
 
-                if (total <= 0) {
-                    errorEl.textContent = '⚠️ Please enter a total amount greater than 0';
-                    errorEl.style.display = 'block';
-                    return;
-                }
-
-                var sum = 0;
-                var values = {};
-                catInputs.forEach(function(inp) {
-                    var v = parseFloat(inp.value) || 0;
-                    values[inp.dataset.cat] = v;
-                    sum += v;
+                // Filter out completely empty rows
+                orders = orders.filter(function(o) {
+                    return o.total > 0 || o.cr > 0 || o.ca > 0 || o.ck > 0 || o.dc > 0 || o.cd > 0;
                 });
 
-                if (Math.abs(sum - total) > 0.01) {
-                    errorEl.textContent = '⚠️ Categories (' + fmt(sum) + ') must add up to the total (' + fmt(total) + ')';
-                    errorEl.style.display = 'block';
-                    return;
+                // Validate each order
+                for (var i = 0; i < orders.length; i++) {
+                    var o = orders[i];
+                    var catSum = o.cr + o.ca + o.ck + o.dc + o.cd;
+                    if (o.total > 0 && Math.abs(catSum - o.total) > 0.01) {
+                        var label = o.orderNum ? 'Order #' + o.orderNum : 'Order ' + (i + 1);
+                        errorEl.textContent = '⚠️ ' + label + ': breakdown (' + fmt(catSum) + ') does not match total (' + fmt(o.total) + ')';
+                        errorEl.style.display = 'block';
+                        return;
+                    }
+                    if (o.total <= 0 && catSum > 0) {
+                        o.total = catSum;
+                    }
                 }
 
-                mixedBreakdown[side].total = total;
-                Object.keys(values).forEach(function(k) { mixedBreakdown[side][k] = values[k]; });
-
-                var targetId = isCard ? 'posMixedCard' : 'posMixedCash';
-                var targetValue = isCard ? values.cr : values.ca;
-                document.getElementById(targetId).value = targetValue ? targetValue.toFixed(2) : '';
-
+                mixedOrders = orders;
+                applyMixedToFields();
                 m.remove();
-                calculate();
             };
         }
 
@@ -1338,31 +1421,38 @@
             report += '───────────────────────────────────────────────\n';
             report += `POS Credit Card Total:        ${fmt(totalPOSCard)}\n`;
             report += `Actual CC Terminal Total:      ${fmt(totalCCActual)}\n`;
-            report += `Card Balance:                 ${fmt(cardBalance)} ${cardBalanced ? '✓' : '⚠️'}\n`;
-            if (mixedBreakdown.card.total > 0) {
-                report += `  Mixed Payment Total:        ${fmt(mixedBreakdown.card.total)}\n`;
-                if (mixedBreakdown.card.cr > 0) report += `    CARD (CR):                ${fmt(mixedBreakdown.card.cr)}\n`;
-                if (mixedBreakdown.card.ca > 0) report += `    CASH (CA):                ${fmt(mixedBreakdown.card.ca)}\n`;
-                if (mixedBreakdown.card.ck > 0) report += `    CHECK (CK):               ${fmt(mixedBreakdown.card.ck)}\n`;
-                if (mixedBreakdown.card.dc > 0) report += `    DISCOUNT (DC):            ${fmt(mixedBreakdown.card.dc)}\n`;
-                if (mixedBreakdown.card.cd > 0) report += `    CREDIT (CD):              ${fmt(mixedBreakdown.card.cd)}\n`;
-            }
-            report += '\n';
+            report += `Card Balance:                 ${fmt(cardBalance)} ${cardBalanced ? '✓' : '⚠️'}\n\n`;
 
             report += '💵 CASH SALES\n';
             report += '───────────────────────────────────────────────\n';
             report += `POS Cash Total:               ${fmt(totalPOSCash)}\n`;
             report += `Actual Register Total:        ${fmt(totalRegisterSales)}\n`;
-            report += `Cash Balance:                 ${fmt(cashBalance)} ${cashBalanced ? '✓' : '⚠️'}\n`;
-            if (mixedBreakdown.cash.total > 0) {
-                report += `  Mixed Payment Total:        ${fmt(mixedBreakdown.cash.total)}\n`;
-                if (mixedBreakdown.cash.ca > 0) report += `    CASH (CA):                ${fmt(mixedBreakdown.cash.ca)}\n`;
-                if (mixedBreakdown.cash.cr > 0) report += `    CARD (CR):                ${fmt(mixedBreakdown.cash.cr)}\n`;
-                if (mixedBreakdown.cash.ck > 0) report += `    CHECK (CK):               ${fmt(mixedBreakdown.cash.ck)}\n`;
-                if (mixedBreakdown.cash.dc > 0) report += `    DISCOUNT (DC):            ${fmt(mixedBreakdown.cash.dc)}\n`;
-                if (mixedBreakdown.cash.cd > 0) report += `    CREDIT (CD):              ${fmt(mixedBreakdown.cash.cd)}\n`;
+            report += `Cash Balance:                 ${fmt(cashBalance)} ${cashBalanced ? '✓' : '⚠️'}\n\n`;
+
+            if (mixedOrders.length > 0) {
+                var mt = getMixedTotals();
+                report += '🔀 MIXED PAYMENT ORDERS (' + mixedOrders.length + ')\n';
+                report += '───────────────────────────────────────────────\n';
+                mixedOrders.forEach(function(o, i) {
+                    var label = o.orderNum ? '#' + o.orderNum : 'Order ' + (i + 1);
+                    report += `  ${label}:  Total ${fmt(o.total)}`;
+                    var parts = [];
+                    if (o.cr > 0) parts.push('CR ' + fmt(o.cr));
+                    if (o.ca > 0) parts.push('CA ' + fmt(o.ca));
+                    if (o.ck > 0) parts.push('CK ' + fmt(o.ck));
+                    if (o.dc > 0) parts.push('DC ' + fmt(o.dc));
+                    if (o.cd > 0) parts.push('CD ' + fmt(o.cd));
+                    if (parts.length > 0) report += '  (' + parts.join(', ') + ')';
+                    report += '\n';
+                });
+                report += `  ─────────────────────────────\n`;
+                report += `  💳 Total CARD (CR):           ${fmt(mt.cr)}\n`;
+                report += `  💵 Total CASH (CA):           ${fmt(mt.ca)}\n`;
+                if (mt.ck > 0) report += `  Total CHECK (CK):           ${fmt(mt.ck)}\n`;
+                if (mt.dc > 0) report += `  Total DISCOUNT (DC):         ${fmt(mt.dc)}\n`;
+                if (mt.cd > 0) report += `  Total CREDIT (CD):           ${fmt(mt.cd)}\n`;
+                report += '\n';
             }
-            report += '\n';
 
             report += '📊 SUMMARY\n';
             report += '───────────────────────────────────────────────\n';
@@ -1817,7 +1907,7 @@
                 cashHandoff: cashHandoff,
                 safeSignoff: safeSignoff,
                 pettyCashBack: pettyCashBack,
-                mixedBreakdown: JSON.parse(JSON.stringify(mixedBreakdown))
+                mixedOrders: JSON.parse(JSON.stringify(mixedOrders))
             };
 
             history.unshift(record);
@@ -1835,10 +1925,7 @@
                 cashHandoff = '';
                 safeSignoff = '';
                 pettyCashBack = '';
-                mixedBreakdown = {
-                    card: { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 },
-                    cash: { total: 0, cr: 0, ca: 0, ck: 0, dc: 0, cd: 0 }
-                };
+                mixedOrders = [];
                 calculate();
                 generateReport();
             });
