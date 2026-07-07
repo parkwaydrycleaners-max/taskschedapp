@@ -688,6 +688,11 @@
                 </div>
 
                 <div class="row">
+                    <div class="row-label">CARD REFUNDS</div>
+                    <div class="row-value"><input type="number" id="cardRefunds" step="0.01" placeholder="0.00" tabindex="11" ></div>
+                </div>
+
+                <div class="row">
                     <div class="row-label bold">TOTAL CREDIT CARD SALES (ADJUSTED)</div>
                     <div class="row-value calculated" id="totalCCActual">$0.00</div>
                 </div>
@@ -714,21 +719,21 @@
 
                 <div class="row">
                     <div class="row-label">POS CASH SALES</div>
-                    <div class="row-value"><input type="number" id="posCashSales" step="0.01" placeholder="0.00" tabindex="11" ></div>
+                    <div class="row-value"><input type="number" id="posCashSales" step="0.01" placeholder="0.00" tabindex="12" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">POS MIXED SALES (CASH PORTION)
                         <div class="helper-text">Click to enter mixed orders — auto-fills both sides</div>
                     </div>
-                    <div class="row-value"><input type="number" id="posMixedCash" step="0.01" placeholder="0.00" tabindex="12" readonly style="cursor:pointer" onclick="showMixedOrdersModal()" ></div>
+                    <div class="row-value"><input type="number" id="posMixedCash" step="0.01" placeholder="0.00" tabindex="13" readonly style="cursor:pointer" onclick="showMixedOrdersModal()" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">POS EXPENSE REGISTER
                         <div class="helper-text">Copy the EXACT number from the POS — negative or positive</div>
                     </div>
-                    <div class="row-value"><input type="number" id="posExpense" step="0.01" placeholder="0.00" tabindex="13" oninput="updateExpenseHint()" ></div>
+                    <div class="row-value"><input type="number" id="posExpense" step="0.01" placeholder="0.00" tabindex="14" oninput="updateExpenseHint()" ></div>
                 </div>
                 <div id="expenseHint" class="expense-hint" style="display:none"></div>
 
@@ -744,12 +749,12 @@
 
                 <div class="row">
                     <div class="row-label">CASH REGISTER 1</div>
-                    <div class="row-value"><input type="number" id="cashRegister1" step="0.01" placeholder="0.00" tabindex="14" ></div>
+                    <div class="row-value"><input type="number" id="cashRegister1" step="0.01" placeholder="0.00" tabindex="15" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">CASH REGISTER 2</div>
-                    <div class="row-value"><input type="number" id="cashRegister2" step="0.01" placeholder="0.00" tabindex="15" ></div>
+                    <div class="row-value"><input type="number" id="cashRegister2" step="0.01" placeholder="0.00" tabindex="16" ></div>
                 </div>
 
                 <div class="row">
@@ -764,17 +769,17 @@
 
                 <div class="row">
                     <div class="row-label">PETTY CASH</div>
-                    <div class="row-value"><input type="number" id="pettyCash" step="0.01" placeholder="0.00" tabindex="16" ></div>
+                    <div class="row-value"><input type="number" id="pettyCash" step="0.01" placeholder="0.00" tabindex="17" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">OTHER CASH ADDED</div>
-                    <div class="row-value"><input type="number" id="otherCashAdded" step="0.01" placeholder="0.00" tabindex="17" ></div>
+                    <div class="row-value"><input type="number" id="otherCashAdded" step="0.01" placeholder="0.00" tabindex="18" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">CASH SALES NOT ON POS</div>
-                    <div class="row-value"><input type="number" id="cashNotPOS" step="0.01" placeholder="0.00" tabindex="18" ></div>
+                    <div class="row-value"><input type="number" id="cashNotPOS" step="0.01" placeholder="0.00" tabindex="19" ></div>
                 </div>
 
                 <div class="row">
@@ -782,12 +787,12 @@
                         MODIFIED PAST ORDER PAYMENTS
                         <div class="helper-text">Cash payments on old orders — shows in register today but POS registers it on the original date</div>
                     </div>
-                    <div class="row-value"><input type="number" id="modifiedPastOrdersCash" step="0.01" placeholder="0.00" tabindex="19" ></div>
+                    <div class="row-value"><input type="number" id="modifiedPastOrdersCash" step="0.01" placeholder="0.00" tabindex="20" ></div>
                 </div>
 
                 <div class="row">
                     <div class="row-label">STORE CREDIT IN CASH</div>
-                    <div class="row-value"><input type="number" id="storeCreditCash" step="0.01" placeholder="0.00" tabindex="20" ></div>
+                    <div class="row-value"><input type="number" id="storeCreditCash" step="0.01" placeholder="0.00" tabindex="21" ></div>
                 </div>
 
                 <div class="row">
@@ -795,7 +800,7 @@
                         CASH REFUNDS
                         <div class="helper-text">Usually already included in POS Expense Register</div>
                     </div>
-                    <div class="row-value"><input type="number" id="cashRefunds" step="0.01" placeholder="0.00" tabindex="21" ></div>
+                    <div class="row-value"><input type="number" id="cashRefunds" step="0.01" placeholder="0.00" tabindex="22" ></div>
                 </div>
 
                 <div class="row">
@@ -1171,8 +1176,9 @@
             const modifiedPastOrders = getVal('modifiedPastOrders');
             const storeCreditCard = getVal('storeCreditCard');
             const voidsCard = getVal('voidsCard');
+            const cardRefunds = getVal('cardRefunds');
 
-            const totalCCActual = totalCCMachine - additional50Amount - otherCardTrans - addSalesNotPOS - modifiedPastOrders - storeCreditCard - voidsCard;
+            const totalCCActual = totalCCMachine - additional50Amount - otherCardTrans - addSalesNotPOS - modifiedPastOrders - storeCreditCard - voidsCard - cardRefunds;
             const cardBalance = totalCCActual - totalPOSCard;
 
             document.getElementById('totalPOSCard').textContent = fmt(totalPOSCard);
@@ -1188,6 +1194,7 @@
             if (modifiedPastOrders > 0) cardCalc += ` - ${fmt(modifiedPastOrders)} (past orders)`;
             if (storeCreditCard > 0) cardCalc += ` - ${fmt(storeCreditCard)} (store credit)`;
             if (voidsCard > 0) cardCalc += ` - ${fmt(voidsCard)} (voids)`;
+            if (cardRefunds > 0) cardCalc += ` - ${fmt(cardRefunds)} (card refunds)`;
             cardCalc += ` = ${fmt(totalCCActual)}`;
             document.getElementById('cardCalcText').textContent = cardCalc;
 
@@ -1884,6 +1891,7 @@
                     modifiedPastOrders: getVal('modifiedPastOrders'),
                     storeCreditCard: getVal('storeCreditCard'),
                     voidsCard: getVal('voidsCard'),
+                    cardRefunds: getVal('cardRefunds'),
                     totalCCActual: parseFloat(document.getElementById('totalCCActual').textContent.replace('$', '')),
                     balance: parseFloat(document.getElementById('cardBalance').textContent.replace('$', ''))
                 },
@@ -1963,7 +1971,7 @@
                 return;
             }
 
-            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Terminal 1', 'CC Terminal 2', 'Total CC Terminal', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Modified Past Orders Card', 'Store Credit Card', 'Voids', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Modified Past Orders Cash', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance', 'Cash Handoff', 'Safe Sign-Off', 'Petty Cash Back to Reg 1'];
+            const headers = ['Date', 'Notes', 'POS Card', 'POS Mixed Card', 'Total POS Card', 'CC Terminal 1', 'CC Terminal 2', 'Total CC Terminal', 'Add .50 Count', 'Add .50 Amount', 'Other Card Trans', 'Add Sales Not POS', 'Modified Past Orders Card', 'Store Credit Card', 'Voids', 'Card Refunds', 'Total CC Actual', 'Card Balance', 'POS Cash', 'POS Mixed Cash', 'POS Expense', 'Total POS Cash', 'Cash Reg 1', 'Cash Reg 2', 'Total Cash Reg', 'Petty Cash', 'Other Cash Added', 'Cash Not POS', 'Modified Past Orders Cash', 'Store Credit Cash', 'Cash Refunds', 'Total Register Sales', 'Cash Balance', 'Cash Handoff', 'Safe Sign-Off', 'Petty Cash Back to Reg 1'];
 
             const rows = history.map(r => [
                 r.date,
@@ -1972,7 +1980,7 @@
                 r.card.ccMachine1, r.card.ccMachine2, r.card.totalCCMachine,
                 r.card.additional50Count, r.card.additional50Amount,
                 r.card.otherCardTrans, r.card.addSalesNotPOS, r.card.modifiedPastOrders || 0, r.card.storeCreditCard,
-                r.card.voidsCard, r.card.totalCCActual, r.card.balance,
+                r.card.voidsCard, r.card.cardRefunds || 0, r.card.totalCCActual, r.card.balance,
                 r.cash.posCashSales, r.cash.posMixedCash, r.cash.posExpense, r.cash.totalPOSCash,
                 r.cash.cashRegister1, r.cash.cashRegister2, r.cash.totalCashRegister,
                 r.cash.pettyCash, r.cash.otherCashAdded, r.cash.cashNotPOS,
