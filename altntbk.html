@@ -356,6 +356,13 @@ tr.recon-checked {
                             <option value="3">3 Days</option>
                         </select>
                     </div>
+                    <div class="ml-4 flex items-center space-x-2">
+                        <label class="flex items-center gap-2 cursor-pointer select-none" title="Hide locked columns with 0 capacity and 0 used slots">
+                            <input type="checkbox" id="hideUnavailableToggle" class="sr-only peer">
+                            <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 relative"></div>
+                            <span class="text-sm font-medium whitespace-nowrap">Hide Locked</span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -1584,6 +1591,7 @@ tr.recon-checked {
  // -----------------------------------------------------------------
  this.currentDate = new Date();
  this.viewDays = 2;
+ this.hideUnavailablePeople = false; // When true, hide columns for people with 0 capacity on that day
  this.people = [];
  this.peopleCapacity = {};
  this.peopleSpecificCapacity = {};
@@ -3216,7 +3224,30 @@ renderWhiteboard() {
  const columnsContainer = document.createElement('div');
  columnsContainer.className = 'flex space-x-4';
 
- this.people.forEach(person => {
+ var peopleToShow = this.people.slice();
+ if (this.hideUnavailablePeople) {
+ var self = this;
+ peopleToShow = peopleToShow.filter(function(p) {
+  // Only hide if ALL 3 conditions are met: locked + 0 capacity + 0 used slots
+  if (!self.isPersonDayCapacityLocked(p, dateKey)) return true; // not locked, always show
+  if (self.getPersonCapacityForDate(p, date) > 0) return true; // has capacity, show
+  var pTasks = self.tasks[dateKey] && self.tasks[dateKey][p];
+  if (pTasks && pTasks.length > 0) return true; // has tasks (used slots > 0), show
+  return false; // locked + 0 capacity + 0 tasks = hide
+ });
+ }
+ // Also include deactivated people who have tasks on this date
+ var dayTasks = this.tasks[dateKey];
+ if (dayTasks) {
+ var activePeopleSet = {};
+ peopleToShow.forEach(function(p) { activePeopleSet[p] = true; });
+ Object.keys(dayTasks).forEach(function(p) {
+  if (!activePeopleSet[p] && dayTasks[p] && dayTasks[p].length > 0) {
+   peopleToShow.push(p);
+  }
+ });
+ }
+ peopleToShow.forEach(person => {
  const column = this.createPersonColumn(person, date, dayOffset, isToday, isPast);
  columnsContainer.appendChild(column);
  });
@@ -3701,6 +3732,7 @@ attachTaskCardListeners(card, task) {
  const viewPrefs = {
  id: 'view-preferences',
  viewDays: this.viewDays,
+ hideUnavailablePeople: this.hideUnavailablePeople,
  lastSaved: new Date().toISOString()
  };
  
@@ -3730,6 +3762,11 @@ attachTaskCardListeners(card, task) {
  if (viewSelect) {
  viewSelect.value = result.viewDays.toString();
  }
+ }
+ if (result && result.hideUnavailablePeople !== undefined) {
+ this.hideUnavailablePeople = result.hideUnavailablePeople;
+ const hideToggle = document.getElementById('hideUnavailableToggle');
+ if (hideToggle) hideToggle.checked = this.hideUnavailablePeople;
  }
  resolve(result);
  };
@@ -3782,6 +3819,12 @@ attachTaskCardListeners(card, task) {
  document.getElementById('viewDaysSelect').addEventListener('change', async (e) => {
  this.viewDays = parseInt(e.target.value);
  this.updateDateDisplay();
+ this.renderWhiteboard();
+ await this.saveViewPreferences();
+ });
+
+ document.getElementById('hideUnavailableToggle').addEventListener('change', async (e) => {
+ this.hideUnavailablePeople = e.target.checked;
  this.renderWhiteboard();
  await this.saveViewPreferences();
  });
