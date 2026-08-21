@@ -357,10 +357,10 @@ tr.recon-checked {
                         </select>
                     </div>
                     <div class="ml-4 flex items-center space-x-2">
-                        <label class="flex items-center gap-2 cursor-pointer select-none" title="Hide columns for people with 0 capacity on that day">
+                        <label class="flex items-center gap-2 cursor-pointer select-none" title="Hide locked columns with 0 capacity and 0 used slots">
                             <input type="checkbox" id="hideUnavailableToggle" class="sr-only peer">
                             <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 relative"></div>
-                            <span class="text-sm font-medium whitespace-nowrap">Hide Off</span>
+                            <span class="text-sm font-medium whitespace-nowrap">Hide Locked</span>
                         </label>
                     </div>
                 </div>
@@ -3226,7 +3226,15 @@ renderWhiteboard() {
 
  var peopleToShow = this.people.slice();
  if (this.hideUnavailablePeople) {
- peopleToShow = peopleToShow.filter(p => this.getPersonCapacityForDate(p, date) > 0);
+ var self = this;
+ peopleToShow = peopleToShow.filter(function(p) {
+  // Only hide if ALL 3 conditions are met: locked + 0 capacity + 0 used slots
+  if (!self.isPersonDayCapacityLocked(p, dateKey)) return true; // not locked, always show
+  if (self.getPersonCapacityForDate(p, date) > 0) return true; // has capacity, show
+  var pTasks = self.tasks[dateKey] && self.tasks[dateKey][p];
+  if (pTasks && pTasks.length > 0) return true; // has tasks (used slots > 0), show
+  return false; // locked + 0 capacity + 0 tasks = hide
+ });
  }
  // Also include deactivated people who have tasks on this date
  var dayTasks = this.tasks[dateKey];
