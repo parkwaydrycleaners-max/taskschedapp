@@ -1593,7 +1593,7 @@ tr.recon-checked {
  // -----------------------------------------------------------------
  this.currentDate = new Date();
  this.viewDays = 2;
- this.hideUnavailablePeople = false; // When true, hide columns for people with 0 capacity on that day
+ this.hideUnavailablePeople = true; // When true, hide locked columns with 0 capacity and 0 used slots
  this.people = [];
  this.peopleCapacity = {};
  this.peopleSpecificCapacity = {};
