@@ -3224,9 +3224,20 @@ renderWhiteboard() {
  const columnsContainer = document.createElement('div');
  columnsContainer.className = 'flex space-x-4';
 
- var peopleToShow = this.people;
+ var peopleToShow = this.people.slice();
  if (this.hideUnavailablePeople) {
- peopleToShow = this.people.filter(p => this.getPersonCapacityForDate(p, date) > 0);
+ peopleToShow = peopleToShow.filter(p => this.getPersonCapacityForDate(p, date) > 0);
+ }
+ // Also include deactivated people who have tasks on this date
+ var dayTasks = this.tasks[dateKey];
+ if (dayTasks) {
+ var activePeopleSet = {};
+ peopleToShow.forEach(function(p) { activePeopleSet[p] = true; });
+ Object.keys(dayTasks).forEach(function(p) {
+  if (!activePeopleSet[p] && dayTasks[p] && dayTasks[p].length > 0) {
+   peopleToShow.push(p);
+  }
+ });
  }
  peopleToShow.forEach(person => {
  const column = this.createPersonColumn(person, date, dayOffset, isToday, isPast);
