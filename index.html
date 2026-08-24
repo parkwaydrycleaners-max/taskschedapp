@@ -1553,10 +1553,11 @@ function computeRush(baseAmount, workDateValue) {
     let days = Math.round((workDate - today) / 86400000);
     if (days < 0) days = 0;
 
-    let percent =
-        days <= 1 ? 0.50 :
-        days === 2 ? 0.40 :
-        days === 3 ? 0.30 : 0.20;
+let percent =
+    days <= 1 ? 0.50 :
+    days === 2 ? 0.40 :
+    days === 3 ? 0.30 :
+    days === 4 ? 0.20 : 0.10;
 
     /* $15 flat rule */
     if (baseAmount === 15) {
