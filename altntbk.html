@@ -4389,8 +4389,6 @@ attachSearchListeners() {
  const todayStr = this.dateToLocalDateString(new Date());
  let totalPieces = 0;
  let totalOrders = 0;
- let debugMatched = [];
- let debugSkipped = [];
 
  // Scan ALL tasks across all dates, filter by createdAt = today
  for (const dateKey in this.tasks) {
@@ -4402,17 +4400,10 @@ attachSearchListeners() {
              if (taskCreatedDate && taskCreatedDate === todayStr) {
                  totalOrders++;
                  totalPieces += parseInt(task.alterationPieces) || 0;
-                 debugMatched.push({order: task.orderNumber, pieces: task.alterationPieces, createdAt: task.createdAt});
-             } else if (task.createdAt) {
-                 debugSkipped.push({order: task.orderNumber, createdAt: task.createdAt, createdDate: taskCreatedDate});
              }
          });
      }
  }
-
- console.log('[POS Recon] getTodayPieceCounts: today=' + todayStr + ' matched=' + totalOrders + ' totalPieces=' + totalPieces);
- if (debugMatched.length > 0) console.log('[POS Recon] Matched orders: ' + JSON.stringify(debugMatched));
- if (debugSkipped.length > 0 && debugSkipped.length <= 10) console.log('[POS Recon] Skipped (wrong date): ' + JSON.stringify(debugSkipped));
 
  return { totalPieces, totalOrders };
  }
@@ -4422,9 +4413,6 @@ attachSearchListeners() {
  const appCountEl = document.getElementById('posReconAppCount');
  const appOrdersEl = document.getElementById('posReconAppOrders');
  const dateEl = document.getElementById('posReconDate');
-
- const caller = new Error().stack.split('\n')[2]?.trim() || 'unknown';
- console.log('[POS Recon] updatePosReconCounts called: pieces=' + totalPieces + ' orders=' + totalOrders + ' element=' + (appCountEl ? 'found(current:' + appCountEl.textContent + ')' : 'NULL') + ' from: ' + caller);
 
  if (appCountEl) {
      // Detect if value actually changed to flash a highlight
@@ -5270,14 +5258,35 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  }
 
  if (task) {
- // If only repositioning within the same person+date, skip confirmation
- if (oldPerson === newPerson && oldDateKey === newDate) {
- this.moveTask(taskId, newPerson, adjustedPosition, newDate);
+ // Check if landing in red area on an unlocked day — trigger rush fee modal
+ var landingInRed = this.isPositionInRedArea(newPerson, newDate, adjustedPosition, task.duration || 1);
+ var dayIsLocked = this.isPersonDayCapacityLocked(newPerson, newDate);
+
+ if (landingInRed && !dayIsLocked) {
+ var self = this;
+ var capturedTaskId = taskId;
+ var capturedTask = task;
+ var capturedOldPerson = oldPerson;
+ var capturedOldDateKey = oldDateKey;
+ this.showRushFeeModal(newPerson, newDate, function(rushData) {
+  self.pendingRushData = rushData;
+  if (capturedOldPerson === newPerson && capturedOldDateKey === newDate) {
+   self.moveTask(capturedTaskId, newPerson, adjustedPosition, newDate);
+  } else {
+   self.showMoveConfirmation(capturedTask, capturedTaskId, capturedOldPerson, capturedOldDateKey, newPerson, newDate, adjustedPosition);
+  }
+ }, function() { /* cancel — do nothing */ });
  } else {
- this.showMoveConfirmation(task, taskId, oldPerson, oldDateKey, newPerson, newDate, adjustedPosition);
+ // Normal flow (not in red or locked)
+ if (oldPerson === newPerson && oldDateKey === newDate) {
+  this.moveTask(taskId, newPerson, adjustedPosition, newDate);
+ } else {
+  this.showMoveConfirmation(task, taskId, oldPerson, oldDateKey, newPerson, newDate, adjustedPosition);
  }
  }
  }
+ }
+ this.draggedElement = null;
  }
 
  showMoveConfirmation(task, taskId, oldPerson, oldDateKey, newPerson, newDate, newPosition) {
@@ -5456,7 +5465,20 @@ validateOrderData(orderNumber, dateDue, description, duration) {
 
  if (foundTask) {
  foundTask.position = Math.max(0, Math.min(newPosition, 32 - foundTask.duration));
- 
+
+ // Attach rush fee data if present (from drag-drop into red area)
+ if (this.pendingRushData) {
+ foundTask.rushFeeCharged = this.pendingRushData.charged ? 'Yes' : 'No';
+ if (this.pendingRushData.charged) {
+  foundTask.rushFeeAmount = this.pendingRushData.rushFee || 0;
+  foundTask.rushBaseAmount = this.pendingRushData.amount || 0;
+ } else {
+  foundTask.rushNoReason = this.pendingRushData.reason || '';
+  foundTask.rushAuthorizedBy = this.pendingRushData.authorizedBy || '';
+ }
+ this.pendingRushData = null;
+ }
+
  if (!this.tasks[newDateKey]) this.tasks[newDateKey] = {};
  if (!this.tasks[newDateKey][newPerson]) this.tasks[newDateKey][newPerson] = [];
  this.tasks[newDateKey][newPerson].push(foundTask);
@@ -5471,6 +5493,18 @@ validateOrderData(orderNumber, dateDue, description, duration) {
  Date: newDateKey,
  LastEditedBy: this.currentUser || 'Unknown'
  };
+
+ // Include rush fee fields if they were just set
+ if (foundTask.rushFeeCharged) {
+  updates.RushFeeCharged = foundTask.rushFeeCharged;
+  if (foundTask.rushFeeCharged === 'Yes') {
+  updates.RushFeeAmount = foundTask.rushFeeAmount || 0;
+  updates.RushBaseAmount = foundTask.rushBaseAmount || 0;
+  } else {
+  updates.RushNoReason = foundTask.rushNoReason || '';
+  updates.RushAuthorizedBy = foundTask.rushAuthorizedBy || '';
+  }
+ }
 
  await this.updateTaskInAirtable(taskId, updates);
  foundTask.lastEditedBy = this.currentUser || 'Unknown';
@@ -5868,6 +5902,23 @@ showValidationSummary(errors) {
  `;
 }
 async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey) {
+ // Rush Fee check for new orders landing in the red area (unlocked days only)
+ if (!this.isEditingTask && !this.isPersonDayCapacityLocked(targetPerson, targetDateKey)) {
+ var pos = this.findOptimalPosition(targetPerson, targetDateKey, duration);
+ if (pos !== -1 && this.isPositionInRedArea(targetPerson, targetDateKey, pos, duration)) {
+  // Show rush fee modal and wait for user response
+  this.showRushFeeModal(targetPerson, targetDateKey, (rushData) => {
+   this.pendingRushData = rushData;
+   this.finishOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey);
+  }, () => { /* cancel — do nothing */ });
+  return;
+ }
+ }
+ this.pendingRushData = null;
+ this.finishOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey);
+}
+
+async finishOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey) {
  // Use performance tracking (original logic preserved)
  try {
  if (this.isEditingTask) {
@@ -5897,7 +5948,130 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  this.updatePosReconCounts();
  }
 }
- 
+
+// ── Rush Fee Enforcement ─────────────────────────────────────────
+computeRushFee(baseAmount, workDateValue) {
+ if (!workDateValue || baseAmount <= 0) return { days: null, percentLabel: '—', rushFee: 0 };
+ var today = new Date(); today.setHours(0,0,0,0);
+ var workDate = new Date(workDateValue); workDate.setHours(0,0,0,0);
+ var days = Math.round((workDate - today) / 86400000);
+ if (days < 0) days = 0;
+ var percent = days <= 1 ? 0.50 : days === 2 ? 0.40 : days === 3 ? 0.30 : days === 4 ? 0.20 : 0.10;
+ if (baseAmount === 15) return { days: days, percentLabel: 'Flat', rushFee: 5 };
+ return { days: days, percentLabel: Math.round(percent * 100) + '%', rushFee: Math.round(baseAmount * percent * 100) / 100 };
+}
+
+isPositionInRedArea(person, dateKey, position, duration) {
+ var date = this.parseDateString(dateKey);
+ if (!date) return false;
+ var capacity = this.getPersonCapacityForDate(person, date);
+ return (position + duration) > capacity;
+}
+
+showRushFeeModal(person, dateKey, onConfirm, onCancel) {
+ var modal = document.createElement('div');
+ modal.className = 'fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60]';
+ modal.innerHTML = '<div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto fade-in">' +
+  '<h3 class="text-lg font-semibold text-red-700 mb-3">⚠️ Scheduling in RED AREA</h3>' +
+  '<p class="text-gray-700 mb-4">This order is being scheduled past the capacity line for <strong>' + person + '</strong>. A rush fee should be charged.</p>' +
+  '<div class="mb-4">' +
+  '<p class="font-medium mb-2">Has the Rush Fee been charged?</p>' +
+  '<div class="space-y-2">' +
+  '<label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="rushCharged" value="yes" class="text-red-500"> <span>Yes — Rush Fee charged</span></label>' +
+  '<label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="rushCharged" value="no" class="text-red-500"> <span>No — Rush Fee NOT charged</span></label>' +
+  '</div>' +
+  '</div>' +
+  '<div id="rushYesSection" class="hidden mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">' +
+  '<p class="font-medium text-green-800 mb-2">Rush Fee Calculator</p>' +
+  '<div class="mb-2"><span class="block text-sm font-medium mb-1">Alteration Cost ($):</span>' +
+  '<input type="number" id="rushBaseCost" min="0" step="0.01" class="w-full p-2 text-base border border-gray-300 rounded-lg" placeholder="e.g. 45.00"></div>' +
+  '<div id="rushCalcResult" class="text-sm text-green-700 space-y-1"></div>' +
+  '</div>' +
+  '<div id="rushNoSection" class="hidden mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">' +
+  '<p class="font-medium text-yellow-800 mb-2">Reason Required</p>' +
+  '<div class="mb-2"><span class="block text-sm font-medium mb-1">Reason:</span>' +
+  '<input type="text" id="rushNoReason" class="w-full p-2 text-base border border-gray-300 rounded-lg" placeholder="e.g. Redo, Simple repair, Button replacement"></div>' +
+  '<div><span class="block text-sm font-medium mb-1">Authorized by:</span>' +
+  '<input type="text" id="rushAuthorizedBy" class="w-full p-2 text-base border border-gray-300 rounded-lg" placeholder="Manager name"></div>' +
+  '</div>' +
+  '<div class="flex justify-end space-x-3 pt-3 border-t border-gray-200">' +
+  '<button class="rush-cancel px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>' +
+  '<button class="rush-confirm px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed" disabled>Confirm & Save</button>' +
+  '</div></div>';
+ document.body.appendChild(modal);
+
+ var confirmBtn = modal.querySelector('.rush-confirm');
+ var yesSection = modal.querySelector('#rushYesSection');
+ var noSection = modal.querySelector('#rushNoSection');
+ var radios = modal.querySelectorAll('input[name="rushCharged"]');
+ var baseCostInput = modal.querySelector('#rushBaseCost');
+ var calcResult = modal.querySelector('#rushCalcResult');
+ var self = this;
+
+ // Radio change handler
+ radios.forEach(function(radio) {
+  radio.addEventListener('change', function() {
+   if (radio.value === 'yes') {
+    yesSection.classList.remove('hidden');
+    noSection.classList.add('hidden');
+    confirmBtn.disabled = false;
+   } else {
+    yesSection.classList.add('hidden');
+    noSection.classList.remove('hidden');
+    confirmBtn.disabled = true; // require fields
+    checkNoFields();
+   }
+  });
+ });
+
+ // Calculator auto-update
+ baseCostInput.addEventListener('input', function() {
+  var base = parseFloat(baseCostInput.value) || 0;
+  if (base <= 0) { calcResult.innerHTML = ''; return; }
+  var result = self.computeRushFee(base, dateKey);
+  calcResult.innerHTML = '<div><strong>Days until work:</strong> ' + result.days + '</div>' +
+   '<div><strong>Rush %:</strong> ' + result.percentLabel + '</div>' +
+   '<div><strong>Rush Fee:</strong> $' + result.rushFee.toFixed(2) + '</div>' +
+   '<div><strong>Total with Rush:</strong> $' + (base + result.rushFee).toFixed(2) + '</div>';
+ });
+
+ // Validate No fields
+ function checkNoFields() {
+  var reason = modal.querySelector('#rushNoReason').value.trim();
+  var auth = modal.querySelector('#rushAuthorizedBy').value.trim();
+  var selected = modal.querySelector('input[name="rushCharged"]:checked');
+  if (selected && selected.value === 'no') {
+   confirmBtn.disabled = !(reason && auth);
+  }
+ }
+ modal.querySelector('#rushNoReason') && modal.querySelector('#rushNoReason').addEventListener('input', checkNoFields);
+ modal.querySelector('#rushAuthorizedBy') && modal.querySelector('#rushAuthorizedBy').addEventListener('input', checkNoFields);
+
+ // Cancel
+ modal.querySelector('.rush-cancel').addEventListener('click', function() {
+  document.body.removeChild(modal);
+  if (onCancel) onCancel();
+ });
+
+ // Confirm
+ confirmBtn.addEventListener('click', function() {
+  var selected = modal.querySelector('input[name="rushCharged"]:checked');
+  var rushData = { charged: selected.value === 'yes' };
+  if (rushData.charged) {
+   rushData.amount = parseFloat(baseCostInput.value) || 0;
+   var calc = self.computeRushFee(rushData.amount, dateKey);
+   rushData.rushFee = calc.rushFee;
+   rushData.percentLabel = calc.percentLabel;
+  } else {
+   rushData.reason = modal.querySelector('#rushNoReason').value.trim();
+   rushData.authorizedBy = modal.querySelector('#rushAuthorizedBy').value.trim();
+  }
+  document.body.removeChild(modal);
+  onConfirm(rushData);
+ });
+}
+// ── End Rush Fee Enforcement ─────────────────────────────────────
+
  async updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey) {
  let currentTask = null;
  for (const dateKey in this.tasks) {
@@ -6048,7 +6222,18 @@ if (dateDue && dateDue.trim() !== '') {
  createdAt: this.dateToLocalDateString(new Date())
 };
 
- console.log('[POS Recon] createNewTask: order=' + orderNumber + ' pieces=' + alterationPieces + ' createdAt=' + task.createdAt + ' dateKey=' + correctedDateKey + ' person=' + targetPerson);
+ // Attach rush fee data if present
+ if (this.pendingRushData) {
+ task.rushFeeCharged = this.pendingRushData.charged ? 'Yes' : 'No';
+ if (this.pendingRushData.charged) {
+  task.rushFeeAmount = this.pendingRushData.rushFee || 0;
+  task.rushBaseAmount = this.pendingRushData.amount || 0;
+ } else {
+  task.rushNoReason = this.pendingRushData.reason || '';
+  task.rushAuthorizedBy = this.pendingRushData.authorizedBy || '';
+ }
+ this.pendingRushData = null;
+ }
 
  // Add to local state first
  this.addTaskToSpecificDate(targetPerson, task, correctedDateKey);
@@ -6061,9 +6246,7 @@ if (dateDue && dateDue.trim() !== '') {
  timestamp: Date.now()
  });
 
- console.log('[POS Recon] createNewTask: task added to this.tasks, about to renderWhiteboard');
  this.renderWhiteboard();
- console.log('[POS Recon] createNewTask: renderWhiteboard complete, starting Airtable save');
 
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
  this.showLoading('Saving to Airtable...');
@@ -10543,7 +10726,12 @@ async makeAirtableRequest(endpoint, method = 'GET', data = null, silent = false)
  completed: fields.Completed || false,
  createdBy: fields.CreatedBy || null,
  lastEditedBy: fields.LastEditedBy || null,
- createdAt: fields.CreatedAt || null
+ createdAt: fields.CreatedAt || null,
+ rushFeeCharged: fields.RushFeeCharged || null,
+ rushFeeAmount: fields.RushFeeAmount || 0,
+ rushBaseAmount: fields.RushBaseAmount || 0,
+ rushNoReason: fields.RushNoReason || '',
+ rushAuthorizedBy: fields.RushAuthorizedBy || ''
  };
 
  this.tasks[dateKey][fields.Person].push(task);
@@ -10979,8 +11167,39 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  // Each set removes one more potentially-missing field so we fail fast
  const userStamp = this.currentUser || 'Unknown';
  const createdAtVal = task.createdAt || this.dateToLocalDateString(new Date());
+
+ // Build rush fee fields conditionally
+ const rushFields = {};
+ if (task.rushFeeCharged) {
+ rushFields.RushFeeCharged = task.rushFeeCharged;
+ if (task.rushFeeCharged === 'Yes') {
+  rushFields.RushFeeAmount = task.rushFeeAmount || 0;
+  rushFields.RushBaseAmount = task.rushBaseAmount || 0;
+ } else {
+  rushFields.RushNoReason = task.rushNoReason || '';
+  rushFields.RushAuthorizedBy = task.rushAuthorizedBy || '';
+ }
+ }
+
  const fieldSets = [
- // 1. Full field set — all fields
+ // 1. Full field set — all fields including rush data
+ {
+ OrderNumber: task.orderNumber,
+ Person: person,
+ Date: date,
+ ...(task.dateDue && { DateDue: task.dateDue }),
+ Description: task.description,
+ Duration: task.duration,
+ TagsQuantity: task.tagsQuantity || 1,
+ AlterationPieces: task.alterationPieces || 0,
+ Position: task.position,
+ Completed: task.completed || false,
+ CreatedBy: userStamp,
+ LastEditedBy: userStamp,
+ CreatedAt: createdAtVal,
+ ...rushFields
+ },
+ // 2. Full fields without rush data (rush columns may not exist)
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -10996,7 +11215,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  LastEditedBy: userStamp,
  CreatedAt: createdAtVal
  },
- // 2. Drop user tracking (CreatedBy/LastEditedBy)
+ // 3. Drop user tracking (CreatedBy/LastEditedBy)
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -11010,7 +11229,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  Completed: task.completed || false,
  CreatedAt: createdAtVal
  },
- // 3. Drop AlterationPieces (may not exist yet)
+ // 4. Drop AlterationPieces (may not exist yet)
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -11025,7 +11244,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  LastEditedBy: userStamp,
  CreatedAt: createdAtVal
  },
- // 4. Drop both AlterationPieces + user tracking
+ // 5. Drop both AlterationPieces + user tracking
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -11038,7 +11257,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  Completed: task.completed || false,
  CreatedAt: createdAtVal
  },
- // 5. Drop AlterationPieces + TagsQuantity + user tracking
+ // 6. Drop AlterationPieces + TagsQuantity + user tracking
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -11050,7 +11269,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  Completed: task.completed || false,
  CreatedAt: createdAtVal
  },
- // 6. Minimal + CreatedAt
+ // 7. Minimal + CreatedAt
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -11060,7 +11279,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  Duration: task.duration,
  CreatedAt: createdAtVal
  },
- // 7. Absolute minimal (last resort)
+ // 8. Absolute minimal (last resort)
  {
  OrderNumber: task.orderNumber,
  Person: person,
@@ -11144,12 +11363,16 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
  const tableName = encodeURIComponent(this.airtableConfig.tablesConfig.tasks);
 
  // Progressive field removal for unknown field errors
+ const rushKeys = ['RushFeeCharged', 'RushFeeAmount', 'RushBaseAmount', 'RushNoReason', 'RushAuthorizedBy'];
+ const stripRush = (obj) => { const s = { ...obj }; rushKeys.forEach(k => delete s[k]); return s; };
  const fieldsToTry = [
   updates,
+  stripRush(updates),
   (() => { const s = { ...updates }; delete s.LastEditedBy; delete s.CreatedBy; return s; })(),
+  (() => { const s = stripRush(updates); delete s.LastEditedBy; delete s.CreatedBy; return s; })(),
   (() => { const s = { ...updates }; delete s.AlterationPieces; return s; })(),
-  (() => { const s = { ...updates }; delete s.LastEditedBy; delete s.CreatedBy; delete s.AlterationPieces; return s; })(),
-  (() => { const s = { ...updates }; delete s.LastEditedBy; delete s.CreatedBy; delete s.AlterationPieces; delete s.TagsQuantity; delete s.CreatedAt; return s; })()
+  (() => { const s = stripRush(updates); delete s.LastEditedBy; delete s.CreatedBy; delete s.AlterationPieces; return s; })(),
+  (() => { const s = stripRush(updates); delete s.LastEditedBy; delete s.CreatedBy; delete s.AlterationPieces; delete s.TagsQuantity; delete s.CreatedAt; return s; })()
  ];
 
  let lastError = null;
@@ -11163,6 +11386,7 @@ async updatePersonWeeklyCapacity(name, weeklyCapacity) {
    delete verifyFields.CreatedBy;
    delete verifyFields.AlterationPieces;
    delete verifyFields.CreatedAt;
+   rushKeys.forEach(k => delete verifyFields[k]);
    await this.verifyTaskInAirtable(taskId, verifyFields);
    return;
   } catch (error) {
