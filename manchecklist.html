@@ -1368,6 +1368,121 @@
             background: #d97706;
         }
 
+        /* Task link button (rendered on items with a link) */
+        .item-link-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            text-decoration: none;
+            margin-left: 8px;
+            vertical-align: middle;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+        .item-link-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+            color: #2563eb;
+            transform: scale(1.1);
+        }
+        .item-link-btn i {
+            font-size: 11px;
+        }
+        .dark .item-link-btn {
+            background: rgba(96, 165, 250, 0.15);
+            color: #60a5fa;
+        }
+        .dark .item-link-btn:hover {
+            background: rgba(96, 165, 250, 0.25);
+            color: #93bbfc;
+        }
+
+        /* Subtask link icon */
+        .subtask-link-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            text-decoration: none;
+            margin-left: 6px;
+            flex-shrink: 0;
+            transition: all 0.15s ease;
+        }
+        .subtask-link-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+            color: #2563eb;
+        }
+        .subtask-link-btn i {
+            font-size: 10px;
+        }
+        .dark .subtask-link-btn {
+            background: rgba(96, 165, 250, 0.15);
+            color: #60a5fa;
+        }
+
+        /* Link input in task modal */
+        .task-link-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .task-link-row input {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+        .task-link-row .link-icon {
+            color: #3b82f6;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        /* Subtask link input in modal */
+        .subtask-link-input {
+            width: 100%;
+            padding: 6px 10px;
+            font-size: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            margin-top: 4px;
+        }
+        .subtask-item-edit .subtask-link-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 3px;
+            padding-left: 28px;
+        }
+        .subtask-item-edit .subtask-link-row i {
+            color: #3b82f6;
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+        .subtask-item-edit .subtask-link-row input {
+            flex: 1;
+            padding: 4px 8px;
+            font-size: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
         /* Flexible toggle row in task editor */
         .flexible-toggle-row {
             display: flex;
@@ -1615,8 +1730,8 @@
 
         .subtask-item-edit {
             display: flex;
-            align-items: center;
-            gap: 8px;
+            flex-direction: column;
+            gap: 0;
             padding: 8px 10px;
             background: var(--bg-card);
             border-radius: 8px;
@@ -2590,6 +2705,11 @@
             <label for="taskDesc">Description (optional)</label>
             <textarea id="taskDesc" placeholder="e.g., Count stock and note any items below minimum" maxlength="200"></textarea>
 
+            <label for="taskLink"><i class="fas fa-external-link-alt" style="margin-right:5px; color:#3b82f6;"></i>Link (optional)</label>
+            <div class="task-link-row">
+                <input type="url" id="taskLink" placeholder="https://example.com" maxlength="500">
+            </div>
+
             <label>Mini Checklist (optional)</label>
             <div class="subtasks-container" id="subtasksContainer">
                 <div class="subtasks-list" id="subtasksList"></div>
@@ -3309,6 +3429,7 @@
                 dayBadge = '<span class="day-badge">' + sortedDays.map(function(d) { return dayNames[d]; }).join(' ') + '</span>';
             }
             var flexBadge = (item.flexible && !isDivider && !isPlaceholder) ? '<span class="flex-badge"><i class="fas fa-clock" style="margin-right:3px;"></i>Anytime</span>' : '';
+            var linkBtn = (item.link && !isDivider && !isPlaceholder) ? '<a class="item-link-btn" href="' + escapeHtml(item.link) + '" target="_blank" rel="noopener noreferrer" title="Open link"><i class="fas fa-external-link-alt"></i></a>' : '';
             const dimmedClass = (!activeToday && !isDivider && !isPlaceholder) ? 'day-dimmed' : '';
             const taskColor = getTaskColor(item.color);
             const colorStyle = (taskColor && !isDivider) ? `style="background-color: ${taskColor};"` : '';
@@ -3329,12 +3450,14 @@
                     <div class="item-subtasks">
                         ${item.subtasks.map(sub => {
                             const subChecked = taskSubtasks[sub.id];
+                            const subLinkHtml = sub.link ? '<a class="subtask-link-btn" href="' + escapeHtml(sub.link) + '" target="_blank" rel="noopener noreferrer" title="Open link"><i class="fas fa-external-link-alt"></i></a>' : '';
                             return `
                                 <div class="subtask-row ${subChecked ? 'checked' : ''}" data-task-id="${item.id}" data-subtask-id="${sub.id}" data-required="${sub.required ? 'true' : 'false'}">
                                     <div class="subtask-check">
                                         <i class="fas fa-check"></i>
                                     </div>
                                     <span class="subtask-text">${escapeHtml(sub.text)}</span>
+                                    ${subLinkHtml}
                                     <span class="subtask-req-badge ${sub.required ? 'required' : 'optional'}">${sub.required ? 'req' : 'opt'}</span>
                                 </div>
                             `;
@@ -3350,7 +3473,7 @@
                         <i class="fas fa-check"></i>
                     </div>
                     <div class="item-content">
-                        <div class="item-title">${escapeHtml(item.title)}${isDivider ? '' : todayBadge}${dayBadge}${flexBadge}</div>
+                        <div class="item-title">${escapeHtml(item.title)}${isDivider ? '' : todayBadge}${dayBadge}${flexBadge}${linkBtn}</div>
                         <div class="item-description">${escapeHtml(item.desc || '')}</div>
                         ${(!isPlaceholder && !isDivider) ? `<div class="item-timestamp">
                             <i class="fas fa-clock"></i>
@@ -3712,8 +3835,9 @@
 
                 checkbox.addEventListener('click', toggleCheck);
                 content.addEventListener('click', (e) => {
-                    // Don't toggle main task if clicking on subtasks
+                    // Don't toggle main task if clicking on subtasks or links
                     if (e.target.closest('.subtask-row') || e.target.closest('.item-subtasks')) return;
+                    if (e.target.closest('.item-link-btn')) return;
                     toggleCheck();
                 });
             });
@@ -3722,6 +3846,8 @@
             document.querySelectorAll('.subtask-row').forEach(row => {
                 row.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    // Don't toggle subtask if clicking on a link button
+                    if (e.target.closest('.subtask-link-btn')) return;
                     if (editMode) return;
                     if (!isToday()) return;
 
@@ -3887,14 +4013,20 @@
         function renderSubtasksList() {
             subtasksList.innerHTML = currentSubtasks.map((subtask, index) => `
                 <div class="subtask-item-edit" data-index="${index}" draggable="true">
-                    <i class="fas fa-grip-vertical drag-handle"></i>
-                    <button type="button" class="subtask-req-toggle ${subtask.required ? 'required' : 'optional'}" data-index="${index}" title="${subtask.required ? 'Required — click to make optional' : 'Optional — click to make required'}">
-                        ${subtask.required ? 'REQ' : 'OPT'}
-                    </button>
-                    <span>${escapeHtml(subtask.text)}</span>
-                    <button type="button" class="subtask-remove" data-index="${index}">
-                        <i class="fas fa-times"></i>
-                    </button>
+                    <div style="display:flex;align-items:center;width:100%;gap:4px;">
+                        <i class="fas fa-grip-vertical drag-handle"></i>
+                        <button type="button" class="subtask-req-toggle ${subtask.required ? 'required' : 'optional'}" data-index="${index}" title="${subtask.required ? 'Required — click to make optional' : 'Optional — click to make required'}">
+                            ${subtask.required ? 'REQ' : 'OPT'}
+                        </button>
+                        <span>${escapeHtml(subtask.text)}</span>
+                        <button type="button" class="subtask-remove" data-index="${index}">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="subtask-link-row">
+                        <i class="fas fa-link"></i>
+                        <input type="url" class="subtask-link-input" data-index="${index}" placeholder="https://..." value="${escapeHtml(subtask.link || '')}" maxlength="500">
+                    </div>
                 </div>
             `).join('');
 
@@ -3915,6 +4047,14 @@
                     const index = parseInt(btn.dataset.index);
                     currentSubtasks[index].required = !currentSubtasks[index].required;
                     renderSubtasksList();
+                });
+            });
+
+            // Attach subtask link input change listeners
+            subtasksList.querySelectorAll('.subtask-link-input').forEach(input => {
+                input.addEventListener('input', () => {
+                    const index = parseInt(input.dataset.index);
+                    currentSubtasks[index].link = input.value.trim() || undefined;
                 });
             });
 
@@ -4117,6 +4257,9 @@
             // Reset flexible toggle
             document.getElementById('flexibleToggle').checked = false;
 
+            // Reset link field
+            document.getElementById('taskLink').value = '';
+
             // Reset subtasks
             currentSubtasks = [];
 
@@ -4167,6 +4310,11 @@
                 // Load existing flexible setting
                 if (existingItem.flexible) {
                     document.getElementById('flexibleToggle').checked = true;
+                }
+
+                // Load existing link
+                if (existingItem.link) {
+                    document.getElementById('taskLink').value = existingItem.link;
                 }
 
                 // Load existing subtasks
@@ -4234,6 +4382,7 @@
                         tasks[idx].subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
                         tasks[idx].activeDays = currentActiveDays.length > 0 ? currentActiveDays.slice() : undefined;
                         tasks[idx].flexible = document.getElementById('flexibleToggle').checked ? true : undefined;
+                        tasks[idx].link = document.getElementById('taskLink').value.trim() || undefined;
                     }
                 } else {
                     // Find in permanent tasks
@@ -4248,6 +4397,7 @@
                         t.subtasks = currentSubtasks.length > 0 ? currentSubtasks : undefined;
                         t.activeDays = currentActiveDays.length > 0 ? currentActiveDays.slice() : undefined;
                         t.flexible = document.getElementById('flexibleToggle').checked ? true : undefined;
+                        t.link = document.getElementById('taskLink').value.trim() || undefined;
                     }
                 }
             } else {
@@ -4283,6 +4433,12 @@
                 // Add flexible flag if toggled
                 if (document.getElementById('flexibleToggle').checked) {
                     newTask.flexible = true;
+                }
+
+                // Add link if provided
+                const taskLinkVal = document.getElementById('taskLink').value.trim();
+                if (taskLinkVal) {
+                    newTask.link = taskLinkVal;
                 }
 
                 if (currentTaskType === 'today') {
