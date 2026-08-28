@@ -420,13 +420,13 @@ tr.recon-checked {
                         <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                     </button>
 
-                    <!-- Redo tally from app -->
-                    <div class="flex items-center space-x-1.5 px-2 py-1 bg-orange-50 rounded-lg border border-orange-200">
+                    <!-- Redo tally (excluded orders) -->
+                    <div id="posReconRedoTally" class="flex items-center space-x-1.5 px-2 py-1 bg-orange-50 rounded-lg border border-orange-200 hidden">
                         <span class="text-xs font-semibold text-orange-500 uppercase tracking-wide">Redo</span>
                         <span id="posReconAppRedoCount" class="text-lg font-bold text-orange-600">0</span>
                         <span class="text-xs text-orange-400">pcs</span>
-                        <span class="text-orange-300 mx-0.5">·</span>
-                        <span id="posReconAppRedoOrders" class="text-sm text-orange-500">0 redos</span>
+                        <span class="text-orange-300 mx-0.5">&middot;</span>
+                        <span id="posReconAppRedoOrders" class="text-sm text-orange-500">0 orders</span>
                     </div>
 
                     <!-- Divider -->
@@ -603,6 +603,12 @@ tr.recon-checked {
                                 <input type="number" id="alterationPiecesInput" min="0" max="99" value="0" class="w-20 p-2 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent">
                                 <span class="text-xs text-gray-500">required for drop alter piece count</span>
                             </div>
+                            <!-- Exclude from POS Tally (Redo) Checkbox -->
+                            <label class="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                                <input type="checkbox" id="isRedoCheckbox" class="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-400">
+                                <span class="text-sm font-medium text-orange-600">REDO / Exclude from tally</span>
+                                <span class="text-xs text-gray-400">(visible in list, but not counted in Alterations Pro)</span>
+                            </label>
                             <div class="flex flex-wrap gap-1 mt-1">
                                 <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="1">1</button>
                                 <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="2">2</button>
@@ -616,11 +622,6 @@ tr.recon-checked {
                                 <button type="button" class="alt-pcs-btn px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-mono" data-pcs="10">10</button>
                             </div>
                             <p id="alterationPiecesError" class="text-xs text-red-500 mt-1 hidden">Please enter the number of alteration pieces.</p>
-                            <label class="flex items-center gap-2 mt-2 cursor-pointer select-none">
-                                <input type="checkbox" id="isRedoCheckbox" class="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-400 accent-orange-500">
-                                <span class="text-sm font-medium text-orange-600">REDO</span>
-                                <span class="text-xs text-gray-400">(adds to redo tally, not alterations pro count)</span>
-                            </label>
                         </div>
                     </div>
 
@@ -830,6 +831,18 @@ tr.recon-checked {
                     <div id="autoCapacityStatus" class="mt-2 text-xs text-gray-500">
                         <!-- Auto capacity status will appear here -->
                     </div>
+                </div>
+
+                <div>
+                    <span class="block text-sm font-medium mb-2">RUSH / REDO Enforcement:</span>
+                    <div class="flex items-center space-x-3">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" id="rushEnforcementToggle" checked class="sr-only peer">
+                            <div class="w-9 h-5 bg-gray-300 rounded-full peer peer-checked:bg-orange-500 relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                            <span class="text-sm text-gray-700">Enabled</span>
+                        </label>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">When enabled, orders with "RUSH" or "REDO" in the description are automatically placed at position 0 (top priority). Disable to place them normally like any other order.</p>
                 </div>
 
                 <div>
@@ -1608,6 +1621,7 @@ tr.recon-checked {
  this.currentDate = new Date();
  this.viewDays = 2;
  this.hideUnavailablePeople = true; // When true, hide locked columns with 0 capacity and 0 used slots
+ this.rushEnforcementEnabled = true; // When true, RUSH/REDO orders are placed at position 0 (top priority)
  this.people = [];
  this.peopleCapacity = {};
  this.peopleSpecificCapacity = {};
@@ -3750,6 +3764,7 @@ attachTaskCardListeners(card, task) {
  id: 'view-preferences',
  viewDays: this.viewDays,
  hideUnavailablePeople: this.hideUnavailablePeople,
+ rushEnforcementEnabled: this.rushEnforcementEnabled,
  lastSaved: new Date().toISOString()
  };
  
@@ -3784,6 +3799,11 @@ attachTaskCardListeners(card, task) {
  this.hideUnavailablePeople = result.hideUnavailablePeople;
  const hideToggle = document.getElementById('hideUnavailableToggle');
  if (hideToggle) hideToggle.checked = this.hideUnavailablePeople;
+ }
+ if (result && result.rushEnforcementEnabled !== undefined) {
+ this.rushEnforcementEnabled = result.rushEnforcementEnabled;
+ const rushToggle = document.getElementById('rushEnforcementToggle');
+ if (rushToggle) rushToggle.checked = this.rushEnforcementEnabled;
  }
  resolve(result);
  };
@@ -3844,6 +3864,12 @@ attachTaskCardListeners(card, task) {
  this.hideUnavailablePeople = e.target.checked;
  this.renderWhiteboard();
  await this.saveViewPreferences();
+ });
+
+ document.getElementById('rushEnforcementToggle').addEventListener('change', async (e) => {
+ this.rushEnforcementEnabled = e.target.checked;
+ await this.saveViewPreferences();
+ this.showToast(e.target.checked ? '🔥 RUSH/REDO enforcement enabled' : '⏸️ RUSH/REDO enforcement disabled', 'info');
  });
 
  // Main action buttons
@@ -4228,6 +4254,7 @@ attachSearchListeners() {
                          description: task.description || '',
                          pieces: parseInt(task.alterationPieces) || 0,
                          completed: task.completed || false,
+                         isRedo: task.isRedo || false,
                          taskRef: task
                      });
                  }
@@ -4286,23 +4313,32 @@ attachSearchListeners() {
          footerEl.classList.remove('hidden');
 
          let totalPieces = 0;
+         let redoPiecesInModal = 0;
+         let redoOrdersInModal = 0;
          let reconciledCount = 0;
          orders.forEach((order, idx) => {
-             totalPieces += order.pieces;
+             if (order.isRedo) {
+                 redoPiecesInModal += order.pieces;
+                 redoOrdersInModal++;
+             } else {
+                 totalPieces += order.pieces;
+             }
              const taskId = order.taskRef ? order.taskRef.id : `order-${idx}`;
              const isReconciled = this.reconciledOrders && this.reconciledOrders.has(taskId);
              if (isReconciled) reconciledCount++;
              const row = document.createElement('tr');
              row.className = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+             if (order.isRedo) row.className += ' bg-orange-50 border-l-4 border-l-orange-400';
              if (order.completed) row.className += ' opacity-50';
              if (isReconciled) row.className += ' recon-checked';
              const workDateDisplay = this.formatDateForDisplay ? this.formatDateForDisplay(order.workDate) : order.workDate;
+             const redoBadge = order.isRedo ? ' <span class="text-xs bg-orange-200 text-orange-700 px-1 rounded font-semibold">REDO</span>' : '';
              row.innerHTML = `
-                 <td class="px-5 py-2 font-mono font-medium text-indigo-700 cursor-pointer hover:underline hover:text-indigo-900 select-none recon-text" title="Double-click to edit">${order.orderNumber}${order.completed ? ' <span class="text-green-600 text-xs">✅</span>' : ''}</td>
+                 <td class="px-5 py-2 font-mono font-medium ${order.isRedo ? 'text-orange-700' : 'text-indigo-700'} cursor-pointer hover:underline select-none recon-text" title="Double-click to edit">${order.orderNumber}${redoBadge}${order.completed ? ' <span class="text-green-600 text-xs">✅</span>' : ''}</td>
                  <td class="px-5 py-2 text-gray-600 recon-text">${order.person}</td>
                  <td class="px-5 py-2 text-gray-500 text-xs recon-text">${workDateDisplay}</td>
                  <td class="px-5 py-2 text-gray-500 truncate max-w-[200px] recon-text" title="${order.description}">${order.description || '<span class=&quot;italic text-gray-300&quot;>No description</span>'}</td>
-                 <td class="px-5 py-2 text-right font-bold text-indigo-600 recon-text">${order.pieces}</td>
+                 <td class="px-5 py-2 text-right font-bold ${order.isRedo ? 'text-orange-600' : 'text-indigo-600'} recon-text">${order.pieces}</td>
                  <td class="px-3 py-2 text-center">
                      <input type="checkbox" class="recon-checkbox w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer" data-task-id="${taskId}" ${isReconciled ? 'checked' : ''}>
                  </td>
@@ -4332,8 +4368,21 @@ attachSearchListeners() {
              tbody.appendChild(row);
          });
 
-         if (totalOrdersEl) totalOrdersEl.textContent = `${orders.length} order${orders.length !== 1 ? 's' : ''}`;
-         if (totalPiecesEl) totalPiecesEl.textContent = `${totalPieces} pcs`;
+         const mainOrders = orders.length - redoOrdersInModal;
+         if (totalOrdersEl) {
+             if (redoOrdersInModal > 0) {
+                 totalOrdersEl.innerHTML = `${mainOrders} order${mainOrders !== 1 ? 's' : ''} <span class="text-orange-500 ml-1">+ ${redoOrdersInModal} redo${redoOrdersInModal !== 1 ? 's' : ''}</span>`;
+             } else {
+                 totalOrdersEl.textContent = `${orders.length} order${orders.length !== 1 ? 's' : ''}`;
+             }
+         }
+         if (totalPiecesEl) {
+             if (redoOrdersInModal > 0) {
+                 totalPiecesEl.innerHTML = `${totalPieces} pcs <span class="text-orange-500 ml-1">+ ${redoPiecesInModal} redo pcs</span>`;
+             } else {
+                 totalPiecesEl.textContent = `${totalPieces} pcs`;
+             }
+         }
 
          // Show reconciled counter
          this.updateReconciledCounter(orders.length);
@@ -4419,13 +4468,15 @@ attachSearchListeners() {
              if (taskCreatedDate && taskCreatedDate === todayStr) {
                  const pieces = parseInt(task.alterationPieces) || 0;
                  if (task.isRedo) {
+                     // Redo/excluded orders: separate tally
                      redoOrders++;
                      redoPieces += pieces;
                  } else {
+                     // Normal orders: main Alterations Pro tally
                      totalOrders++;
                      totalPieces += pieces;
                  }
-                 debugMatched.push({order: task.orderNumber, pieces: task.alterationPieces, isRedo: !!task.isRedo, createdAt: task.createdAt});
+                 debugMatched.push({order: task.orderNumber, pieces: task.alterationPieces, isRedo: task.isRedo || false, createdAt: task.createdAt});
              } else if (task.createdAt) {
                  debugSkipped.push({order: task.orderNumber, createdAt: task.createdAt, createdDate: taskCreatedDate});
              }
@@ -4433,7 +4484,7 @@ attachSearchListeners() {
      }
  }
 
- console.log('[POS Recon] getTodayPieceCounts: today=' + todayStr + ' matched=' + (totalOrders + redoOrders) + ' totalPieces=' + totalPieces + ' redoPieces=' + redoPieces);
+ console.log('[POS Recon] getTodayPieceCounts: today=' + todayStr + ' matched=' + (totalOrders + redoOrders) + ' mainPieces=' + totalPieces + ' redoPieces=' + redoPieces);
  if (debugMatched.length > 0) console.log('[POS Recon] Matched orders: ' + JSON.stringify(debugMatched));
  if (debugSkipped.length > 0 && debugSkipped.length <= 10) console.log('[POS Recon] Skipped (wrong date): ' + JSON.stringify(debugSkipped));
 
@@ -4444,9 +4495,10 @@ attachSearchListeners() {
  const { totalPieces, totalOrders, redoPieces, redoOrders } = this.getTodayPieceCounts();
  const appCountEl = document.getElementById('posReconAppCount');
  const appOrdersEl = document.getElementById('posReconAppOrders');
- const appRedoCountEl = document.getElementById('posReconAppRedoCount');
- const appRedoOrdersEl = document.getElementById('posReconAppRedoOrders');
  const dateEl = document.getElementById('posReconDate');
+ const redoCountEl = document.getElementById('posReconAppRedoCount');
+ const redoOrdersEl = document.getElementById('posReconAppRedoOrders');
+ const redoTallyEl = document.getElementById('posReconRedoTally');
 
  const caller = new Error().stack.split('\n')[2]?.trim() || 'unknown';
  console.log('[POS Recon] updatePosReconCounts called: pieces=' + totalPieces + ' orders=' + totalOrders + ' redoPieces=' + redoPieces + ' redoOrders=' + redoOrders + ' from: ' + caller);
@@ -4464,17 +4516,16 @@ attachSearchListeners() {
  }
  if (appOrdersEl) appOrdersEl.textContent = `${totalOrders} order${totalOrders !== 1 ? 's' : ''}`;
 
- // Update redo tally display
- if (appRedoCountEl) {
-     const oldRedoVal = appRedoCountEl.textContent;
-     appRedoCountEl.textContent = redoPieces;
-     if (String(redoPieces) !== oldRedoVal) {
-         appRedoCountEl.classList.remove('recon-count-flash');
-         void appRedoCountEl.offsetWidth;
-         appRedoCountEl.classList.add('recon-count-flash');
+ // Update redo tally display (show/hide based on whether there are any redo orders)
+ if (redoTallyEl) {
+     if (redoOrders > 0) {
+         redoTallyEl.classList.remove('hidden');
+         if (redoCountEl) redoCountEl.textContent = redoPieces;
+         if (redoOrdersEl) redoOrdersEl.textContent = `${redoOrders} order${redoOrders !== 1 ? 's' : ''}`;
+     } else {
+         redoTallyEl.classList.add('hidden');
      }
  }
- if (appRedoOrdersEl) appRedoOrdersEl.textContent = `${redoOrders} redo${redoOrders !== 1 ? 's' : ''}`;
 
  const today = new Date();
  if (dateEl) dateEl.textContent = today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -4505,39 +4556,20 @@ attachSearchListeners() {
  return;
  }
 
- const { totalPieces, redoPieces } = this.getTodayPieceCounts();
- // Compare app non-redo pieces vs POS drop count
- const diff = totalPieces - posCount;
- // Compare app redo pieces vs POS redo input
- const redoDiff = redoPieces - redoCount;
+ const { totalPieces } = this.getTodayPieceCounts();
+ const diff = totalPieces - totalDrop;
 
- let statusParts = [];
-
- // Main alteration comparison
  if (diff === 0) {
- statusParts.push('<span class="inline-flex items-center px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-sm font-semibold">✅ Drop matches</span>');
+ statusEl.innerHTML = '<span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">✅ Counts match!</span>';
  posInput.className = 'w-14 p-1.5 text-center text-base font-bold border-2 border-green-500 rounded-lg bg-green-50 focus:ring-2 focus:ring-green-500 focus:border-transparent text-green-700';
  } else if (diff > 0) {
- statusParts.push(`<span class="inline-flex items-center px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">⚠️ App +${diff} pcs</span>`);
+ statusEl.innerHTML = `<span class="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">⚠️ App has ${diff} more piece${diff !== 1 ? 's' : ''}</span>`;
  posInput.className = 'w-14 p-1.5 text-center text-base font-bold border-2 border-yellow-500 rounded-lg bg-yellow-50 focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-yellow-700';
  } else {
  const missing = Math.abs(diff);
- statusParts.push(`<span class="inline-flex items-center px-2 py-0.5 bg-red-100 text-red-800 rounded-full text-sm font-bold">🚨 Missing ${missing} pcs</span>`);
+ statusEl.innerHTML = `<span class="inline-flex items-center px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-bold">🚨 Missing ${missing} piece${missing !== 1 ? 's' : ''} in app</span>`;
  posInput.className = 'w-14 p-1.5 text-center text-base font-bold border-2 border-red-500 rounded-lg bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-transparent text-red-700';
  }
-
- // Redo comparison (only show if there are redo entries on either side)
- if (redoPieces > 0 || redoCount > 0) {
- if (redoDiff === 0) {
-     statusParts.push('<span class="inline-flex items-center px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-semibold">Redos ✓</span>');
- } else if (redoDiff > 0) {
-     statusParts.push(`<span class="inline-flex items-center px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full text-xs font-semibold">Redo +${redoDiff}</span>`);
- } else {
-     statusParts.push(`<span class="inline-flex items-center px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full text-xs font-semibold">Redo -${Math.abs(redoDiff)}</span>`);
- }
- }
-
- statusEl.innerHTML = statusParts.join(' ');
  }
 
  attachTagPrintingListeners() {
@@ -5707,6 +5739,10 @@ showOrderModalForPerson(person, date = null) {
  document.getElementById('tagsQuantityInput').value = task.tagsQuantity || 1;
  document.getElementById('alterationPiecesInput').value = task.alterationPieces || 0;
 
+ // Restore isRedo checkbox state
+ const isRedoCheckbox = document.getElementById('isRedoCheckbox');
+ if (isRedoCheckbox) isRedoCheckbox.checked = task.isRedo || false;
+
  this.updateCompletionStatusDisplay(task.completed);
 
  // Populate user dropdown with the person who last edited (or created) this order
@@ -5835,7 +5871,6 @@ async saveOrder() {
  const duration = parseInt(this.getElement('durationInput').value);
  const tagsQuantity = parseInt(this.getElement('tagsQuantityInput').value) || 1;
  const alterationPieces = parseInt(this.getElement('alterationPiecesInput').value) || 0;
- const isRedo = document.getElementById('isRedoCheckbox') ? document.getElementById('isRedoCheckbox').checked : false;
 
  // Validate alteration pieces
  const altPcsError = document.getElementById('alterationPiecesError');
@@ -5883,14 +5918,17 @@ async saveOrder() {
  const excludeTaskId = this.isEditingTask ? this.editingTaskId : null;
  const duplicates = this.checkForDuplicateOrderNumber(orderNumber, excludeTaskId);
  
+ // Read isRedo checkbox (exclude from POS tally)
+ const isRedo = document.getElementById('isRedoCheckbox') ? document.getElementById('isRedoCheckbox').checked : false;
+
  if (duplicates.length > 0) {
  this.showDuplicateOrderConfirmation(duplicates, () => {
- this.proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey);
+ this.proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey, isRedo);
  });
  return;
  }
 
- this.proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey);
+ this.proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey, isRedo);
 }
 
 // Add this validation summary method to your class
@@ -5924,16 +5962,16 @@ showValidationSummary(errors) {
  </ul>
  `;
 }
-async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey) {
+async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey, isRedo) {
  // Use performance tracking (original logic preserved)
  try {
  if (this.isEditingTask) {
  await this.performAsyncOperation('updateOrder',
- () => this.updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey)
+ () => this.updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey, isRedo)
  );
  } else {
  await this.performAsyncOperation('createOrder',
- () => this.createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey)
+ () => this.createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey, isRedo)
  );
  }
 
@@ -5955,7 +5993,7 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  }
 }
  
- async updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey) {
+ async updateExistingTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey, isRedo) {
  let currentTask = null;
  for (const dateKey in this.tasks) {
  for (const person in this.tasks[dateKey]) {
@@ -5988,6 +6026,13 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  }
  }
 
+ // RUSH/REDO enforcement: place at position 0 (top priority)
+ const hasRushKeyword = description && description.toLowerCase().includes('rush');
+ const hasRedoKeyword = description && description.toLowerCase().includes('redo');
+ if (this.rushEnforcementEnabled && (hasRushKeyword || hasRedoKeyword)) {
+ newPosition = 0;
+ }
+
  // Capacity lock: reject if no room below the red line
  if (newPosition === -1) {
  this.showToast('🔒 ' + targetPerson + ' is capacity-locked on this day — no room below the red line', 'error');
@@ -6002,11 +6047,12 @@ async proceedWithOrderSave(orderNumber, dateDue, description, duration, tagsQuan
  duration,
  tagsQuantity,
  alterationPieces,
- isRedo,
+ isRedo: isRedo || false,
  position: newPosition,
  completed: currentTask?.completed || false,
  lastEditedBy: this.currentUser || 'Unknown',
- createdBy: currentTask?.createdBy || 'Unknown'
+ createdBy: currentTask?.createdBy || 'Unknown',
+ createdAt: currentTask?.createdAt || null
  };
 
  if (this.airtableConfig.apiKey && this.airtableConfig.baseId) {
@@ -6018,7 +6064,7 @@ const updates = {
  Duration: duration,
  TagsQuantity: tagsQuantity,
  AlterationPieces: alterationPieces,
- IsRedo: isRedo,
+ IsRedo: isRedo || false,
  Person: targetPerson,
  Date: targetDateKey,
  Position: newPosition,
@@ -6080,11 +6126,18 @@ if (dateDue && dateDue.trim() !== '') {
  this.updatePosReconCounts();
  }
 
- async createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey) {
+ async createNewTask(orderNumber, dateDue, description, duration, tagsQuantity, alterationPieces, targetPerson, targetDateKey, isRedo) {
  const workDate = this.parseDateString(targetDateKey);
  const correctedDateKey = this.dateToLocalDateString(workDate);
 
- const optimalPos = this.findOptimalPosition(targetPerson, correctedDateKey, duration);
+ let optimalPos = this.findOptimalPosition(targetPerson, correctedDateKey, duration);
+
+ // RUSH/REDO enforcement: place at position 0 (top priority)
+ const hasRushKeyword = description && description.toLowerCase().includes('rush');
+ const hasRedoKeyword = description && description.toLowerCase().includes('redo');
+ if (this.rushEnforcementEnabled && (hasRushKeyword || hasRedoKeyword)) {
+ optimalPos = 0;
+ }
 
  // Capacity lock: reject if no room below the red line
  if (optimalPos === -1) {
@@ -6100,7 +6153,7 @@ if (dateDue && dateDue.trim() !== '') {
  duration,
  tagsQuantity,
  alterationPieces,
- isRedo: isRedo,
+ isRedo: isRedo || false,
  position: optimalPos,
  completed: false,
  createdBy: this.currentUser || 'Unknown',
@@ -6305,6 +6358,8 @@ showSettingsModal() {
  const auditLogTableEl = document.getElementById('auditLogTableName');
  if (auditLogTableEl) auditLogTableEl.value = this.airtableConfig.tablesConfig.auditLog || 'AuditLog';
  document.getElementById('dueDateOffsetSetting').value = this.getDueDateOffset();
+ const rushToggle = document.getElementById('rushEnforcementToggle');
+ if (rushToggle) rushToggle.checked = this.rushEnforcementEnabled;
 }
  
  switchSettingsTab(tab) {
@@ -12657,8 +12712,7 @@ openWizard() {
   dueDate: document.getElementById('dueDateInput')?.value || '',
   description: document.getElementById('descriptionInput')?.value || '',
   duration: document.getElementById('durationInput')?.value || '2',
-  pieces: document.getElementById('alterationPiecesInput')?.value || '0',
-  isRedo: document.getElementById('isRedoCheckbox')?.checked || false
+  pieces: document.getElementById('alterationPiecesInput')?.value || '0'
  };
 
  if (this.wizardData.orderNumber === 'new') this.wizardData.orderNumber = '';
@@ -12990,7 +13044,6 @@ wizardApplyDuration() { this.wizardData.duration = document.getElementById('wizD
 // ---- Wizard Step: Alteration Pieces ----
 wizardRenderPieces() {
  var current = parseInt(this.wizardData.pieces) || 0;
- var isRedoChecked = this.wizardData.isRedo ? ' checked' : '';
  var pcsBtns = [1,2,3,4,5,6,7,8,9,10].map(function(n) {
   return '<button type="button" class="wiz-pcs-btn px-3 py-2 text-sm rounded-lg font-medium transition-colors ' +
    (n === current ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200') +
@@ -13000,11 +13053,7 @@ wizardRenderPieces() {
   '<div class="text-center mb-3"><span class="text-5xl font-bold text-indigo-600" id="wizPcsDisplay">' + current + '</span>' +
   '<span class="text-gray-500 ml-2">piece' + (current !== 1 ? 's' : '') + '</span></div>' +
   '<input type="range" id="wizPieces" min="0" max="20" value="' + current + '" class="w-full accent-indigo-500">' +
-  '<div class="flex flex-wrap gap-1 mt-3 justify-center">' + pcsBtns + '</div>' +
-  '<label class="flex items-center justify-center gap-2 mt-4 cursor-pointer select-none">' +
-  '<input type="checkbox" id="wizIsRedo" class="w-5 h-5 text-orange-500 border-gray-300 rounded focus:ring-orange-400 accent-orange-500"' + isRedoChecked + '>' +
-  '<span class="text-sm font-semibold text-orange-600">REDO</span>' +
-  '<span class="text-xs text-gray-400">(tallies separately from Alterations Pro count)</span></label>');
+  '<div class="flex flex-wrap gap-1 mt-3 justify-center">' + pcsBtns + '</div>');
 
  setTimeout(function() {
   var slider = document.getElementById('wizPieces');
@@ -13032,10 +13081,7 @@ wizardValidatePieces() {
  if (val < 1) { this.wizardShowError('Alteration pieces must be at least 1.'); return false; }
  return true;
 }
-wizardApplyPieces() {
- this.wizardData.pieces = document.getElementById('wizPieces')?.value || '0';
- this.wizardData.isRedo = document.getElementById('wizIsRedo')?.checked || false;
-}
+wizardApplyPieces() { this.wizardData.pieces = document.getElementById('wizPieces')?.value || '0'; }
 
 // ---- Wizard Step: Review ----
 wizardRenderReview() {
@@ -13069,9 +13115,6 @@ wizardRenderReview() {
  rows.push({ label: 'Description', value: d.description });
  rows.push({ label: 'Duration', value: d.duration + ' slots (' + durMinutes + ' min)' });
  rows.push({ label: 'Alteration Pieces', value: d.pieces });
- if (d.isRedo) {
-  rows.push({ label: 'REDO', value: '<span class="text-orange-600 font-bold">Yes</span>' });
- }
 
  var rowsHtml = rows.map(function(r) {
   return '<div class="flex justify-between items-start py-2 border-b border-gray-100 last:border-0">' +
@@ -13110,9 +13153,6 @@ wizardSave() {
  document.getElementById('durationInput').value = d.duration;
  document.getElementById('durationMinutes').textContent = (parseInt(d.duration) || 2) * 15;
  document.getElementById('alterationPiecesInput').value = d.pieces;
-
- var isRedoCheckbox = document.getElementById('isRedoCheckbox');
- if (isRedoCheckbox) isRedoCheckbox.checked = !!d.isRedo;
 
  document.getElementById('wizardModal').classList.add('hidden');
  document.getElementById('orderModal').classList.remove('hidden');
