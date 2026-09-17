@@ -4719,8 +4719,11 @@
             }"></i><span>${message}</span>`;
         }
 
-        // Firebase REST API helper (with 15s timeout)
-        async function firebaseRequest(method, path, body = null) {
+        // Firebase REST API helper
+        // Reads: 15s timeout. Writes (PUT/PATCH/DELETE): 30s timeout + 1 auto-retry.
+        async function firebaseRequest(method, path, body, _retryCount) {
+            if (body === undefined) body = null;
+            if (_retryCount === undefined) _retryCount = 0;
             if (!firebaseConfig) return null;
             var authParam = firebaseConfig.secret ? '?auth=' + firebaseConfig.secret : '';
             var url = firebaseConfig.databaseUrl + '/' + firebaseConfig.dataKey + '/' + path + '.json' + authParam;
@@ -4728,10 +4731,12 @@
             var options = { method: method, headers: { 'Content-Type': 'application/json' } };
             if (body !== null) options.body = JSON.stringify(body);
 
-            // Abort after 15 seconds to prevent hanging forever
+            // Writes get a longer timeout (30s) since Firebase can be slow under load
+            var isWrite = method !== 'GET';
+            var timeoutMs = isWrite ? 30000 : 15000;
             var controller = new AbortController();
             options.signal = controller.signal;
-            var timeoutId = setTimeout(function() { controller.abort(); }, 15000);
+            var timeoutId = setTimeout(function() { controller.abort(); }, timeoutMs);
 
             var response;
             try {
@@ -4739,17 +4744,30 @@
                 clearTimeout(timeoutId);
             } catch (networkErr) {
                 clearTimeout(timeoutId);
-                var msg = networkErr.name === 'AbortError' ? 'Request timed out (15s)' : networkErr.message;
+                var timeoutLabel = isWrite ? '30s' : '15s';
+                var msg = networkErr.name === 'AbortError' ? 'Request timed out (' + timeoutLabel + ')' : networkErr.message;
+                // Auto-retry writes once after a short pause
+                if (isWrite && _retryCount < 1) {
+                    console.log('Firebase ' + method + ' timeout, retrying in 2s...', path);
+                    await new Promise(function(r) { setTimeout(r, 2000); });
+                    return firebaseRequest(method, path, body, _retryCount + 1);
+                }
                 console.log('Firebase ' + method + ' error:', msg, path);
                 throw new Error(msg);
             }
 
             if (!response.ok) {
-                let errorMsg = `Firebase ${method} error (${response.status})`;
+                let errorMsg = 'Firebase ' + method + ' error (' + response.status + ')';
                 try {
                     const error = await response.json();
                     if (error && error.error) errorMsg = error.error;
                 } catch (e) { /* ignore parse error */ }
+                // Auto-retry writes once on server errors (500+)
+                if (isWrite && response.status >= 500 && _retryCount < 1) {
+                    console.log('Firebase ' + method + ' server error, retrying in 2s...', path);
+                    await new Promise(function(r) { setTimeout(r, 2000); });
+                    return firebaseRequest(method, path, body, _retryCount + 1);
+                }
                 console.log(errorMsg, path);
                 throw new Error(errorMsg);
             }
@@ -4786,13 +4804,18 @@
             var todayKey = getLocalDateKey();
             var promises = [];
 
+            // Snapshot dirty state — only clear after writes succeed
+            var wasMasterDirty = masterDirty;
+            var wasFullDailyPush = fullDailyPush;
+            var snapshotDirtyTasks = new Set(dirtyTasks);
+            var snapshotDirtySubtasks = new Set(dirtySubtasks);
+
             // Master data (only if edited) — single PUT at /master
-            if (masterDirty) {
+            if (wasMasterDirty) {
                 promises.push(firebaseRequest('PUT', 'master', { tasks: checklistData, settings: appSettings, lastModified: Date.now() }));
-                masterDirty = false;
             }
 
-            if (fullDailyPush) {
+            if (wasFullDailyPush) {
                 // Full daily overwrite (reset button, etc.) — single PUT at /daily/{today}
                 promises.push(firebaseRequest('PUT', 'daily/' + todayKey, {
                     completed: state.completed,
@@ -4801,13 +4824,12 @@
                     date: new Date().toDateString(),
                     lastModified: Date.now()
                 }));
-                fullDailyPush = false;
             } else {
                 // Granular: individual PUT/DELETE at each specific path
                 var dailyBase = 'daily/' + todayKey;
                 var hasChanges = false;
 
-                for (var taskId of dirtyTasks) {
+                for (var taskId of snapshotDirtyTasks) {
                     hasChanges = true;
                     if (state.completed[taskId]) {
                         promises.push(firebaseRequest('PUT', dailyBase + '/completed/' + taskId, state.completed[taskId]));
@@ -4816,7 +4838,7 @@
                     }
                 }
 
-                for (var key of dirtySubtasks) {
+                for (var key of snapshotDirtySubtasks) {
                     hasChanges = true;
                     var parts = key.split(':');
                     var stId = parts[0];
@@ -4835,14 +4857,27 @@
                 }
             }
 
-            dirtyTasks.clear();
-            dirtySubtasks.clear();
-
             // Set echo guard BEFORE writes so SSE echoes are caught
             lastSyncTime = Date.now();
             if (promises.length > 0) {
-                await Promise.all(promises);
+                try {
+                    await Promise.all(promises);
+                } catch (pushErr) {
+                    // Writes failed — restore dirty flags so next push retries them.
+                    // Merge back (new dirty flags may have been added while we were waiting)
+                    if (wasMasterDirty) masterDirty = true;
+                    if (wasFullDailyPush) fullDailyPush = true;
+                    snapshotDirtyTasks.forEach(function(id) { dirtyTasks.add(id); });
+                    snapshotDirtySubtasks.forEach(function(k) { dirtySubtasks.add(k); });
+                    throw pushErr; // Re-throw so schedulePush can handle
+                }
             }
+
+            // Success — now safe to clear dirty flags for items we just pushed
+            if (wasMasterDirty) masterDirty = false;
+            if (wasFullDailyPush) fullDailyPush = false;
+            snapshotDirtyTasks.forEach(function(id) { dirtyTasks.delete(id); });
+            snapshotDirtySubtasks.forEach(function(k) { dirtySubtasks.delete(k); });
         }
 
         // Firebase can convert arrays to objects with numeric keys — this ensures we always get an array
@@ -5066,25 +5101,44 @@
 
         // Debounced push after local changes (1 API call, batched)
         let pushTimeout = null;
+        let pushInFlight = false;   // Guard: prevents overlapping push attempts
+        let pushRetryDelay = 0;     // Escalating backoff when pushes keep failing
         function schedulePush() {
             if (!firebaseConfig) return;
 
             if (pushTimeout) clearTimeout(pushTimeout);
 
+            // When a push is already in flight, just let the debounce timer re-queue.
+            // The dirty flags are preserved, so the next push will pick them up.
+            var delay = pushInFlight ? Math.max(2000, pushRetryDelay) : 300;
+
             pushTimeout = setTimeout(async () => {
+                if (pushInFlight) return; // Another push started while we waited
+                pushInFlight = true;
                 try {
                     await pushToFirebase();
+                    pushRetryDelay = 0; // Reset backoff on success
                     updateSyncStatus('connected', 'Synced just now');
                     // Push succeeded — if banner was showing from a previous error, clear it
                     if (syncErrorBanner.classList.contains('show')) {
                         hideSyncErrorBanner();
                     }
+                    // If more dirty flags accumulated while we were pushing, flush them
+                    if (hasPendingWrites()) {
+                        pushInFlight = false;
+                        schedulePush();
+                        return;
+                    }
                 } catch (e) {
                     console.log('Push error:', e.message);
                     updateSyncStatus('error', 'Sync failed');
+                    // Escalate backoff: 5s → 10s → 20s → cap at 30s
+                    pushRetryDelay = Math.min((pushRetryDelay || 5000) * 2, 30000);
                     handleSyncFailure(e.message || 'Push failed');
+                } finally {
+                    pushInFlight = false;
                 }
-            }, 300); // Push almost immediately
+            }, delay);
         }
 
         // ========== SYNC ERROR BANNER WITH AUTO-RETRY ==========
@@ -5127,13 +5181,30 @@
             if (syncRetryTimer) { clearTimeout(syncRetryTimer); syncRetryTimer = null; }
         }
 
+        // Check whether there are pending dirty writes that need pushing
+        function hasPendingWrites() {
+            return masterDirty || fullDailyPush || dirtyTasks.size > 0 || dirtySubtasks.size > 0;
+        }
+
         async function syncRetryPull() {
             syncRetryBtn_setSpinning(true);
             try {
                 var success = await pullFromFirebase();
                 if (success) {
+                    // Pull OK — now flush any pending writes that failed earlier
+                    if (hasPendingWrites()) {
+                        console.log('Sync retry: pull OK, re-pushing pending writes...');
+                        try {
+                            await pushToFirebase();
+                            console.log('Sync retry: pending writes pushed OK');
+                        } catch (pushErr) {
+                            console.log('Sync retry: push still failing —', pushErr.message);
+                            return false;
+                        }
+                    }
                     hideSyncErrorBanner();
                     showToast('<i class="fas fa-check-circle"></i> Sync restored', 'success');
+                    updateSyncStatus('connected', 'Synced just now');
                     return true;
                 } else {
                     return false;
@@ -5155,7 +5226,9 @@
             }
         }
 
-        // Auto-retry with escalating delays: 3s, 6s, then stop
+        // Auto-retry with escalating delays: 10s, 20s, 30s then stop.
+        // Each individual write already retries once internally (2s pause),
+        // so these delays give Firebase time to recover between full cycles.
         async function handleSyncFailure(errorMessage) {
             syncRetryCount++;
             if (syncRetryCount > MAX_SYNC_RETRIES) {
@@ -5164,7 +5237,7 @@
             }
             showSyncErrorBanner(errorMessage, syncRetryCount, false);
 
-            var delay = syncRetryCount * 3000; // 3s, 6s, 9s
+            var delay = syncRetryCount * 10000; // 10s, 20s, 30s
             syncRetryTimer = setTimeout(async function() {
                 syncRetryBtn_setSpinning(true);
                 syncErrorAttempt.textContent = 'Attempt ' + syncRetryCount + ' of ' + MAX_SYNC_RETRIES + ' \u2014 retrying\u2026';
