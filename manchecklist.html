@@ -3252,11 +3252,8 @@
                 state.completedSubtasks[taskId][subtaskId] = true;
                 row.classList.add('checked');
 
-                // Open link if this subtask has one (forces user to view the page)
-                var subLink = row.dataset.link;
-                if (subLink) {
-                    window.open(subLink, '_blank', 'noopener,noreferrer');
-                }
+                // Link is already opened by the click handler BEFORE confirmation,
+                // so we don't open it again here.
 
                 // Send browser notification for subtask completion
                 const subtaskText = row.querySelector('.subtask-text');
@@ -3865,14 +3862,22 @@
                     const isRequired = row.dataset.required === 'true';
                     const isAlreadyChecked = state.completedSubtasks && state.completedSubtasks[taskId] && state.completedSubtasks[taskId][subtaskId];
 
-                    // If checking (not unchecking) a required subtask, show confirmation modal (if enabled)
-                    if (isRequired && !isAlreadyChecked && appSettings.confirmRequired) {
-                        const subtaskText = row.querySelector('.subtask-text');
-                        const subtaskName = subtaskText ? subtaskText.textContent.trim() : 'this step';
-                        showSubtaskConfirmModal(subtaskName, () => {
-                            completeSubtask(row, taskId, subtaskId);
-                        });
-                        return;
+                    // When checking off (not unchecking): open link FIRST, then confirm
+                    if (!isAlreadyChecked) {
+                        var subLink = row.dataset.link;
+                        if (subLink) {
+                            window.open(subLink, '_blank', 'noopener,noreferrer');
+                        }
+
+                        // Required subtask → show confirmation AFTER link opens
+                        if (isRequired && appSettings.confirmRequired) {
+                            const subtaskText = row.querySelector('.subtask-text');
+                            const subtaskName = subtaskText ? subtaskText.textContent.trim() : 'this step';
+                            showSubtaskConfirmModal(subtaskName, () => {
+                                completeSubtask(row, taskId, subtaskId);
+                            });
+                            return;
+                        }
                     }
 
                     // For unchecking or optional subtasks, proceed immediately
