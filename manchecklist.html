@@ -1368,62 +1368,49 @@
             background: #d97706;
         }
 
-        /* Task link button (rendered on items with a link) */
-        .item-link-btn {
+        /* Link indicator badge (non-clickable — link opens on check-off) */
+        .link-indicator {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            width: 24px;
-            height: 24px;
-            border-radius: 6px;
-            background: rgba(59, 130, 246, 0.1);
-            color: #3b82f6;
-            text-decoration: none;
-            margin-left: 8px;
-            vertical-align: middle;
-            transition: all 0.15s ease;
-            flex-shrink: 0;
-        }
-        .item-link-btn:hover {
-            background: rgba(59, 130, 246, 0.2);
-            color: #2563eb;
-            transform: scale(1.1);
-        }
-        .item-link-btn i {
-            font-size: 11px;
-        }
-        .dark .item-link-btn {
-            background: rgba(96, 165, 250, 0.15);
-            color: #60a5fa;
-        }
-        .dark .item-link-btn:hover {
-            background: rgba(96, 165, 250, 0.25);
-            color: #93bbfc;
-        }
-
-        /* Subtask link icon */
-        .subtask-link-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 20px;
-            height: 20px;
+            gap: 3px;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 6px;
             border-radius: 4px;
             background: rgba(59, 130, 246, 0.1);
             color: #3b82f6;
-            text-decoration: none;
+            margin-left: 6px;
+            vertical-align: middle;
+            letter-spacing: 0.3px;
+            pointer-events: none;
+        }
+        .link-indicator i {
+            font-size: 9px;
+        }
+        .dark .link-indicator {
+            background: rgba(96, 165, 250, 0.15);
+            color: #60a5fa;
+        }
+
+        /* Subtask link indicator */
+        .subtask-link-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            font-size: 9px;
+            font-weight: 600;
+            padding: 0 5px;
+            border-radius: 3px;
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
             margin-left: 6px;
             flex-shrink: 0;
-            transition: all 0.15s ease;
+            pointer-events: none;
         }
-        .subtask-link-btn:hover {
-            background: rgba(59, 130, 246, 0.2);
-            color: #2563eb;
+        .subtask-link-indicator i {
+            font-size: 8px;
         }
-        .subtask-link-btn i {
-            font-size: 10px;
-        }
-        .dark .subtask-link-btn {
+        .dark .subtask-link-indicator {
             background: rgba(96, 165, 250, 0.15);
             color: #60a5fa;
         }
@@ -3265,6 +3252,12 @@
                 state.completedSubtasks[taskId][subtaskId] = true;
                 row.classList.add('checked');
 
+                // Open link if this subtask has one (forces user to view the page)
+                var subLink = row.dataset.link;
+                if (subLink) {
+                    window.open(subLink, '_blank', 'noopener,noreferrer');
+                }
+
                 // Send browser notification for subtask completion
                 const subtaskText = row.querySelector('.subtask-text');
                 const found = findItemById(taskId);
@@ -3429,7 +3422,7 @@
                 dayBadge = '<span class="day-badge">' + sortedDays.map(function(d) { return dayNames[d]; }).join(' ') + '</span>';
             }
             var flexBadge = (item.flexible && !isDivider && !isPlaceholder) ? '<span class="flex-badge"><i class="fas fa-clock" style="margin-right:3px;"></i>Anytime</span>' : '';
-            var linkBtn = (item.link && !isDivider && !isPlaceholder) ? '<a class="item-link-btn" href="' + escapeHtml(item.link) + '" target="_blank" rel="noopener noreferrer" title="Open link"><i class="fas fa-external-link-alt"></i></a>' : '';
+            var linkBadge = (item.link && !isDivider && !isPlaceholder) ? '<span class="link-indicator" title="Opens link when checked off"><i class="fas fa-external-link-alt"></i>Link</span>' : '';
             const dimmedClass = (!activeToday && !isDivider && !isPlaceholder) ? 'day-dimmed' : '';
             const taskColor = getTaskColor(item.color);
             const colorStyle = (taskColor && !isDivider) ? `style="background-color: ${taskColor};"` : '';
@@ -3450,14 +3443,14 @@
                     <div class="item-subtasks">
                         ${item.subtasks.map(sub => {
                             const subChecked = taskSubtasks[sub.id];
-                            const subLinkHtml = sub.link ? '<a class="subtask-link-btn" href="' + escapeHtml(sub.link) + '" target="_blank" rel="noopener noreferrer" title="Open link"><i class="fas fa-external-link-alt"></i></a>' : '';
+                            const subLinkBadge = sub.link ? '<span class="subtask-link-indicator" title="Opens link when checked off"><i class="fas fa-external-link-alt"></i>Link</span>' : '';
                             return `
-                                <div class="subtask-row ${subChecked ? 'checked' : ''}" data-task-id="${item.id}" data-subtask-id="${sub.id}" data-required="${sub.required ? 'true' : 'false'}">
+                                <div class="subtask-row ${subChecked ? 'checked' : ''}" data-task-id="${item.id}" data-subtask-id="${sub.id}" data-required="${sub.required ? 'true' : 'false'}"${sub.link ? ' data-link="' + escapeHtml(sub.link) + '"' : ''}>
                                     <div class="subtask-check">
                                         <i class="fas fa-check"></i>
                                     </div>
                                     <span class="subtask-text">${escapeHtml(sub.text)}</span>
-                                    ${subLinkHtml}
+                                    ${subLinkBadge}
                                     <span class="subtask-req-badge ${sub.required ? 'required' : 'optional'}">${sub.required ? 'req' : 'opt'}</span>
                                 </div>
                             `;
@@ -3468,12 +3461,12 @@
             }
 
             return `
-                <div class="checklist-item ${checked ? 'checked' : ''} ${locked ? 'locked' : ''} ${dimmedClass} ${styleClass}" data-id="${item.id}" data-section="${section || ''}" data-group="${group || ''}" ${colorStyle}>
+                <div class="checklist-item ${checked ? 'checked' : ''} ${locked ? 'locked' : ''} ${dimmedClass} ${styleClass}" data-id="${item.id}" data-section="${section || ''}" data-group="${group || ''}"${item.link ? ' data-link="' + escapeHtml(item.link) + '"' : ''} ${colorStyle}>
                     <div class="checkbox-wrapper">
                         <i class="fas fa-check"></i>
                     </div>
                     <div class="item-content">
-                        <div class="item-title">${escapeHtml(item.title)}${isDivider ? '' : todayBadge}${dayBadge}${flexBadge}${linkBtn}</div>
+                        <div class="item-title">${escapeHtml(item.title)}${isDivider ? '' : todayBadge}${dayBadge}${flexBadge}${linkBadge}</div>
                         <div class="item-description">${escapeHtml(item.desc || '')}</div>
                         ${(!isPlaceholder && !isDivider) ? `<div class="item-timestamp">
                             <i class="fas fa-clock"></i>
@@ -3820,6 +3813,12 @@
                             `;
                         }
 
+                        // Open link if this task has one (forces user to view the page)
+                        var taskLink = item.dataset.link;
+                        if (taskLink) {
+                            window.open(taskLink, '_blank', 'noopener,noreferrer');
+                        }
+
                         // Send browser notification for task completion
                         const found = findItemById(id);
                         if (found) {
@@ -3835,9 +3834,8 @@
 
                 checkbox.addEventListener('click', toggleCheck);
                 content.addEventListener('click', (e) => {
-                    // Don't toggle main task if clicking on subtasks or links
+                    // Don't toggle main task if clicking on subtasks
                     if (e.target.closest('.subtask-row') || e.target.closest('.item-subtasks')) return;
-                    if (e.target.closest('.item-link-btn')) return;
                     toggleCheck();
                 });
             });
@@ -3846,8 +3844,6 @@
             document.querySelectorAll('.subtask-row').forEach(row => {
                 row.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    // Don't toggle subtask if clicking on a link button
-                    if (e.target.closest('.subtask-link-btn')) return;
                     if (editMode) return;
                     if (!isToday()) return;
 
