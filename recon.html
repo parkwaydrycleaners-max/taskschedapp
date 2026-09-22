@@ -642,7 +642,9 @@
                 </div>
 
                 <div class="row">
-                    <div class="row-label">CARD REFUNDS (TERMINAL)</div>
+                    <div class="row-label">CARD REFUNDS
+                        <div class="helper-text">Backend adjustment — does not print on terminal receipt</div>
+                    </div>
                     <div class="row-value"><input type="number" id="cardRefundsTerminal" step="0.01" placeholder="0.00" tabindex="5" ></div>
                 </div>
 
@@ -753,13 +755,17 @@
                 </div>
 
                 <div class="row">
-                    <div class="row-label">CASH REGISTER 1</div>
-                    <div class="row-value"><input type="number" id="cashRegister1" step="0.01" placeholder="0.00" tabindex="16" ></div>
+                    <div class="row-label">CASH REGISTER 1
+                        <div class="helper-text">Click to count by bill denomination</div>
+                    </div>
+                    <div class="row-value"><input type="number" id="cashRegister1" step="0.01" placeholder="0.00" tabindex="16" readonly style="cursor:pointer" onclick="showBillCountModal(1)" ></div>
                 </div>
 
                 <div class="row">
-                    <div class="row-label">CASH REGISTER 2</div>
-                    <div class="row-value"><input type="number" id="cashRegister2" step="0.01" placeholder="0.00" tabindex="17" ></div>
+                    <div class="row-label">CASH REGISTER 2
+                        <div class="helper-text">Click to count by bill denomination</div>
+                    </div>
+                    <div class="row-value"><input type="number" id="cashRegister2" step="0.01" placeholder="0.00" tabindex="17" readonly style="cursor:pointer" onclick="showBillCountModal(2)" ></div>
                 </div>
 
                 <div class="row">
@@ -946,6 +952,175 @@
 
         function fmt(val) {
             return '$' + val.toFixed(2);
+        }
+
+        // Bill denomination breakdown storage
+        var billCounts = {
+            1: { h: 0, f: 0, tw: 0, te: 0, fi: 0, on: 0, coins: 0 },
+            2: { h: 0, f: 0, tw: 0, te: 0, fi: 0, on: 0, coins: 0 }
+        };
+
+        function showBillCountModal(regNum) {
+            var bc = billCounts[regNum];
+            var denoms = [
+                { key: 'h', label: '$100', value: 100 },
+                { key: 'f', label: '$50', value: 50 },
+                { key: 'tw', label: '$20', value: 20 },
+                { key: 'te', label: '$10', value: 10 },
+                { key: 'fi', label: '$5', value: 5 },
+                { key: 'on', label: '$1', value: 1 }
+            ];
+
+            var m = document.createElement('div');
+            m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+
+            var rowsHtml = '';
+            denoms.forEach(function(d) {
+                rowsHtml += '<div style="display:grid;grid-template-columns:60px 1fr 90px;align-items:center;gap:0.5rem;margin-bottom:0.5rem">' +
+                    '<span style="color:var(--text);font-weight:700;font-size:1rem;text-align:right">' + d.label + '</span>' +
+                    '<div style="display:flex;align-items:center;gap:0.4rem">' +
+                        '<span style="color:var(--text);font-size:0.9rem">×</span>' +
+                        '<input data-denom="' + d.key + '" data-val="' + d.value + '" type="number" step="1" min="0" value="' + (bc[d.key] || '') + '" ' +
+                        'style="width:100%;padding:0.5rem;font-size:1.05rem;font-family:inherit;border:2px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--text);text-align:center" placeholder="0">' +
+                    '</div>' +
+                    '<span data-subtotal="' + d.key + '" style="color:var(--text);font-weight:600;font-size:0.95rem;text-align:right">$0.00</span>' +
+                '</div>';
+            });
+
+            // Coins row
+            rowsHtml += '<div style="border-top:2px solid var(--border);padding-top:0.5rem;margin-top:0.25rem;margin-bottom:0.5rem">' +
+                '<div style="display:grid;grid-template-columns:60px 1fr 90px;align-items:center;gap:0.5rem">' +
+                    '<span style="color:var(--text);font-weight:700;font-size:0.95rem;text-align:right">Coins</span>' +
+                    '<div style="position:relative">' +
+                        '<span style="position:absolute;left:0.5rem;top:50%;transform:translateY(-50%);color:var(--text);font-size:0.9rem">$</span>' +
+                        '<input data-denom="coins" data-val="1" type="number" step="0.01" min="0" value="' + (bc.coins || '') + '" ' +
+                        'style="width:100%;padding:0.5rem 0.5rem 0.5rem 1.3rem;font-size:1.05rem;font-family:inherit;border:2px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--text)" placeholder="0.00">' +
+                    '</div>' +
+                    '<span data-subtotal="coins" style="color:var(--text);font-weight:600;font-size:0.95rem;text-align:right">$0.00</span>' +
+                '</div></div>';
+
+            // Check if the existing value was entered manually (no denomination data)
+            var existingVal = parseFloat(document.getElementById('cashRegister' + regNum).value) || 0;
+            var hasDenomData = false;
+            Object.keys(bc).forEach(function(k) { if (bc[k] > 0) hasDenomData = true; });
+            var manualDefault = (!hasDenomData && existingVal > 0) ? existingVal.toFixed(2) : '';
+
+            m.innerHTML = '<div style="background:var(--bg);padding:1.5rem;border-radius:8px;max-width:420px;width:92%;max-height:90vh;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid var(--border)">' +
+                '<p style="color:var(--text);font-weight:700;font-size:1.15rem;margin-bottom:1rem">💵 Cash Register ' + regNum + '</p>' +
+                '<div id="manualSection" style="margin-bottom:0.75rem">' +
+                    '<label style="color:var(--text);font-weight:600;font-size:0.95rem;display:block;margin-bottom:0.4rem">Enter total manually:</label>' +
+                    '<div style="position:relative">' +
+                        '<span style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);color:var(--text);font-size:1.1rem;font-weight:600">$</span>' +
+                        '<input id="manualCashTotal" type="number" step="0.01" min="0" value="' + manualDefault + '" ' +
+                        'style="width:100%;padding:0.65rem 0.75rem 0.65rem 1.75rem;font-size:1.1rem;font-family:inherit;border:2px solid #4a90e2;border-radius:6px;background:var(--input-bg);color:var(--text);font-weight:700" placeholder="0.00">' +
+                    '</div>' +
+                '</div>' +
+                '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">' +
+                    '<div style="flex:1;height:2px;background:var(--border)"></div>' +
+                    '<span style="color:var(--text);font-size:0.85rem;font-weight:600;opacity:0.6;white-space:nowrap">OR count by denomination</span>' +
+                    '<div style="flex:1;height:2px;background:var(--border)"></div>' +
+                '</div>' +
+                '<div id="denomSection">' +
+                    rowsHtml +
+                    '<div style="background:var(--total-bg);border-radius:6px;padding:0.75rem;margin-bottom:0.75rem;display:flex;justify-content:space-between;align-items:center">' +
+                        '<span style="color:var(--text);font-weight:700;font-size:1.05rem">TOTAL</span>' +
+                        '<span id="billGrandTotal" style="color:var(--text);font-weight:700;font-size:1.15rem">$0.00</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem">' +
+                    '<button class="cancel-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600">Cancel</button>' +
+                    '<button class="clear-btn" style="padding:0.75rem;background:var(--total-bg);color:var(--red-text);border:2px solid var(--border);border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600">Clear</button>' +
+                    '<button class="submit-btn" style="padding:0.75rem;background:#4a90e2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.95rem;font-weight:600">OK</button>' +
+                '</div></div>';
+            document.body.appendChild(m);
+
+            var denomInputs = m.querySelectorAll('[data-denom]');
+            var grandTotalEl = m.querySelector('#billGrandTotal');
+            var manualInput = m.querySelector('#manualCashTotal');
+            var denomSectionEl = m.querySelector('#denomSection');
+            var manualSectionEl = m.querySelector('#manualSection');
+
+            function updateTotals() {
+                var grand = 0;
+                denomInputs.forEach(function(inp) {
+                    var count = parseFloat(inp.value) || 0;
+                    var val = parseFloat(inp.dataset.val);
+                    var subtotal = inp.dataset.denom === 'coins' ? count : count * val;
+                    var subEl = m.querySelector('[data-subtotal="' + inp.dataset.denom + '"]');
+                    if (subEl) subEl.textContent = fmt(subtotal);
+                    grand += subtotal;
+                });
+                grandTotalEl.textContent = fmt(grand);
+            }
+
+            // When manual field is used, dim the denomination section
+            manualInput.addEventListener('input', function() {
+                var hasManual = manualInput.value.trim() !== '';
+                denomSectionEl.style.opacity = hasManual ? '0.4' : '1';
+                denomSectionEl.style.pointerEvents = hasManual ? 'none' : 'auto';
+            });
+
+            // When denomination fields are used, clear the manual field
+            denomInputs.forEach(function(inp) {
+                inp.addEventListener('input', function() {
+                    manualInput.value = '';
+                    denomSectionEl.style.opacity = '1';
+                    denomSectionEl.style.pointerEvents = 'auto';
+                    updateTotals();
+                });
+            });
+            updateTotals();
+
+            // Set initial state based on whether manual has a value
+            if (manualDefault) {
+                denomSectionEl.style.opacity = '0.4';
+                denomSectionEl.style.pointerEvents = 'none';
+            }
+
+            // Focus manual field if empty, otherwise first denom field
+            setTimeout(function() {
+                if (hasDenomData) {
+                    m.querySelector('[data-denom="h"]').focus();
+                } else {
+                    manualInput.focus();
+                    manualInput.select();
+                }
+            }, 50);
+
+            m.querySelector('.cancel-btn').onclick = function() { m.remove(); };
+
+            m.querySelector('.clear-btn').onclick = function() {
+                billCounts[regNum] = { h: 0, f: 0, tw: 0, te: 0, fi: 0, on: 0, coins: 0 };
+                document.getElementById('cashRegister' + regNum).value = '';
+                m.remove();
+                calculate();
+            };
+
+            m.querySelector('.submit-btn').onclick = function() {
+                // If manual total is filled, use that directly
+                var manualVal = parseFloat(manualInput.value);
+                if (!isNaN(manualVal) && manualInput.value.trim() !== '') {
+                    billCounts[regNum] = { h: 0, f: 0, tw: 0, te: 0, fi: 0, on: 0, coins: 0 };
+                    document.getElementById('cashRegister' + regNum).value = manualVal ? manualVal.toFixed(2) : '';
+                    m.remove();
+                    calculate();
+                    return;
+                }
+
+                // Otherwise use denomination breakdown
+                var grand = 0;
+                var data = {};
+                denomInputs.forEach(function(inp) {
+                    var count = parseFloat(inp.value) || 0;
+                    var val = parseFloat(inp.dataset.val);
+                    data[inp.dataset.denom] = count;
+                    grand += inp.dataset.denom === 'coins' ? count : count * val;
+                });
+                billCounts[regNum] = data;
+                document.getElementById('cashRegister' + regNum).value = grand ? grand.toFixed(2) : '';
+                m.remove();
+                calculate();
+            };
         }
 
         // Mixed payment orders storage
@@ -1194,9 +1369,7 @@
 
             // Calculation breakdown
             let cardCalc = `${fmt(ccMachine1 + ccMachine2)}`;
-            if (cardRefundsTerminal > 0) cardCalc += ` - ${fmt(cardRefundsTerminal)} (terminal refunds)`;
-            cardCalc += ` = ${fmt(totalCCMachine)} terminal`;
-            cardCalc += `\n${fmt(totalCCMachine)}`;
+            if (cardRefundsTerminal > 0) cardCalc += ` - ${fmt(cardRefundsTerminal)} (backend refunds)`;
             if (additional50Amount > 0) cardCalc += ` - ${fmt(additional50Amount)} (${additional50Count} × $0.50)`;
             if (otherCardTrans > 0) cardCalc += ` - ${fmt(otherCardTrans)} (other trans)`;
             if (addSalesNotPOS > 0) cardCalc += ` - ${fmt(addSalesNotPOS)} (not on POS)`;
@@ -1925,7 +2098,8 @@
                 cashHandoff: cashHandoff,
                 safeSignoff: safeSignoff,
                 pettyCashBack: pettyCashBack,
-                mixedOrders: JSON.parse(JSON.stringify(mixedOrders))
+                mixedOrders: JSON.parse(JSON.stringify(mixedOrders)),
+                billCounts: JSON.parse(JSON.stringify(billCounts))
             };
 
             history.unshift(record);
@@ -1944,6 +2118,10 @@
                 safeSignoff = '';
                 pettyCashBack = '';
                 mixedOrders = [];
+                billCounts = {
+                    1: { h: 0, f: 0, tw: 0, te: 0, fi: 0, on: 0, coins: 0 },
+                    2: { h: 0, f: 0, tw: 0, te: 0, fi: 0, on: 0, coins: 0 }
+                };
                 calculate();
                 generateReport();
             });
