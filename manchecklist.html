@@ -2468,6 +2468,9 @@
                     </div>
                 </div>
                 <div class="header-actions">
+                    <button class="edit-toggle" id="printBtn" title="Print Checklist">
+                        <i class="fas fa-print"></i>
+                    </button>
                     <button class="edit-toggle" id="settingsBtn" title="Settings">
                         <i class="fas fa-cog"></i>
                     </button>
@@ -3965,6 +3968,135 @@
             document.body.classList.toggle('edit-mode', editMode);
             editToggle.classList.toggle('active', editMode);
         });
+
+        // ========== PRINTABLE CHECKLIST ==========
+        document.getElementById('printBtn').addEventListener('click', function() {
+            var dateStr = selectedDate ? selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            var viewingToday = isToday();
+
+            var sectionDefs = [
+                { key: 'opening', label: 'Opening', icon: '☀' },
+                { key: 'sorting', label: 'Day-To-Day', icon: '📋' },
+                { key: 'closing', label: 'Closing', icon: '🌙' }
+            ];
+
+            var sectionsHtml = '';
+            sectionDefs.forEach(function(sec) {
+                var items = getCombinedItems(sec.key, 'tasks');
+                if (items.length === 0) return;
+
+                var rowsHtml = '';
+                items.forEach(function(item) {
+                    if (!isTaskActiveToday(item)) return;
+                    if (item.isDivider) {
+                        rowsHtml += '<tr class="divider-row"><td colspan="3"><div class="divider-line"></div></td></tr>';
+                        if (item.title) {
+                            rowsHtml += '<tr class="divider-row"><td colspan="3" style="text-align:center;font-size:11px;color:#888;padding:0 0 6px 0;">' + esc(item.title) + '</td></tr>';
+                        }
+                        return;
+                    }
+                    if (item.isPlaceholder) {
+                        rowsHtml += '<tr class="note-row"><td colspan="3" style="padding:6px 0;font-style:italic;color:#777;">' + esc(item.title) + (item.desc ? ' — ' + esc(item.desc) : '') + '</td></tr>';
+                        return;
+                    }
+
+                    var checked = viewingToday && state.completed && state.completed[item.id];
+                    var checkMark = checked ? '☑' : '☐';
+                    var timeStr = checked ? checked.time || '' : '';
+
+                    var badges = '';
+                    if (item.todayOnly) badges += '<span class="badge badge-today">Today Only</span>';
+                    if (item.flexible) badges += '<span class="badge badge-flex">Anytime</span>';
+                    if (item.link) badges += '<span class="badge badge-link">🔗 Link</span>';
+
+                    var titleHtml = '<strong>' + esc(item.title) + '</strong>' + badges;
+                    if (item.desc) titleHtml += '<br><span class="task-desc">' + esc(item.desc) + '</span>';
+
+                    // Subtasks
+                    if (item.subtasks && item.subtasks.length > 0) {
+                        titleHtml += '<div class="subtasks">';
+                        item.subtasks.forEach(function(sub) {
+                            var subChecked = viewingToday && state.completedSubtasks && state.completedSubtasks[item.id] && state.completedSubtasks[item.id][sub.id];
+                            var subCheck = subChecked ? '☑' : '☐';
+                            var reqLabel = sub.required ? '<span class="req">REQ</span>' : '<span class="opt">OPT</span>';
+                            var subBadges = sub.link ? ' <span class="badge badge-link">🔗</span>' : '';
+                            titleHtml += '<div class="subtask-line">' + subCheck + ' ' + esc(sub.text) + subBadges + ' ' + reqLabel + '</div>';
+                        });
+                        titleHtml += '</div>';
+                    }
+
+                    rowsHtml += '<tr' + (checked ? ' class="done"' : '') + '><td class="check-col">' + checkMark + '</td><td class="task-col">' + titleHtml + '</td><td class="time-col">' + timeStr + '</td></tr>';
+                });
+
+                if (!rowsHtml) return;
+                sectionsHtml += '<div class="section"><h2>' + sec.icon + ' ' + sec.label + '</h2><table>' + rowsHtml + '</table></div>';
+            });
+
+            var printHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Manager\'s Checklist — ' + esc(dateStr) + '</title><style>' +
+                'body{font-family:Georgia,"Times New Roman",serif;max-width:750px;margin:0 auto;padding:24px 20px;color:#222;font-size:13px;}' +
+                '.print-header{text-align:center;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:20px;}' +
+                '.print-header h1{font-size:22px;margin:0 0 4px 0;letter-spacing:0.5px;}' +
+                '.print-header .date{font-size:14px;color:#555;}' +
+                '.print-header .subtitle{font-size:11px;color:#888;margin-top:2px;}' +
+                '.section{margin-bottom:20px;page-break-inside:avoid;}' +
+                '.section h2{font-size:16px;margin:0 0 8px 0;padding:6px 10px;background:#f3f3f3;border-left:4px solid #333;letter-spacing:0.3px;}' +
+                'table{width:100%;border-collapse:collapse;}' +
+                'tr{border-bottom:1px solid #e0e0e0;}' +
+                'tr.done{color:#999;text-decoration:line-through;}' +
+                'tr.done .check-col{text-decoration:none;}' +
+                'tr.done .time-col{text-decoration:none;color:#999;}' +
+                'tr.divider-row{border-bottom:none;}' +
+                'tr.note-row{border-bottom:none;}' +
+                '.divider-line{border-top:1px dashed #bbb;margin:8px 0;}' +
+                'td{padding:7px 4px;vertical-align:top;}' +
+                '.check-col{width:24px;font-size:16px;text-align:center;}' +
+                '.task-col{line-height:1.4;}' +
+                '.time-col{width:70px;text-align:right;font-size:11px;color:#777;white-space:nowrap;}' +
+                '.task-desc{font-size:11px;color:#777;font-style:italic;}' +
+                '.subtasks{margin:4px 0 2px 18px;}' +
+                '.subtask-line{font-size:12px;padding:2px 0;color:#444;}' +
+                '.req{font-size:9px;font-weight:700;color:#c33;border:1px solid #c33;padding:0 3px;border-radius:2px;margin-left:3px;}' +
+                '.opt{font-size:9px;font-weight:700;color:#999;border:1px solid #ccc;padding:0 3px;border-radius:2px;margin-left:3px;}' +
+                '.badge{font-size:9px;font-weight:600;padding:1px 5px;border-radius:3px;margin-left:5px;vertical-align:middle;}' +
+                '.badge-today{background:#fef3c7;color:#92400e;border:1px solid #f59e0b;}' +
+                '.badge-flex{background:#fff7ed;color:#9a3412;border:1px solid #f97316;}' +
+                '.badge-link{background:#eff6ff;color:#1e40af;border:1px solid #60a5fa;}' +
+                '.footer{margin-top:24px;padding-top:12px;border-top:1px solid #ccc;font-size:10px;color:#aaa;text-align:center;}' +
+                '.notes-box{margin-top:20px;page-break-inside:avoid;}' +
+                '.notes-box h3{font-size:13px;margin:0 0 6px 0;}' +
+                '.notes-lines{border:1px solid #ddd;border-radius:4px;padding:8px;}' +
+                '.notes-lines .line{border-bottom:1px solid #e8e8e8;height:24px;}' +
+                '.notes-lines .line:last-child{border-bottom:none;}' +
+                '@media print{body{padding:12px;}.section{page-break-inside:avoid;}@page{margin:0.5in;}}' +
+            '</style></head><body>' +
+                '<div class="print-header">' +
+                    '<h1>Manager\'s Checklist</h1>' +
+                    '<div class="date">' + esc(dateStr) + '</div>' +
+                    '<div class="subtitle">Parkway Dry Cleaners</div>' +
+                '</div>' +
+                sectionsHtml +
+                '<div class="notes-box"><h3>Notes</h3><div class="notes-lines">' +
+                    '<div class="line"></div><div class="line"></div><div class="line"></div>' +
+                    '<div class="line"></div><div class="line"></div><div class="line"></div>' +
+                '</div></div>' +
+                '<div class="footer">Printed ' + new Date().toLocaleString() + '</div>' +
+            '</body></html>';
+
+            // Open in a new tab (escapes iframe sandbox) and trigger print
+            var printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.write(printHtml);
+                printWindow.document.close();
+                printWindow.onload = function() { printWindow.print(); };
+            }
+        });
+
+        function esc(str) {
+            if (!str) return '';
+            var d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
 
         // Reset modal
         const resetBtn = document.getElementById('resetBtn');
