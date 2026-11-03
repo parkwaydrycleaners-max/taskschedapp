@@ -3989,14 +3989,15 @@
                 items.forEach(function(item) {
                     if (!isTaskActiveToday(item)) return;
                     if (item.isDivider) {
-                        rowsHtml += '<tr class="divider-row"><td colspan="3"><div class="divider-line"></div></td></tr>';
+                        rowsHtml += '<div class="divider-block"><div class="divider-line"></div>';
                         if (item.title) {
-                            rowsHtml += '<tr class="divider-row"><td colspan="3" style="text-align:center;font-size:11px;color:#888;padding:0 0 6px 0;">' + esc(item.title) + '</td></tr>';
+                            rowsHtml += '<div class="divider-label">' + esc(item.title) + '</div>';
                         }
+                        rowsHtml += '</div>';
                         return;
                     }
                     if (item.isPlaceholder) {
-                        rowsHtml += '<tr class="note-row"><td colspan="3" style="padding:6px 0;font-style:italic;color:#777;">' + esc(item.title) + (item.desc ? ' — ' + esc(item.desc) : '') + '</td></tr>';
+                        rowsHtml += '<div class="note-block">' + esc(item.title) + (item.desc ? ' — ' + esc(item.desc) : '') + '</div>';
                         return;
                     }
 
@@ -4010,7 +4011,7 @@
                     if (item.link) badges += '<span class="badge badge-link">🔗 Link</span>';
 
                     var titleHtml = '<strong>' + esc(item.title) + '</strong>' + badges;
-                    if (item.desc) titleHtml += '<br><span class="task-desc">' + esc(item.desc) + '</span>';
+                    if (item.desc) titleHtml += '<div class="task-desc">' + esc(item.desc) + '</div>';
 
                     // Subtasks
                     if (item.subtasks && item.subtasks.length > 0) {
@@ -4025,49 +4026,58 @@
                         titleHtml += '</div>';
                     }
 
-                    rowsHtml += '<tr' + (checked ? ' class="done"' : '') + '><td class="check-col">' + checkMark + '</td><td class="task-col">' + titleHtml + '</td><td class="time-col">' + timeStr + '</td></tr>';
+                    rowsHtml += '<div class="task-block' + (checked ? ' done' : '') + '">' +
+                        '<div class="task-row">' +
+                            '<span class="check-col">' + checkMark + '</span>' +
+                            '<span class="task-col">' + titleHtml + '</span>' +
+                            '<span class="time-col">' + timeStr + '</span>' +
+                        '</div>' +
+                    '</div>';
                 });
 
                 if (!rowsHtml) return;
-                sectionsHtml += '<div class="section"><h2>' + sec.icon + ' ' + sec.label + '</h2><table>' + rowsHtml + '</table></div>';
+                sectionsHtml += '<div class="section"><h2>' + sec.icon + ' ' + sec.label + '</h2>' + rowsHtml + '</div>';
             });
 
             var printHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Manager\'s Checklist — ' + esc(dateStr) + '</title><style>' +
-                'body{font-family:Georgia,"Times New Roman",serif;max-width:750px;margin:0 auto;padding:24px 20px;color:#222;font-size:13px;}' +
-                '.print-header{text-align:center;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:20px;}' +
-                '.print-header h1{font-size:22px;margin:0 0 4px 0;letter-spacing:0.5px;}' +
-                '.print-header .date{font-size:14px;color:#555;}' +
-                '.print-header .subtitle{font-size:11px;color:#888;margin-top:2px;}' +
-                '.section{margin-bottom:20px;page-break-inside:avoid;}' +
-                '.section h2{font-size:16px;margin:0 0 8px 0;padding:6px 10px;background:#f3f3f3;border-left:4px solid #333;letter-spacing:0.3px;}' +
-                'table{width:100%;border-collapse:collapse;}' +
-                'tr{border-bottom:1px solid #e0e0e0;}' +
-                'tr.done{color:#999;text-decoration:line-through;}' +
-                'tr.done .check-col{text-decoration:none;}' +
-                'tr.done .time-col{text-decoration:none;color:#999;}' +
-                'tr.divider-row{border-bottom:none;}' +
-                'tr.note-row{border-bottom:none;}' +
-                '.divider-line{border-top:1px dashed #bbb;margin:8px 0;}' +
-                'td{padding:7px 4px;vertical-align:top;}' +
-                '.check-col{width:24px;font-size:16px;text-align:center;}' +
-                '.task-col{line-height:1.4;}' +
-                '.time-col{width:70px;text-align:right;font-size:11px;color:#777;white-space:nowrap;}' +
-                '.task-desc{font-size:11px;color:#777;font-style:italic;}' +
-                '.subtasks{margin:4px 0 2px 18px;}' +
-                '.subtask-line{font-size:12px;padding:2px 0;color:#444;}' +
-                '.req{font-size:9px;font-weight:700;color:#c33;border:1px solid #c33;padding:0 3px;border-radius:2px;margin-left:3px;}' +
-                '.opt{font-size:9px;font-weight:700;color:#999;border:1px solid #ccc;padding:0 3px;border-radius:2px;margin-left:3px;}' +
-                '.badge{font-size:9px;font-weight:600;padding:1px 5px;border-radius:3px;margin-left:5px;vertical-align:middle;}' +
+                '@page{size:letter;margin:0.5in 0.6in;}' +
+                'body{font-family:Georgia,"Times New Roman",serif;max-width:100%;margin:0;padding:0;color:#222;font-size:12px;}' +
+                '.print-header{text-align:center;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:16px;}' +
+                '.print-header h1{font-size:20px;margin:0 0 3px 0;letter-spacing:0.5px;}' +
+                '.print-header .date{font-size:13px;color:#555;}' +
+                '.print-header .subtitle{font-size:10px;color:#888;margin-top:2px;}' +
+                '.section{margin-bottom:14px;}' +
+                '.section h2{font-size:14px;margin:0 0 6px 0;padding:5px 8px;background:#f0f0f0;border-left:3px solid #333;letter-spacing:0.3px;page-break-after:avoid;break-after:avoid;}' +
+
+                /* Each task block stays on one page */
+                '.task-block{border-bottom:1px solid #ddd;page-break-inside:avoid;break-inside:avoid;}' +
+                '.task-block.done{color:#999;}' +
+                '.task-block.done .task-col strong{text-decoration:line-through;}' +
+                '.task-row{display:flex;align-items:flex-start;padding:5px 2px;gap:6px;}' +
+                '.check-col{width:20px;font-size:14px;flex-shrink:0;text-align:center;line-height:1.4;}' +
+                '.task-col{flex:1;line-height:1.4;}' +
+                '.time-col{width:60px;text-align:right;font-size:10px;color:#777;flex-shrink:0;white-space:nowrap;line-height:1.4;padding-top:1px;}' +
+                '.task-desc{font-size:10px;color:#777;font-style:italic;margin-top:1px;}' +
+                '.subtasks{margin:3px 0 2px 20px;}' +
+                '.subtask-line{font-size:11px;padding:1px 0;color:#444;}' +
+
+                '.divider-block{page-break-inside:avoid;break-inside:avoid;}' +
+                '.divider-line{border-top:1px dashed #bbb;margin:6px 0 2px 0;}' +
+                '.divider-label{text-align:center;font-size:10px;color:#888;padding-bottom:4px;}' +
+                '.note-block{padding:4px 2px;font-style:italic;color:#777;page-break-inside:avoid;break-inside:avoid;}' +
+
+                '.req{font-size:8px;font-weight:700;color:#c33;border:1px solid #c33;padding:0 3px;border-radius:2px;margin-left:3px;}' +
+                '.opt{font-size:8px;font-weight:700;color:#999;border:1px solid #ccc;padding:0 3px;border-radius:2px;margin-left:3px;}' +
+                '.badge{font-size:8px;font-weight:600;padding:0 4px;border-radius:2px;margin-left:4px;vertical-align:middle;}' +
                 '.badge-today{background:#fef3c7;color:#92400e;border:1px solid #f59e0b;}' +
                 '.badge-flex{background:#fff7ed;color:#9a3412;border:1px solid #f97316;}' +
                 '.badge-link{background:#eff6ff;color:#1e40af;border:1px solid #60a5fa;}' +
-                '.footer{margin-top:24px;padding-top:12px;border-top:1px solid #ccc;font-size:10px;color:#aaa;text-align:center;}' +
-                '.notes-box{margin-top:20px;page-break-inside:avoid;}' +
-                '.notes-box h3{font-size:13px;margin:0 0 6px 0;}' +
-                '.notes-lines{border:1px solid #ddd;border-radius:4px;padding:8px;}' +
-                '.notes-lines .line{border-bottom:1px solid #e8e8e8;height:24px;}' +
+                '.footer{margin-top:16px;padding-top:8px;border-top:1px solid #ccc;font-size:9px;color:#aaa;text-align:center;}' +
+                '.notes-box{margin-top:14px;page-break-inside:avoid;break-inside:avoid;}' +
+                '.notes-box h3{font-size:12px;margin:0 0 4px 0;}' +
+                '.notes-lines{border:1px solid #ddd;border-radius:3px;padding:6px;}' +
+                '.notes-lines .line{border-bottom:1px solid #e8e8e8;height:20px;}' +
                 '.notes-lines .line:last-child{border-bottom:none;}' +
-                '@media print{body{padding:12px;}.section{page-break-inside:avoid;}@page{margin:0.5in;}}' +
             '</style></head><body>' +
                 '<div class="print-header">' +
                     '<h1>Manager\'s Checklist</h1>' +
